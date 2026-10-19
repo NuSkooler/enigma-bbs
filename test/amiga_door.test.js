@@ -209,7 +209,7 @@ describe('amiga_door config', () => {
         assert.equal(c.encoding, 'latin1');
         assert.equal(c.font, 'topaz');
         assert.equal(c.persist, true);
-        assert.deepEqual(c.persistOn, ['ok', 'carrier']);
+        assert.deepEqual(c.persistOn, ['ok', 'carrier']); //  doorType xim
         assert.equal(c.sharedState, false);
         assert.equal(c.log, false);
         assert.equal(c.warpBootSeconds, 30);
@@ -351,6 +351,21 @@ describe('amiga_door config', () => {
         assert.equal(config({ sharedState: false }).nodeMax, 0);
     });
 
+    it('defaults persistOn by door type; an explicit list always wins', () => {
+        assert.deepEqual(config({ doorType: 'xim' }).persistOn, ['ok', 'carrier']);
+        assert.deepEqual(config({ doorType: 'cli' }).persistOn, ['ok']);
+        assert.deepEqual(config({ doorType: 'aim', door: 'SYS:S/game.rexx' }).persistOn, [
+            'ok',
+        ]);
+        assert.deepEqual(
+            config({ doorType: 'cli', persistOn: ['ok', 'carrier'] }).persistOn,
+            ['ok', 'carrier']
+        );
+        assert.deepEqual(config({ doorType: 'xim', persistOn: ['ok'] }).persistOn, [
+            'ok',
+        ]);
+    });
+
     it('takes persistOn as a status or a list of statuses', () => {
         assert.deepEqual(config({ persistOn: 'carrier' }).persistOn, ['carrier']);
         assert.deepEqual(config({ persistOn: ['ok', 'carrier'] }).persistOn, [
@@ -409,23 +424,31 @@ describe('amiga_door config', () => {
         assert.deepEqual(normalizeConfig(BASE).warnings, []);
     });
 
-    it('warns about an image over 2032 KB on the bundled AROS ROM', () => {
+    it('warns about an image over 2032 KB only for a custom ROM', () => {
         const image = path.join(os.tmpdir(), `amiga_door_big_${process.pid}.hdf`);
         try {
             fs.writeFileSync(image, '');
             fs.truncateSync(image, 4066 * 512);
+            const rom = '/x/aros-rom.bin';
+            //  the limit itself is fine, with either ROM
+            for (const extra of [{}, { rom }]) {
+                assert.deepEqual(
+                    normalizeConfig(Object.assign({}, BASE, { image }, extra)).warnings,
+                    []
+                );
+            }
+            fs.truncateSync(image, 4 * 1024 * 1024);
+            //  the bundled ROM carries the FFS fix: never a warning
             assert.deepEqual(
                 normalizeConfig(Object.assign({}, BASE, { image })).warnings,
                 []
             );
-            fs.truncateSync(image, 4 * 1024 * 1024);
-            const { warnings } = normalizeConfig(Object.assign({}, BASE, { image }));
+            //  a ROM supplied by the sysop may be a stock AROS build
+            const { warnings } = normalizeConfig(Object.assign({}, BASE, { image, rom }));
             assert.equal(warnings.length, 1);
-            assert.match(warnings[0], /4096 KB.*2032 KB.*enigma-vamiga 0\.1\.2/);
-            assert.deepEqual(
-                normalizeConfig(Object.assign({}, BASE, { image, rom: '/x/kick.rom' }))
-                    .warnings,
-                []
+            assert.match(
+                warnings[0],
+                /4096 KB.*if this ROM is a stock AROS build.*2032 KB.*enigma-vamiga 0\.1\.2/
             );
         } finally {
             fs.rmSync(image, { force: true });
@@ -711,6 +734,47 @@ describe('amiga_door persist decision', () => {
         }
     });
 
+    it('does not persist a CLI or ARexx door on a hangup by default', () => {
+        for (const extra of [
+            { doorType: 'cli' },
+            { doorType: 'aim', door: 'SYS:S/g.rexx' },
+        ]) {
+            const c = config(extra);
+            assert.equal(shouldPersist(c, 'ok', { rc: '0' }), true);
+            assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), false);
+        }
+        const widened = config({ doorType: 'cli', persistOn: ['ok', 'carrier'] });
+        assert.equal(shouldPersist(widened, 'carrier', { rc: '0' }), true);
+    });
+
+    it('counts only a plain integer rc as the door ending by itself', () => {
+        const c = config();
+        const cases = [
+            [{ rc: '0' }, true],
+            [{ rc: '5' }, true],
+            [{ rc: '-2' }, true],
+            [{ rc: 0 }, true],
+            [{ rc: '-1' }, false],
+            [{ rc: -1 }, false],
+            [{ rc: '' }, false],
+            [{ rc: ' ' }, false],
+            [{ rc: null }, false],
+            [{ rc: '1.5' }, false],
+            [{ rc: '0x10' }, false],
+            [{ rc: '5 ' }, false],
+            [{ rc: 'x' }, false],
+            [{}, false],
+            [undefined, false],
+        ];
+        for (const [keys, expected] of cases) {
+            assert.equal(
+                shouldPersist(c, 'carrier', keys),
+                expected,
+                JSON.stringify(keys)
+            );
+        }
+    });
+
     it('does not persist a carrier exit unless the door ended by itself', () => {
         const c = config();
         assert.equal(shouldPersist(c, 'carrier', { rc: '5' }), true);
@@ -933,6 +997,28 @@ describe('amiga_door session', () => {
         );
     });
 
+    it('a cut-short exit that persists nothing keeps the image snapshots', async () => {
+        const s = makeSession();
+        s.cache.set(
+            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
+            Buffer.from([1])
+        );
+        deliver(
+            s.worker,
+            workerMessages(
+                new HostLink({ helloSeen: true }),
+                protocol.encode('X', { status: 'carrier', rc: '-1' })
+            )
+        );
+        const result = await s.done;
+        assert.equal(result.persisted, false);
+        assert.equal(s.cache.size, 1);
+        assert.ok(
+            s.client.log.lines.some(l => /NOT persisted/.test(l.msg)),
+            'the cut-short exit is still logged'
+        );
+    });
+
     it('a late error from a finished worker is swallowed', async () => {
         const s = makeSession();
         s.session.disconnect('hangup');
@@ -1096,8 +1182,15 @@ describe('amiga_door session', () => {
     it('sends w on a resize and t when the budget changes', async () => {
         const s = makeSession();
         s.client.term.termWidth = 132;
+        const sizes = [];
+        const setSize = s.session.translator.setSize;
+        s.session.translator.setSize = (rows, cols) => {
+            sizes.push([rows, cols]);
+            return setSize.call(s.session.translator, rows, cols);
+        };
         s.session.checkResize();
         s.session.checkResize(); //  once per change
+        assert.deepEqual(sizes, [[25, 132]], 'the translator learns the new size');
         assert.deepEqual(s.worker.frames('w'), [
             { type: 'w', keys: { rows: 25, cols: 132 } },
         ]);
@@ -1301,6 +1394,74 @@ describe('amiga_door image lock', () => {
         await s.done;
         assert.equal(m.client.term.raw.length, 0);
     });
+
+    //  Something throws after the worker exists: the worker is stopped, and
+    //  the slot and the image hold are released exactly once.
+    for (const stage of ['font', 'constructor', 'start']) {
+        it(`a startup failure (${stage}) stops the worker and frees the slot and image`, async () => {
+            const m = makeModule({ image });
+            assert.equal(await startModule(m), 'ran');
+            assert.equal(activeImages.size, 1);
+            assert.equal(activeDoorInstances[BASE.name], 1);
+            delete m.runDoor; //  the real one, with its seams below
+            m.client.user = {
+                userId: 1,
+                getProperty: () => undefined,
+                getPropertyAsNumber: () => 0,
+                getSanitizedName: () => 'Handle',
+                getLegacySecurityLevel: () => 30,
+                isAuthenticated: () => false,
+                isRoot: () => false,
+                isGroupMember: () => false,
+            };
+
+            const worker = new FakeWorker();
+            let terminated = 0;
+            worker.terminate = () => {
+                terminated++;
+                worker.terminated = true;
+            };
+            m._compiledModule = async () => ({});
+            m._newWorker = () => worker;
+            const realStart = AmigaDoorSession.prototype.start;
+            if ('font' === stage) {
+                m._switchFont = () => {
+                    throw new Error('font boom');
+                };
+            } else if ('constructor' === stage) {
+                m._attachSession = () => {
+                    throw new Error('constructor boom');
+                };
+            } else {
+                AmigaDoorSession.prototype.start = () => {
+                    throw new Error('start boom');
+                };
+            }
+
+            const ended = new Promise(resolve => {
+                m.autoNextMenu = resolve;
+            });
+            try {
+                m.runDoor();
+                await ended;
+            } finally {
+                AmigaDoorSession.prototype.start = realStart;
+            }
+
+            assert.equal(terminated, 1, 'worker stopped once');
+            assert.equal(activeImages.size, 0, 'image released');
+            assert.equal(activeDoorInstances[BASE.name], 0, 'slot released');
+            assert.ok(
+                m.client.log.lines.some(
+                    l =>
+                        'warn' === l.level &&
+                        /cannot start the emulator/.test(l.obj.error)
+                )
+            );
+            assert.equal(m.session, null);
+            assert.equal(worker.listenerCount('message'), 0);
+        });
+    }
 
     it('a normal exit restores the screen once and flushes held output', async () => {
         const m = makeModule({ image });

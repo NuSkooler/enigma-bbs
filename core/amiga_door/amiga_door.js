@@ -80,10 +80,12 @@
  *     font:               string   - SyncTERM font for the door's duration (default:
  *                                    topaz); 'none' leaves the caller's font alone
  *     persist:            boolean  - write the door's disk changes back (default: true)
- *     persistOn:          [string] - X statuses after which to persist (default: ['ok', 'carrier']).
- *                                    carrier, timeout and break persist only when the door
- *                                    ended by itself (the X frame's rc is its return code;
- *                                    -1 or none means the shim gave up on a door still running)
+ *     persistOn:          [string] - X statuses after which to persist (default: ['ok'] for
+ *                                    doorType cli and aim, ['ok', 'carrier'] for xim; an
+ *                                    explicit list always wins). carrier, timeout and break
+ *                                    persist only when the door ended by itself (the X frame's
+ *                                    rc is its return code; -1 or none means the shim gave up
+ *                                    on a door still running)
  *     log:                boolean  - log every door request at debug level (default: false)
  *     warpBootSeconds:    number   - first boot runs flat out this long (default: 30)
  *     regTimeoutSeconds:  number   - the door must register within this; 0 = forever (default: 30)
@@ -309,6 +311,16 @@ function isLatin1(encoding) {
 //  |warnings| lists keys nothing reads, with a likely meaning when there is
 //  one (a misspelt persistOn is otherwise silently the default).
 //
+//  A CLI or ARexx door is sent a break on a hangup, so a return code does not
+//  prove it finished its writes; an XIM door only sees carrier-lost replies
+//  to its input requests. Hence 'carrier' is a default persistOn status for
+//  XIM doors only.
+//
+const DefaultPersistOn = {
+    xim: ['ok', 'carrier'],
+    cli: ['ok'],
+    aim: ['ok'],
+};
 const AROS_MAX_FFS_BLOCKS = 4066;
 
 function normalizeConfig(raw) {
@@ -481,10 +493,12 @@ function normalizeConfig(raw) {
         );
     }
 
-    //  The bundled AROS ROM corrupts an FFS volume of more than one bitmap
-    //  block (4066 blocks) when the guest writes; only warn, oputil's create
-    //  is what refuses
-    if (!c.rom && 'string' === typeof c.image) {
+    //  A stock AROS ROM corrupts an FFS volume of more than one bitmap block
+    //  (4066 blocks) when the guest writes. The ROM bundled with enigma-vamiga
+    //  0.1.2 and later carries the fix, so only a ROM supplied through |rom|
+    //  (which may be a stock build) is warned about; oputil's create is what
+    //  refuses
+    if (c.rom && 'string' === typeof c.image) {
         let imageBytes = 0;
         try {
             imageBytes = fs.statSync(c.image).size;
@@ -493,10 +507,10 @@ function normalizeConfig(raw) {
         }
         if (imageBytes > AROS_MAX_FFS_BLOCKS * 512) {
             warnings.push(
-                `image ${c.image} is ${Math.round(imageBytes / 1024)} KB, over the ` +
-                    `${(AROS_MAX_FFS_BLOCKS * 512) / 1024} KB the bundled AROS ROM can write ` +
-                    'to without corrupting an FFS volume; use an image of 2032 KB or ' +
-                    'less, or the corrected ROM in enigma-vamiga 0.1.2 and later'
+                `image ${c.image} is ${Math.round(imageBytes / 1024)} KB, over ` +
+                    `${(AROS_MAX_FFS_BLOCKS * 512) / 1024} KB; if this ROM is a stock ` +
+                    'AROS build, keep the image at 2032 KB or less, or use the fixed ROM ' +
+                    'bundled with enigma-vamiga 0.1.2 and later'
             );
         }
     }
@@ -547,7 +561,7 @@ function normalizeConfig(raw) {
         problems.push('"persist" must be true or false');
     }
     if (undefined === c.persistOn) {
-        c.persistOn = Defaults.persistOn.slice();
+        c.persistOn = (DefaultPersistOn[c.doorType] || Defaults.persistOn).slice();
     } else {
         const list = _.isString(c.persistOn) ? [c.persistOn] : c.persistOn;
         if (!Array.isArray(list) || !list.every(s => EXIT_STATUSES.includes(s))) {
@@ -686,8 +700,12 @@ function expandDoorArgs(template, ctx, config) {
 const CutShortStatuses = ['carrier', 'timeout', 'break'];
 
 function endedByItself(keys) {
-    const rc = keys && undefined !== keys.rc ? Number(keys.rc) : NaN;
-    return Number.isFinite(rc) && -1 !== rc;
+    const raw = keys ? keys.rc : undefined;
+    //  only a plain integer is a return code; '', ' ', null and junk are not
+    if (!/^-?\d+$/.test(String(raw))) {
+        return false;
+    }
+    return -1 !== Number(raw);
 }
 
 function persistDecision(config, status, keys) {
@@ -1072,16 +1090,12 @@ class AmigaDoorSession extends EventEmitter {
 
         if (!persist) {
             if (decision.cutShort) {
-                const dropped = this.cache
-                    ? this.cache.invalidateImage(this.config.image)
-                    : 0;
                 this.log.info(
                     {
                         name: this.config.name,
                         image: this.config.image,
                         status,
                         rc: msg.keys ? msg.keys.rc : undefined,
-                        snapshotsDropped: dropped,
                     },
                     `Amiga door disk changes NOT persisted: ${decision.why}`
                 );
@@ -1206,7 +1220,7 @@ class AmigaDoorSession extends EventEmitter {
     //  with X once the door has gone (or after its own 30 s grace); we give it
     //  disconnectGraceSeconds (35 by default, so the shim's X arrives) and
     //  then drop the worker regardless. The X decides persisting as usual
-    //  (persistOn: ['ok', 'carrier'] keeps what a door saved on a hangup);
+    //  (an XIM door's default persistOn keeps what it saved on a hangup);
     //  without one nothing is persisted.
     //
     disconnect(reason) {
@@ -1680,6 +1694,15 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         this._imageHold = null;
     }
 
+    //  seams for tests: the compiled emulator and the thread it runs in
+    _compiledModule() {
+        return getCompiledModule();
+    }
+
+    _newWorker(workerData) {
+        return new Worker(WORKER_PATH, { workerData });
+    }
+
     runDoor() {
         const config = this.config;
         const doorName = config.name;
@@ -1707,7 +1730,8 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
             );
         }, 150);
 
-        getCompiledModule()
+        let worker = null;
+        this._compiledModule()
             .then(wasmModule => {
                 if (this.left) {
                     return this._doorFinished(doorTracking, { reason: 'hangup' });
@@ -1731,7 +1755,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     session: sessionKeys,
                 };
 
-                const worker = new Worker(WORKER_PATH, { workerData });
+                worker = this._newWorker(workerData);
 
                 this._switchFont();
 
@@ -1762,11 +1786,43 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                 this.session.start();
             })
             .catch(err => {
+                this._abandonStartup(worker);
                 this._doorFinished(doorTracking, {
                     error: `cannot start the emulator: ${err.message}`,
                     code: err.code,
                 });
             });
+    }
+
+    //
+    //  Something threw after the worker was created: stop the worker (and the
+    //  session around it, if one was built) so neither outlives the failure.
+    //  The caller's slot and the image hold are released by _doorFinished,
+    //  once (both are idempotent), because the session no longer counts as
+    //  started.
+    //
+    _abandonStartup(worker) {
+        const session = this.session;
+        this.session = null;
+        this.sessionStarted = false;
+        let stopped = false;
+        if (session) {
+            session.removeAllListeners('done');
+            session.removeAllListeners('closed');
+            try {
+                session.finish({ error: 'startup failed' });
+                stopped = true;
+            } catch (e) {
+                //  start() had not wired everything up; stop the worker below
+            }
+        }
+        if (worker && !stopped) {
+            try {
+                Promise.resolve(worker.terminate()).catch(() => {});
+            } catch (e) {
+                //  already gone
+            }
+        }
     }
 
     _attachSession(session, doorTracking) {
