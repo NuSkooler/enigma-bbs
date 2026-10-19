@@ -55,6 +55,14 @@ Log out (revokes the refresh cookie):
 POST /_enig/api/v1/auth/logout
 ```
 
+The refresh cookie is scoped to `/_enig/api/v1/auth`, so browsers send it to
+both refresh and logout. Login and refresh also expire the legacy cookie that
+was restricted to `/auth/refresh`. After upgrading, refresh an existing session
+once or log in again before logging out. Logout clears both cookie paths, but
+can only revoke a refresh token included in its request. Already-issued access
+tokens remain valid until their normal expiration. Clients must process all
+`Set-Cookie` headers returned by login, refresh and logout.
+
 ### API Keys (automated / programmatic access)
 
 API keys are long-lived tokens suitable for bots, scripts, and integrations. Generate them with `oputil`:
