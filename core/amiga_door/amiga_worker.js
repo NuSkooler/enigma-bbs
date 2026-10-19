@@ -22,17 +22,23 @@
  *   rom, extRom:     string|undefined   - Kickstart override paths (boot only)
  *   machine:         { cpu, chipKb, slowKb, fastKb, overclock } (boot only)
  *   warpBootSeconds: number             - first boot runs flat out this long
+ *   serialHandshake: boolean|undefined  - the snapshot's machine ran with RTS/CTS on (its
+ *                                         shim drives RTS); the shim's H decides from then on
  *   session:         { ... }            - `s` frame keys; `now` is added when it is sent
  * }
  *
  * MessagePort protocol (worker -> parent):
- *   { type: 'snapshot', snapshot: Uint8Array, ms }      - booted, idle, warp over: cache me
- *   { type: 'ready', restored, ms, restoreMs, hello, stats } - `s` has been sent
+ *   { type: 'snapshot', snapshot: Uint8Array, ms, serialHandshake }
+ *                                                       - booted, idle, warp over: cache me
+ *   { type: 'ready', restored, ms, restoreMs, hello, stats, serialHandshake }
+ *                                                       - `s` has been sent
  *   { type: 'output', data: Uint8Array }                - door bytes (frames removed), per frame batch
  *   { type: 'frame', frame: { type, keys } }            - H, R, L, C, E (protocol frames)
  *   { type: 'exit', status, keys }                      - the shim's X frame (the first one only)
  *   { type: 'persisted', chunks, bytes, ms, refused }   - answer to 'persist'; |refused| says why
  *                                                         nothing was written (the image changed)
+ *   { type: 'inputFull', limit }                        - caller input reached MaxInputQueueBytes
+ *                                                         (once per session; the excess is dropped)
  *   { type: 'error', message, code, fatal }             - see below
  *   { type: 'stopped' }                                 - answer to 'stop', worker exits
  *
@@ -63,10 +69,23 @@ const { HostLink } = require('./host_link.js');
 
 const { RS } = protocol;
 
-//  Caller typeahead we hold while the guest drains its 8 KB receive buffer
-//  (escaped bytes). The shim drops keystrokes the door is not reading anyway
-//  (X `indrop`).
-const MaxInputQueueBytes = 64 * 1024;
+//
+//  Serial line discipline (misc/amiga_door/README.md, "Serial line"). Caller
+//  input is never dropped for being early: it waits here until the guest has
+//  room. What is in flight is bounded twice:
+//
+//  - InputWindowBytes: at most this many bytes sit in the core's receive
+//    buffer (SerServer, 8 KB) that the guest's UART has not taken yet
+//    (|serialInPending|). The shim drops RTS at 3/4 of its 4 KB ring, which
+//    leaves 1 KB for what is already on its way: a window below that keeps a
+//    sender that only stops writing when RTS drops lossless, and keeps a `d`
+//    from queueing behind kilobytes of typeahead the door has not read.
+//  - MaxInputQueueBytes: what waits here. A caller pasting a megabyte into a
+//    door that reads nothing is not typing; past this the excess is dropped,
+//    counted (X `inputDropped`) and reported once ('inputFull').
+//
+const InputWindowBytes = 768;
+const MaxInputQueueBytes = 1024 * 1024;
 
 //  Persist granularity: what differs from the baseline is written in blocks of
 //  this size (a multiple of the 512-byte sector).
@@ -85,8 +104,10 @@ let pacer = null;
 let link = null;
 let state = 'starting'; //  starting | booting | warpEnding | session | exited | stopping
 let inputDropped = 0;
+let inputFullReported = false;
 let restoreMs = null;
 let baselineStat = null; //  the image file as this session read it
+let handshake = false; //  the core's RTS/CTS handshake (SER.HANDSHAKE) is on
 
 //
 //  Host -> shim bytes waiting for room in the guest's receive buffer, in
@@ -163,6 +184,10 @@ function queueInput(raw) {
     const take = fitEscaped(raw, MaxInputQueueBytes - queuedDataBytes);
     if (take < raw.length) {
         inputDropped += raw.length - take;
+        if (!inputFullReported) {
+            inputFullReported = true;
+            post({ type: 'inputFull', limit: MaxInputQueueBytes });
+        }
     }
     if (take > 0) {
         enqueue(false, protocol.escapeData(raw.subarray(0, take)));
@@ -217,24 +242,82 @@ function rsPairOpen(buf, n, open) {
     return 1 === run % 2;
 }
 
-//  As much of the queue as the guest's receive buffer takes
+//
+//  RTS/CTS on the emulated null modem (enigma-vamiga 0.1.3, vAmiga's
+//  SER.HANDSHAKE): the core then starts a byte only while the guest's RTS is
+//  asserted. axshim 1.5 and later drive RTS; an older shim never touches it,
+//  and on AROS it boots deasserted, so with the handshake on such an image
+//  would receive nothing. The shim's H frame says which it is: `shim=axshim
+//  1.5`. Before an H (a restored snapshot) workerData says what the machine
+//  that made the snapshot ran with.
+//
+function shimDrivesRts(hello) {
+    const m = /^axshim (\d+)\.(\d+)/.exec((hello && hello.shim) || '');
+    if (!m) {
+        return false;
+    }
+    const major = parseInt(m[1], 10);
+    return major > 1 || (1 === major && parseInt(m[2], 10) >= 5);
+}
+
+//  enigma-vamiga 0.1.2 and older have no handshake (nor guestRts)
+function canHandshake(VAmiga) {
+    return 'function' === typeof VAmiga.prototype.setSerialHandshake;
+}
+
+function setHandshake(on) {
+    if (on === handshake || 'function' !== typeof emu.setSerialHandshake) {
+        return;
+    }
+    emu.setSerialHandshake(on);
+    handshake = on;
+}
+
+//
+//  May the host send now? The guest's RTS (CIA-B PA6), which axshim 1.5
+//  drops when its receive ring is three quarters full and while it starts a
+//  door. With the handshake on the core holds back what it has already
+//  accepted, so this only keeps more from piling up behind it; the window
+//  above keeps what is in flight within the shim's headroom. Without the
+//  handshake (an older shim, or an older package) RTS means nothing and the
+//  core's byte holding (patch 0001) is all there is.
+//
+function guestClearToSend() {
+    return !handshake || emu.guestRts;
+}
+
+//  Bytes the core has accepted that the guest's UART has not taken yet
+function inFlight() {
+    const n = emu.serialInPending;
+    return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+//  As much of the queue as the window, and the core's receive buffer, take
 function pumpInput() {
-    while (outQueue.length) {
+    if (!guestClearToSend()) {
+        return;
+    }
+    let room = InputWindowBytes - inFlight();
+    while (outQueue.length && room > 0) {
         const seg = outQueue[0];
-        const n = emu.serialWrite(seg.buf);
+        const offer = Math.min(room, seg.buf.length);
+        const n = emu.serialWrite(seg.buf.subarray(0, offer));
         if (n > 0) {
             if (!seg.frame) {
-                queuedDataBytes -= Math.min(n, seg.buf.length);
-                seg.rsOpen = rsPairOpen(seg.buf, Math.min(n, seg.buf.length), seg.rsOpen);
+                queuedDataBytes -= n;
+                seg.rsOpen = rsPairOpen(seg.buf, n, seg.rsOpen);
             }
             seg.started = true;
+            room -= n;
         }
         if (n >= seg.buf.length) {
             outQueue.shift();
             continue;
         }
         seg.buf = seg.buf.subarray(n);
-        return;
+        if (n < offer) {
+            return; //  the core's buffer is full
+        }
     }
 }
 
@@ -264,6 +347,7 @@ function startSession() {
         restoreMs,
         hello: link.hello,
         stats,
+        serialHandshake: handshake,
     });
 }
 
@@ -279,11 +363,24 @@ function takeSnapshot() {
         return;
     }
     const copy = new Uint8Array(snapshot); //  own ArrayBuffer, safe to transfer
-    post({ type: 'snapshot', snapshot: copy, ms: performance.now() - ts }, [copy.buffer]);
+    post(
+        {
+            type: 'snapshot',
+            snapshot: copy,
+            ms: performance.now() - ts,
+            serialHandshake: handshake,
+        },
+        [copy.buffer]
+    );
 }
 
 function handleFrame(frame) {
     switch (frame.type) {
+        case 'H':
+            //  at boot, and after each `s` from axshim 1.5 on
+            setHandshake(shimDrivesRts(frame.keys));
+            break;
+
         case 'R':
             if ('booting' === state) {
                 //  Booted and idle. Stop warping now and snapshot once a
@@ -570,6 +667,10 @@ async function main() {
         return process.exit(1);
     }
 
+    //  until the shim's H says otherwise (a boot sees it before anything is sent)
+    handshake = canHandshake(VAmiga) && true === workerData.serialHandshake;
+    const handshakeOption = canHandshake(VAmiga) ? { serialHandshake: handshake } : {};
+
     try {
         //  before the image is read: a write after this shows at persist time
         baselineStat = fs.statSync(workerData.image);
@@ -580,6 +681,7 @@ async function main() {
                 module: workerData.module,
                 fastKb: 0,
                 slowKb: 0,
+                ...handshakeOption,
             });
             const tr = performance.now();
             emu.loadSnapshot(workerData.snapshot);
@@ -600,6 +702,7 @@ async function main() {
                 fastKb: m.fastKb,
                 overclock: m.overclock,
                 warpBootSeconds: workerData.warpBootSeconds,
+                ...handshakeOption,
             });
             link = new HostLink();
         }

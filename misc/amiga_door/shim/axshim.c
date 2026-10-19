@@ -42,11 +42,17 @@
  * traffic travels as 0x1E 0x1E.
  *
  * The serial port is Paula's UART, driven directly (the AROS ROM has no
- * serial.device; the same code runs on Kickstart 3.1): 115200 8N1, receive on
- * the level 5 RBF vector into a ring, transmit from a ring on the level 1 TBE
- * vector.  Nothing busy-waits.
+ * serial.device; the same code runs on Kickstart 3.1): 8N1, receive on the
+ * level 5 RBF vector into a ring, transmit from a ring on the level 1 TBE
+ * vector.  Nothing busy-waits.  RTS (CIA-B PA6) is asserted while the receive
+ * ring has room and dropped at a high watermark, and caller bytes the door has not
+ * read wait in the ring instead of being dropped, so a sender that honours CTS
+ * never overruns the ring (README.md, "Serial line").  Between sessions the shim listens
+ * at no more than 38400 baud (19200 on a 68000), since a lost `s` frame cannot be
+ * sent again; a session runs at the rate its `s` names (`baud=`), else at the
+ * command line's.
  *
- * Usage (S:Startup-Sequence): C:axshim [baud]
+ * Usage (S:Startup-Sequence): C:axshim [baud]      (the session rate; default 115200)
  *
  * Copyright (c) 2026, Bryan Ashby (NuSkooler)
  * All rights reserved.
@@ -102,9 +108,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-#define SHIM_VERSION    "1.4"
+#define SHIM_VERSION    "1.5"
 #define PROTO_VERSION   1
-static const char __attribute__((used)) verstag[] = "$VER: axshim " SHIM_VERSION " (17.10.2026)";
+static const char __attribute__((used)) verstag[] = "$VER: axshim " SHIM_VERSION " (18.10.2026)";
 
 extern struct ExecBase *SysBase;
 static struct Library *axRexxBase;    /* rexxsyslib: opened by the first AIM session, kept */
@@ -187,18 +193,41 @@ enum {
 #define CN_PANIC_MAX    25      /* below CARRIER_GRACE */
 #define CN_BREAK_REPEAT 30      /* NilBBS: a second break only 30 s later (a save in progress) */
 #define CN_POLL_USECS   40000   /* MAYGETCHAR waits this long for a key before NOCHAR */
+#define LAUNCH_HOLD     3       /* seconds RTS stays held for a door that has not asked for anything */
+#define INPUT_HOLD      3       /* seconds a full input queue holds caller bytes back without the door
+                                 * taking a key; then they are dropped (X indrop), as before 1.5 */
 
 /* ---- Paula UART: receive ring (RBF) and transmit ring (TBE) --------------------------- */
 
 #define CUSTOM      ((volatile struct Custom *)0xDFF000)
 #define SERDATR_TBE (1 << 13)
+#define SERDATR_TSRE (1 << 12)
 #define PAULA_CLOCK 3546895UL   /* PAL colour clock; SERPER = clock / baud - 1, 8 data bits */
+#define BAUD_MIN    1200
+#define BAUD_MAX    230400
+#define LISTEN_MAX  38400       /* the rate between sessions, at most: `s` must not be overrun */
+#define LISTEN_68000 19200      /* the same on a 68000/68010: AROS there misses bytes at 38400 */
 #define RXSIZE      4096        /* powers of two */
 #define TXSIZE      4096
+/* RTS flow control on the receive ring.  CIA-B PA6 drives /RTS and PA7 /DTR (the line drivers
+ * invert them), so a low bit is an asserted line.  The RBF handler drops RTS when the ring holds
+ * RX_HIGH bytes and rx_get() raises it again at RX_LOW; a sender that honours CTS stops after the
+ * byte on the line, and the quarter above RX_HIGH is the room for it and for a host that watches
+ * RTS itself (README.md, "Serial line"). */
+#define CIAB_PRA    (*(volatile UBYTE *)0xBFD000)
+#define CIAB_DDRA   (*(volatile UBYTE *)0xBFD200)
+#define COM_RTS     (1 << 6)
+#define COM_DTR     (1 << 7)
+#define RX_HIGH     (RXSIZE * 3 / 4)
+#define RX_LOW      (RXSIZE / 4)
 
 struct RxBuf {
     volatile UWORD head, tail;  /* head: written by the interrupt; tail: by the shim */
     volatile UBYTE stalled;     /* ring was full: RBF is off and the byte waits in SERDATR */
+    volatile UBYTE rts_off;     /* RTS is deasserted: the ring passed RX_HIGH */
+    volatile UBYTE hold;        /* RTS is deasserted: the shim is starting or ending a session */
+    volatile UWORD rtsoffs;     /* times RTS was dropped, for X rtsoff= */
+    volatile UWORD fulls;       /* times the ring was full, for X rxfull= */
     struct Task   *task;
     ULONG          sigmask;
     UBYTE          buf[RXSIZE];
@@ -218,11 +247,15 @@ static struct TxBuf tx;
 static struct Interrupt rbf_int, tbe_int, *old_rbf, *old_tbe;
 static BYTE rx_sig = -1, tx_sig = -1;
 static BOOL tx_polled;          /* fallback: TBE never fired, poll SERDATR with Delay(1) */
+static ULONG cur_baud;          /* the rate SERPER is set for */
+static ULONG def_baud;          /* a session's rate when its `s` names none (the command line) */
+static ULONG listen_baud;       /* the rate between sessions: def_baud, at most LISTEN_MAX/_68000 */
 static UWORD tx_last_tail;
 static ULONG tx_stuck_ticks;
 
-/* level 5 RBF handler (SetIntVector): a1 = is_Data.  A full ring stalls the port: the
- * byte stays unread in SERDATR, and the host's flow control holds the ones behind it. */
+/* level 5 RBF handler (SetIntVector): a1 = is_Data.  RTS drops at RX_HIGH.  A full ring
+ * (a sender that ignores CTS) stalls the port: the byte stays unread in SERDATR, which holds it
+ * only on a core that delays the next byte until it is read (enigma-vamiga's patch 0001). */
 static void rbf_code(register struct RxBuf *b __asm("a1"))
 {
     UWORD head = b->head, next = (head + 1) & (RXSIZE - 1);
@@ -230,10 +263,16 @@ static void rbf_code(register struct RxBuf *b __asm("a1"))
     if (next == b->tail) {
         CUSTOM->intena = INTF_RBF;
         b->stalled = 1;
+        b->fulls++;
         return;
     }
     b->buf[head] = (UBYTE)CUSTOM->serdatr;
     b->head = next;
+    if (!b->rts_off && ((next - b->tail) & (RXSIZE - 1)) >= RX_HIGH) {
+        CIAB_PRA |= COM_RTS;            /* deassert RTS */
+        b->rts_off = 1;
+        b->rtsoffs++;
+    }
     if (head == b->tail) Signal(b->task, b->sigmask);      /* it was empty */
 }
 
@@ -270,7 +309,11 @@ static BOOL uart_open(ULONG baud)
     rbf_int.is_Code = (void (*)(void))rbf_code;
     tbe_int.is_Code = (void (*)(void))tbe_code;
     CUSTOM->serper = (UWORD)(PAULA_CLOCK / baud - 1);
+    cur_baud = baud;
     Disable();
+    CIAB_DDRA |= COM_RTS | COM_DTR;     /* drive DTR and RTS, both asserted */
+    CIAB_PRA &= ~(COM_RTS | COM_DTR);
+    rx.rts_off = 0;
     old_rbf = SetIntVector(INTB_RBF, &rbf_int);
     old_tbe = SetIntVector(INTB_TBE, &tbe_int);
     (void)CUSTOM->serdatr;          /* release a byte that arrived before us (host flow control) */
@@ -366,6 +409,30 @@ static void tx_drain(void)       /* before giving the port back */
     for (i = 0; i < 250 && !tx_polled && tx.head != tx.tail; i++) { tx_kick(); Delay(1); }
 }
 
+/* Hold the line while the shim starts or ends a session: launching a door (LoadSeg, a new
+ * process, the file system) keeps the CPU from RBF for longer than a byte at 38400 on a 7 MHz
+ * AROS machine, so RTS is dropped for it; a sender that honours CTS waits. */
+static void rts_hold(BOOL on)
+{
+    Disable();
+    rx.hold = on;
+    if (on) CIAB_PRA |= COM_RTS;
+    else if (!rx.rts_off) CIAB_PRA &= ~COM_RTS;
+    Enable();
+}
+
+/* change the line rate once the transmitter is idle: SERPER paces the byte being shifted out
+ * too.  Received bytes keep arriving into the ring meanwhile. */
+static void uart_rate(ULONG baud)
+{
+    int i;
+    if (baud == cur_baud) return;
+    tx_drain();
+    for (i = 0; i < 10 && !(CUSTOM->serdatr & SERDATR_TSRE); i++) Delay(1);
+    CUSTOM->serper = (UWORD)(PAULA_CLOCK / baud - 1);
+    cur_baud = baud;
+}
+
 static void uart_close(void)
 {
     tx_drain();
@@ -384,6 +451,12 @@ static int rx_get(void)         /* -1 = nothing buffered */
     if (rx.tail == rx.head) return -1;
     c = rx.buf[rx.tail];
     rx.tail = (rx.tail + 1) & (RXSIZE - 1);
+    if (rx.rts_off && ((rx.head - rx.tail) & (RXSIZE - 1)) <= RX_LOW) {
+        Disable();
+        rx.rts_off = 0;
+        if (!rx.hold) CIAB_PRA &= ~COM_RTS;     /* room again: reassert RTS */
+        Enable();
+    }
     if (rx.stalled) {           /* room again: take the waiting byte */
         Disable();
         rx.stalled = 0;
@@ -761,7 +834,8 @@ struct Session {
     int   nseen_hi;
     LONG  unknown[16];
     int   nunknown;
-    ULONG indrop;               /* caller bytes dropped: the door did not read them */
+    ULONG indrop;               /* caller bytes dropped: the caller hung up before the door read them */
+    BOOL  held;                 /* RTS is held from `s` until the door's first request */
     /* a CLI door (type=cli): the console handler's side of its Input() and Output() */
     struct {
         BOOL  on;               /* this session's door is a CLI door */
@@ -859,6 +933,7 @@ static struct Session S;
 #define INQSIZE 4096
 static UBYTE inq[INQSIZE];
 static UWORD inq_head, inq_tail;
+static ULONG inq_stamp;         /* now_s at the last key in or out: the queue filled or the door took one */
 static BOOL  last_cr;           /* the last key was CR: swallow an LF or NUL after it */
 
 static void inq_put(UBYTE c)
@@ -867,6 +942,7 @@ static void inq_put(UBYTE c)
     if (next == inq_tail) { S.indrop++; return; }
     inq[inq_head] = c;
     inq_head = next;
+    inq_stamp = now_s;
 }
 
 static int inq_get(void)
@@ -875,10 +951,12 @@ static int inq_get(void)
     if (inq_tail == inq_head) return -1;
     c = inq[inq_tail];
     inq_tail = (inq_tail + 1) & (INQSIZE - 1);
+    inq_stamp = now_s;
     return c;
 }
 
 static BOOL inq_avail(void) { return inq_tail != inq_head; }
+static BOOL inq_full(void) { return ((inq_head + 1) & (INQSIZE - 1)) == inq_tail; }
 
 /* ---- frames in: the parser only records what the host said; the main loop acts on it --- */
 
@@ -889,6 +967,8 @@ static struct {
     UBYTE buf[PAYMAX];
 } P;
 enum { P_DATA, P_RS, P_LEN1, P_LEN2, P_PAYLOAD };
+
+static struct { UWORD pos, len; UBYTE st; BOOL valid, d; } HS;  /* hangup_ahead()'s look-ahead */
 
 static UBYTE sbuf[PAYMAX];      /* a pending `s` payload */
 static UWORD slen;
@@ -916,6 +996,7 @@ static void frame_in(void)
         }
         break;
     case 'd':
+        HS.valid = HS.d = FALSE;
         if (state == ST_SESSION && !S.lost) {
             S.lost = LOST_HANGUP;
             if (frame_get(P.buf, n, "reason", v, sizeof(v))) {
@@ -941,15 +1022,65 @@ static void frame_in(void)
     }
 }
 
+/* caller bytes go to the door's queue now (else they are dropped: before `s`, after `d`) */
+static BOOL data_wanted(void) { return (state == ST_SESSION && !S.lost) || s_pending; }
+
 static void data_in(UBYTE c)
 {
-    if ((state == ST_SESSION && !S.lost) || s_pending) inq_put(c);
+    if (data_wanted()) inq_put(c);
+}
+
+/* Is a `d` frame waiting in the ring behind caller bytes that pump() holds back?  Then the caller
+ * has gone and what the door has not read is moot.  Incremental: each call parses only the bytes
+ * that arrived since the last one, until pump() moves again (HS.valid = FALSE). */
+static BOOL hangup_ahead(void)
+{
+    UWORD head = rx.head;
+    if (!HS.valid) {
+        HS.pos = rx.tail;
+        HS.st = P.state;        /* P_DATA or P_RS: pump() holds only there */
+        HS.d = FALSE;
+        HS.valid = TRUE;
+    }
+    while (!HS.d && HS.pos != head) {
+        UBYTE c = rx.buf[HS.pos];
+        HS.pos = (HS.pos + 1) & (RXSIZE - 1);
+        switch (HS.st) {
+        case P_DATA: if (c == RS) HS.st = P_RS; break;
+        case P_RS:
+            if (c == RS) HS.st = P_DATA;
+            else if (c == 'd') HS.d = TRUE;
+            else HS.st = P_LEN1;
+            break;
+        case P_LEN1: HS.len = (UWORD)(c << 8); HS.st = P_LEN2; break;
+        case P_LEN2: HS.len |= c; HS.st = HS.len ? P_PAYLOAD : P_DATA; break;
+        default: if (!--HS.len) HS.st = P_DATA; break;
+        }
+    }
+    return HS.d;
+}
+
+/* The next byte in the ring is caller data and the door's queue is full: leave it there.  The
+ * ring then fills and the RBF handler drops RTS, instead of the bytes being dropped here.  Frames
+ * behind them wait until the door reads, except a `d` (hangup_ahead), and only while the door keeps
+ * taking keys: after INPUT_HOLD seconds without one the bytes are dropped, so that a door that has
+ * stopped reading cannot keep a hangup behind a flood for ever. */
+static BOOL pump_hold(void)
+{
+    UBYTE c;
+    if (rx.tail == rx.head || !inq_full() || !data_wanted()) return FALSE;
+    if (!S.held && now_s - inq_stamp >= INPUT_HOLD) return FALSE;     /* not while it loads */
+    c = rx.buf[rx.tail];
+    if (P.state == P_DATA && c == RS) return FALSE;     /* a frame, or the first of RS RS */
+    if (P.state != P_DATA && (P.state != P_RS || c != RS)) return FALSE;    /* in a frame */
+    return !hangup_ahead();
 }
 
 static void pump(void)
 {
     int c;
-    while ((c = rx_get()) >= 0) {
+    while (!pump_hold() && (c = rx_get()) >= 0) {
+        if (!HS.d) HS.valid = FALSE;    /* found a `d`: drain to it without looking again */
         switch (P.state) {
         case P_DATA:
             if (c == RS) P.state = P_RS; else data_in((UBYTE)c);
@@ -973,6 +1104,17 @@ static void pump(void)
             if (++P.got == P.len) { frame_in(); P.state = P_DATA; }
             break;
         }
+    }
+}
+
+/* drop the caller's typeahead: the queue and whatever pump() held back in the ring */
+static void inq_flush(void)
+{
+    int i;
+    for (i = 0; i < 3; i++) {
+        pump();
+        inq_head = inq_tail = 0;
+        if (rx.tail == rx.head) break;
     }
 }
 
@@ -1258,7 +1400,7 @@ static void emit_ready(void)
     f_end();
 }
 
-static void emit_hello(ULONG baud)
+static void emit_hello(void)     /* at boot, and after each `s` with the session's rate */
 {
     char b[24];
     f_begin('H');
@@ -1267,7 +1409,7 @@ static void emit_hello(ULONG baud)
     sprintf(b, "%u.%u", (unsigned)SysBase->LibNode.lib_Version, (unsigned)SysBase->LibNode.lib_Revision);
     f_kv("exec", b);
     f_kvn("kick", SysBase->SoftVer);
-    f_kvn("baud", (LONG)baud);
+    f_kvn("baud", (LONG)cur_baud);
     f_end();
 }
 
@@ -1350,6 +1492,7 @@ static void end_session(const char *status, const char *error)
     int i;
     UWORD o;
 
+    rts_hold(TRUE);             /* until R: the door's exit and the write scan take the CPU */
     if (S.waiting) fail_waiting(FALSE);
     if (S.editing) { S.editing->Data = -1; reply(S.editing); S.editing = NULL; }
     if (S.cli.on) cli_flush();  /* reads EOF; later packets get the zombie answers */
@@ -1416,11 +1559,14 @@ static void end_session(const char *status, const char *error)
     if (changed[0]) f_kv("changed", changed);
     if (S.dtr) f_kvn("dropdtr", 1);
     if (S.indrop) f_kvn("indrop", (LONG)S.indrop);
+    if (rx.rtsoffs) f_kvn("rtsoff", (LONG)rx.rtsoffs);
+    if (rx.fulls) f_kvn("rxfull", (LONG)rx.fulls);
     if (tx_polled) f_kvn("txpoll", 1);
     f_end();
 
     state = ST_READY;
     inq_head = inq_tail = 0;
+    uart_rate(listen_baud);     /* after X has gone out, before R */
     if (LN.busy && LN.done) reap();
     if (!LN.busy) { port_close(); aport_close(); dport_close(); cport_close(); DeleteFile((STRPTR)DOOR_OUT); }
     /* else the door outlived the session: the port stays up and answers "carrier lost" */
@@ -1433,6 +1579,7 @@ static void end_session(const char *status, const char *error)
     memset(&S, 0, sizeof(S));
     nkv = 0;
     emit_ready();
+    rts_hold(FALSE);
 }
 
 static void error_session(const char *error) { end_session("error", error); }
@@ -1494,7 +1641,7 @@ static const char *session_env(void)
     return NULL;
 }
 
-static void start_session(void)
+static void begin_session(void)     /* start_session() with RTS held */
 {
     const char *door, *v, *type;
     BPTR l, in = 0, out = 0;
@@ -1510,6 +1657,15 @@ static void start_session(void)
 
     v = get("version", NULL);
     if (!v || atol(v) != PROTO_VERSION) { error_session("version"); return; }
+    /* the session's line rate, confirmed with a second H (README.md, "Serial line") */
+    v = get("baud", NULL);
+    if (v && *v) {
+        LONG b = atol(v);
+        if (b < BAUD_MIN || b > BAUD_MAX) { error_session("baud must be 1200 to 230400"); return; }
+        uart_rate((ULONG)b);
+    } else uart_rate(def_baud);
+    rx.rtsoffs = rx.fulls = 0;
+    emit_hello();
     type = get("type", "xim");
     if (!strcmp(type, "cli")) S.cli.on = TRUE;
     else if (!strcmp(type, "aim")) S.aim.on = TRUE;
@@ -1603,6 +1759,25 @@ static void start_session(void)
     f_kv("door", door);
     f_kvn("pid", 0);
     f_end();
+}
+
+/* RTS is held from `s` until the door is running: loading it competes with RBF (rts_hold()) */
+static void start_session(void)
+{
+    rts_hold(TRUE);
+    begin_session();
+    if (state == ST_SESSION && S.launched) S.held = TRUE;   /* door_spoke() lets go */
+    else rts_hold(FALSE);
+}
+
+/* the door's first request, or LAUNCH_HOLD seconds, or its exit: the line is open again */
+static void door_spoke(void)
+{
+    if (state == ST_SESSION && S.held) {
+        S.held = FALSE;
+        inq_stamp = now_s;      /* INPUT_HOLD counts from here: a loading door takes no keys */
+        rts_hold(FALSE);
+    }
 }
 
 /* ---- input ---------------------------------------------------------------------------- */
@@ -2290,7 +2465,10 @@ static void hport_drain(void)
 {
     struct Message *m;
     if (!hport) return;
-    while ((m = GetMsg(hport))) cli_packet((struct DosPacket *)m->mn_Node.ln_Name);
+    while ((m = GetMsg(hport))) {
+        door_spoke();
+        cli_packet((struct DosPacket *)m->mn_Node.ln_Name);
+    }
 }
 
 /* the CLI half of session_service(): input, the door's end, X */
@@ -2656,8 +2834,7 @@ static void aim_command(struct RexxMsg *m)
         }
         aim_reply(m, 0, "", 0);
     } else if (!strcmp(w, "BUFFERFLUSH")) {
-        pump();
-        inq_head = inq_tail = 0;
+        inq_flush();
         aim_reply(m, 0, "", 0);
     } else if (!strcmp(w, "SHUTDOWN")) {
         if (!S.aim.shutdown) { S.aim.shutdown = TRUE; S.aim.shutdown_at = now_s; }
@@ -3911,8 +4088,7 @@ static void cn_command(struct RexxMsg *m)
     } else if (!strcmp(w, "MAYGETCHAR")) {
         cn_park(m, CK_MAYBE, 1);
     } else if (!strcmp(w, "BUFFERFLUSH")) {
-        pump();
-        inq_head = inq_tail = 0;
+        inq_flush();
         cn_reply(m, "");
     } else if (!strcmp(w, "CHECKIO") || !strcmp(w, "IREADY")) {
         pump();
@@ -4193,6 +4369,7 @@ static void session_service(void)
     struct JHMessage *m;
     BOOL ended = FALSE;
 
+    if (S.held && (LN.done || now_s - S.start_s >= LAUNCH_HOLD)) door_spoke();
     if (S.cli.on) { cli_session_service(); return; }
     if (S.aim.on) { aim_session_service(); return; }
     if (S.tim.on) { tim_session_service(); return; }
@@ -4277,18 +4454,22 @@ static void step(void)
         }
         if (state == ST_SESSION) {
             if (port) while ((m = (struct JHMessage *)GetMsg(port))) {
+                door_spoke();
                 xim_command(m);
                 pump();
             }
             if (aport) while ((rm = (struct RexxMsg *)GetMsg(aport))) {
+                door_spoke();
                 if (S.aim.on) aim_command(rm); else aim_zombie(rm);
                 pump();
             }
             if (dport) while ((dm = (struct DoorMsg *)GetMsg(dport))) {
+                door_spoke();
                 if (S.tim.on) tim_command(dm); else tim_zombie(dm);
                 pump();
             }
             if (cport) while ((rm = (struct RexxMsg *)GetMsg(cport))) {
+                door_spoke();
                 if (S.cn.on) cn_command(rm); else cn_zombie(rm);
                 pump();
             }
@@ -4317,12 +4498,15 @@ int main(int argc, char **argv)
 
     for (i = 1; i < argc; i++) {        /* axshim [baud]; anything else is ignored */
         ULONG b = strtoul(argv[i], NULL, 10);
-        if (b >= 1200 && b <= 230400) baud = b;
+        if (b >= BAUD_MIN && b <= BAUD_MAX) baud = b;
     }
+    def_baud = baud;
+    listen_baud = SysBase->AttnFlags & AFF_68020 ? LISTEN_MAX : LISTEN_68000;
+    if (baud < listen_baud) listen_baud = baud;
     /* no "insert volume" requesters: a missing path fails at once (doors inherit this) */
     ((struct Process *)FindTask(NULL))->pr_WindowPtr = (APTR)-1;
     if (!timer_open()) { timer_close(); return 20; }
-    if (!uart_open(baud)) { timer_close(); return 20; }
+    if (!uart_open(listen_baud)) { timer_close(); return 20; }
     timer_arm();
     extsig = AllocSignal(-1);
     if (!wait_timer_open() || !(hport = CreateMsgPort())) hport = NULL;    /* no CLI doors then */
@@ -4332,7 +4516,7 @@ int main(int argc, char **argv)
     assign("PFILES", "SYS:PFiles");     /* C-Net's pfile and system trees, when the image has them */
     assign("CNET", "SYS:CNet");
 
-    emit_hello(baud);
+    emit_hello();
     emit_ready();
     for (;;) {
         ULONG sigs = rx.sigmask | timer_sigmask() | SIGBREAKF_CTRL_C, got;

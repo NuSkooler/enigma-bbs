@@ -8,6 +8,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * **Door images are built with `oputil.js amiga-door`**, no Python or amitools needed: `create IMAGE DOORDIR...` writes the shim, its library, the startup sequence and your doors to a new FFS image (`--workbench` adds ARexx from your Workbench 3.1 disk), and `add`, `ls`, `extract` and `info` change and inspect an image, or any OFS/FFS `.adf`. `misc/amiga_door/image/make_image.sh` (xdftool) remains for machines without ENiGMA½.
 
   * **Upgrading:** run `npm install` to pick up the new `enigma-vamiga` dependency (the emulator core as WebAssembly, about 9 MB). No configuration changes are required; `doors.amiga.snapshotCacheEntries` (default 4) is the only new system setting.
+  * **Shim 1.5:** the shim (axshim 1.5) now holds a caller's keys until the door reads them instead of dropping the end of a long paste, drives RTS, and takes the line rate from the door's `baud` setting. A door image keeps the shim it was built with: refresh an existing one by rebuilding it with `make_image.sh`, or replace just the shim with `./oputil.js amiga-door add IMAGE misc/amiga_door/bin/axshim C/axshim`.
 
 ## 0.5.1-beta
 

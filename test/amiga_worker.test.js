@@ -15,12 +15,13 @@ const protocol = require('../core/amiga_door/protocol.js');
 
 const HARNESS = path.join(__dirname, 'fixtures/amiga_worker/harness.js');
 const RS = protocol.RS;
-const MaxInputQueueBytes = 64 * 1024; //  amiga_worker.js
+const MaxInputQueueBytes = 1024 * 1024; //  amiga_worker.js
+const InputWindowBytes = 768; //  amiga_worker.js
 
 const SESSION = { version: 1, door: 'BBS:Doors/X/x', node: 1 };
 
 class TestWorker {
-    constructor({ image, snapshot = true }) {
+    constructor({ image, snapshot = true, serialHandshake, legacyPackage }) {
         this.messages = [];
         this.waiters = [];
         this.worker = new Worker(HARNESS, {
@@ -30,6 +31,8 @@ class TestWorker {
                 image,
                 machine: {},
                 warpBootSeconds: 0,
+                serialHandshake,
+                legacyPackage,
                 session: SESSION,
             },
         });
@@ -65,11 +68,30 @@ class TestWorker {
         this.post({ type: 'fake', cmd: 'shim', bytes: new Uint8Array(bytes) });
     }
 
-    //  One emulated frame; resolves to the bytes the guest received
-    async tick(room) {
+    //  One emulated frame; resolves to the bytes the guest received. |room|:
+    //  what the core accepts; |pending|: bytes it still holds from before;
+    //  |rts|: the guest's RTS from now on
+    async tick(room, pending, rts) {
         const p = this.next(m => 'fake' === m.type && 'ticked' === m.event);
-        this.post({ type: 'fake', cmd: 'tick', room });
+        this.post({ type: 'fake', cmd: 'tick', room, pending, rts });
         return Buffer.from((await p).received);
+    }
+
+    //  Frames until |bytes| have arrived or a frame brings nothing
+    async drain(bytes) {
+        const parts = [];
+        let got = 0;
+        for (;;) {
+            const b = await this.tick();
+            if (!b.length) {
+                return Buffer.concat(parts);
+            }
+            parts.push(b);
+            got += b.length;
+            if (got >= bytes) {
+                return Buffer.concat(parts);
+            }
+        }
     }
 
     async state() {
@@ -148,23 +170,158 @@ describe('amiga_door worker', function () {
         assert.deepEqual([...rest], [0x61, 0x62, RS, RS, 0x63]);
     });
 
-    it('caps queued input without splitting an RS RS pair', async () => {
+    it('feeds at most a window of bytes the guest has not taken', async () => {
+        await restored();
+        w.post({ type: 'input', data: Buffer.alloc(4000, 0x41) });
+        assert.equal(
+            (await w.tick()).length,
+            InputWindowBytes,
+            'an empty line: a window'
+        );
+        assert.equal(
+            (await w.tick(undefined, 500)).length,
+            InputWindowBytes - 500,
+            'the core still holds 500: the rest of the window'
+        );
+        assert.equal(
+            (await w.tick(undefined, InputWindowBytes)).length,
+            0,
+            'a full window: nothing'
+        );
+        assert.equal((await w.tick(100)).length, 100, 'the core accepted 100 of them');
+        const rest = await w.drain(4000);
+        assert.equal(rest.length, 4000 - 2 * InputWindowBytes + 500 - 100);
+    });
+
+    it('never drops a paste the guest is slow to take, and keeps its order', async () => {
+        await restored();
+        const paste = Buffer.from(
+            Array.from({ length: 16384 }, (_, i) => 0x20 + ((i * 31 + 7) % 95))
+        );
+        //  pasted in pieces, while the guest takes a little at a time
+        for (let i = 0; i < paste.length; i += 1000) {
+            w.post({ type: 'input', data: paste.subarray(i, i + 1000) });
+        }
+        const parts = [];
+        let got = 0;
+        while (got < paste.length) {
+            const b = await w.tick(37 + (got % 300));
+            assert.ok(b.length > 0, 'something every frame');
+            parts.push(b);
+            got += b.length;
+        }
+        assert.deepEqual(Buffer.concat(parts), paste);
+
+        w.shim(protocol.encode('X', { status: 'ok' }));
+        const exit = w.next(m => 'exit' === m.type);
+        await w.tick();
+        assert.equal((await exit).inputDropped, 0);
+        assert.ok(!w.messages.some(m => 'inputFull' === m.type));
+    });
+
+    it('turns the RTS/CTS handshake on for axshim 1.5 and later, from the H frame', async () => {
+        w = new TestWorker({ image, snapshot: false });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.equal(created.serialHandshake, false, 'no H yet: off');
+        w.shim(
+            Buffer.concat([
+                protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 38400 }),
+                protocol.encode('R'),
+            ])
+        );
+        const snapshot = w.next(m => 'snapshot' === m.type);
+        const ready = w.next(m => 'ready' === m.type);
+        await w.tick();
+        assert.equal((await snapshot).serialHandshake, true, 'the cache learns it too');
+        assert.equal((await ready).serialHandshake, true);
+        assert.equal((await w.state()).serialHandshake, true);
+
+        //  an older shim (an image rebuilt back, say) turns it off again
+        w.shim(protocol.encode('H', { version: 1, shim: 'axshim 1.4' }));
+        await w.tick();
+        assert.equal((await w.state()).serialHandshake, false);
+    });
+
+    it('holds input while the guest has RTS off, with the handshake on only', async () => {
+        //  restored from the snapshot of a machine that ran with it
+        w = new TestWorker({ image, serialHandshake: true });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.equal(created.serialHandshake, true);
+        await w.next(m => 'ready' === m.type);
+        assert.equal(sFrameOf(await w.tick()).keys.door, SESSION.door);
+
+        w.post({ type: 'input', data: Buffer.alloc(1000, 0x41) });
+        assert.equal((await w.tick(undefined, 0, false)).length, 0, 'RTS off: nothing');
+        assert.equal((await w.tick()).length, 0, 'still off');
+        assert.equal(
+            (await w.tick(undefined, 0, true)).length,
+            InputWindowBytes,
+            'RTS on'
+        );
+
+        //  axshim 1.4 never raises RTS: with its H the handshake goes and RTS is ignored
+        w.shim(protocol.encode('H', { version: 1, shim: 'axshim 1.4' }));
+        await w.tick(0, 0, false);
+        assert.equal((await w.state()).serialHandshake, false);
+        assert.equal((await w.tick()).length, 1000 - InputWindowBytes);
+    });
+
+    it('without the handshake API (enigma-vamiga 0.1.2) leaves it off and ignores RTS', async () => {
+        w = new TestWorker({ image, snapshot: false, legacyPackage: true });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.equal(created.serialHandshake, undefined, 'no option for the core');
+        w.shim(
+            Buffer.concat([
+                protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 38400 }),
+                protocol.encode('R'),
+            ])
+        );
+        const ready = w.next(m => 'ready' === m.type);
+        assert.equal(sFrameOf(await w.tick()).keys.door, SESSION.door);
+        assert.equal(
+            (await ready).serialHandshake,
+            false,
+            'an axshim 1.5 H changes nothing'
+        );
+        assert.equal((await w.state()).serialHandshake, false);
+
+        //  RTS off and bytes said to be pending mean nothing without the API:
+        //  guestClearToSend() is true and nothing counts as in flight
+        w.post({ type: 'input', data: Buffer.alloc(1000, 0x41) });
+        assert.equal((await w.tick(undefined, 500, false)).length, InputWindowBytes);
+        assert.equal(
+            (await w.tick(undefined, 500, false)).length,
+            1000 - InputWindowBytes
+        );
+    });
+
+    it('caps queued input without splitting an RS RS pair, and says so once', async () => {
         await restored();
         //  the cut falls where the escaped RS would need two bytes and one is left
         const raw = Buffer.concat([
             Buffer.alloc(MaxInputQueueBytes - 1, 0x41),
             Buffer.from([RS, 0x42, 0x43]),
         ]);
+        const full = w.next(m => 'inputFull' === m.type);
         w.post({ type: 'input', data: raw });
-        const got = await w.tick();
-        assert.equal(got.length, MaxInputQueueBytes - 1);
-        assert.ok(got.every(b => 0x41 === b));
+        assert.equal((await full).limit, MaxInputQueueBytes);
+        //  one byte of room is left: 'm' fits, 'ore' does not
+        w.post({ type: 'input', data: Buffer.from('more') });
 
-        //  and the drop is counted in caller bytes
+        const got = await w.drain(MaxInputQueueBytes);
+        assert.equal(got.length, MaxInputQueueBytes);
+        assert.ok(got.subarray(0, -1).every(b => 0x41 === b));
+        assert.equal(got[got.length - 1], 0x6d);
+        //  room again: later input is taken
+        w.post({ type: 'input', data: Buffer.from('ok') });
+        assert.deepEqual([...(await w.tick())], [0x6f, 0x6b]);
+
+        //  and the drop is counted in caller bytes, the warning given once
         w.shim(protocol.encode('X', { status: 'ok' }));
         const exit = w.next(m => 'exit' === m.type);
         await w.tick();
-        assert.equal((await exit).inputDropped, 3);
+        assert.equal((await exit).inputDropped, 3 + 3);
+        assert.equal(w.messages.filter(m => 'inputFull' === m.type).length, 1);
     });
 
     it('escapes 0x1E in caller input', async () => {
