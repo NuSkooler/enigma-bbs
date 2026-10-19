@@ -26,7 +26,7 @@ times; everything gets `rwed` protection, which is what doors expect.
 | Option | |
 |---|---|
 | `--size SIZE` | default `2000K`; bytes, or with `K`, `M` or `G`, rounded up to a multiple of 8 KB; at most `2032K` unless `--allow-large` (see below) |
-| `--allow-large` | allow a `--size` over 2032 KB (up to 2097144K, 8 KB short of 2 GB): only for an image used with the bundled ROM (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix; a stock AROS ROM corrupts larger FFS volumes on a write |
+| `--allow-large` | allow a `--size` over 2032 KB (up to 2097144K, 8 KB short of 2 GB): only for an image used with the bundled ROM (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix; an AROS ROM built before 2026-10-19 corrupts larger FFS volumes on a write |
 | `--name NAME` | volume name, default `BBS` |
 | `--doors DIR...` | door directories (the same as listing them after the image) |
 | `--workbench ADF` | add ARexx from your Workbench 3.1 disk, for ARexx doors (below) |
@@ -60,12 +60,13 @@ not on partitioned hard-disk images (RDB) or other file systems (PFS, SFS).
 
 - `2000K` is the default and enough for most doors (the shim and library take
   under 100 KB, Workbench's ARexx files about 150 KB). Make it bigger for doors
-  with large data files, up to `2032K`: a stock AROS ROM corrupts an FFS volume
-  of more than 4066 blocks (2033 KB, the most one bitmap block covers) when a
-  door writes to it, and 2032 KB is the largest multiple of 8 KB within that.
-  The bundled ROM (enigma-vamiga 0.1.2 and later) and Kickstart 3.1 have no such
-  limit; `--allow-large` goes past it for an image used only with them. Every
-  session carries the image, so keep it small.
+  with large data files, up to `2032K`: an AROS ROM built before 2026-10-19
+  corrupts an FFS volume of more than 4066 blocks (2033 KB, the most one bitmap
+  block covers) when a door writes to it, and 2032 KB is the largest multiple of
+  8 KB within that. The bundled ROM (enigma-vamiga 0.1.2 and later), AROS builds
+  since the upstream fix (AROS#1720) and Kickstart 3.1 have no such limit;
+  `--allow-large` goes past it for an image used only with them. A session reads
+  only the parts of the image the door uses, so size costs no memory.
 - Name the volume `BBS`. Doors find their files under `BBS:`; the shim also
   assigns `BBS:` to the boot volume, so another name works, but `BBS` keeps paths
   in door docs literal.
@@ -101,15 +102,15 @@ xdftool "$IMG" list             # check what is on it
 ```
 
 - `size=2000K` is the default and enough for most doors (the shim and library take
-  about 90 KB, Workbench's ARexx files about 150 KB). **With a stock AROS ROM,
-  keep the image at 2032K or less** (the largest 8 KB multiple under the
-  4066-block limit). A bigger FFS volume needs a second bitmap block, and the
-  stock AROS filesystem maps the blocks it covers wrongly: the first time a door
-  writes, it can take blocks that hold other files (on a 4M image, Bad Libs' score
-  file overwrote `rexxsyslib.library`'s header). `make_image.sh` warns. The ROM
-  bundled with enigma-vamiga 0.1.2 and later carries the fix, and Kickstart 3.1's
-  FastFileSystem handles any size. Every session carries the image, so keep it
-  small anyway.
+  about 90 KB, Workbench's ARexx files about 150 KB). **With an AROS ROM built
+  before 2026-10-19, keep the image at 2032K or less** (the largest 8 KB multiple
+  under the 4066-block limit). A bigger FFS volume needs a second bitmap block, and
+  the filesystem of such a ROM maps the blocks it covers wrongly: the first time a
+  door writes, it can take blocks that hold other files (on a 4M image, Bad Libs'
+  score file overwrote `rexxsyslib.library`'s header). `make_image.sh` warns. The
+  ROM bundled with enigma-vamiga 0.1.2 and later carries the fix (upstream since
+  AROS#1720, commit 9ebf8cb390), and Kickstart 3.1's FastFileSystem handles any
+  size.
 
 `xdftool` writes files with the current time and `rwed` protection, which is
 what doors expect, and skips `/dev/null` without a word: to put an empty file
