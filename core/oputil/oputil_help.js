@@ -407,20 +407,20 @@ Actions:
                               the door as a caller would and play it. Keystrokes go
                               to the door; its output is shown as UTF-8 with the
                               Amiga console's control codes translated. The shim's
-                              summary is printed when the door ends and, if it
-                              ended normally (status ok), the changes it made are
-                              written back to IMAGE. Ctrl+] hangs up and quits (the
-                              status is then "carrier": nothing is written). Needs
+                              summary is printed when the door ends. IMAGE is the
+                              emulator's disk: the door's writes go into it as the
+                              door makes them, however the session ends, and it is
+                              synced at the end. Ctrl+] hangs up and quits. Needs
                               no running ENiGMA. Do not use it on an image a
-                              running board is using.
+                              running board is using; try a door on a copy.
 
 create arguments:
   --size SIZE                 Image size (default 2000K): bytes, or with K, M or G.
-                              Rounded up to a multiple of 8K. Every session carries
-                              the image, so keep it small. At most 2032K unless
-                              --allow-large: a stock AROS ROM corrupts an FFS
-                              volume of more than 4066 blocks (2033K) when a door
-                              writes, and 2032K is the largest 8K multiple below.
+                              Rounded up to a multiple of 8K. At most 2032K unless
+                              --allow-large: an AROS ROM built before 2026-10-19
+                              corrupts an FFS volume of more than 4066 blocks
+                              (2033K) when a door writes, and 2032K is the largest
+                              8K multiple below.
                               Never more than 2097144K (8K short of 2G).
   --allow-large               Allow a --size over 2032K, for an image used only
                               with the bundled ROM (enigma-vamiga 0.1.2 and
@@ -459,7 +459,8 @@ console arguments:
                               doors drawn for a PC terminal)
   --rows N --cols N           Screen size (default: this terminal's)
   --warp SECONDS              Boot flat out for this long (default 30)
-  --no-persist                Leave IMAGE as it is
+  --no-persist                Keep the door's writes in the emulator: IMAGE is
+                              left exactly as it was
 
 Paths in the image use "/" and may start with a volume name ("BBS:Doors/x").
 File names are at most 30 characters, without ":"; AmigaDOS ignores case.

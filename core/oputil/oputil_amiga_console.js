@@ -11,15 +11,20 @@
  * terminal in raw mode and wires it to the emulated serial port: keystrokes
  * go to the door, the door's output comes back with the shim's control
  * frames removed, the Amiga console's CSI and form feed translated and the
- * text converted to UTF-8. The shim's `X` frame ends the session; its summary
- * is printed and, when the door exited normally, what it changed on the image
- * is written back. Ctrl+] hangs up and quits.
+ * text converted to UTF-8. The shim's `X` frame ends the session and its
+ * summary is printed. Ctrl+] hangs up and quits.
  *
- * Mirrors core/amiga_door/amiga_worker.js (boot, hello, `s`, persist).
+ * The image is the emulator's disk (enigma-vamiga 0.2.0's file-backed disk):
+ * the door's writes go into it as the door makes them, and at the end, however
+ * the session ended, the image is synced. --no-persist keeps every write in the
+ * emulator, so the image is left exactly as it was.
+ *
+ * Mirrors core/amiga_door/amiga_worker.js (boot, hello, `s`, the final sync).
  */
 
 const protocol = require('../amiga_door/protocol.js');
 const { HostLink, AmigaConsoleTranslator } = require('../amiga_door/host_link.js');
+const { checkPackage } = require('../amiga_door/vamiga_package.js');
 
 const fs = require('fs');
 const iconv = require('iconv-lite');
@@ -33,7 +38,7 @@ const CONSOLE_MODES = ['cooked', 'raw'];
 const QUIT_KEY = 0x1d; //  Ctrl+]
 
 //  as amiga_worker.js
-const PersistSettleFrames = 150;
+const SettleFrames = 150;
 const DefaultWarpBootSeconds = 30;
 const BootTimeoutMs = 180 * 1000;
 const HangupWaitMs = 15 * 1000;
@@ -46,6 +51,7 @@ exports.buildConsoleSession = buildConsoleSession;
 exports.runConsole = runConsole;
 exports.DOOR_TYPES = DOOR_TYPES;
 exports.formatExit = formatExit;
+exports.formatDisk = formatDisk;
 
 //  The `s` frame keys for a test caller. `opts` are oputil's options, all
 //  optional apart from `door`.
@@ -137,8 +143,31 @@ function formatExit(status, keys) {
     return lines;
 }
 
-//  Resolves with { status, keys, persisted, reason }. Rejects with a
-//  ConsoleError for anything that stops the drive before the door ends.
+//
+//  What became of the image, one line: |disk| is runConsole()'s, null with
+//  --no-persist, else { writes, bytes, error } (the core's writes into the
+//  file over the whole run, and why the final sync failed if it did).
+//
+function formatDisk(image, disk) {
+    if (!disk) {
+        return `${image} not changed (--no-persist)`;
+    }
+    const kb = n => `${Math.round(n / 1024)} KB`;
+    if (disk.error) {
+        return (
+            `${image}: the final sync FAILED (${disk.error}); it holds what reached it ` +
+            `before (${disk.writes} writes, ${kb(disk.bytes)})`
+        );
+    }
+    if (!disk.writes) {
+        return `${image} not changed (the door wrote nothing to its disk)`;
+    }
+    return `${image} written as the door went: ${disk.writes} writes, ${kb(disk.bytes)}, synced`;
+}
+
+//  Resolves with { status, keys, disk, reason } (see formatDisk() for
+//  |disk|). Rejects with a ConsoleError for anything that stops the drive
+//  before the door ends; the image is synced either way.
 async function runConsole(image, opts = {}, io = {}) {
     const stdin = io.stdin || process.stdin;
     const stdout = io.stdout || process.stdout;
@@ -166,17 +195,18 @@ async function runConsole(image, opts = {}, io = {}) {
         throw new ConsoleError('--warp must be a whole number of seconds from 0 to 3600');
     }
 
-    let VAmiga, Pacer;
-    try {
-        ({ VAmiga, Pacer } = require('enigma-vamiga'));
-    } catch (e) {
-        throw new ConsoleError(`cannot load enigma-vamiga: ${e.message}`);
+    const vamiga = checkPackage();
+    if (vamiga.problem) {
+        throw new ConsoleError(vamiga.problem);
     }
+    const { VAmiga, Pacer } = require('enigma-vamiga');
 
     let emu;
     try {
         emu = await VAmiga.create({
-            hdf: image,
+            //  the image is the disk; --no-persist keeps the writes in the emulator
+            hdf: { path: image, mode: 'file' },
+            writeThrough: persist ? 'onIdle' : 'never',
             rom: opts.rom ? String(opts.rom) : undefined,
             ext: opts.ext ? String(opts.ext) : undefined,
             warpBootSeconds,
@@ -218,6 +248,30 @@ async function runConsole(image, opts = {}, io = {}) {
             stdin.pause();
         };
 
+        //
+        //  However the session ends: let the guest's file system write back
+        //  what it buffers, then have the core write the rest into the image
+        //  and fsync it. Most of the door's writes are there already
+        //  (write-through on idle). Nothing with --no-persist.
+        //
+        const syncDisk = () => {
+            if (!persist) return null;
+            try {
+                emu.runFrames(SettleFrames);
+                emu.serialRead();
+            } catch (e) {
+                //  a halted machine: sync what the core has
+            }
+            let error;
+            try {
+                emu.hdfSync();
+            } catch (e) {
+                error = e.message;
+            }
+            const { writes, bytes } = emu.hdfWriteStats;
+            return { writes, bytes, error };
+        };
+
         const finish = (err, result) => {
             if ('done' === state) return;
             state = 'done';
@@ -229,39 +283,35 @@ async function runConsole(image, opts = {}, io = {}) {
             restoreTerminal();
             const flush = translator.flush();
             if (flush.length) stdout.write(iconv.decode(flush, encoding));
+            let disk = null;
+            try {
+                disk = syncDisk();
+            } catch (e) {
+                disk = { writes: 0, bytes: 0, error: e.message };
+            }
             try {
                 emu.destroy();
             } catch (e) {
                 //  going away
             }
-            if (err)
+            if (err) {
+                say(formatDisk(image, disk));
                 reject(err instanceof ConsoleError ? err : new ConsoleError(err.message));
-            else resolve(result);
+            } else {
+                resolve(Object.assign({ disk }, result));
+            }
         };
 
         const onExit = frame => {
             state = 'exited';
             inQueue = Buffer.alloc(0);
-            const status = frame.keys.status;
-            let persisted = null;
-            let reason = null;
-            if (!persist) {
-                reason = '--no-persist';
-            } else if ('ok' !== status) {
-                reason = `the door ended with status "${status}", not ok`;
-            } else {
-                try {
-                    pacer.stop();
-                    emu.runFrames(PersistSettleFrames);
-                    emu.serialRead();
-                    persisted = emu.persistHdf(image);
-                } catch (e) {
-                    return finish(e);
-                }
-            }
             //  let the last output reach the terminal first
             setImmediate(() =>
-                finish(null, { status, keys: frame.keys, persisted, reason })
+                finish(null, {
+                    status: frame.keys.status,
+                    keys: frame.keys,
+                    reason: null,
+                })
             );
         };
 
@@ -311,7 +361,6 @@ async function runConsole(image, opts = {}, io = {}) {
                     return finish(null, {
                         status: 'aborted',
                         keys: {},
-                        persisted: null,
                         reason: why,
                     });
                 }
@@ -325,7 +374,6 @@ async function runConsole(image, opts = {}, io = {}) {
                     finish(null, {
                         status: 'aborted',
                         keys: {},
-                        persisted: null,
                         reason: `no X within ${HangupWaitMs / 1000} s of the hangup`,
                     }),
                 HangupWaitMs

@@ -69,8 +69,9 @@ const WORKBENCH_FILES = [
 
 const DEFAULT_SIZE = '2000K';
 
-//  A stock AROS ROM corrupts an FFS volume of more than one bitmap block
-//  (4066 blocks, 2033 KB) when the guest writes to it; the ROM bundled with
+//  An AROS ROM built before 2026-10-19 corrupts an FFS volume of more than one
+//  bitmap block (4066 blocks, 2033 KB) when the guest writes to it (fixed
+//  upstream in aros-development-team/AROS#1720); the ROM bundled with
 //  enigma-vamiga 0.1.2 and later carries the fix. Sizes are rounded to 8 KB,
 //  so 2032 KB (4064 blocks) is the largest image within the limit.
 const AROS_MAX_BLOCKS = 4066;
@@ -445,7 +446,8 @@ function cmdCreate(image, typed) {
     const size = parseSize(options.size);
     if (size > AROS_MAX_SIZE && !argv['allow-large']) {
         throw new CommandError(
-            `${size / 1024}K is more than ${AROS_MAX_SIZE / 1024}K: a stock AROS ROM corrupts ` +
+            `${size / 1024}K is more than ${AROS_MAX_SIZE / 1024}K: an AROS ROM built ` +
+                'before 2026-10-19 corrupts ' +
                 `an FFS volume of more than ${AROS_MAX_BLOCKS} blocks ` +
                 `(${(AROS_MAX_BLOCKS * 512) / 1024}K) when a door writes to it. Use ` +
                 `${AROS_MAX_SIZE / 1024}K or less, or pass --allow-large for an image used ` +
@@ -564,7 +566,12 @@ function cmdInfo(image) {
 
 //  Boot IMAGE and play one door on this terminal. Mirrors `oputil v86 console`.
 async function cmdConsole(image) {
-    const { runConsole, formatExit, ConsoleError } = require('./oputil_amiga_console.js');
+    const {
+        runConsole,
+        formatExit,
+        formatDisk,
+        ConsoleError,
+    } = require('./oputil_amiga_console.js');
     const opts = {
         door: argv.door,
         type: argv.type,
@@ -590,14 +597,11 @@ async function cmdConsole(image) {
         console.error(
             `amiga-door console: door exited\n  ${formatExit(res.status, res.keys).join('\n  ')}`
         );
-        if (res.persisted) {
-            console.error(
-                `amiga-door console: saved to ${image} (${res.persisted.chunksWritten} changed chunks)`
-            );
-        } else {
-            console.error(`amiga-door console: ${image} not changed (${res.reason})`);
+        if (res.reason) console.error(`amiga-door console: ${res.reason}`);
+        console.error(`amiga-door console: ${formatDisk(image, res.disk)}`);
+        if ('ok' !== res.status || (res.disk && res.disk.error)) {
+            process.exitCode = ExitCodes.ERROR;
         }
-        if ('ok' !== res.status) process.exitCode = ExitCodes.ERROR;
     } catch (e) {
         if (e instanceof ConsoleError) {
             process.stderr.write('\x1b[0m\r\n');
