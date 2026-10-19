@@ -1,6 +1,6 @@
 ---
 title: Doors
-description: "Run door games on your board — DOS via v86 or an external emulator, native binaries, interactive fiction, and hosted door services."
+description: "Run door games on your board — DOS via v86 or an external emulator, Amiga doors, native binaries, interactive fiction, and hosted door services."
 sidebar:
     order: 1
 ---
@@ -17,6 +17,7 @@ See also [Let's add a DOS door to Enigma½ BBS](https://medium.com/retro-future/
 | Approach | Module | Best For | External Requirements |
 |----------|--------|----------|-----------------------|
 | **[Native v86 Emulation](v86.md)** | `v86_door` | DOS doors, no emulator on server | FreeDOS disk image |
+| **[Amiga Doors](amiga.md)** | `amiga_door` | AmiExpress (/X) XIM, ARexx and AmigaDOS CLI doors, no emulator on server | An Amiga door image |
 | **[External DOS Emulators](dos-emulation.md)** | `abracadabra` | DOS doors, full graphical setup | QEMU or DOSEMU installed |
 | **[Scripts & Native Binaries](scripts-and-binaries.md)** | `abracadabra` | Native terminal apps, shell/Python scripts | None |
 | **[Z-Machine Interactive Fiction](zmachine.md)** | `zmachine_door` | Zork, Adventure, Photopia, and hundreds of free IF games | None (pure JavaScript) |
@@ -24,6 +25,8 @@ See also [Let's add a DOS door to Enigma½ BBS](https://medium.com/retro-future/
 ### Quick Guide
 
 - **Running a classic DOS door game and want zero server dependencies?** → [Native v86 Emulation](v86.md). ENiGMA½ boots FreeDOS in a built-in emulator; no QEMU or DOSEMU required on the production machine.
+
+- **Running an Amiga BBS door written for AmiExpress?** → [Amiga Doors](amiga.md). A built-in Amiga emulator runs XIM doors and CLI (stdio) doors, with the AROS ROM bundled, and ARexx doors with your own Workbench 3.1.
 
 - **Already have a QEMU or DOSEMU setup, or need a full graphical DOS environment for image configuration?** → [External DOS Emulators](dos-emulation.md). Raw disk images are compatible with both approaches, so you can configure with QEMU and run with v86.
 
@@ -65,6 +68,7 @@ Each of the older formats carries a field naming the connection the door has bee
 * [Scripts & Native Binaries](scripts-and-binaries.md)
 * [External DOS Emulators](dos-emulation.md)
 * [Native v86 Emulation](v86.md)
+* [Amiga Doors](amiga.md)
 
 ## Additional Resources
 ### Door Downloads & Support Sites

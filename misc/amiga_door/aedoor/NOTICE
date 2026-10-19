@@ -1,0 +1,7 @@
+AEDoor.library in this directory is NilBBS's own clean-room AEDoor.library
+(https://github.com/lainejones/NilBBS, commit 4f9c0c3, src/aedoor/), MIT licensed,
+Copyright (c) 2026 Laine Jones; the licence is in LICENSE next to this file.
+
+ENiGMA½ applied one change, patches/0001-aedoor-preserve-d1-a0-a1.patch (register
+preservation for assembler doors such as The Quest); aedoor_start.S already carries it.
+The build is in ../shim/Makefile and produces ../bin/AEDoor.library.

@@ -1,0 +1,184 @@
+AEDoor.library: keep the caller's d1/a0/a1 across every call, as AEDoor 2.x does.
+
+NilBBS's register stubs clobber d1/a0/a1.  The Quest (hand-written assembler)
+keeps its DIFace in a1 across calls and then wrote through garbage, clobbering
+low memory including SysBase at $4.  movem around each stub fixes it and leaves
+the condition codes the docs promise alone.  Offered upstream to NilBBS.
+Against NilBBS 4f9c0c3, apply with: patch -p1 < this file (from the NilBBS root).
+
+--- a/src/aedoor/aedoor_start.S
++++ b/src/aedoor/aedoor_start.S
+@@ -169,19 +169,24 @@
+ |   ...  (flags: 1 = string given, 2 = data given)
+ 
+ LCreateComm:                    | d0 = node (ASCII, obsolete)
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  d0,-(sp)
+     jsr     _aed_CreateComm
+     addq.l  #4,sp
+     tst.l   d0
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LDeleteComm:                    | a1 = dif
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a1,-(sp)
+     jsr     _aed_DeleteComm
+     addq.l  #4,sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LSendCmd:                       | a1 = dif, d0 = cmd
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     pea     0.w                 | flags: neither string nor data
+     clr.l   -(sp)
+     clr.l   -(sp)
+@@ -189,9 +194,11 @@
+     move.l  a1,-(sp)
+     jsr     _aed_Send
+     lea     20(sp),sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LSendStrCmd:                    | a1 = dif, d0 = cmd, a0 = string
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     pea     1.w
+     clr.l   -(sp)
+     move.l  a0,-(sp)
+@@ -199,9 +206,11 @@
+     move.l  a1,-(sp)
+     jsr     _aed_Send
+     lea     20(sp),sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LSendDataCmd:                   | a1 = dif, d0 = cmd, d1 = data
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     pea     2.w
+     move.l  d1,-(sp)
+     clr.l   -(sp)
+@@ -209,9 +218,11 @@
+     move.l  a1,-(sp)
+     jsr     _aed_Send
+     lea     20(sp),sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LSendStrDataCmd:                | a1 = dif, d0 = cmd, a0 = string, d1 = data
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     pea     3.w
+     move.l  d1,-(sp)
+     move.l  a0,-(sp)
+@@ -219,89 +230,112 @@
+     move.l  a1,-(sp)
+     jsr     _aed_Send
+     lea     20(sp),sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LGetData:                       | a1 = dif -> d0 = &Data
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a1,-(sp)
+     jsr     _aed_GetData
+     addq.l  #4,sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LGetString:                     | a1 = dif -> d0 = String
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a1,-(sp)
+     jsr     _aed_GetString
+     addq.l  #4,sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LPrompt:                        | a1 = dif, d1 = length, a0 = prompt -> String / NULL (Z)
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  d1,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_Prompt
+     lea     12(sp),sp
+     tst.l   d0
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LWriteStr:                      | a1 = dif, a0 = string, d1 = flags
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  d1,-(sp)
+     move.l  a0,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_WriteStr
+     lea     12(sp),sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LShowGFile:                     | a1 = dif, a0 = file
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_ShowGFile
+     addq.l  #8,sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LShowFile:                      | a1 = dif, a0 = file
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_ShowFile
+     addq.l  #8,sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LSetDT:                         | a1 = dif, d0 = id, a0 = str
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  d0,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_SetDT
+     lea     12(sp),sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LGetDT:                         | a1 = dif, d0 = id, a0 = str (or NULL)
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  d0,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_GetDT
+     lea     12(sp),sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LGetStr:                        | a1 = dif, d1 = length, a0 = default -> String / NULL (Z)
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  d1,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_GetStr
+     lea     12(sp),sp
+     tst.l   d0
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LCopyStr:                       | a1 = dif, a0 = buffer
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_CopyStr
+     addq.l  #8,sp
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LHotKey:                        | a1 = dif, a0 = prompt (or NULL) -> key / -1 (N)
++    movem.l d1/a0-a1,-(sp)      | ENiGMA: keep the caller's d1/a0/a1, as AEDoor 2.x does
+     move.l  a0,-(sp)
+     move.l  a1,-(sp)
+     jsr     _aed_HotKey
+     addq.l  #8,sp
+     tst.l   d0
++    movem.l (sp)+,d1/a0-a1      | (movem leaves the condition codes alone)
+     rts
+ 
+ LPreCreateComm:                 | private multi-door calls: nothing to do here

@@ -367,6 +367,7 @@ describe('config schema against config_default.js', () => {
             'contentServers.web.http.port',
             'contentServers.web.https.port',
             'contentServers.web.logging.rotatingFile.level',
+            'doors.amiga.snapshotCacheEntries',
             'doors.outputBackpressure.enabled',
             'doors.outputBackpressure.highWaterBytes',
             'doors.outputBackpressure.lowWaterBytes',

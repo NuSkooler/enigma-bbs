@@ -1,6 +1,12 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.6.0-beta
+
+* **Amiga doors run inside ENiGMA½.** The new `amiga_door` menu module runs AmiExpress (/X) XIM doors in an embedded vAmiga emulator (the `enigma-vamiga` package, with the AROS ROM bundled), so no external emulator, Kickstart or Workbench is needed. A small host shim on the door's disk image stands in for an /X node; the first session boots and snapshots the machine and later ones restore it in milliseconds, and a door's disk writes are saved after a clean exit, or after a hangup if the door saved and quit by itself. Plain AmigaDOS programs that use standard input and output, as many Amiga BBS games do (Battle Grounds, Global War), run too with `doorType: cli`, the shim acting as their console. /X ARexx doors (`TYPE=AIM` scripts such as KickBoxing and Hacker) run with `doorType: aim` on an image that carries ARexx from your own Workbench 3.1 (`make_image.sh -w`), since AROS has no ARexx. See [Amiga Doors](website/src/content/docs/doors/amiga.md) and `misc/amiga_door/image/make_image.sh`.
+
+  * **Upgrading:** run `npm install` to pick up the new `enigma-vamiga` dependency (the emulator core as WebAssembly, about 9 MB). No configuration changes are required; `doors.amiga.snapshotCacheEntries` (default 4) is the only new system setting.
+
 ## 0.5.1-beta
 
 * **The file base can read ARC, PAK, ZOO, ACE, Squeeze It, UltraCompressor II, Unix `.Z`, xz, Zstandard and Microsoft Cabinet archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks** -- with [unarc](https://github.com/mkrueger/unarc-rs) installed. Uploads in these formats were treated as plain files, so nothing inside them was listed or used for a description. unarc is a single program that reads most archive formats found on BBSes; ENiGMA½ now lists their contents and takes descriptions from a `FILE_ID.DIZ` or `README` inside, as it does for ZIP. A DMS disk's attached `FILE_ID.DIZ` becomes its description. unarc is **not** shipped with ENiGMA½, and nothing changes until it is installed.
