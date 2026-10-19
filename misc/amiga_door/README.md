@@ -213,7 +213,9 @@ A CLI door gets none of the user block: its `args` (its whole command line, with
 node number in front) is all it knows about the caller; see "For a CLI door" above.
 An ARexx door gets the whole user block, which its `GETUSER` commands read, and so
 does a Paragon door (its user number and string requests) and a C-Net ARexx door,
-which also reads `account` (its account number, `GETUSER 39`/`40`; default 1) and
+which also reads `account` (its account number, `GETUSER 39`/`40`; default 1, C-Net's
+sysop; ENiGMA sends the caller's user ID and does not run the door for a caller who
+has not logged in) and
 takes `panicgrace` (seconds from carrier loss to its CTRL-C, 0 to 25, default 10; 0
 breaks the script before its waiting command is answered) and `wrap` (`0` turns
 word wrap off).

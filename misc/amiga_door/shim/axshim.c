@@ -3951,6 +3951,7 @@ static void cn_command(struct RexxMsg *m)
         cn_reply(m, out);
     } else if (!strcmp(w, "SETOBJECT")) {
         strncpy(S.cn.obj, t, sizeof(S.cn.obj) - 1);
+        S.cn.obj[sizeof(S.cn.obj) - 1] = 0;
         cn_reply(m, "");
     } else if (!strcmp(w, "PUTUSER")) {
         cn_putuser(n);
@@ -3964,8 +3965,8 @@ static void cn_command(struct RexxMsg *m)
         if (prefix_icase(t, strlen(t), "EMULATION")) strcpy(out, S.ansi ? "ANSI" : "ASCII");
         else if (prefix_icase(t, strlen(t), "ABBEREXX")) strcpy(out, "1.0");
         else if (prefix_icase(t, strlen(t), "BBS")) strcpy(out, "5.36c");
-        else if (prefix_icase(t, strlen(t), "NAME")) strncpy(out, get("bbsname", "ENiGMA"), 80);
-        else if (prefix_icase(t, strlen(t), "SYSOP")) strncpy(out, get("sysop", "SysOp"), 80);
+        else if (prefix_icase(t, strlen(t), "NAME")) { strncpy(out, get("bbsname", "ENiGMA"), 80); out[80] = 0; }
+        else if (prefix_icase(t, strlen(t), "SYSOP")) { strncpy(out, get("sysop", "SysOp"), 80); out[80] = 0; }
         else if (prefix_icase(t, strlen(t), "TERM"))
             sprintf(out, "38400 %ld %ld %ld", (long)S.cols, (long)S.rows, (long)cn_port());
         else if (prefix_icase(t, strlen(t), "USER")) {
@@ -3981,6 +3982,7 @@ static void cn_command(struct RexxMsg *m)
     } else if (!strcmp(w, "CHANGEWHERE") || !strcmp(w, "SETNODELOCATION") || !strcmp(w, "CHANGEWHAT")) {
         strcpy(out, S.cn.where);        /* C-Net answers the one before */
         strncpy(S.cn.where, t, sizeof(S.cn.where) - 1);
+        S.cn.where[sizeof(S.cn.where) - 1] = 0;
         cn_reply(m, out);
     } else if (!strcmp(w, "ADDTIME")) {         /* tenths of a minute (SDK), signed */
         LONG left = time_left() + atol(t) * 6;

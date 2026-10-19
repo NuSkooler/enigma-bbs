@@ -39,7 +39,9 @@
  * host, answering C-Net's TRANSMIT/GETUSER/PROMPT/... commands and MCI codes
  * from the same user block. Like an AIM door it needs the sysop's Workbench
  * ARexx in the image; pfiles expect PFILES: (and CNET:) assigns, which the
- * shim makes when the image has SYS:PFiles (SYS:CNet), or |assigns|.
+ * shim makes when the image has SYS:PFiles (SYS:CNet), or |assigns|. Its C-Net
+ * account number is the caller's user ID, so only ENiGMA's root sysop (ID 1)
+ * is C-Net's sysop account 1; a caller who has not logged in is refused.
  *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.
@@ -839,6 +841,14 @@ function shouldPersist(config, status, keys) {
     return persistDecision(config, status, keys).persist;
 }
 
+//  A C-Net door's account number: the user ID. C-Net's account 1 is its sysop,
+//  as ENiGMA's user 1 is the root sysop; the shim makes 0 or no number 1, so
+//  anything but a real ID (1 or more) is null and the door is not run.
+function cnetAccount(user) {
+    const id = user ? user.userId : undefined;
+    return Number.isInteger(id) && id >= 1 ? id : null;
+}
+
 //
 //  The `s` frame: the user block the shim answers DT_* requests from, plus
 //  the door to run and session options. `now` is added by the worker when the
@@ -858,6 +868,11 @@ function buildSessionKeys(client, config) {
     const clampMinutes = m => Math.min(null === m ? Infinity : m, MaxDoorMinutes);
     const cli = 'cli' === config.doorType;
     const cnet = 'cnetrexx' === config.doorType;
+    const account = cnet ? cnetAccount(user) : undefined;
+    if (null === account) {
+        //  initSequence() refuses this; the shim would make it the sysop
+        throw new Error(`no C-Net account number for user ID ${user.userId}`);
+    }
 
     let args = expandDoorArgs(
         config.doorArgs,
@@ -894,8 +909,8 @@ function buildSessionKeys(client, config) {
         assign: sessionPairs(config.assigns, true),
         env: sessionPairs(config.env, false),
         node: client.node,
-        //  C-Net: GETUSER 39/40, FINDACCOUNT; account 1 is C-Net's sysop, as ENiGMA's
-        account: cnet ? user.userId : undefined,
+        //  C-Net: GETUSER 39/40, FINDACCOUNT (see cnetAccount())
+        account,
         panicgrace: cnet ? config.panicGraceSeconds : undefined,
         wrap: cnet && false === config.wordWrap ? 0 : undefined,
         name: userText(user.getSanitizedName()),
@@ -1661,6 +1676,27 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     return callback(null);
                 },
 
+                function requireCNetAccount(callback) {
+                    //  a C-Net door's account number is the user ID: no
+                    //  number before login (the shim would use the sysop's)
+                    if ('cnetrexx' !== self.config.doorType) return callback(null);
+                    const user = self.client.user;
+                    if (user && user.isAuthenticated() && null !== cnetAccount(user)) {
+                        return callback(null);
+                    }
+                    self.client.log.warn(
+                        {
+                            name: self.config.name,
+                            userId: user ? user.userId : undefined,
+                        },
+                        `C-Net ARexx door "${self.config.name}" needs a logged-in user ` +
+                            '(its C-Net account number is the user ID); refusing'
+                    );
+                    return callback(
+                        Errors.AccessDenied('C-Net ARexx doors need a logged-in user')
+                    );
+                },
+
                 function checkFiles(callback) {
                     for (const [label, p] of [
                         ['image', self.config.image],
@@ -2117,6 +2153,7 @@ exports._test = {
     normalizeConfig,
     shouldPersist,
     buildSessionKeys,
+    cnetAccount,
     expandDoorArgs,
     quoteArg,
     userText,

@@ -20,6 +20,7 @@ const {
     normalizeConfig,
     shouldPersist,
     buildSessionKeys,
+    cnetAccount,
     expandDoorArgs,
     quoteArg,
     userText,
@@ -1651,6 +1652,38 @@ describe('amiga_door image lock', () => {
         assert.doesNotMatch(busy.client.term.written.join(''), /could not be run/);
     });
 
+    it('runs a C-Net ARexx door only for a logged-in user', async () => {
+        const cnet = { image, doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' };
+        const user = (userId, authenticated) => ({
+            userId,
+            isAuthenticated: () => authenticated,
+        });
+
+        for (const u of [undefined, user(0, false), user(7, false), user(0, true)]) {
+            const client = fakeClient();
+            client.user = u;
+            const m = makeModule(cnet, client);
+            assert.equal(await startModule(m), 'refused');
+            assert.match(m.client.term.written.join(''), /XIMTest could not be run/);
+            assert.ok(
+                m.client.log.lines.some(
+                    l => 'warn' === l.level && /needs a logged-in user/.test(l.msg)
+                ),
+                'the log says why'
+            );
+            assert.equal(activeImages.size, 0, 'nothing held');
+        }
+
+        const client = fakeClient();
+        client.user = user(7, true);
+        const m = makeModule(cnet, client);
+        assert.equal(await startModule(m), 'ran');
+        m.leave();
+
+        //  other door types do not ask
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+    });
+
     it('leave() before any session frees both at once', async () => {
         const m = makeModule({ image });
         assert.equal(await startModule(m), 'ran');
@@ -1870,6 +1903,27 @@ describe('amiga_door session keys', () => {
         assert.equal(plain.panicgrace, undefined);
         assert.equal(plain.wrap, undefined);
         assert.equal(plain.account, 1);
+        //  any other user is their own account; no ID is no account
+        const other = stubClient();
+        other.user.userId = 7;
+        assert.equal(
+            buildSessionKeys(other, config({ doorType: 'cnetrexx', door: 'PFILES:x' }))
+                .account,
+            7
+        );
+        other.user.userId = 0;
+        assert.throws(
+            () =>
+                buildSessionKeys(
+                    other,
+                    config({ doorType: 'cnetrexx', door: 'PFILES:x' })
+                ),
+            /no C-Net account number for user ID 0/
+        );
+        assert.equal(cnetAccount({ userId: 1 }), 1);
+        for (const u of [undefined, { userId: 0 }, { userId: -2 }, { userId: '5' }]) {
+            assert.equal(cnetAccount(u), null);
+        }
         //  and the other door types do not get them
         const xim = buildSessionKeys(stubClient(), config({}));
         assert.equal(xim.account, undefined);
