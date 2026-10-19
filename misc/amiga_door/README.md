@@ -379,7 +379,8 @@ asks and, for a door with `persist` on, writes the guest's changes into it in pl
 once the drive has been idle for 100 ms of Amiga time. When a session ends, however
 it ends, the worker runs the guest 3 seconds more (flat out) so its file system
 flushes, then `hdfSync()`s the image; with `persist: false` the core keeps every write
-and the image is never touched. No emulator may have an image open while another
+and the image is never touched. On ENiGMA's SIGINT shutdown the module does this for
+every running worker at once and waits for their syncs, about 3 seconds at most. No emulator may have an image open while another
 writes it (neither re-reads what the other wrote, and each guest's FFS believes it owns
 the volume), so images are held readers/writer: a persisting session holds its image
 exclusively until that sync is done, `persist: false` sessions share it, and the two

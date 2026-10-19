@@ -326,6 +326,82 @@ let vamigaPackage = checkPackage();
 //  Doors already warned that their persistOn does nothing (once per door name)
 const persistOnWarned = new Set();
 
+//  Sessions whose worker has not stopped yet (from start() to 'closed')
+const runningSessions = new Set();
+
+//  How long a server shutdown waits for running doors to sync their images
+const ShutdownSyncMs = 3000;
+
+//
+//  Server shutdown (bbs.js shutdownSystem, after the callers have been
+//  disconnected): end every running session, so that each worker settles,
+//  syncs its image and stops, and wait for them, at most |timeoutMs| in all.
+//  Best effort: what has not synced by then is logged, and the process exit
+//  that follows takes the workers with it (their images keep what
+//  write-through had written). Calls back without an error, always.
+//
+function shutdown(cb, { timeoutMs = ShutdownSyncMs, log } = {}) {
+    const sessions = [...runningSessions];
+    if (0 === sessions.length) {
+        return cb(null);
+    }
+    log = log || require('../logger.js').log;
+    const t0 = Date.now();
+    let left = sessions.length;
+    let timer = null;
+    let reported = false;
+    const report = () => {
+        if (reported) {
+            return;
+        }
+        reported = true;
+        clearTimeout(timer);
+        const synced = [];
+        const notSynced = [];
+        for (const s of sessions) {
+            const who = { name: s.config.name, node: s.client.node };
+            const r = s.synced;
+            if (r && !r.error) {
+                synced.push(
+                    Object.assign(
+                        who,
+                        r.skipped ? { skipped: true } : { writes: r.writes }
+                    )
+                );
+            } else {
+                notSynced.push(
+                    Object.assign(who, {
+                        why: r
+                            ? r.error
+                            : s.closeDone
+                              ? 'the worker was gone'
+                              : 'no answer',
+                    })
+                );
+            }
+        }
+        (notSynced.length ? log.warn : log.info).call(
+            log,
+            { synced, notSynced, ms: Date.now() - t0 },
+            `Amiga doors at shutdown: ${synced.length} synced, ${notSynced.length} not`
+        );
+        return cb(null);
+    };
+    timer = setTimeout(report, timeoutMs);
+    for (const s of sessions) {
+        s.once('closed', () => {
+            if (0 === --left) {
+                report();
+            }
+        });
+        try {
+            s.shutdownStop();
+        } catch (e) {
+            //  best effort; it is reported as not synced
+        }
+    }
+}
+
 //  enigma-vamiga's compiled WebAssembly module, compiled once per process
 let compiledModulePromise = null;
 
@@ -1017,6 +1093,7 @@ class AmigaDoorSession extends EventEmitter {
     }
 
     start() {
+        runningSessions.add(this);
         this.onWorkerMessageBound = msg => this.onWorkerMessage(msg);
         this.onWorkerErrorBound = err => {
             this.workerGone = true; //  an uncaught error ends the thread
@@ -1541,6 +1618,14 @@ class AmigaDoorSession extends EventEmitter {
         this.emit('done', Object.assign({ reason: this.disconnectReason }, result));
     }
 
+    //  The server is shutting down: end the session now (its worker then
+    //  syncs and stops, see close()). A session already ended is closing.
+    shutdownStop() {
+        if (!this.finished) {
+            this.finish({ reason: 'shutdown' });
+        }
+    }
+
     //
     //  Stop the worker: it lets the guest's file system flush, syncs the image
     //  ('synced') and exits. 'closed' once it is gone; nothing of the session
@@ -1567,6 +1652,7 @@ class AmigaDoorSession extends EventEmitter {
                 return;
             }
             this.closeDone = true;
+            runningSessions.delete(this);
             clearTimeout(timer);
             worker.removeListener('message', onMessage);
             worker.removeListener('exit', gone);
@@ -2195,8 +2281,12 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
     }
 };
 
+//  For bbs.js shutdownSystem
+exports.shutdown = shutdown;
+
 //  Exported for unit tests only — not part of the public API
 exports._test = {
+    runningSessions,
     normalizeConfig,
     PersistOnIgnored,
     persistOnWarned,

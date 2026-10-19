@@ -210,6 +210,13 @@ function shutdownSystem() {
                 }
                 callback(null);
             },
+            function stopAmigaDoors(callback) {
+                //  Best effort, about 3 s at most: running Amiga doors sync
+                //  their disk images before the process exits
+                return require('./amiga_door/amiga_door.js').shutdown(() => {
+                    return callback(null);
+                });
+            },
             function stopListeningServers(callback) {
                 return require('./listening_server.js').shutdown(() => {
                     return callback(null); //  ignore err

@@ -1544,6 +1544,114 @@ function Events() {
     return require('../core/events.js');
 }
 
+// ─── server shutdown ──────────────────────────────────────────────────────────
+
+describe('amiga_door server shutdown', function () {
+    this.timeout(10000);
+    const { Worker } = require('worker_threads');
+    const { shutdown } = require('../core/amiga_door/amiga_door.js');
+    const HARNESS = path.join(__dirname, 'fixtures/amiga_worker/harness.js');
+    let dir;
+
+    beforeEach(() => {
+        _test.runningSessions.clear(); //  whatever earlier tests left closing
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amiga_door_shutdown_'));
+    });
+    afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+    //  A session on a real worker thread (amiga_worker.js on the fake
+    //  enigma-vamiga), restored and running
+    async function realSession() {
+        const image = path.join(dir, 'door.hdf');
+        fs.writeFileSync(image, Buffer.alloc(8192));
+        const worker = new Worker(HARNESS, {
+            workerData: {
+                module: null,
+                snapshot: new Uint8Array([1]),
+                image,
+                persist: true,
+                machine: {},
+                warpBootSeconds: 0,
+                session: { version: 1, door: 'BBS:Doors/X/x', node: 1 },
+            },
+        });
+        const client = fakeClient();
+        const session = new AmigaDoorSession({
+            client,
+            config: config({ image }),
+            worker,
+            sessionKeys: { timeleft: 60, rows: 25, cols: 80 },
+            rawOutput: false,
+        });
+        const ready = new Promise(r =>
+            worker.on('message', m => 'ready' === m.type && r())
+        );
+        session.start();
+        await ready;
+        return { session, worker, client };
+    }
+
+    it('stops a running door, which syncs, and logs it within the bound', async () => {
+        const { session, worker } = await realSession();
+        //  what the guest's file system still buffers: written when it settles
+        worker.postMessage({
+            type: 'fake',
+            cmd: 'settleWrite',
+            offset: 512,
+            data: new Uint8Array(512).fill(0x5a),
+        });
+        const exited = new Promise(r => worker.once('exit', r));
+        const log = quietLog();
+        const t0 = Date.now();
+        await new Promise(r => shutdown(r, { timeoutMs: 3000, log }));
+        const ms = Date.now() - t0;
+        assert.ok(ms < 3000, `took ${ms} ms`);
+        await exited;
+        assert.ok(session.finished && session.closeDone);
+        assert.equal(_test.runningSessions.size, 0);
+        const line = log.lines.find(l => /^Amiga doors at shutdown/.test(l.msg));
+        assert.equal(line.level, 'info');
+        assert.match(line.msg, /1 synced, 0 not/);
+        assert.deepEqual(line.obj.synced, [{ name: BASE.name, node: 3, writes: 1 }]);
+        assert.deepEqual(line.obj.notSynced, []);
+        const image = fs.readFileSync(path.join(dir, 'door.hdf'));
+        assert.ok(
+            image.subarray(512, 1024).every(b => 0x5a === b),
+            'in the image'
+        );
+    });
+
+    it('does not wait past the bound for a worker that never answers', async () => {
+        const stuck = makeSession();
+        stuck.worker.autoStop = false; //  gets stop, never says synced or exits
+        const answering = makeSession();
+        answering.worker.syncReply = { writes: 2, bytes: 8192, sessionWrites: 2, ms: 1 };
+        const log = quietLog();
+        const t0 = Date.now();
+        await new Promise(r => shutdown(r, { timeoutMs: 150, log }));
+        const ms = Date.now() - t0;
+        assert.ok(ms >= 140 && ms < 1000, `took ${ms} ms`);
+        assert.equal(stuck.worker.sent('stop').length, 1, 'it was asked');
+        const line = log.lines.find(l => /^Amiga doors at shutdown/.test(l.msg));
+        assert.equal(line.level, 'warn');
+        assert.match(line.msg, /1 synced, 1 not/);
+        assert.deepEqual(line.obj.synced, [{ name: BASE.name, node: 3, writes: 2 }]);
+        assert.deepEqual(line.obj.notSynced, [
+            { name: BASE.name, node: 3, why: 'no answer' },
+        ]);
+        await Promise.all([stuck.done, answering.done]);
+        assert.equal((await stuck.done).reason, 'shutdown');
+        //  let the stuck one go
+        stuck.worker.emit('exit', 0);
+    });
+
+    it('calls back at once with nothing running', async () => {
+        const log = quietLog();
+        await new Promise(r => shutdown(r, { log }));
+        assert.equal(log.lines.length, 0);
+    });
+});
+
 // ─── one persisting session per image ─────────────────────────────────────────
 
 describe('amiga_door image lock', () => {
