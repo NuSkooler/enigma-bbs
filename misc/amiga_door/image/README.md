@@ -25,8 +25,8 @@ times; everything gets `rwed` protection, which is what doors expect.
 
 | Option | |
 |---|---|
-| `--size SIZE` | default `2000K`; bytes, or with `K`, `M` or `G`, rounded up to a multiple of 8 KB; at most `2032K` (4066 blocks) unless `--allow-large` |
-| `--allow-large` | allow a `--size` over 2032 KB: only for an image used with Kickstart 3.1 or a ROM that carries the FFS fix (the bundled AROS ROM corrupts larger FFS volumes on a write) |
+| `--size SIZE` | default `2000K`; bytes, or with `K`, `M` or `G`, rounded up to a multiple of 8 KB; at most `2032K` unless `--allow-large` (see below) |
+| `--allow-large` | allow a `--size` over 2032 KB: only for an image used with the bundled ROM (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix; a stock AROS ROM corrupts larger FFS volumes on a write |
 | `--name NAME` | volume name, default `BBS` |
 | `--doors DIR...` | door directories (the same as listing them after the image) |
 | `--workbench ADF` | add ARexx from your Workbench 3.1 disk, for ARexx doors (below) |
@@ -58,9 +58,14 @@ only while none of its doors is in use.
 These commands work on any plain OFS or FFS image, ADF floppies included, but
 not on partitioned hard-disk images (RDB) or other file systems (PFS, SFS).
 
-- 4 MB is the default and enough for most doors (the shim and library take about
-  55 KB). Make it bigger for doors with large data files; every session carries
-  the image, so keep it small.
+- `2000K` is the default and enough for most doors (the shim and library take
+  under 100 KB, Workbench's ARexx files about 150 KB). Make it bigger for doors
+  with large data files, up to `2032K`: a stock AROS ROM corrupts an FFS volume
+  of more than 4066 blocks (2033 KB, the most one bitmap block covers) when a
+  door writes to it, and 2032 KB is the largest multiple of 8 KB within that.
+  The bundled ROM (enigma-vamiga 0.1.2 and later) and Kickstart 3.1 have no such
+  limit; `--allow-large` goes past it for an image used only with them. Every
+  session carries the image, so keep it small.
 - Name the volume `BBS`. Doors find their files under `BBS:`; the shim also
   assigns `BBS:` to the boot volume, so another name works, but `BBS` keeps paths
   in door docs literal.

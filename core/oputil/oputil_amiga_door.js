@@ -63,8 +63,10 @@ const WORKBENCH_FILES = [
 
 const DEFAULT_SIZE = '2000K';
 
-//  The bundled AROS ROM corrupts an FFS volume of more than one bitmap block
-//  (4066 blocks, 2032 KB) when the guest writes to it.
+//  A stock AROS ROM corrupts an FFS volume of more than one bitmap block
+//  (4066 blocks, 2033 KB) when the guest writes to it; the ROM bundled with
+//  enigma-vamiga 0.1.2 and later carries the fix. Sizes are rounded to 8 KB,
+//  so 2032 KB (4064 blocks) is the largest image within the limit.
 const AROS_MAX_BLOCKS = 4066;
 const AROS_MAX_SIZE = 2032 * 1024;
 const DEFAULT_NAME = 'BBS';
@@ -419,11 +421,12 @@ function cmdCreate(image) {
     const size = parseSize(options.size);
     if (size > AROS_MAX_SIZE && !argv['allow-large']) {
         throw new CommandError(
-            `${size / 1024}K is more than ${AROS_MAX_SIZE / 1024}K (${AROS_MAX_BLOCKS} blocks of 512 bytes): ` +
-                'the AROS ROM that ENiGMA bundles corrupts an FFS volume of more than ' +
-                `${AROS_MAX_BLOCKS} blocks when a door writes to it. Use ${AROS_MAX_SIZE / 1024}K ` +
-                'or less, or pass --allow-large for an image used with Kickstart 3.1 ' +
-                'or a ROM that carries the FFS fix'
+            `${size / 1024}K is more than ${AROS_MAX_SIZE / 1024}K: a stock AROS ROM corrupts ` +
+                `an FFS volume of more than ${AROS_MAX_BLOCKS} blocks ` +
+                `(${(AROS_MAX_BLOCKS * 512) / 1024}K) when a door writes to it. Use ` +
+                `${AROS_MAX_SIZE / 1024}K or less, or pass --allow-large for an image used ` +
+                'only with the ROM bundled with ENiGMA (enigma-vamiga 0.1.2 and later), ' +
+                'Kickstart 3.1, or another ROM that carries the FFS fix'
         );
     }
     options.size = size;

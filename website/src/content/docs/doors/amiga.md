@@ -108,13 +108,13 @@ It takes the image to create and one or more door directories (listed after the 
 
 | Option | |
 |---|---|
-| `--size SIZE` | Image size, default `2000K`: bytes, or with `K`, `M` or `G`. Rounded up to a multiple of 8 KB. At most `2032K` (4066 blocks) unless `--allow-large` is given. |
-| `--allow-large` | Allow a `--size` over 2032 KB. Only for an image used with Kickstart 3.1 or a ROM that carries the FFS fix. |
+| `--size SIZE` | Image size, default `2000K`: bytes, or with `K`, `M` or `G`. Rounded up to a multiple of 8 KB. At most `2032K` unless `--allow-large` is given. |
+| `--allow-large` | Allow a `--size` over 2032 KB. Only for an image used with the bundled ROM, Kickstart 3.1 or another ROM that carries the FFS fix. |
 | `--name NAME` | Volume name, default `BBS`. |
 | `--workbench ADF` | Add ARexx from your own Workbench 3.1 disk, for ARexx doors; see [ARexx Doors](#arexx-doors). |
 | `--force` | Replace the image if it exists. |
 
-The 2032 KB limit is there because the AROS ROM bundled with ENiGMA½ corrupts an FFS volume of more than 4066 blocks (2032 KB, a second bitmap block) as soon as a door writes to it. Larger images are only safe with Kickstart 3.1 or a ROM that carries the fix, so `create` refuses them unless you pass `--allow-large`.
+The limit is there because a stock AROS ROM corrupts an FFS volume of more than 4066 blocks (2033 KB, the most one bitmap block covers) as soon as a door writes to it; 2032 KB is the largest multiple of 8 KB within it. The ROM bundled with ENiGMA½ (enigma-vamiga 0.1.2 and later) carries the fix, as does Kickstart 3.1, but an image kept at 2032 KB or less also works with a stock AROS ROM given through `rom`, so `create` refuses a larger one unless you pass `--allow-large`.
 
 When it finishes it lists the image so you can check it. Nothing is written unless the whole image can be built: a door that does not fit (give a larger `--size`), a file name AmigaDOS cannot hold (longer than 30 characters, or with a `:`), or two file names that differ only in case (AmigaDOS ignores case) stop it with a message saying which.
 

@@ -409,7 +409,10 @@ describe('oputil amiga-door', function () {
             const img = path.join(dir, 'large.hdf');
             let r = oputil('create', img, '--size', '2040K', door);
             assert.notEqual(r.status, 0);
-            assert.match(r.stderr, /more than 2032K.*4066 blocks.*AROS.*--allow-large/s);
+            assert.match(
+                r.stderr,
+                /more than 2032K.*stock AROS ROM.*4066 blocks \(2033K\).*--allow-large/s
+            );
             assert.equal(fs.existsSync(img), false);
 
             r = oputil('create', img, '--size', '2032K', door);
