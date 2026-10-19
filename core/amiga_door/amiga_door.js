@@ -4,8 +4,8 @@
 /**
  * amiga_door.js — ENiGMA½ Amiga door emulation module
  *
- * Runs an AmiExpress (/X) XIM door, an /X ARexx (AIM) door, or a plain
- * AmigaDOS CLI (stdio) door inside an embedded Amiga emulator (enigma-vamiga, the vAmiga core as
+ * Runs an AmiExpress (/X) XIM door, an /X ARexx (AIM) door, a Paragon (TIM)
+ * door or a plain AmigaDOS CLI (stdio) door inside an embedded Amiga emulator (enigma-vamiga, the vAmiga core as
  * WebAssembly) in a worker thread, and bridges the caller to it. No external
  * emulator, Kickstart or Workbench is required: the emulator package bundles
  * the AROS ROM.
@@ -29,6 +29,11 @@
  * does not have: the image must be built with the sysop's own Workbench 3.1
  * (oputil.js amiga-door create --workbench, or make_image.sh -w).
  *
+ * A Paragon door (doorType: 'tim'; Paragon, StarNet and MAX's BBS doors, /X's
+ * TYPE=TIM) sends its requests to the BBS's DoorControl<line> port, which the
+ * shim publishes; it gets the same user block as an XIM door. Its install
+ * notes often ask for an assign or an ENV: variable: |assigns| and |env|.
+ *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.
  * Persistence is "Model A": after a clean door exit the disk chunks the
@@ -45,17 +50,24 @@
  *     image:              string   - path to the door's HDF image (required)
  *     door:               string   - Amiga path of the door executable inside the
  *                                    image (required), e.g. BBS:Doors/DreamSweeper/dreamsweeper.xim
- *     doorType:           string   - xim | aim | cli (default: xim). xim: an /X door that
- *                                    talks to AEDoorPort<node>; aim: an /X ARexx script
+ *     doorType:           string   - xim | aim | tim | cli (default: xim). xim: an /X door
+ *                                    that talks to AEDoorPort<node>; aim: an /X ARexx script
  *                                    (door = the script's Amiga path, run as RX <door> <node>;
- *                                    the image needs ARexx); cli: a program on Input()/Output()
+ *                                    the image needs ARexx); tim: a Paragon door that talks to
+ *                                    DoorControl<line>, run as <door> <line> (line = the
+ *                                    node's last digit); cli: a program on Input()/Output()
  *     consoleMode:        string   - cli only: cooked | raw, the console's mode until the
  *                                    door calls SetMode() itself (default: cooked)
  *     doorDir:            string   - door's current directory (default: its own)
  *     doorStack:          number   - door stack size in bytes (default: 32768)
- *     doorArgs:           string   - xim, aim: extra arguments after the node number; cli: the
- *                                    door's whole argument line. {name}, {node}, {level} and
- *                                    {timeleft} are replaced ({name} as one quoted argument)
+ *     doorArgs:           string   - xim, aim: extra arguments after the node number; tim:
+ *                                    after the line; cli: the door's whole argument line.
+ *                                    {name}, {node}, {level} and {timeleft} are replaced
+ *                                    ({name} as one quoted argument)
+ *     assigns:            object   - { NAME: 'PATH' }: assigns NAME: for the session, before the
+ *                                    door's path is checked (e.g. { MSE: 'BBS:Doors/MSE' })
+ *     env:                object   - { NAME: 'value' }: sets the global variable ENV:NAME for
+ *                                    the session (ENV: is made in RAM: if the image has none)
  *     mainline:           string   - the /X command line the caller "typed" (BB_MAINLINE;
  *                                    some doors parse it, e.g. Wallhall); default empty
  *     rom:                string   - Kickstart ROM path (default: bundled AROS)
@@ -81,14 +93,15 @@
  *                                    topaz); 'none' leaves the caller's font alone
  *     persist:            boolean  - write the door's disk changes back (default: true)
  *     persistOn:          [string] - X statuses after which to persist (default: ['ok'] for
- *                                    doorType cli and aim, ['ok', 'carrier'] for xim; an
+ *                                    doorType cli, aim and tim, ['ok', 'carrier'] for xim; an
  *                                    explicit list always wins). carrier, timeout and break
  *                                    persist only when the door ended by itself (the X frame's
  *                                    rc is its return code; -1 or none means the shim gave up
  *                                    on a door still running)
  *     log:                boolean  - log every door request at debug level (default: false)
  *     warpBootSeconds:    number   - first boot runs flat out this long (default: 30)
- *     regTimeoutSeconds:  number   - the door must register within this; 0 = forever (default: 30)
+ *     regTimeoutSeconds:  number   - the door must register (tim: send its first request)
+ *                                    within this; 0 = forever (default: 30)
  *     disconnectGraceSeconds: number - after a hangup, time-up or break, how long to wait for
  *                                    the door to finish and the shim to say X before the
  *                                    worker is dropped unsaved (default: 35; the shim's own
@@ -151,7 +164,7 @@ const BackpressurePollMs = 50;
 const MaxDoorMinutes = 546;
 
 const CPU_MODELS = ['68000', '68010', '68EC020']; //  enigma-vamiga's CPU_MODELS
-const DOOR_TYPES = ['xim', 'aim', 'cli'];
+const DOOR_TYPES = ['xim', 'aim', 'tim', 'cli'];
 //  an ARexx door's script goes on RX's command line through the Amiga shell:
 //  an absolute Amiga path (VOLUME:dir/file) with no blanks, quotes or shell
 //  characters
@@ -162,6 +175,8 @@ const QuotedPathUnsafe = /["*`$;<>|]/;
 //  control characters, C0 and C1, which no session value may carry
 const ControlChars = /[\x00-\x1f\x7f-\x9f]/;
 const CONSOLE_MODES = ['cooked', 'raw'];
+//  assigns / env names: what the shim takes (AssignLock / SetVar), no ':' '/' ';' '='
+const AmigaName = /^[A-Za-z0-9_.-]{1,30}$/;
 //  The shim's buffers (axshim.c): a session value keeps 199 bytes (kv val[200]),
 //  the door's command line 299 (LN.cmd[300]) and an ARexx door's runs RX_CMD.
 const MaxValueLength = 199;
@@ -184,6 +199,8 @@ const ConfigKeys = [
     'doorDir',
     'doorStack',
     'doorArgs',
+    'assigns',
+    'env',
     'mainline',
     'rom',
     'extRom',
@@ -311,7 +328,7 @@ function isLatin1(encoding) {
 //  |warnings| lists keys nothing reads, with a likely meaning when there is
 //  one (a misspelt persistOn is otherwise silently the default).
 //
-//  A CLI or ARexx door is sent a break on a hangup, so a return code does not
+//  A CLI, ARexx or Paragon door is sent a break on a hangup, so a return code does not
 //  prove it finished its writes; an XIM door only sees carrier-lost replies
 //  to its input requests. Hence 'carrier' is a default persistOn status for
 //  XIM doors only.
@@ -320,6 +337,7 @@ const DefaultPersistOn = {
     xim: ['ok', 'carrier'],
     cli: ['ok'],
     aim: ['ok'],
+    tim: ['ok'],
 };
 const AROS_MAX_FFS_BLOCKS = 4066;
 
@@ -416,7 +434,7 @@ function normalizeConfig(raw) {
         }
     }
     if (
-        ['xim', 'cli'].includes(c.doorType) &&
+        ['xim', 'tim', 'cli'].includes(c.doorType) &&
         _.isString(c.door) &&
         QuotedPathUnsafe.test(c.door)
     ) {
@@ -450,6 +468,46 @@ function normalizeConfig(raw) {
                         `${MaxCommandLength} (arguments ${MaxValueLength})`
                 );
             }
+        }
+    }
+
+    //  assigns and env: NAME=VALUE pairs joined with ';' into one `s` value
+    for (const [key, what] of [
+        ['assigns', 'an Amiga path'],
+        ['env', 'a value'],
+    ]) {
+        const v = c[key];
+        if (undefined === v) {
+            continue;
+        }
+        if (!_.isPlainObject(v)) {
+            problems.push(`"${key}" must be an object of NAME: ${what}`);
+            continue;
+        }
+        for (const [name, value] of Object.entries(v)) {
+            const bare = 'assigns' === key ? name.replace(/:$/, '') : name;
+            if (!AmigaName.test(bare)) {
+                problems.push(
+                    `"${key}" name "${name}" must be 1 to 30 letters, digits, '_', '.' or '-'`
+                );
+            }
+            if (
+                !_.isString(value) ||
+                ('assigns' === key && 0 === value.length) ||
+                /[;\r\n]/.test(value) ||
+                ControlChars.test(value) ||
+                /[^\x00-\xff]/.test(value)
+            ) {
+                problems.push(
+                    `"${key}.${name}" must be ${what}: Latin-1 text without ';' or control characters`
+                );
+            }
+        }
+        const joined = sessionPairs(v, 'assigns' === key);
+        if (joined && joined.length > MaxValueLength) {
+            problems.push(
+                `"${key}" makes ${joined.length} characters; the shim takes ${MaxValueLength}`
+            );
         }
     }
 
@@ -654,6 +712,8 @@ function commandLength(config, args, node) {
             return (
                 RxCommand.length + 1 + door + 1 + nodeLen + (args ? 1 + args.length : 0)
             );
+        case 'tim': //  "door" line[ args]; the line is one digit
+            return door + 3 + 1 + (args ? 1 + args.length : 0);
         default: //  "door" node args
             return door + 3 + nodeLen + 1 + args.length;
     }
@@ -693,6 +753,16 @@ function expandDoorArgs(template, ctx, config) {
         MaxCommandLength - commandLength(config, rest, ctx.client.node)
     );
     return fill(Object.assign({}, ctx, { nameMax: Math.floor(room / names) }), false);
+}
+
+//  |assigns| / |env| as the shim's `assign` / `env` value: NAME=VALUE;NAME=VALUE
+function sessionPairs(pairs, stripColon) {
+    if (!_.isPlainObject(pairs) || 0 === Object.keys(pairs).length) {
+        return undefined;
+    }
+    return Object.entries(pairs)
+        .map(([name, value]) => `${stripColon ? name.replace(/:$/, '') : name}=${value}`)
+        .join(';');
 }
 
 //  Statuses that mean the session was cut short from our side; the door's
@@ -782,6 +852,8 @@ function buildSessionKeys(client, config) {
         dir: config.doorDir,
         stack: config.doorStack,
         args,
+        assign: sessionPairs(config.assigns, true),
+        env: sessionPairs(config.env, false),
         node: client.node,
         name: userText(user.getSanitizedName()),
         realname: userText(user.getSanitizedName('real')),
@@ -2006,6 +2078,7 @@ exports._test = {
     quoteArg,
     userText,
     commandLength,
+    sessionPairs,
     isLatin1,
     AmigaDoorSession,
     snapshotCache,
