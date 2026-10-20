@@ -49,6 +49,10 @@ If you make any changes to your host config folder they will persist, and you ca
 docker restart ENiGMABBS
 ```
 
+`docker stop` and `docker restart` kill the container 10 seconds after asking it to stop, which
+can cut ENiGMA½'s shutdown short; `-t 30` gives it longer. See
+[Stopping](production.md#stopping).
+
 :::tip
 Configuration will be stored in `$(pwd)/enigma-bbs/config`.
 :::

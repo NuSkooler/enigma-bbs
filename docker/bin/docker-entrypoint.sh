@@ -25,5 +25,12 @@ if [[ ! -f $BBS_ROOT_DIR/config/$CONFIG_NAME ]]; then # Make sure once more, oth
   
   exit 1
 else
-   exec pm2-runtime main.js 
+   # pm2-runtime stops ENiGMA 1/2 with SIGINT, then SIGKILLs it after
+   # PM2_KILL_TIMEOUT ms. PM2's default, 1600, can cut an orderly shutdown
+   # short (Amiga doors syncing their images, the 15 s safety timer); 20000
+   # covers it. pm2-runtime has no --kill-timeout option (it ignores the flag),
+   # so the variable is the way in. Set your own with -e PM2_KILL_TIMEOUT=...,
+   # and keep `docker stop -t` / compose stop_grace_period longer than it.
+   export PM2_KILL_TIMEOUT="${PM2_KILL_TIMEOUT:-20000}"
+   exec pm2-runtime main.js
 fi

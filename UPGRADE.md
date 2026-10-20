@@ -30,6 +30,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Door images keep the shim they were built with.** An image made with an earlier shim than the one in `misc/amiga_door/bin/axshim` (axshim 1.5 in this release: input held instead of dropped, RTS, the `baud` setting) keeps the old behaviour until it is refreshed: rebuild it with `make_image.sh`, or replace just the shim with `./oputil.js amiga-door add IMAGE misc/amiga_door/bin/axshim C/axshim`.
 
+* **PM2: raise `kill_timeout` to 20000.** ENiGMA½ now shuts down in order on `SIGTERM` as well as `SIGINT`, and takes up to about 3 seconds when Amiga doors are running (15 seconds at the very most, if a step hangs). PM2 sends `SIGKILL` 1600 ms after asking a process to stop, unless told otherwise, which can land in the middle of that.
+
+  **Action:** if you run ENiGMA½ under `pm2`, set `kill_timeout: 20000` in your ecosystem file, or start it with `pm2 start main.js --kill-timeout 20000`. The Docker image now sets `PM2_KILL_TIMEOUT=20000` for `pm2-runtime` itself; give the container longer than that to stop (`docker stop -t 30`, or `stop_grace_period: 30s` in Compose), since Docker's default is 10 seconds. Under systemd the default `TimeoutStopSec` of 90 seconds is enough. See [Stopping](website/src/content/docs/installation/production.md#stopping).
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
