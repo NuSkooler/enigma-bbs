@@ -2321,22 +2321,22 @@
                     "type": "object",
                     "properties": {
                         "bulletins": {
-                            "description": "Paths to further bulletins, packed as BLT-0.1, BLT-0.2, ...",
+                            "description": "Paths to further bulletins, packed as BLT-0.1, BLT-0.2, ... Relative paths are taken from paths.config.",
                             "type": "array",
                             "items": {
                                 "type": "string"
                             }
                         },
                         "goodbye": {
-                            "description": "Path to a logoff screen packed as GOODBYE.",
+                            "description": "Path to a logoff screen packed as GOODBYE. A relative path is taken from paths.config.",
                             "type": "string"
                         },
                         "hello": {
-                            "description": "Path to a welcome screen packed as HELLO.",
+                            "description": "Path to a welcome screen packed as HELLO. A relative path is taken from paths.config.",
                             "type": "string"
                         },
                         "news": {
-                            "description": "Path to a news bulletin packed as BBSNEWS.",
+                            "description": "Path to a news bulletin packed as BBSNEWS. A relative path is taken from paths.config.",
                             "type": "string"
                         }
                     },

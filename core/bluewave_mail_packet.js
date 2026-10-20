@@ -22,6 +22,7 @@ const { endWriteStream } = require('./file_util.js');
 const Address = require('./ftn_address.js');
 const {
     BulletinNames,
+    warnOnce,
     writeOfflineMailBulletins,
 } = require('./offline_mail_bulletins.js');
 
@@ -701,13 +702,16 @@ class BlueWavePacketWriter extends EventEmitter {
 
         const named = Object.values(BulletinNames);
         const unlisted = files.filter(name => !named.includes(name)).slice(-overflow);
-        this.emit(
-            'warning',
-            Errors.General(
-                `Blue Wave lists ${MaxReaderFiles} bulletins; ${unlisted.join(
-                    ', '
-                )} packed but not listed`
-            )
+        warnOnce(
+            this.options.bulletins,
+            'overflow',
+            warning => this.emit('warning', warning),
+            () =>
+                Errors.General(
+                    `Blue Wave lists ${MaxReaderFiles} bulletins; ${unlisted.join(
+                        ', '
+                    )} packed but not listed`
+                )
         );
         return files.filter(name => !unlisted.includes(name));
     }

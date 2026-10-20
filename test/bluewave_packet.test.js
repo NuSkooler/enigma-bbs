@@ -252,8 +252,19 @@ describe('Blue Wave packet', () => {
                     'BLT-0.3\r\n'
                 );
                 assert.equal(warnings.length, 1);
-                fs.rmSync(sourceDir, { recursive: true, force: true });
-                done();
+
+                buildPacket(
+                    writer => {
+                        writer.on('warning', warning => warnings.push(warning));
+                        writer.addArea('general');
+                    },
+                    () => {
+                        assert.equal(warnings.length, 1, 'warned once, not per export');
+                        fs.rmSync(sourceDir, { recursive: true, force: true });
+                        done();
+                    },
+                    { bulletins }
+                );
             },
             { bulletins }
         );

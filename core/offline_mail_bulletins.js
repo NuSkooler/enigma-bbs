@@ -32,15 +32,44 @@ const BulletinNames = {
 };
 
 //
+//  A misconfigured bulletin is the same problem on every export, so it is
+//  reported once per list rather than once per packet. offlineMailBulletins()
+//  hands out one list per loaded config, so a reload reports it afresh.
+//
+const bulletinLists = new WeakMap();
+const warnedKeys = new WeakMap();
+
+const warnOnce = (bulletins, key, onWarning, makeWarning) => {
+    if (!warnedKeys.has(bulletins)) {
+        warnedKeys.set(bulletins, new Set());
+    }
+    const warned = warnedKeys.get(bulletins);
+    if (!warned.has(key)) {
+        warned.add(key);
+        onWarning(makeWarning());
+    }
+};
+
+//
 //  [ { name, path } ] in the order a reader should show them. |name| is what
-//  the file is called inside the packet.
+//  the file is called inside the packet. A relative path is taken from
+//  paths.config, as menuFile is, not from wherever ENiGMA was started.
 //
 const offlineMailBulletins = () => {
-    const config = _.get(Config(), 'messageNetworks.offlineMail', {});
+    const systemConfig = Config();
+    if (!bulletinLists.has(systemConfig)) {
+        bulletinLists.set(systemConfig, bulletinList(systemConfig));
+    }
+    return bulletinLists.get(systemConfig);
+};
+
+const bulletinList = systemConfig => {
+    const config = _.get(systemConfig, 'messageNetworks.offlineMail', {});
+    const configDir = _.get(systemConfig, 'paths.config', '');
     const bulletins = [];
     const add = (name, path) => {
         if (_.isString(path) && path) {
-            bulletins.push({ name, path });
+            bulletins.push({ name, path: paths.resolve(configDir, path) });
         }
     };
 
@@ -85,7 +114,7 @@ const writeOfflineMailBulletins = (dir, bulletins, onWarning, cb) => {
         (bulletin, next) => {
             fs.readFile(bulletin.path, (err, data) => {
                 if (err) {
-                    onWarning(
+                    warnOnce(bulletins, `unreadable:${bulletin.path}`, onWarning, () =>
                         Errors.General(
                             `Offline mail bulletin "${bulletin.path}" cannot be read: ${err.message}`
                         )
@@ -109,5 +138,6 @@ module.exports = {
     BulletinNames,
     offlineMailBulletins,
     bulletinData,
+    warnOnce,
     writeOfflineMailBulletins,
 };

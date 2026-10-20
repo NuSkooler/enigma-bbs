@@ -15,7 +15,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 * **File Base handles bare `.gz` files as single compressed files.** It now lists and decompresses the inner file for description processing, while gzip-compressed tar archives keep using the tar handler.
 
-* **Offline mail packets can carry bulletins** ([#893](https://github.com/NuSkooler/enigma-bbs/issues/893)). Callers who only read packets used to miss what online callers see at logon. Files named in the new `messageNetworks.offlineMail` block (`hello`, `news`, `goodbye` and a `bulletins` list) are now packed into every QWK and Blue Wave packet, converted to CP437. See [Bulletins](website/src/content/docs/messageareas/bluewave.md#bulletins).
+* **Offline mail packets can carry bulletins** ([#893](https://github.com/NuSkooler/enigma-bbs/issues/893)). Callers who only read packets used to miss what online callers see at logon. Files named in the new `messageNetworks.offlineMail` block (`hello`, `news`, `goodbye` and a `bulletins` list) are now packed into every QWK and Blue Wave packet a caller downloads, converted to CP437; a relative path is taken from `paths.config`. See [Bulletins](website/src/content/docs/messageareas/bluewave.md#bulletins).
 
 ## 0.5.1-beta
 

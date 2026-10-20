@@ -40,6 +40,29 @@ describe('Offline mail bulletins', () => {
             ]);
         });
 
+        it('takes a relative path from the config directory', () => {
+            previousConfig = configModule._pushTestConfig({
+                paths: { config: '/enigma-bbs/config/' },
+                messageNetworks: {
+                    offlineMail: { hello: 'offline/hello.ans', news: '/b/news.txt' },
+                },
+            });
+            assert.deepEqual(offlineMailBulletins(), [
+                { name: 'HELLO', path: '/enigma-bbs/config/offline/hello.ans' },
+                { name: 'BBSNEWS', path: '/b/news.txt' },
+            ]);
+        });
+
+        it('hands out one list per loaded config, so a reload warns afresh', () => {
+            withConfig({ hello: '/b/hello.ans' });
+            const first = offlineMailBulletins();
+            assert.equal(offlineMailBulletins(), first);
+
+            configModule._popTestConfig(previousConfig);
+            withConfig({ hello: '/b/hello.ans' });
+            assert.notEqual(offlineMailBulletins(), first);
+        });
+
         it('packs nothing when the board configures none', () => {
             previousConfig = configModule._pushTestConfig({});
             assert.deepEqual(offlineMailBulletins(), []);
@@ -113,6 +136,25 @@ describe('Offline mail bulletins', () => {
                     assert.equal(warnings.length, 1);
                     done();
                 }
+            );
+        });
+
+        it('warns about an unreadable file once per list, not once per packet', done => {
+            const bulletins = [{ name: 'BBSNEWS', path: paths.join(dir, 'missing.txt') }];
+            const warnings = [];
+            const write = cb =>
+                writeOfflineMailBulletins(
+                    fs.mkdtempSync(paths.join(dir, 'out-')),
+                    bulletins,
+                    warning => warnings.push(warning),
+                    cb
+                );
+
+            write(() =>
+                write(() => {
+                    assert.equal(warnings.length, 1);
+                    done();
+                })
             );
         });
     });

@@ -379,20 +379,20 @@ module.exports = {
     'messageNetworks.offlineMail': { type: 'object', closedKeys: true },
     'messageNetworks.offlineMail.hello': {
         type: 'string',
-        description: 'Path to a welcome screen packed as HELLO.',
+        description: 'Path to a welcome screen packed as HELLO. A relative path is taken from paths.config.',
     },
     'messageNetworks.offlineMail.news': {
         type: 'string',
-        description: 'Path to a news bulletin packed as BBSNEWS.',
+        description: 'Path to a news bulletin packed as BBSNEWS. A relative path is taken from paths.config.',
     },
     'messageNetworks.offlineMail.goodbye': {
         type: 'string',
-        description: 'Path to a logoff screen packed as GOODBYE.',
+        description: 'Path to a logoff screen packed as GOODBYE. A relative path is taken from paths.config.',
     },
     'messageNetworks.offlineMail.bulletins': {
         type: 'array',
         items: { type: 'string' },
-        description: 'Paths to further bulletins, packed as BLT-0.1, BLT-0.2, ...',
+        description: 'Paths to further bulletins, packed as BLT-0.1, BLT-0.2, ... Relative paths are taken from paths.config.',
     },
 
     //  ── FTN BSO scanner/tosser ───────────────────────────────────────────
