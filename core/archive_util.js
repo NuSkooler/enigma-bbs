@@ -29,18 +29,12 @@ function getGzipPayloadName(archivePath) {
         : payloadName;
 }
 
-function isTarHeader(buffer) {
-    if (buffer.length < 512) {
-        return false;
-    }
-
-    const header = buffer.subarray(0, 512);
-    if (header.every(byte => 0 === byte)) {
-        return (
-            buffer.length >= 1024 && buffer.subarray(512, 1024).every(byte => 0 === byte)
-        );
-    }
-
+//
+//  A tar header block carries an octal checksum of itself, its own checksum
+//  field counted as spaces. Old tars summed signed bytes, so either sum counts.
+//  This also recognises tarballs without the "ustar" magic (v7, old GNU).
+//
+function isTarHeader(header) {
     const checksumText = header
         .subarray(148, 156)
         .toString('ascii')
@@ -51,67 +45,97 @@ function isTarHeader(buffer) {
     }
 
     const expectedChecksum = parseInt(checksumText, 8);
-    let actualChecksum = 0;
-    header.forEach((byte, index) => {
-        actualChecksum += index >= 148 && index < 156 ? 32 : byte;
-    });
-    return expectedChecksum === actualChecksum;
+    let unsignedSum = 0;
+    let signedSum = 0;
+    for (let index = 0; index < 512; ++index) {
+        const byte = index >= 148 && index < 156 ? 32 : header[index];
+        unsignedSum += byte;
+        signedSum += byte > 127 ? byte - 256 : byte;
+    }
+    return expectedChecksum === unsignedSum || expectedChecksum === signedSum;
 }
 
-function readGzipTarHeader(archivePath, cb) {
+const ZeroBlock = Buffer.alloc(64 * 1024);
+
+function isAllZero(buffer) {
+    for (let offset = 0; offset < buffer.length; offset += ZeroBlock.length) {
+        const slice = buffer.subarray(offset, offset + ZeroBlock.length);
+        if (!slice.equals(ZeroBlock.subarray(0, slice.length))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+//
+//  Tells a gzip-compressed tarball from a single gzip-compressed file.
+//
+//  A tarball starts with a header block whose checksum holds, or -- an empty
+//  archive -- is nothing but zero blocks. A file whose data merely starts with
+//  zeros (a disk or CD image) is not a tarball, so a zero first block is only
+//  taken for an empty archive once the whole stream has proven to be zeros.
+//
+//  With |wantSize|, a single file is read to the end and its decompressed
+//  size counted. The size in the gzip trailer is not used: it is wrong for a
+//  truncated or multi-member file and for anything 4 GiB or larger, and it is
+//  whatever the uploader wrote. Reading to the end also verifies the CRC.
+//
+//  cb(err, { isTar, byteSize })
+//
+function probeGzip(archivePath, wantSize, cb) {
     const input = fs.createReadStream(archivePath);
     const gunzip = zlib.createGunzip();
-    const header = Buffer.alloc(1024);
+    const header = Buffer.alloc(512);
     let headerLength = 0;
+    let byteSize = 0;
+    let allZero = true;
+    let isTar; //  undefined until decided
     let finished = false;
 
-    const finish = (err, isTar) => {
+    const finish = err => {
         if (finished) {
             return;
         }
         finished = true;
         input.destroy();
         gunzip.destroy();
-        return cb(err, isTar);
+        return err ? cb(err) : cb(null, { isTar: isTar, byteSize: byteSize });
     };
 
     input.on('error', err => finish(err));
     gunzip.on('error', err => finish(err));
     gunzip.on('data', data => {
-        const bytesToCopy = Math.min(data.length, header.length - headerLength);
-        data.copy(header, headerLength, 0, bytesToCopy);
-        headerLength += bytesToCopy;
-        if (headerLength === header.length) {
-            finish(null, isTarHeader(header));
+        byteSize += data.length;
+        if (undefined !== isTar) {
+            return; //  only counting now
+        }
+
+        if (headerLength < header.length) {
+            headerLength += data.copy(header, headerLength);
+        }
+        if (allZero && !isAllZero(data)) {
+            allZero = false;
+        }
+        if (headerLength < header.length || allZero) {
+            return;
+        }
+
+        isTar = !isAllZero(header) && isTarHeader(header);
+        if (isTar || !wantSize) {
+            return finish(null);
         }
     });
-    gunzip.on('end', () => finish(null, isTarHeader(header.subarray(0, headerLength))));
+    gunzip.on('end', () => {
+        if (undefined === isTar) {
+            //  short, or zeros all the way: an empty tarball is two or more zero blocks
+            isTar =
+                headerLength === header.length &&
+                byteSize >= 1024 &&
+                0 === byteSize % 512;
+        }
+        return finish(null);
+    });
     input.pipe(gunzip);
-}
-
-function readGzipPayloadSize(archivePath, cb) {
-    fs.stat(archivePath, (err, stats) => {
-        if (err) {
-            return cb(err);
-        }
-        if (stats.size < 4) {
-            return cb(null, 0);
-        }
-
-        fs.open(archivePath, 'r', (err, fd) => {
-            if (err) {
-                return cb(err);
-            }
-            const trailer = Buffer.alloc(4);
-            fs.read(fd, trailer, 0, trailer.length, stats.size - trailer.length, err => {
-                fs.close(fd, () => {});
-                if (err) {
-                    return cb(err);
-                }
-                return cb(null, trailer.readUInt32LE(0));
-            });
-        });
-    });
 }
 
 class Archiver {
@@ -504,11 +528,11 @@ module.exports = class ArchiveUtil {
             1 === fileList.length &&
             expectedGzipName === fileList[0]
         ) {
-            return readGzipTarHeader(archivePath, (err, isTar) => {
+            return probeGzip(archivePath, false, (err, probe) => {
                 if (err) {
                     return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
                 }
-                if (isTar) {
+                if (probe.isTar) {
                     return extractWithArchiver();
                 }
 
@@ -615,25 +639,20 @@ module.exports = class ArchiveUtil {
             return listWithArchiver();
         }
 
-        return readGzipTarHeader(archivePath, (err, isTar) => {
+        return probeGzip(archivePath, true, (err, probe) => {
             if (err) {
                 return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
             }
-            if (isTar) {
+            if (probe.isTar) {
                 return listWithArchiver();
             }
 
-            return readGzipPayloadSize(archivePath, (err, byteSize) => {
-                if (err) {
-                    return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
-                }
-                return cb(null, [
-                    {
-                        byteSize: byteSize,
-                        fileName: getGzipPayloadName(archivePath),
-                    },
-                ]);
-            });
+            return cb(null, [
+                {
+                    byteSize: probe.byteSize,
+                    fileName: getGzipPayloadName(archivePath),
+                },
+            ]);
         });
     }
 

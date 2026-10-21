@@ -413,5 +413,59 @@ describe('ArchiveUtil', () => {
                 }
             );
         });
+
+        it('lists a file whose data starts with zero blocks as one file', done => {
+            //  a CD or disk image: tar alone would read the zeros as an empty archive
+            const content = Buffer.concat([
+                Buffer.alloc(64 * 1024),
+                Buffer.from('CD001'),
+            ]);
+            const archive = writeFile('disk.iso.gz', zlib.gzipSync(content));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, [
+                    { byteSize: content.length, fileName: 'disk.iso' },
+                ]);
+                done();
+            });
+        });
+
+        it('counts the decompressed size rather than trusting the gzip trailer', done => {
+            //  two members: the trailer of the last one only knows its own size
+            const member = zlib.gzipSync(Buffer.from('twelve bytes'));
+            const archive = writeFile('twice.txt.gz', Buffer.concat([member, member]));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, [{ byteSize: 24, fileName: 'twice.txt' }]);
+                done();
+            });
+        });
+
+        it('fails to list a truncated gzip file', done => {
+            const gz = zlib.gzipSync(Buffer.from('x'.repeat(4096)));
+            const archive = writeFile('cut.txt.gz', gz.subarray(0, gz.length - 8));
+            listWithOutput(archive, '', err => {
+                assert.ok(err);
+                done();
+            });
+        });
+
+        it('takes a tar header checksummed with signed bytes for a tarball', done => {
+            const header = Buffer.alloc(512);
+            header.write('caf\xe9.txt', 0, 'latin1');
+            header.write('0000644\0', 100);
+            header.write('00000000000\0', 124);
+            header.write('00000000000\0', 136);
+            header.fill(32, 148, 156);
+            const signed = header.reduce((sum, b) => sum + (b > 127 ? b - 256 : b), 0);
+            header.write(`${signed.toString(8).padStart(6, '0')}\0 `, 148);
+            const tar = Buffer.concat([header, Buffer.alloc(1024)]);
+            const archive = writeFile('old.tar.gz', zlib.gzipSync(tar));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, []); //  from the (stubbed) tar listing
+                done();
+            });
+        });
     });
 });
