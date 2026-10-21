@@ -16,8 +16,127 @@ const _ = require('lodash');
 const pty = require('node-pty');
 const paths = require('path');
 const { execFile } = require('child_process');
+const { pipeline } = require('stream');
+const zlib = require('zlib');
 
 let archiveUtil;
+
+function getGzipPayloadName(archivePath) {
+    const name = paths.basename(archivePath);
+    const payloadName = name.replace(/\.gz$/i, '');
+    return !payloadName || '.' === payloadName || '..' === payloadName
+        ? `${name}.contents`
+        : payloadName;
+}
+
+//
+//  A tar header block carries an octal checksum of itself, its own checksum
+//  field counted as spaces. Old tars summed signed bytes, so either sum counts.
+//  This also recognises tarballs without the "ustar" magic (v7, old GNU).
+//
+function isTarHeader(header) {
+    const checksumText = header
+        .subarray(148, 156)
+        .toString('ascii')
+        .replace(/\0/g, ' ')
+        .trim();
+    if (!/^[0-7]+$/.test(checksumText)) {
+        return false;
+    }
+
+    const expectedChecksum = parseInt(checksumText, 8);
+    let unsignedSum = 0;
+    let signedSum = 0;
+    for (let index = 0; index < 512; ++index) {
+        const byte = index >= 148 && index < 156 ? 32 : header[index];
+        unsignedSum += byte;
+        signedSum += byte > 127 ? byte - 256 : byte;
+    }
+    return expectedChecksum === unsignedSum || expectedChecksum === signedSum;
+}
+
+const ZeroBlock = Buffer.alloc(64 * 1024);
+
+function isAllZero(buffer) {
+    for (let offset = 0; offset < buffer.length; offset += ZeroBlock.length) {
+        const slice = buffer.subarray(offset, offset + ZeroBlock.length);
+        if (!slice.equals(ZeroBlock.subarray(0, slice.length))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+//
+//  Tells a gzip-compressed tarball from a single gzip-compressed file.
+//
+//  A tarball starts with a header block whose checksum holds, or -- an empty
+//  archive -- is nothing but zero blocks. A file whose data merely starts with
+//  zeros (a disk or CD image) is not a tarball, so a zero first block is only
+//  taken for an empty archive once the whole stream has proven to be zeros.
+//
+//  With |wantSize|, a single file is read to the end and its decompressed
+//  size counted. The size in the gzip trailer is not used: it is wrong for a
+//  truncated or multi-member file and for anything 4 GiB or larger, and it is
+//  whatever the uploader wrote. Reading to the end also verifies the CRC.
+//
+//  cb(err, { isTar, byteSize })
+//
+function probeGzip(archivePath, wantSize, cb) {
+    const input = fs.createReadStream(archivePath);
+    const gunzip = zlib.createGunzip();
+    const header = Buffer.alloc(512);
+    let headerLength = 0;
+    let byteSize = 0;
+    let allZero = true;
+    let isTar; //  undefined until decided
+    let finished = false;
+
+    const finish = err => {
+        if (finished) {
+            return;
+        }
+        finished = true;
+        input.destroy();
+        gunzip.destroy();
+        return err ? cb(err) : cb(null, { isTar: isTar, byteSize: byteSize });
+    };
+
+    input.on('error', err => finish(err));
+    gunzip.on('error', err => finish(err));
+    gunzip.on('data', data => {
+        byteSize += data.length;
+        if (undefined !== isTar) {
+            return; //  only counting now
+        }
+
+        if (headerLength < header.length) {
+            headerLength += data.copy(header, headerLength);
+        }
+        if (allZero && !isAllZero(data)) {
+            allZero = false;
+        }
+        if (headerLength < header.length || allZero) {
+            return;
+        }
+
+        isTar = !isAllZero(header) && isTarHeader(header);
+        if (isTar || !wantSize) {
+            return finish(null);
+        }
+    });
+    gunzip.on('end', () => {
+        if (undefined === isTar) {
+            //  short, or zeros all the way: an empty tarball is two or more zero blocks
+            isTar =
+                headerLength === header.length &&
+                byteSize >= 1024 &&
+                0 === byteSize % 512;
+        }
+        return finish(null);
+    });
+    input.pipe(gunzip);
+}
 
 class Archiver {
     constructor(config) {
@@ -354,43 +473,100 @@ module.exports = class ArchiveUtil {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
-        const fmtObj = {
-            archivePath: archivePath,
-            extractPath: extractPath,
+        const extractWithArchiver = () => {
+            const fmtObj = {
+                archivePath: archivePath,
+                extractPath: extractPath,
+            };
+
+            let action = haveFileList ? 'extract' : 'decompress';
+            if ('extract' === action && !_.isObject(archiver[action])) {
+                //  we're forced to do a full decompress
+                action = 'decompress';
+                haveFileList = false;
+            }
+
+            //  we need to treat {fileList} special in that it should be broken up to 0:n args
+            const args = archiver[action].args.map(arg => {
+                return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
+            });
+
+            const fileListPos = args.indexOf('{fileList}');
+            if (fileListPos > -1) {
+                //  replace {fileList} with 0:n sep file list arguments
+                args.splice.apply(args, [fileListPos, 1].concat(fileList));
+            }
+
+            let proc;
+            try {
+                proc = pty.spawn(
+                    archiver[action].cmd,
+                    args,
+                    this.getPtyOpts(extractPath)
+                );
+            } catch (e) {
+                return cb(
+                    Errors.ExternalProcess(
+                        `Error spawning archiver process "${
+                            archiver[action].cmd
+                        }" with args "${args.join(' ')}": ${e.message}`
+                    )
+                );
+            }
+
+            return this.spawnHandler(
+                proc,
+                haveFileList ? 'Extraction' : 'Decompression',
+                cb
+            );
         };
 
-        let action = haveFileList ? 'extract' : 'decompress';
-        if ('extract' === action && !_.isObject(archiver[action])) {
-            //  we're forced to do a full decompress
-            action = 'decompress';
-            haveFileList = false;
+        const expectedGzipName = getGzipPayloadName(archivePath);
+        if (
+            'application/gzip' === archType &&
+            haveFileList &&
+            1 === fileList.length &&
+            expectedGzipName === fileList[0]
+        ) {
+            return probeGzip(archivePath, false, (err, probe) => {
+                if (err) {
+                    return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
+                }
+                if (probe.isTar) {
+                    return extractWithArchiver();
+                }
+
+                const outputPath = paths.join(extractPath, expectedGzipName);
+                return fs.open(outputPath, 'wx', 0o600, (err, fd) => {
+                    if (err) {
+                        return cb(
+                            Errors.ExternalProcess(
+                                `Gzip extraction failed: ${err.message}`
+                            )
+                        );
+                    }
+
+                    return pipeline(
+                        fs.createReadStream(archivePath),
+                        zlib.createGunzip(),
+                        fs.createWriteStream(outputPath, { fd: fd, autoClose: true }),
+                        err => {
+                            if (err) {
+                                fs.unlink(outputPath, () => {});
+                                return cb(
+                                    Errors.ExternalProcess(
+                                        `Gzip extraction failed: ${err.message}`
+                                    )
+                                );
+                            }
+                            return cb(null);
+                        }
+                    );
+                });
+            });
         }
 
-        //  we need to treat {fileList} special in that it should be broken up to 0:n args
-        const args = archiver[action].args.map(arg => {
-            return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
-        });
-
-        const fileListPos = args.indexOf('{fileList}');
-        if (fileListPos > -1) {
-            //  replace {fileList} with 0:n sep file list arguments
-            args.splice.apply(args, [fileListPos, 1].concat(fileList));
-        }
-
-        let proc;
-        try {
-            proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts(extractPath));
-        } catch (e) {
-            return cb(
-                Errors.ExternalProcess(
-                    `Error spawning archiver process "${
-                        archiver[action].cmd
-                    }" with args "${args.join(' ')}": ${e.message}`
-                )
-            );
-        }
-
-        return this.spawnHandler(proc, haveFileList ? 'Extraction' : 'Decompression', cb);
+        return extractWithArchiver();
     }
 
     listEntries(archivePath, archType, cb) {
@@ -400,61 +576,83 @@ module.exports = class ArchiveUtil {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
-        const fmtObj = {
-            archivePath: archivePath,
-        };
+        const listWithArchiver = () => {
+            const fmtObj = {
+                archivePath: archivePath,
+            };
 
-        const args = archiver.list.args.map(arg => stringFormat(arg, fmtObj));
+            const args = archiver.list.args.map(arg => stringFormat(arg, fmtObj));
 
-        if ('json' === archiver.list.outputFormat) {
-            return this.listJsonEntries(archiver.list.cmd, args, cb);
-        }
+            if ('json' === archiver.list.outputFormat) {
+                return this.listJsonEntries(archiver.list.cmd, args, cb);
+            }
 
-        let proc;
-        try {
-            proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
-        } catch (e) {
-            return cb(
-                Errors.ExternalProcess(
-                    `Error spawning archiver process "${
-                        archiver.list.cmd
-                    }" with args "${args.join(' ')}": ${e.message}`
-                )
-            );
-        }
-
-        let output = '';
-        proc.onData(data => {
-            //  :TODO: hack for: execvp(3) failed.: No such file or directory
-
-            output += data;
-        });
-
-        proc.onExit(exitEvent => {
-            if (exitEvent.exitCode) {
+            let proc;
+            try {
+                proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
+            } catch (e) {
                 return cb(
                     Errors.ExternalProcess(
-                        `List failed with exit code: ${exitEvent.exitCode}`
+                        `Error spawning archiver process "${
+                            archiver.list.cmd
+                        }" with args "${args.join(' ')}": ${e.message}`
                     )
                 );
             }
 
-            const entryGroupOrder = archiver.list.entryGroupOrder || {
-                byteSize: 1,
-                fileName: 2,
-            };
+            let output = '';
+            proc.onData(data => {
+                //  :TODO: hack for: execvp(3) failed.: No such file or directory
 
-            const entries = [];
-            const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
-            let m;
-            while ((m = entryMatchRe.exec(output))) {
-                entries.push({
-                    byteSize: parseInt(m[entryGroupOrder.byteSize]),
-                    fileName: m[entryGroupOrder.fileName].trim(),
-                });
+                output += data;
+            });
+
+            proc.onExit(exitEvent => {
+                if (exitEvent.exitCode) {
+                    return cb(
+                        Errors.ExternalProcess(
+                            `List failed with exit code: ${exitEvent.exitCode}`
+                        )
+                    );
+                }
+
+                const entryGroupOrder = archiver.list.entryGroupOrder || {
+                    byteSize: 1,
+                    fileName: 2,
+                };
+
+                const entries = [];
+                const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
+                let m;
+                while ((m = entryMatchRe.exec(output))) {
+                    entries.push({
+                        byteSize: parseInt(m[entryGroupOrder.byteSize]),
+                        fileName: m[entryGroupOrder.fileName].trim(),
+                    });
+                }
+
+                return cb(null, entries);
+            });
+        };
+
+        if ('application/gzip' !== archType) {
+            return listWithArchiver();
+        }
+
+        return probeGzip(archivePath, true, (err, probe) => {
+            if (err) {
+                return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
+            }
+            if (probe.isTar) {
+                return listWithArchiver();
             }
 
-            return cb(null, entries);
+            return cb(null, [
+                {
+                    byteSize: probe.byteSize,
+                    fileName: getGzipPayloadName(archivePath),
+                },
+            ]);
         });
     }
 

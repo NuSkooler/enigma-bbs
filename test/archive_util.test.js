@@ -4,6 +4,8 @@ const { strict: assert } = require('assert');
 const fs = require('fs');
 const os = require('os');
 const paths = require('path');
+const pty = require('node-pty');
+const zlib = require('zlib');
 
 const configModule = require('../core/config.js');
 const configDefault = require('../core/config_default.js');
@@ -259,6 +261,209 @@ describe('ArchiveUtil', () => {
             util.listEntries(archive, 'application/x-fake', err => {
                 assert.ok(err);
                 assert.match(err.message, /not JSON/);
+                done();
+            });
+        });
+    });
+
+    describe('bare gzip files', () => {
+        const listWithOutput = (archive, output, cb) => {
+            const originalSpawn = pty.spawn;
+            pty.spawn = () => ({
+                onData: handler => process.nextTick(() => handler(output)),
+                onExit: handler => process.nextTick(() => handler({ exitCode: 0 })),
+            });
+            util.listEntries(archive, 'application/gzip', (err, entries) => {
+                pty.spawn = originalSpawn;
+                cb(err, entries);
+            });
+        };
+
+        it('lists and extracts a gzip member as one file', done => {
+            const content = Buffer.from('notes from the archive\n');
+            const archive = writeFile('notes.txt.gz', zlib.gzipSync(content));
+            const extractPath = paths.join(dir, 'extract');
+            fs.mkdirSync(extractPath);
+
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, [
+                    { byteSize: content.length, fileName: 'notes.txt' },
+                ]);
+
+                util.extractTo(
+                    archive,
+                    extractPath,
+                    'application/gzip',
+                    ['notes.txt'],
+                    err => {
+                        assert.ifError(err);
+                        ArchiveUtil.findExtractedFile(
+                            extractPath,
+                            'notes.txt',
+                            (err, extractedPath) => {
+                                assert.ifError(err);
+                                assert.deepEqual(fs.readFileSync(extractedPath), content);
+                                done();
+                            }
+                        );
+                    }
+                );
+            });
+        });
+
+        it('does not treat an empty tarball as a gzip member', done => {
+            const archive = writeFile('empty.tar.gz', zlib.gzipSync(Buffer.alloc(1024)));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, []);
+                done();
+            });
+        });
+
+        it('keeps a gzip-compressed tar archive on the tar path', done => {
+            const header = Buffer.alloc(512);
+            header.write('inside.txt', 0);
+            header.write('0000644\0', 100);
+            header.write('0000000\0', 108);
+            header.write('0000000\0', 116);
+            header.write('00000000003\0', 124);
+            header.write('00000000000\0', 136);
+            header.fill(32, 148, 156);
+            header.write('ustar\0', 257);
+            header.write('00', 263);
+            const checksum = header.reduce((sum, byte) => sum + byte, 0);
+            header.write(`${checksum.toString(8).padStart(6, '0')}\0 `, 148);
+            const tar = Buffer.concat([
+                header,
+                Buffer.from('abc'),
+                Buffer.alloc(509),
+                Buffer.alloc(1024),
+            ]);
+            const archive = writeFile('bundle.tar.gz', zlib.gzipSync(tar));
+
+            listWithOutput(
+                archive,
+                '-rw-r--r-- 1/1 3 2026-01-01 00:00 inside.txt',
+                (err, entries) => {
+                    assert.ifError(err);
+                    assert.deepEqual(entries, [{ byteSize: 3, fileName: 'inside.txt' }]);
+                    done();
+                }
+            );
+        });
+
+        it('does not mistake a single zero-filled block for an empty tar', done => {
+            const content = Buffer.alloc(600);
+            content[512] = 1;
+            const archive = writeFile('zeroes.bin.gz', zlib.gzipSync(content));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, [
+                    { byteSize: content.length, fileName: 'zeroes.bin' },
+                ]);
+                done();
+            });
+        });
+
+        it('keeps an unusual archive basename inside the extraction directory', done => {
+            const content = Buffer.from('safe');
+            const archive = writeFile('...gz', zlib.gzipSync(content));
+            const extractPath = paths.join(dir, 'unusual-name');
+            fs.mkdirSync(extractPath);
+
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.equal(entries[0].fileName, '...gz.contents');
+                util.extractTo(
+                    archive,
+                    extractPath,
+                    'application/gzip',
+                    [entries[0].fileName],
+                    err => {
+                        assert.ifError(err);
+                        const extractedPath = paths.join(
+                            extractPath,
+                            entries[0].fileName
+                        );
+                        assert.deepEqual(fs.readFileSync(extractedPath), content);
+                        done();
+                    }
+                );
+            });
+        });
+
+        it('preserves an existing file when the extraction path is already taken', done => {
+            const archive = writeFile('notes.txt.gz', zlib.gzipSync(Buffer.from('new')));
+            const extractPath = paths.join(dir, 'existing-file');
+            fs.mkdirSync(extractPath);
+            const existingPath = paths.join(extractPath, 'notes.txt');
+            const existingContent = Buffer.from('keep this file');
+            fs.writeFileSync(existingPath, existingContent);
+
+            util.extractTo(
+                archive,
+                extractPath,
+                'application/gzip',
+                ['notes.txt'],
+                err => {
+                    assert.ok(err);
+                    assert.deepEqual(fs.readFileSync(existingPath), existingContent);
+                    done();
+                }
+            );
+        });
+
+        it('lists a file whose data starts with zero blocks as one file', done => {
+            //  a CD or disk image: tar alone would read the zeros as an empty archive
+            const content = Buffer.concat([
+                Buffer.alloc(64 * 1024),
+                Buffer.from('CD001'),
+            ]);
+            const archive = writeFile('disk.iso.gz', zlib.gzipSync(content));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, [
+                    { byteSize: content.length, fileName: 'disk.iso' },
+                ]);
+                done();
+            });
+        });
+
+        it('counts the decompressed size rather than trusting the gzip trailer', done => {
+            //  two members: the trailer of the last one only knows its own size
+            const member = zlib.gzipSync(Buffer.from('twelve bytes'));
+            const archive = writeFile('twice.txt.gz', Buffer.concat([member, member]));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, [{ byteSize: 24, fileName: 'twice.txt' }]);
+                done();
+            });
+        });
+
+        it('fails to list a truncated gzip file', done => {
+            const gz = zlib.gzipSync(Buffer.from('x'.repeat(4096)));
+            const archive = writeFile('cut.txt.gz', gz.subarray(0, gz.length - 8));
+            listWithOutput(archive, '', err => {
+                assert.ok(err);
+                done();
+            });
+        });
+
+        it('takes a tar header checksummed with signed bytes for a tarball', done => {
+            const header = Buffer.alloc(512);
+            header.write('caf\xe9.txt', 0, 'latin1');
+            header.write('0000644\0', 100);
+            header.write('00000000000\0', 124);
+            header.write('00000000000\0', 136);
+            header.fill(32, 148, 156);
+            const signed = header.reduce((sum, b) => sum + (b > 127 ? b - 256 : b), 0);
+            header.write(`${signed.toString(8).padStart(6, '0')}\0 `, 148);
+            const tar = Buffer.concat([header, Buffer.alloc(1024)]);
+            const archive = writeFile('old.tar.gz', zlib.gzipSync(tar));
+            listWithOutput(archive, '', (err, entries) => {
+                assert.ifError(err);
+                assert.deepEqual(entries, []); //  from the (stubbed) tar listing
                 done();
             });
         });
