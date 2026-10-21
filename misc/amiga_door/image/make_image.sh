@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 #
 # Build an ENiGMA½ Amiga door image (a bare FFS hard-disk image, volume BBS).
+# `oputil.js amiga-door create` does the same without Python or xdftool; this
+# script is for a machine that has amitools but not ENiGMA½.
 #
-#   make_image.sh [-s SIZE] [-n VOLUME] [-x XDFTOOL] [-w ADF] [-f] IMAGE DOORDIR...
+#   make_image.sh [-s SIZE] [-n VOLUME] [-x XDFTOOL] [-w ADF] [-p PFILEDIR]...
+#                 [-c COMMAND]... [-f] IMAGE [DOORDIR...]
 #
 #   IMAGE      image file to create, e.g. ~/amiga/dreamsweeper.hdf
 #   DOORDIR    a door's directory on this machine; its contents are copied to
 #              Doors/<directory name>/ in the image, layout kept. Give several
 #              to put several doors on one image.
 #
-#   -s SIZE    image size (default 4M); anything xdftool's size= accepts
+#   -s SIZE    image size (default 2000K); anything xdftool's size= accepts.
+#              Over 4066 blocks (2033K) the volume needs a second bitmap block,
+#              which the filesystem of an AROS ROM built before AROS#1720 was merged (2026-10-19)
+#              misreads: a door's writes then overwrite other files. Use 2032K
+#              or less (the largest 8 KB multiple under the 4066-block limit)
+#              if the image may run on such a ROM; the bundled ROM
+#              (enigma-vamiga 0.1.2 and later), AROS builds since AROS#1720
+#              and Kickstart 3.1 handle any size.
 #   -n VOLUME  volume name (default BBS)
 #   -x PATH    xdftool to use (default: $XDFTOOL, else xdftool on PATH)
 #   -w ADF     add ARexx, which ARexx (AIM) doors need and AROS does not have,
@@ -17,6 +27,11 @@
 #              rexxsupport.library, the IEEE math libraries rexxsyslib needs,
 #              SYS:Rexxc and the C: commands scripts run with ADDRESS COMMAND.
 #              Those files are licensed: the image is for your board only.
+#   -p DIR     a C-Net ARexx door (pfile) directory: copied to PFiles/<name>/,
+#              which the shim assigns PFILES: to; the image also gets C-Net's
+#              mail tree CNet/Mail/Users (CNET: is SYS:CNet). Needs -w. Repeatable.
+#   -c FILE    a command for C: (one a script runs with ADDRESS COMMAND, such as
+#              QSort for Bad Libs). Repeatable.
 #   -f         replace IMAGE if it exists
 #
 # xdftool comes from amitools:
@@ -32,11 +47,17 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 amiga_dir=$(dirname "$here")
 
-size=4M
+size=2000K
+# the most 512-byte blocks one bitmap block covers (127 longs x 32 bits, plus the two
+# boot blocks): the filesystem of an AROS ROM built before AROS#1720 was merged (2026-10-19) maps the blocks of
+# any further bitmap block wrongly
+one_bitmap_blocks=4066
 volume=BBS
 xdftool=${XDFTOOL:-xdftool}
 force=0
 workbench=
+pfiles=()
+commands=()
 
 # what -w copies from the Workbench disk (same path on the disk and in the image)
 wb_files=(
@@ -49,26 +70,50 @@ wb_files=(
 )
 
 usage() {
-    sed -n '3,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,43p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-2}"
 }
 
-while getopts "s:n:x:w:fh" opt; do
+while getopts "s:n:x:w:p:c:fh" opt; do
     case $opt in
         s) size=$OPTARG ;;
         n) volume=$OPTARG ;;
         x) xdftool=$OPTARG ;;
         w) workbench=$OPTARG ;;
+        p) pfiles+=("$OPTARG") ;;
+        c) commands+=("$OPTARG") ;;
         f) force=1 ;;
         h) usage 0 ;;
         *) usage ;;
     esac
 done
 shift $((OPTIND - 1))
-[ $# -ge 2 ] || usage
+[ $# -ge 1 ] || usage
+[ $# -ge 2 ] || [ ${#pfiles[@]} -gt 0 ] || usage
 
 image=$1
 shift
+
+# SIZE in bytes, when it is a plain number with an optional K, M or G (else empty)
+size_bytes() {
+    local n=${1%[KkMmGg]} unit=${1#"${1%[KkMmGg]}"}
+    [[ $n =~ ^[0-9]+$ ]] || return 0
+    case $unit in
+        K | k) echo $((n * 1024)) ;;
+        M | m) echo $((n * 1024 * 1024)) ;;
+        G | g) echo $((n * 1024 * 1024 * 1024)) ;;
+        *) echo "$n" ;;
+    esac
+}
+
+bytes=$(size_bytes "$size")
+if [ -n "$bytes" ] && [ "$bytes" -gt $((one_bitmap_blocks * 512)) ]; then
+    echo "make_image.sh: warning: $size is over 4066 blocks (2033K) and needs a second bitmap block;" >&2
+    echo "  the filesystem of an AROS ROM built before AROS#1720 was merged (2026-10-19) then overwrites files when a door" >&2
+    echo "  writes. Use -s 2032K or less (the largest 8 KB multiple under the 4066-block limit) if the" >&2
+    echo "  image may run on such a ROM (the ROM bundled with enigma-vamiga 0.1.2 and later, and" >&2
+    echo "  Kickstart 3.1, handle any size)." >&2
+fi
 
 command -v "$xdftool" > /dev/null 2>&1 || [ -x "$xdftool" ] || {
     echo "make_image.sh: xdftool not found (pip install amitools, then use -x or XDFTOOL)" >&2
@@ -87,12 +132,24 @@ done
     exit 1
 }
 
-for d in "$@"; do
+for d in "$@" ${pfiles[@]+"${pfiles[@]}"}; do
     [ -d "$d" ] || {
         echo "make_image.sh: not a directory: $d" >&2
         exit 1
     }
 done
+
+for f in ${commands[@]+"${commands[@]}"}; do
+    [ -f "$f" ] || {
+        echo "make_image.sh: no such file: $f" >&2
+        exit 1
+    }
+done
+
+[ ${#pfiles[@]} -eq 0 ] || [ -n "$workbench" ] || {
+    echo "make_image.sh: C-Net ARexx doors (-p) need ARexx: give your Workbench 3.1 disk with -w" >&2
+    exit 1
+}
 
 if [ -e "$image" ]; then
     if [ "$force" -eq 1 ]; then
@@ -130,9 +187,13 @@ if [ -n "$workbench" ]; then
     done
 fi
 
-for d in "$@"; do
-    d=${d%/}
-    root=Doors/$(basename "$d")
+for f in ${commands[@]+"${commands[@]}"}; do
+    args+=(+ write "$f" "C/$(basename "$f")")
+done
+
+# copy_tree DIR ROOT: DIR's contents to ROOT in the image, layout kept
+copy_tree() {
+    local d=${1%/} root=$2 sub file
     args+=(+ makedir "$root")
     while IFS= read -r -d '' sub; do
         args+=(+ makedir "$root/${sub#./}")
@@ -140,7 +201,20 @@ for d in "$@"; do
     while IFS= read -r -d '' file; do
         args+=(+ write "$d/${file#./}" "$root/${file#./}")
     done < <(cd "$d" && find . -type f -print0 | sort -z)
+}
+
+for d in "$@"; do
+    copy_tree "$d" "Doors/$(basename "${d%/}")"
 done
+
+if [ ${#pfiles[@]} -gt 0 ]; then
+    # C-Net: PFILES: is SYS:PFiles and CNET: SYS:CNet (the shim assigns them); pfiles
+    # keep per-caller files in CNET:Mail/Users/<account>/
+    args+=(+ makedir PFiles + makedir CNet + makedir CNet/Mail + makedir CNet/Mail/Users)
+    for d in "${pfiles[@]}"; do
+        copy_tree "$d" "PFiles/$(basename "${d%/}")"
+    done
+fi
 
 "$xdftool" "${args[@]}"
 "$xdftool" "$image" list

@@ -16,10 +16,13 @@ const {
 } = require('../core/amiga_door/host_link.js');
 const { SnapshotCache } = require('../core/amiga_door/snapshot_cache.js');
 const { _test } = require('../core/amiga_door/amiga_door.js');
+const { checkPackage, versionAtLeast } = require('../core/amiga_door/vamiga_package.js');
 const {
     normalizeConfig,
-    shouldPersist,
+    PersistOnIgnored,
+    persistOnWarned,
     buildSessionKeys,
+    cnetAccount,
     expandDoorArgs,
     quoteArg,
     userText,
@@ -31,6 +34,11 @@ const {
     MaxDoorMinutes,
 } = _test;
 const AmigaDoorModule = require('../core/amiga_door/amiga_door.js').getModule;
+
+//  Whatever enigma-vamiga is installed (package.json may still pin 0.1.x), the
+//  module under test runs as on 0.2.0; the version gate has tests of its own
+const VAMIGA_OK = { version: '0.2.0', problem: null };
+_test.vamigaPackage = VAMIGA_OK;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,14 +98,27 @@ function fakeClient() {
     return client;
 }
 
+//
+//  A worker as the session sees it. Asked to 'stop', it answers as
+//  amiga_worker.js does: 'synced' (|syncReply|), then exits; with |autoStop|
+//  false a test plays that part itself.
+//
 class FakeWorker extends EventEmitter {
     constructor() {
         super();
         this.posted = [];
         this.terminated = false;
+        this.autoStop = true;
+        this.syncReply = { writes: 0, bytes: 0, sessionWrites: 0, ms: 1 };
     }
     postMessage(msg) {
         this.posted.push(msg);
+        if ('stop' === msg.type && this.autoStop) {
+            setImmediate(() => {
+                this.emit('message', Object.assign({ type: 'synced' }, this.syncReply));
+                this.emit('exit', 0);
+            });
+        }
     }
     terminate() {
         this.terminated = true;
@@ -205,11 +226,12 @@ describe('amiga_door config', () => {
         assert.equal(c.slowKb, 512);
         assert.equal(c.fastKb, 8192);
         assert.equal(c.overclock, 1);
+        assert.equal(c.baud, 115200);
         assert.equal(c.nodeMax, 0);
         assert.equal(c.encoding, 'latin1');
         assert.equal(c.font, 'topaz');
         assert.equal(c.persist, true);
-        assert.deepEqual(c.persistOn, ['ok', 'carrier']); //  doorType xim
+        assert.equal(c.persistOn, undefined, 'retired');
         assert.equal(c.sharedState, false);
         assert.equal(c.log, false);
         assert.equal(c.warpBootSeconds, 30);
@@ -327,6 +349,71 @@ describe('amiga_door config', () => {
         );
     });
 
+    it('takes doorType cnetrexx (C-Net ARexx) with the script as an absolute Amiga path', () => {
+        const c = config({ doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' });
+        assert.equal(c.doorType, 'cnetrexx');
+        assert.deepEqual(
+            problemsOf({
+                doorType: 'cnetrexx',
+                door: 'PFILES:Badlibs/badlibs',
+                panicGraceSeconds: 0,
+                wordWrap: false,
+                assigns: { PFILES: 'BBS:PFiles' },
+            }),
+            []
+        );
+        for (const door of [
+            'Badlibs/badlibs', //  relative
+            'PFILES:Bad Libs/badlibs', //  a blank ends the script's name
+            'PFILES:x;y',
+            'PFILES:',
+        ]) {
+            assert.ok(
+                problemsOf({ doorType: 'cnetrexx', door }).some(p =>
+                    p.includes('doorType "cnetrexx" must be the script')
+                ),
+                `no problem reported for ${door}`
+            );
+        }
+        for (const v of [-1, 26, 2.5, '10']) {
+            assert.ok(
+                problemsOf({
+                    doorType: 'cnetrexx',
+                    door: 'PFILES:x',
+                    panicGraceSeconds: v,
+                }).some(p => p.includes('"panicGraceSeconds" must be')),
+                `panicGraceSeconds ${v}`
+            );
+        }
+        assert.ok(
+            problemsOf({ doorType: 'cnetrexx', door: 'PFILES:x', wordWrap: 'no' }).some(
+                p => p.includes('"wordWrap" must be')
+            )
+        );
+        for (const doorType of ['xim', 'aim', 'tim', 'cli']) {
+            for (const [key, value] of [
+                ['panicGraceSeconds', 5],
+                ['wordWrap', false],
+            ]) {
+                assert.ok(
+                    problemsOf({ doorType, door: 'BBS:x', [key]: value }).some(p =>
+                        p.includes(`"${key}" applies to doorType "cnetrexx" only`)
+                    ),
+                    `${doorType} ${key}`
+                );
+            }
+        }
+        const { warnings } = normalizeConfig(
+            Object.assign({}, BASE, {
+                doorType: 'cnetrexx',
+                door: 'PFILES:x',
+                panicGraceSeconds: 3,
+                wordWrap: true,
+            })
+        );
+        assert.deepEqual(warnings, [], 'panicGraceSeconds and wordWrap are known keys');
+    });
+
     it('takes assigns and env as NAME: value objects the shim can hold', () => {
         const { problems, warnings } = normalizeConfig(
             Object.assign({}, BASE, {
@@ -396,6 +483,27 @@ describe('amiga_door config', () => {
         assert.ok(problemsOf({ overclock: 17 }).some(p => p.includes('"overclock"')));
     });
 
+    it('takes baud from the usual line rates only', () => {
+        for (const baud of [9600, 19200, 38400, 57600, 115200, 230400]) {
+            assert.equal(config({ baud }).baud, baud);
+        }
+        assert.equal(config({ baud: 57600, overclock: 2 }).baud, 57600);
+        for (const baud of [0, 300, 11520, 38400.5, 460800, '38400', null, true]) {
+            assert.ok(
+                problemsOf({ baud }).some(p =>
+                    p.includes(
+                        '"baud" must be one of 9600, 19200, 38400, 57600, 115200, 230400'
+                    )
+                ),
+                `no problem reported for ${JSON.stringify(baud)}`
+            );
+        }
+        assert.deepEqual(
+            normalizeConfig(Object.assign({ baud: 38400 }, BASE)).warnings,
+            []
+        );
+    });
+
     it('wants 1 MB of RAM with the AROS ROM, not with a Kickstart', () => {
         const small = { chipKb: 512, slowKb: 0, fastKb: 0 };
         assert.ok(problemsOf(small).some(p => p.includes('1 MB')));
@@ -409,34 +517,46 @@ describe('amiga_door config', () => {
         assert.equal(config({ sharedState: false }).nodeMax, 0);
     });
 
-    it('defaults persistOn by door type; an explicit list always wins', () => {
-        assert.deepEqual(config({ doorType: 'xim' }).persistOn, ['ok', 'carrier']);
-        assert.deepEqual(config({ doorType: 'cli' }).persistOn, ['ok']);
-        assert.deepEqual(config({ doorType: 'aim', door: 'SYS:S/game.rexx' }).persistOn, [
-            'ok',
-        ]);
-        assert.deepEqual(
-            config({ doorType: 'tim', door: 'BBS:Doors/MSE/MSE' }).persistOn,
-            ['ok']
+    it('accepts and ignores persistOn, whatever it says, with a warning', () => {
+        for (const persistOn of [['ok', 'carrier'], 'ok', ['ok', 'hangup'], 42]) {
+            const {
+                config: c,
+                problems,
+                warnings,
+            } = normalizeConfig(Object.assign({}, BASE, { persistOn }));
+            assert.deepEqual(problems, [], JSON.stringify(persistOn));
+            assert.deepEqual(warnings, [PersistOnIgnored]);
+            assert.equal(c.persistOn, undefined);
+            assert.equal(c.persist, true);
+        }
+        assert.match(
+            PersistOnIgnored,
+            /persistOn.*ignored since 0\.6\.0.*as the door makes them/
         );
-        assert.deepEqual(
-            config({ doorType: 'cli', persistOn: ['ok', 'carrier'] }).persistOn,
-            ['ok', 'carrier']
-        );
-        assert.deepEqual(config({ doorType: 'xim', persistOn: ['ok'] }).persistOn, [
-            'ok',
-        ]);
+        assert.deepEqual(normalizeConfig(BASE).warnings, []);
     });
 
-    it('takes persistOn as a status or a list of statuses', () => {
-        assert.deepEqual(config({ persistOn: 'carrier' }).persistOn, ['carrier']);
-        assert.deepEqual(config({ persistOn: ['ok', 'carrier'] }).persistOn, [
-            'ok',
-            'carrier',
-        ]);
-        assert.ok(
-            problemsOf({ persistOn: ['ok', 'hangup'] }).some(p => p.includes('persistOn'))
-        );
+    it('wants an .hdf image, after symlinks', () => {
+        assert.deepEqual(problemsOf({ image: '/doors/x.HDF' }), []);
+        for (const image of ['/doors/x.img', '/doors/x.hdz', '/doors/x']) {
+            assert.ok(
+                problemsOf({ image }).some(p => /"image" must be an \.hdf file/.test(p)),
+                image
+            );
+        }
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amiga_door_ext_'));
+        try {
+            const real = path.join(dir, 'real.img');
+            fs.writeFileSync(real, Buffer.alloc(512));
+            const link = path.join(dir, 'door.hdf');
+            fs.symlinkSync(real, link);
+            assert.ok(
+                problemsOf({ image: link }).some(p => p.includes('.hdf')),
+                'the emulator goes by the real name'
+            );
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it('translates Amiga console controls by default for Latin-1 only', () => {
@@ -470,6 +590,7 @@ describe('amiga_door config', () => {
         const { problems, warnings } = normalizeConfig(
             Object.assign({}, BASE, {
                 persistOnn: ['ok', 'carrier'],
+                persistt: true,
                 nodemax: 2,
                 frobnicate: true,
                 _comment: 'ignored',
@@ -479,7 +600,9 @@ describe('amiga_door config', () => {
         );
         assert.deepEqual(problems, []);
         assert.deepEqual(warnings, [
-            'unknown key "persistOnn"; did you mean "persistOn"?',
+            //  never a retired key as the likely meaning
+            'unknown key "persistOnn"',
+            'unknown key "persistt"; did you mean "persist"?',
             'unknown key "nodemax"; did you mean "nodeMax"?',
             'unknown key "frobnicate"',
         ]);
@@ -505,12 +628,12 @@ describe('amiga_door config', () => {
                 normalizeConfig(Object.assign({}, BASE, { image })).warnings,
                 []
             );
-            //  a ROM supplied by the sysop may be a stock AROS build
+            //  a ROM supplied by the sysop may be an AROS build without the fix
             const { warnings } = normalizeConfig(Object.assign({}, BASE, { image, rom }));
             assert.equal(warnings.length, 1);
             assert.match(
                 warnings[0],
-                /4096 KB.*if this ROM is a stock AROS build.*2032 KB.*enigma-vamiga 0\.1\.2/
+                /4096 KB.*if this ROM is an AROS build from before AROS#1720 was merged \(2026-10-19\).*2032 KB.*enigma-vamiga 0\.1\.2/
             );
         } finally {
             fs.rmSync(image, { force: true });
@@ -697,21 +820,14 @@ describe('amiga_door host link', () => {
 // ─── snapshot cache ───────────────────────────────────────────────────────────
 
 describe('amiga_door snapshot cache', () => {
-    const stat = { mtimeMs: 1000, size: 4096 };
+    const stat = { mtimeMs: 1000, size: 4096, ino: 77, dev: 3 };
     const machine = config();
 
-    it('keys on image, mtime, size, ROMs and machine', () => {
-        const k = SnapshotCache.keyFor('/doors/a.hdf', stat, machine);
-        assert.equal(k, SnapshotCache.keyFor('/doors/../doors/a.hdf', stat, machine));
-        assert.notEqual(k, SnapshotCache.keyFor('/doors/b.hdf', stat, machine));
-        assert.notEqual(
-            k,
-            SnapshotCache.keyFor('/doors/a.hdf', { mtimeMs: 1001, size: 4096 }, machine)
-        );
-        assert.notEqual(
-            k,
-            SnapshotCache.keyFor('/doors/a.hdf', { mtimeMs: 1000, size: 8192 }, machine)
-        );
+    it('keys on image, ROMs, machine and the enigma-vamiga version', () => {
+        const k = SnapshotCache.keyFor('/doors/a.hdf', machine, '0.2.0');
+        assert.equal(k, SnapshotCache.keyFor('/doors/../doors/a.hdf', machine, '0.2.0'));
+        assert.notEqual(k, SnapshotCache.keyFor('/doors/b.hdf', machine, '0.2.0'));
+        assert.notEqual(k, SnapshotCache.keyFor('/doors/a.hdf', machine, '0.2.1'));
         for (const change of [
             { cpu: '68000' },
             { chipKb: 1024 },
@@ -724,147 +840,303 @@ describe('amiga_door snapshot cache', () => {
             const other = Object.assign({}, machine, change);
             assert.notEqual(
                 k,
-                SnapshotCache.keyFor('/doors/a.hdf', stat, other),
+                SnapshotCache.keyFor('/doors/a.hdf', other, '0.2.0'),
                 JSON.stringify(change)
             );
         }
         //  things a booted machine does not depend on
         const same = Object.assign({}, machine, { font: 'none', log: true, nodeMax: 9 });
-        assert.equal(k, SnapshotCache.keyFor('/doors/a.hdf', stat, same));
+        assert.equal(k, SnapshotCache.keyFor('/doors/a.hdf', same, '0.2.0'));
     });
 
-    it('stores a shared copy and hands it back', () => {
+    it('stores a shared copy and hands it back while the image is unchanged', () => {
         const cache = new SnapshotCache();
-        const key = SnapshotCache.keyFor('/doors/a.hdf', stat, machine);
-        const stored = cache.set(key, Buffer.from([1, 2, 3]));
+        const key = SnapshotCache.keyFor('/doors/a.hdf', machine);
+        const stored = cache.set(key, Buffer.from([1, 2, 3]), {}, stat);
         assert.ok(stored.buffer instanceof SharedArrayBuffer);
-        assert.deepEqual([...cache.get(key)], [1, 2, 3]);
-        assert.equal(cache.get('nope'), undefined);
+        const hit = cache.lookup(key, Object.assign({ atimeMs: 5 }, stat));
+        assert.deepEqual([...hit.snapshot], [1, 2, 3]);
+        assert.deepEqual(hit.meta, {});
+        assert.equal(cache.lookup('nope', stat), null);
+        assert.equal(cache.meta('nope'), undefined);
+        cache.set(key, Buffer.from([4]), { serialHandshake: true }, stat);
+        assert.deepEqual(cache.lookup(key, stat).meta, { serialHandshake: true });
+    });
+
+    it('drops an entry once the image is not the file it was taken with', () => {
+        const key = SnapshotCache.keyFor('/doors/a.hdf', machine);
+        for (const change of [
+            { mtimeMs: 1001 },
+            { size: 8192 },
+            { ino: 78 },
+            { dev: 4 },
+        ]) {
+            const cache = new SnapshotCache();
+            cache.set(key, Buffer.from([1]), {}, stat);
+            const now = Object.assign({}, stat, change);
+            const miss = cache.lookup(key, now);
+            assert.equal(miss.stale, true, JSON.stringify(change));
+            assert.deepEqual(miss.was, stat);
+            assert.equal(cache.size, 0, 'dropped');
+            assert.equal(cache.lookup(key, now), null);
+        }
+    });
+
+    it('keeps no snapshot it cannot check against its image', () => {
+        const cache = new SnapshotCache();
+        const key = SnapshotCache.keyFor('/doors/a.hdf', machine);
+        assert.equal(cache.set(key, Buffer.from([1])), null);
+        assert.equal(cache.size, 0);
     });
 
     it('evicts the least recently used past maxEntries', () => {
         const cache = new SnapshotCache({ maxEntries: 2 });
         const keys = ['a', 'b', 'c'].map(n =>
-            SnapshotCache.keyFor(`/doors/${n}.hdf`, stat, machine)
+            SnapshotCache.keyFor(`/doors/${n}.hdf`, machine)
         );
-        cache.set(keys[0], Buffer.from([0]));
-        cache.set(keys[1], Buffer.from([1]));
-        cache.get(keys[0]); //  a is now more recent than b
-        cache.set(keys[2], Buffer.from([2]));
+        cache.set(keys[0], Buffer.from([0]), {}, stat);
+        cache.set(keys[1], Buffer.from([1]), {}, stat);
+        cache.lookup(keys[0], stat); //  a is now more recent than b
+        cache.set(keys[2], Buffer.from([2]), {}, stat);
         assert.equal(cache.size, 2);
-        assert.ok(cache.get(keys[0]));
-        assert.equal(cache.get(keys[1]), undefined);
-        assert.ok(cache.get(keys[2]));
+        assert.ok(cache.lookup(keys[0], stat));
+        assert.equal(cache.lookup(keys[1], stat), null);
+        assert.ok(cache.lookup(keys[2], stat));
     });
 
-    it('invalidates every snapshot of one image', () => {
+    it('invalidates every snapshot of one image, or drops one entry', () => {
         const cache = new SnapshotCache();
-        const a1 = SnapshotCache.keyFor('/doors/a.hdf', stat, machine);
+        const a1 = SnapshotCache.keyFor('/doors/a.hdf', machine);
         const a2 = SnapshotCache.keyFor(
             '/doors/a.hdf',
-            stat,
             Object.assign({}, machine, { cpu: '68000' })
         );
-        const b = SnapshotCache.keyFor('/doors/b.hdf', stat, machine);
-        [a1, a2, b].forEach(k => cache.set(k, Buffer.from([9])));
+        const b = SnapshotCache.keyFor('/doors/b.hdf', machine);
+        [a1, a2, b].forEach(k => cache.set(k, Buffer.from([9]), {}, stat));
         assert.equal(cache.invalidateImage('/doors/./a.hdf'), 2);
         assert.equal(cache.size, 1);
-        assert.ok(cache.get(b));
+        assert.ok(cache.lookup(b, stat));
+        assert.equal(cache.drop(b), true);
+        assert.equal(cache.drop(b), false);
+        assert.equal(cache.size, 0);
+    });
+
+    it('shares one entry between two spellings of a file, symlinks included', () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amiga_door_cache_'));
+        try {
+            const real = path.join(dir, 'a.hdf');
+            fs.writeFileSync(real, Buffer.alloc(16));
+            const link = path.join(dir, 'link.hdf');
+            fs.symlinkSync(real, link);
+            const cache = new SnapshotCache();
+            const k1 = SnapshotCache.keyFor(real, machine);
+            assert.equal(k1, SnapshotCache.keyFor(link, machine));
+            cache.set(k1, Buffer.from([9]), {}, stat);
+            assert.equal(cache.invalidateImage(link), 1, 'the other spelling hits it');
+            assert.equal(cache.size, 0);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it('caches nothing with maxEntries 0', () => {
         const cache = new SnapshotCache({ maxEntries: 0 });
         assert.equal(
-            cache.set(SnapshotCache.keyFor('/a', stat, machine), Buffer.from([1])),
+            cache.set(SnapshotCache.keyFor('/a', machine), Buffer.from([1]), {}, stat),
             null
         );
         assert.equal(cache.size, 0);
     });
 });
 
-// ─── exit / persist decision ──────────────────────────────────────────────────
+// ─── enigma-vamiga version ────────────────────────────────────────────────────
 
-describe('amiga_door persist decision', () => {
-    it('persists on ok, and on a carrier exit the door made itself, by default', () => {
-        const c = config();
-        assert.deepEqual(c.persistOn, ['ok', 'carrier']);
-        assert.equal(shouldPersist(c, 'ok'), true);
-        assert.equal(shouldPersist(c, 'ok', { rc: '-1' }), true);
-        assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), true);
-        for (const status of ['timeout', 'break', 'error', undefined]) {
-            assert.equal(shouldPersist(c, status, { rc: '0' }), false, String(status));
-        }
+describe('amiga_door enigma-vamiga version', () => {
+    class Current {
+        hdfSync() {}
+        setWriteThrough() {}
+    }
+    class Old {
+        persistHdf() {}
+    }
+    const pkg = (VAmiga, version) => () => ({ pkg: { VAmiga }, version });
+
+    it('compares major.minor.patch, a prerelease counting as its version', () => {
+        assert.ok(versionAtLeast('0.2.0', '0.2.0'));
+        assert.ok(versionAtLeast('0.2.0-dev', '0.2.0'));
+        assert.ok(versionAtLeast('0.10.0', '0.2.0'));
+        assert.ok(versionAtLeast('1.0.0', '0.2.0'));
+        assert.ok(!versionAtLeast('0.1.3', '0.2.0'));
+        assert.ok(!versionAtLeast('0.1.99', '0.2.0'));
+        assert.ok(!versionAtLeast(undefined, '0.2.0'));
+        assert.ok(!versionAtLeast('junk', '0.2.0'));
     });
 
-    it('does not persist a CLI, ARexx or Paragon door on a hangup by default', () => {
-        for (const extra of [
-            { doorType: 'cli' },
-            { doorType: 'aim', door: 'SYS:S/g.rexx' },
-            { doorType: 'tim', door: 'BBS:Doors/MSE/MSE' },
-        ]) {
-            const c = config(extra);
-            assert.equal(shouldPersist(c, 'ok', { rc: '0' }), true);
-            assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), false);
-        }
-        const widened = config({ doorType: 'cli', persistOn: ['ok', 'carrier'] });
-        assert.equal(shouldPersist(widened, 'carrier', { rc: '0' }), true);
+    it('accepts 0.2.0 and later with a file-backed disk', () => {
+        assert.deepEqual(checkPackage(pkg(Current, '0.2.0-dev')), {
+            version: '0.2.0-dev',
+            problem: null,
+        });
+        assert.equal(checkPackage(pkg(Current, '0.3.1')).problem, null);
     });
 
-    it('counts only a plain integer rc as the door ending by itself', () => {
-        const c = config();
-        const cases = [
-            [{ rc: '0' }, true],
-            [{ rc: '5' }, true],
-            [{ rc: '-2' }, true],
-            [{ rc: 0 }, true],
-            [{ rc: '-1' }, false],
-            [{ rc: -1 }, false],
-            [{ rc: '' }, false],
-            [{ rc: ' ' }, false],
-            [{ rc: null }, false],
-            [{ rc: '1.5' }, false],
-            [{ rc: '0x10' }, false],
-            [{ rc: '5 ' }, false],
-            [{ rc: 'x' }, false],
-            [{}, false],
-            [undefined, false],
-        ];
-        for (const [keys, expected] of cases) {
-            assert.equal(
-                shouldPersist(c, 'carrier', keys),
-                expected,
-                JSON.stringify(keys)
+    it('refuses 0.1.x, or a package without the file-backed disk, naming both versions', () => {
+        const old = checkPackage(pkg(Old, '0.1.3'));
+        assert.equal(old.version, '0.1.3');
+        assert.match(
+            old.problem,
+            /enigma-vamiga 0\.1\.3 is installed.*need 0\.2\.0 or later/
+        );
+        assert.match(checkPackage(pkg(Old, '0.2.0')).problem, /0\.2\.0 is installed/);
+        assert.match(
+            checkPackage(pkg(Old, '0.2.0')).problem,
+            /0\.2\.0 is installed but has no file-backed disk support/
+        );
+        assert.match(checkPackage(pkg(Current, '0.1.9')).problem, /0\.1\.9 is installed/);
+        const missing = checkPackage(() => {
+            throw new Error("Cannot find module 'enigma-vamiga'");
+        });
+        assert.equal(missing.version, null);
+        assert.match(missing.problem, /0\.2\.0 or later is required.*Cannot find module/);
+    });
+
+    it('refuses to start a door on an old package, saying why in the log', async () => {
+        _test.vamigaPackage = checkPackage(pkg(Old, '0.1.3'));
+        try {
+            const m = makeModule({});
+            assert.equal(await startModule(m), 'refused');
+            assert.match(m.client.term.written.join(''), /XIMTest could not be run/);
+            const line = m.client.log.lines.find(
+                l => 'Could not start Amiga door' === l.msg
             );
+            assert.match(line.obj.error, /0\.1\.3 is installed.*0\.2\.0 or later/);
+            assert.equal(activeImages.size, 0, 'nothing held');
+        } finally {
+            _test.vamigaPackage = VAMIGA_OK;
         }
     });
+});
 
-    it('does not persist a carrier exit unless the door ended by itself', () => {
-        const c = config();
-        assert.equal(shouldPersist(c, 'carrier', { rc: '5' }), true);
-        assert.equal(shouldPersist(c, 'carrier', { rc: '-1' }), false);
-        assert.equal(shouldPersist(c, 'carrier', { rc: -1 }), false);
-        assert.equal(shouldPersist(c, 'carrier', {}), false);
-        assert.equal(shouldPersist(c, 'carrier'), false);
-        assert.equal(shouldPersist(c, 'carrier', { rc: 'x' }), false);
-    });
+// ─── persistOn (retired) ──────────────────────────────────────────────────────
 
-    it('never persists with persist: false', () => {
-        assert.equal(shouldPersist(config({ persist: false }), 'ok'), false);
-    });
+describe('amiga_door persistOn', () => {
+    afterEach(() => persistOnWarned.clear());
 
-    it('widens with persistOn', () => {
-        const c = config({ persistOn: ['ok', 'timeout', 'break'] });
-        assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), false);
-        assert.equal(shouldPersist(c, 'timeout', { rc: '0' }), true);
-        assert.equal(shouldPersist(c, 'timeout', { rc: '-1' }), false);
-        assert.equal(shouldPersist(c, 'break', { rc: '0' }), true);
-        assert.equal(shouldPersist(c, 'break'), false);
+    it('warns once per door that persistOn does nothing, and runs the door', async () => {
+        const warnings = m =>
+            m.client.log.lines.filter(
+                l => 'warn' === l.level && l.msg.includes('"persistOn" is ignored')
+            );
+        const name = 'OldMenu';
+        //  checkFiles refuses the missing image; the warning comes before it
+        const first = makeModule({ name, persistOn: ['ok'] });
+        await startModule(first);
+        assert.equal(warnings(first).length, 1);
+        const again = makeModule({ name, persistOn: ['ok'] });
+        await startModule(again);
+        assert.equal(warnings(again).length, 0, 'once per door');
+        const other = makeModule({ name: 'Another', persistOn: ['ok'] });
+        await startModule(other);
+        assert.equal(warnings(other).length, 1);
     });
 });
 
 // ─── session (frame handling) ─────────────────────────────────────────────────
 
 describe('amiga_door session', () => {
+    const warned = (client, re) =>
+        client.log.lines.filter(l => 'warn' === l.level && re.test(l.msg));
+
+    it("logs the line rate the shim confirms, and warns when it is not the config's", async () => {
+        const link = new HostLink({ helloSeen: true });
+        const ok = makeSession({ baud: 38400 });
+        deliver(
+            ok.worker,
+            workerMessages(
+                link,
+                Buffer.concat([
+                    protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 38400 }),
+                    protocol.encode('L', { door: BASE.door, pid: 0 }),
+                ])
+            )
+        );
+        assert.deepEqual(warned(ok.client, /line rate|baud/), []);
+        const launched = ok.client.log.lines.find(l => 'Amiga door launched' === l.msg);
+        assert.equal(launched.obj.baud, '38400');
+
+        const other = makeSession({ baud: 38400 });
+        deliver(
+            other.worker,
+            workerMessages(
+                new HostLink({ helloSeen: true }),
+                protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 115200 })
+            )
+        );
+        assert.equal(warned(other.client, /another line rate/).length, 1);
+
+        ok.session.disconnect('hangup');
+        other.session.disconnect('hangup');
+        await Promise.all([ok.done, other.done]);
+    });
+
+    it('warns when baud is set and the shim never confirms a rate (axshim 1.4)', async () => {
+        const old = makeSession({ baud: 38400 });
+        const launch = protocol.encode('L', { door: BASE.door, pid: 0 });
+        deliver(old.worker, workerMessages(new HostLink({ helloSeen: true }), launch));
+        assert.equal(warned(old.client, /predates 1\.5/).length, 1);
+
+        //  the default rate is what an old shim runs at anyway: nothing to say
+        const plain = makeSession();
+        deliver(plain.worker, workerMessages(new HostLink({ helloSeen: true }), launch));
+        assert.deepEqual(warned(plain.client, /predates/), []);
+
+        old.session.disconnect('hangup');
+        plain.session.disconnect('hangup');
+        await Promise.all([old.done, plain.done]);
+    });
+
+    it('ignores the boot hello: only an H after `s` is the session rate', async () => {
+        const client = fakeClient();
+        const worker = new FakeWorker();
+        const session = new AmigaDoorSession({
+            client,
+            config: config({ baud: 57600 }),
+            worker,
+            cacheKey: 'k',
+            cache: new SnapshotCache({ maxEntries: 4 }),
+            sessionKeys: { timeleft: 60, rows: 25, cols: 80 },
+            rawOutput: false,
+            timeouts: { exitAfterDisconnect: 30 },
+        });
+        const done = new Promise(resolve => session.once('done', resolve));
+        session.start();
+        //  booting: the shim listens at 38400 between sessions
+        deliver(worker, [
+            {
+                type: 'frame',
+                frame: { type: 'H', keys: { shim: 'axshim 1.5', baud: '38400' } },
+            },
+            { type: 'ready', restored: false, ms: 900, restoreMs: null },
+            {
+                type: 'frame',
+                frame: { type: 'H', keys: { shim: 'axshim 1.5', baud: '57600' } },
+            },
+        ]);
+        assert.deepEqual(warned(client, /line rate|baud/), []);
+        session.disconnect('hangup');
+        await done;
+    });
+
+    it('warns once when the worker says the input queue is full', async () => {
+        const s = makeSession();
+        deliver(s.worker, [{ type: 'inputFull', limit: 1048576 }]);
+        const w = warned(s.client, /input queue is full/);
+        assert.equal(w.length, 1);
+        assert.equal(w[0].obj.limit, 1048576);
+        s.session.disconnect('hangup');
+        await s.done;
+    });
+
     it('writes door output with 0x9B translated, transcoded or raw', async () => {
         const link = new HostLink({ helloSeen: true });
         const bytes = Buffer.from([0x9b, 0x31, 0x6d, 0xe9, 0x0d, 0x0a]);
@@ -922,164 +1194,169 @@ describe('amiga_door session', () => {
         await s.done;
     });
 
-    it('X status=ok persists, then drops the image snapshots when chunks changed', async () => {
-        const image = path.join(os.tmpdir(), `amiga_door_test_${process.pid}.hdf`);
-        const s = makeSession({ image });
-        s.cache.set(
-            SnapshotCache.keyFor(image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        const link = new HostLink({ helloSeen: true });
+    //  A cached snapshot of BASE.image, as onSnapshot() would store one
+    const cacheSnapshot = s => {
+        const key = SnapshotCache.keyFor(BASE.image, s.session.config, '0.2.0');
+        s.cache.set(key, Buffer.from([1]), {}, { size: 1, mtimeMs: 1, ino: 1, dev: 1 });
+        return key;
+    };
+    const closedOf = s => new Promise(r => s.session.once('closed', r));
+    const logged = (s, re, level) =>
+        s.client.log.lines.find(l => re.test(l.msg) && (!level || level === l.level));
 
-        deliver(
-            s.worker,
-            workerMessages(
-                link,
-                Buffer.concat([
-                    protocol.encode('L', { door: BASE.door, pid: 0 }),
-                    Buffer.from('Bye!\r\n'),
-                    protocol.encode('X', { status: 'ok', reg: 0, cmds: 17, wrote: 1 }),
-                ])
-            )
-        );
-
-        //  the persist request goes out through the image lock
-        await new Promise(r => setImmediate(r));
-        const persist = s.worker.sent('persist');
-        assert.equal(persist.length, 1);
-        assert.equal(persist[0].path, image);
-        assert.equal(s.worker.terminated, false, 'not before the disk is written');
-
-        s.worker.emit('message', { type: 'persisted', chunks: 2, bytes: 131072, ms: 3 });
-        const result = await s.done;
-        assert.equal(result.status, 'ok');
-        assert.equal(result.persisted, true);
-        assert.equal(result.chunks, 2);
-        assert.equal(s.cache.size, 0, 'snapshot dropped');
-        assert.ok(s.worker.terminated);
-    });
-
-    it('X status=ok with no changed chunks keeps the snapshot', async () => {
-        const s = makeSession();
-        s.cache.set(
-            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
-        s.worker.emit('message', { type: 'persisted', chunks: 0, bytes: 0, ms: 1 });
-        await s.done;
-        assert.equal(s.cache.size, 1);
-    });
-
-    it('asks for the persist through a temporary file beside the image', async () => {
-        const s = makeSession();
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
-        const [persist] = s.worker.sent('persist');
-        assert.equal(persist.path, BASE.image);
-        assert.equal(path.dirname(persist.tmp), path.dirname(BASE.image));
-        assert.notEqual(persist.tmp, BASE.image);
-        s.worker.emit('message', { type: 'persisted', chunks: 0, bytes: 0, ms: 1 });
-        await s.done;
-    });
-
-    it('a slow persist ends the session but never stops the worker mid-write', async () => {
-        const s = makeSession({}, { timeouts: { persist: 10, persistAbandon: 5000 } });
-        const closed = new Promise(r => s.session.once('closed', r));
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        const result = await s.done;
-        assert.equal(result.persisted, false);
-        assert.match(result.error, /persist did not finish/);
-        assert.equal(s.worker.terminated, false, 'still writing');
-
-        s.worker.emit('message', { type: 'persisted', chunks: 1, bytes: 512, ms: 50 });
-        await closed;
-        assert.ok(s.worker.terminated);
-    });
-
-    it('gives up on a persist that never finishes and removes its copy', async () => {
-        const image = path.join(os.tmpdir(), `amiga_door_abandon_${process.pid}.hdf`);
-        fs.writeFileSync(image, Buffer.alloc(16));
-        try {
-            const s = makeSession(
-                { image },
-                { timeouts: { persist: 5, persistAbandon: 20 } }
+    for (const status of ['ok', 'carrier', 'timeout', 'break', 'error']) {
+        it(`X status=${status} ends the session, then the worker syncs the image and stops`, async () => {
+            const s = makeSession();
+            s.worker.autoStop = false;
+            const closed = closedOf(s);
+            deliver(
+                s.worker,
+                workerMessages(
+                    new HostLink({ helloSeen: true }),
+                    protocol.encode('X', { status, rc: '0', wrote: 1 })
+                )
             );
-            const closed = new Promise(r => s.session.once('closed', r));
-            deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-            await new Promise(r => setImmediate(r));
-            const [persist] = s.worker.sent('persist');
-            fs.writeFileSync(persist.tmp, 'half'); //  the worker got this far
-            await s.done;
-            assert.equal(s.worker.terminated, false);
+            const result = await s.done;
+            assert.equal(result.status, status);
+            assert.equal(result.keys.wrote, '1');
+            assert.equal(result.persisted, undefined, 'nothing to decide');
+            assert.equal(s.worker.sent('stop').length, 1, 'whatever the status');
+            assert.equal(s.worker.terminated, false, 'not before it has synced');
+
+            s.worker.emit('message', {
+                type: 'synced',
+                writes: 3,
+                bytes: 12288,
+                sessionWrites: 3,
+                ms: 4,
+            });
+            s.worker.emit('exit', 0);
             await closed;
             assert.ok(s.worker.terminated);
-            await new Promise(r => setTimeout(r, 20));
-            assert.equal(fs.existsSync(persist.tmp), false);
-            assert.equal(fs.readFileSync(image).length, 16);
-        } finally {
-            fs.rmSync(image, { force: true });
+            const line = logged(s, /^Amiga door disk synced$/, 'info');
+            assert.equal(line.obj.writes, 3);
+            assert.equal(line.obj.bytes, 12288);
+        });
+    }
+
+    it('a session that wrote drops the image snapshots; one that did not keeps them', async () => {
+        const wrote = makeSession();
+        cacheSnapshot(wrote);
+        wrote.worker.syncReply = { writes: 2, bytes: 8192, sessionWrites: 2, ms: 3 };
+        const closedWrote = closedOf(wrote);
+        deliver(wrote.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closedWrote;
+        assert.equal(wrote.cache.size, 0);
+        assert.equal(logged(wrote, /disk synced/).obj.snapshotsDropped, 1);
+
+        //  writes before the session (a boot's) are in the snapshot already
+        const idle = makeSession();
+        cacheSnapshot(idle);
+        idle.worker.syncReply = { writes: 1, bytes: 4096, sessionWrites: 0, ms: 1 };
+        const closedIdle = closedOf(idle);
+        deliver(idle.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closedIdle;
+        assert.equal(idle.cache.size, 1);
+    });
+
+    it('a sync that could not count the session writes drops the snapshots', async () => {
+        for (const sessionWrites of [null, undefined, NaN, -3]) {
+            const s = makeSession();
+            cacheSnapshot(s);
+            s.worker.syncReply = { writes: null, bytes: null, sessionWrites, ms: 1 };
+            const closed = closedOf(s);
+            deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+            await closed;
+            if (-3 === sessionWrites) {
+                //  never a negative count: it is not "wrote"; it is not unknown either
+                assert.equal(s.cache.size, 1);
+                continue;
+            }
+            assert.equal(s.cache.size, 0, `sessionWrites ${sessionWrites}`);
+            const line = logged(s, /write counters were unavailable/, 'info');
+            assert.equal(line.obj.writesUnknown, true);
+            assert.equal(line.obj.snapshotsDropped, 1);
         }
     });
 
-    it('a worker that dies mid-persist is not waited for', async () => {
-        const s = makeSession({}, { timeouts: { persistAbandon: 60000 } });
-        const closed = new Promise(r => s.session.once('closed', r));
+    it('says when a door left its disk alone', async () => {
+        const s = makeSession();
+        const closed = closedOf(s);
         deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
+        await closed;
+        assert.ok(logged(s, /left its disk unchanged/, 'info'));
+    });
+
+    it('logs a failed sync as such, and still frees the image', async () => {
+        const s = makeSession();
+        s.worker.syncReply = {
+            writes: 1,
+            bytes: 4096,
+            sessionWrites: 1,
+            ms: 2,
+            error: 'EIO: i/o error, fsync',
+            code: 'EIO',
+        };
+        const closed = closedOf(s);
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closed;
+        const line = logged(s, /disk sync FAILED: EIO/, 'warn');
+        assert.ok(line);
+        assert.equal(line.obj.code, 'EIO');
+        assert.ok(s.worker.terminated);
+    });
+
+    it('with persist: false nothing is synced and the snapshots stay', async () => {
+        const s = makeSession({ persist: false });
+        cacheSnapshot(s);
+        s.worker.syncReply = { skipped: true };
+        const closed = closedOf(s);
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closed;
+        assert.equal(s.cache.size, 1);
+        assert.ok(logged(s, /not synced: persist is off/));
+    });
+
+    it('terminates a worker that does not stop within timeouts.stop', async () => {
+        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 30, stop: 10 } });
+        cacheSnapshot(s);
+        s.worker.autoStop = false;
+        const closed = closedOf(s);
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await s.done;
+        assert.equal(s.worker.terminated, false);
+        await closed;
+        assert.ok(s.worker.terminated);
+        assert.ok(logged(s, /did not stop within 10 ms/, 'warn'));
+        assert.equal(s.cache.size, 0, 'whether it wrote is unknown');
+    });
+
+    it('a worker that is gone is not asked to stop', async () => {
+        const s = makeSession();
+        const closed = closedOf(s);
         s.worker.emit('exit', 1);
         const result = await s.done;
         assert.match(result.error, /exited unexpectedly/);
         await closed;
+        assert.equal(s.worker.sent('stop').length, 0);
     });
 
-    it('a persist refused because the image changed drops its snapshots', async () => {
-        const s = makeSession();
-        s.cache.set(
-            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
-        s.worker.emit('message', {
-            type: 'persisted',
-            chunks: 0,
-            bytes: 0,
-            ms: 1,
-            refused: 'the image changed during the session',
-        });
-        const result = await s.done;
-        assert.equal(result.persisted, false);
-        assert.match(result.refused, /changed/);
+    it('drops a snapshot the emulator refused', async () => {
+        const key = SnapshotCache.keyFor(BASE.image, config(), '0.2.0');
+        const s = makeSession({}, { cacheKey: key });
+        cacheSnapshot(s);
+        deliver(s.worker, [
+            {
+                type: 'snapshotRefused',
+                message: 'Snapshot was created with an older version of vAmiga',
+            },
+        ]);
         assert.equal(s.cache.size, 0);
-        assert.ok(
-            s.client.log.lines.some(
-                l => 'warn' === l.level && /NOT persisted/.test(l.msg)
-            )
-        );
-    });
-
-    it('a cut-short exit that persists nothing keeps the image snapshots', async () => {
-        const s = makeSession();
-        s.cache.set(
-            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        deliver(
-            s.worker,
-            workerMessages(
-                new HostLink({ helloSeen: true }),
-                protocol.encode('X', { status: 'carrier', rc: '-1' })
-            )
-        );
-        const result = await s.done;
-        assert.equal(result.persisted, false);
-        assert.equal(s.cache.size, 1);
-        assert.ok(
-            s.client.log.lines.some(l => /NOT persisted/.test(l.msg)),
-            'the cut-short exit is still logged'
-        );
+        const line = logged(s, /snapshot refused/, 'debug');
+        assert.match(line.obj.reason, /older version/);
+        assert.equal(line.obj.dropped, true);
+        s.session.disconnect('hangup');
+        await s.done;
     });
 
     it('a late error from a finished worker is swallowed', async () => {
@@ -1088,24 +1365,6 @@ describe('amiga_door session', () => {
         await s.done;
         assert.doesNotThrow(() => s.worker.emit('error', new Error('late')));
     });
-
-    for (const status of ['carrier', 'timeout', 'break', 'error']) {
-        it(`X status=${status} does not persist`, async () => {
-            const s = makeSession();
-            deliver(
-                s.worker,
-                workerMessages(
-                    new HostLink({ helloSeen: true }),
-                    protocol.encode('X', { status })
-                )
-            );
-            const result = await s.done;
-            assert.equal(result.status, status);
-            assert.equal(result.persisted, false);
-            assert.equal(s.worker.sent('persist').length, 0);
-            assert.ok(s.worker.terminated);
-        });
-    }
 
     it('a hangup sends d reason=hangup and waits for X status=carrier', async () => {
         const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
@@ -1128,7 +1387,6 @@ describe('amiga_door session', () => {
         const result = await s.done;
         assert.equal(result.status, 'carrier');
         assert.equal(result.reason, 'hangup');
-        assert.equal(result.persisted, false);
     });
 
     it('another session disconnecting is not ours', async () => {
@@ -1164,49 +1422,35 @@ describe('amiga_door session', () => {
         );
     });
 
-    it('a hangup persists what a door saved when it ended by itself', async () => {
-        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
-        s.session.disconnect('hangup');
-        //  the shim's X comes back well within the grace
-        deliver(s.worker, [
-            {
-                type: 'exit',
-                status: 'carrier',
-                keys: { status: 'carrier', rc: '0' },
-            },
-        ]);
-        await new Promise(r => setImmediate(r));
-        assert.equal(s.worker.sent('persist').length, 1);
-        s.worker.emit('message', { type: 'persisted', chunks: 1, bytes: 512, ms: 3 });
-        const result = await s.done;
-        assert.equal(result.status, 'carrier');
-        assert.equal(result.reason, 'hangup');
-        assert.equal(result.persisted, true);
-    });
+    for (const rc of ['0', '-1']) {
+        it(`a hangup leaves the door its grace, then syncs what it wrote (rc ${rc})`, async () => {
+            const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
+            const closed = closedOf(s);
+            s.session.disconnect('hangup');
+            assert.equal(s.worker.sent('stop').length, 0, 'the door may still be saving');
+            //  the shim's X comes back within the grace; a door it gave up on
+            //  (rc -1) is synced all the same: its writes are in the image
+            deliver(s.worker, [
+                { type: 'exit', status: 'carrier', keys: { status: 'carrier', rc } },
+            ]);
+            const result = await s.done;
+            assert.equal(result.status, 'carrier');
+            assert.equal(result.reason, 'hangup');
+            assert.equal(s.worker.sent('stop').length, 1);
+            await closed;
+            assert.ok(s.worker.terminated);
+        });
+    }
 
-    it('a hangup does not persist a door the shim gave up on (rc -1)', async () => {
-        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
-        s.session.disconnect('hangup');
-        deliver(s.worker, [
-            {
-                type: 'exit',
-                status: 'carrier',
-                keys: { status: 'carrier', rc: '-1' },
-            },
-        ]);
-        const result = await s.done;
-        assert.equal(s.worker.sent('persist').length, 0);
-        assert.equal(result.status, 'carrier');
-        assert.equal(result.persisted, false);
-    });
-
-    it('drops the worker when no X follows d', async () => {
+    it('drops the worker, after a sync, when no X follows d', async () => {
         const s = makeSession();
+        const closed = closedOf(s);
         s.session.disconnect('break');
         const result = await s.done;
         assert.equal(result.reason, 'break');
         assert.equal(result.status, undefined);
-        assert.equal(result.persisted, false);
+        assert.equal(s.worker.sent('stop').length, 1);
+        await closed;
         assert.ok(s.worker.terminated);
     });
 
@@ -1274,29 +1518,43 @@ describe('amiga_door session', () => {
         await s.done;
     });
 
-    it('caches the snapshot a booting worker posts', async () => {
-        const s = makeSession(
-            {},
-            {
-                cacheKey: SnapshotCache.keyFor(
-                    BASE.image,
-                    { mtimeMs: 5, size: 5 },
-                    config()
-                ),
-            }
-        );
+    it('caches the snapshot a booting worker posts, with its image stat', async () => {
+        const key = SnapshotCache.keyFor(BASE.image, config(), '0.2.0');
+        const stat = { size: 5, mtimeMs: 5, ino: 5, dev: 5 };
+        const s = makeSession({}, { cacheKey: key });
         s.worker.emit('message', {
             type: 'snapshot',
             snapshot: new Uint8Array([7, 7]),
             ms: 40,
+            serialHandshake: true,
+            stat,
         });
         assert.equal(s.cache.size, 1);
+        //  the RTS/CTS setting goes with it, for the workers that restore it
+        const hit = s.cache.lookup(key, stat);
+        assert.deepEqual(hit.meta, { serialHandshake: true });
+        assert.deepEqual([...hit.snapshot], [7, 7]);
+        assert.ok(logged(s, /^Amiga door snapshot cached$/));
+
+        //  without a stat there is nothing to check a restore against
+        const bare = makeSession({}, { cacheKey: key });
+        bare.cache.clear();
+        bare.worker.emit('message', {
+            type: 'snapshot',
+            snapshot: new Uint8Array([7]),
+            ms: 40,
+        });
+        assert.equal(bare.cache.size, 0);
+        assert.ok(logged(bare, /not cached \(no stat/));
+
         s.session.disconnect('hangup');
-        await s.done;
+        bare.session.disconnect('hangup');
+        await Promise.all([s.done, bare.done]);
     });
 
-    it('a fatal worker error ends the session without persisting', async () => {
+    it('a fatal worker error ends the session; the worker still syncs', async () => {
         const s = makeSession();
+        const closed = closedOf(s);
         s.worker.emit('message', {
             type: 'error',
             message: 'The emulated CPU halted',
@@ -1305,23 +1563,144 @@ describe('amiga_door session', () => {
         });
         const result = await s.done;
         assert.equal(result.code, 'CPU_HALT');
-        assert.equal(result.persisted, false);
+        assert.equal(s.worker.sent('stop').length, 1);
+        await closed;
         assert.ok(s.worker.terminated);
     });
 
     it('cleans up its listeners', async () => {
         const s = makeSession();
+        const closed = closedOf(s);
         s.session.disconnect('hangup');
         await s.done;
         assert.equal(s.client.listenerCount('time up'), 0);
         assert.equal(s.client.term.output.listenerCount('data'), 0);
+        //  the worker's, once it has synced and gone
+        await closed;
         assert.equal(s.worker.listenerCount('message'), 0);
+        assert.equal(s.worker.listenerCount('exit'), 0);
     });
 });
 
 function Events() {
     return require('../core/events.js');
 }
+
+// ─── server shutdown ──────────────────────────────────────────────────────────
+
+describe('amiga_door server shutdown', function () {
+    this.timeout(10000);
+    const { Worker } = require('worker_threads');
+    const { shutdown } = require('../core/amiga_door/amiga_door.js');
+    const HARNESS = path.join(__dirname, 'fixtures/amiga_worker/harness.js');
+    let dir;
+
+    beforeEach(() => {
+        _test.runningSessions.clear(); //  whatever earlier tests left closing
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amiga_door_shutdown_'));
+    });
+    afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+    //  A session on a real worker thread (amiga_worker.js on the fake
+    //  enigma-vamiga), restored and running
+    async function realSession() {
+        const image = path.join(dir, 'door.hdf');
+        fs.writeFileSync(image, Buffer.alloc(8192));
+        const worker = new Worker(HARNESS, {
+            workerData: {
+                module: null,
+                snapshot: new Uint8Array([1]),
+                image,
+                persist: true,
+                machine: {},
+                warpBootSeconds: 0,
+                session: { version: 1, door: 'BBS:Doors/X/x', node: 1 },
+            },
+        });
+        const client = fakeClient();
+        const session = new AmigaDoorSession({
+            client,
+            config: config({ image }),
+            worker,
+            sessionKeys: { timeleft: 60, rows: 25, cols: 80 },
+            rawOutput: false,
+        });
+        const ready = new Promise(r =>
+            worker.on('message', m => 'ready' === m.type && r())
+        );
+        session.start();
+        await ready;
+        return { session, worker, client };
+    }
+
+    it('stops a running door, which syncs, and logs it within the bound', async () => {
+        const { session, worker } = await realSession();
+        //  what the guest's file system still buffers: written when it settles
+        worker.postMessage({
+            type: 'fake',
+            cmd: 'settleWrite',
+            offset: 512,
+            data: new Uint8Array(512).fill(0x5a),
+        });
+        const exited = new Promise(r => worker.once('exit', r));
+        const log = quietLog();
+        const t0 = Date.now();
+        await new Promise(r => shutdown(r, { timeoutMs: 3000, log }));
+        const ms = Date.now() - t0;
+        assert.ok(ms < 3000, `took ${ms} ms`);
+        await exited;
+        assert.ok(session.finished && session.closeDone);
+        assert.equal(_test.runningSessions.size, 0);
+        const line = log.lines.find(l => /^Amiga doors at shutdown/.test(l.msg));
+        assert.equal(line.level, 'info');
+        assert.match(line.msg, /1 synced, 0 not/);
+        assert.deepEqual(line.obj.synced, [{ name: BASE.name, node: 3, writes: 1 }]);
+        assert.deepEqual(line.obj.notSynced, []);
+        const image = fs.readFileSync(path.join(dir, 'door.hdf'));
+        assert.ok(
+            image.subarray(512, 1024).every(b => 0x5a === b),
+            'in the image'
+        );
+    });
+
+    it('does not wait past the bound for a worker that never answers', async () => {
+        const stuck = makeSession();
+        stuck.worker.autoStop = false; //  gets stop, never says synced or exits
+        const answering = makeSession();
+        answering.worker.syncReply = { writes: 2, bytes: 8192, sessionWrites: 2, ms: 1 };
+        const log = quietLog();
+        const t0 = Date.now();
+        await new Promise(r => shutdown(r, { timeoutMs: 150, log }));
+        const ms = Date.now() - t0;
+        assert.ok(ms >= 140 && ms < 1000, `took ${ms} ms`);
+        assert.equal(stuck.worker.sent('stop').length, 1, 'it was asked');
+        assert.deepEqual(stuck.worker.frames('d'), [
+            { type: 'd', keys: { reason: 'shutdown' } },
+        ]);
+        assert.ok(
+            stuck.worker.posted.findIndex(m => 'frame' === m.type) <
+                stuck.worker.posted.findIndex(m => 'stop' === m.type),
+            'told the carrier is gone before the stop'
+        );
+        const line = log.lines.find(l => /^Amiga doors at shutdown/.test(l.msg));
+        assert.equal(line.level, 'warn');
+        assert.match(line.msg, /1 synced, 1 not/);
+        assert.deepEqual(line.obj.synced, [{ name: BASE.name, node: 3, writes: 2 }]);
+        assert.deepEqual(line.obj.notSynced, [
+            { name: BASE.name, node: 3, why: 'no answer' },
+        ]);
+        await Promise.all([stuck.done, answering.done]);
+        assert.equal((await stuck.done).reason, 'shutdown');
+        //  let the stuck one go
+        stuck.worker.emit('exit', 0);
+    });
+
+    it('calls back at once with nothing running', async () => {
+        const log = quietLog();
+        await new Promise(r => shutdown(r, { log }));
+        assert.equal(log.lines.length, 0);
+    });
+});
 
 // ─── one persisting session per image ─────────────────────────────────────────
 
@@ -1359,9 +1738,85 @@ describe('amiga_door image lock', () => {
         assert.equal(await startModule(other), 'refused');
         assert.equal(activeDoorInstances.OtherDoor || 0, 0, 'no slot kept');
 
-        //  a door that never persists is not held up
+        //  nor does a door that never persists: the image changes under it
         const readOnly = makeModule({ name: 'Viewer', image, persist: false });
-        assert.equal(await startModule(readOnly), 'ran');
+        assert.equal(await startModule(readOnly), 'refused');
+        assert.match(readOnly.client.term.written.join(''), /Too many active instances/);
+        assert.ok(
+            readOnly.client.log.lines.some(l =>
+                /in use by a session that writes it/.test(l.msg)
+            )
+        );
+    });
+
+    it('lets any number of non-persisting sessions share an image', async () => {
+        const viewers = [];
+        for (let i = 0; i < 3; i++) {
+            const v = makeModule({
+                name: i ? `Viewer${i}` : 'Viewer',
+                image,
+                persist: false,
+            });
+            assert.equal(await startModule(v), 'ran', `viewer ${i}`);
+            viewers.push(v);
+        }
+        //  the same door twice too: nodeMax 0 is unlimited
+        const again = makeModule({ name: 'Viewer', image, persist: false });
+        assert.equal(await startModule(again), 'ran');
+        viewers.push(again);
+        const held = activeImages.get(fs.realpathSync(image));
+        assert.equal(held.exclusive, null);
+        assert.equal(held.shared.size, 4);
+
+        //  as each leaves its hold goes; the image is free once all have
+        for (const v of viewers.slice(0, -1)) {
+            v.leave();
+        }
+        assert.equal(activeImages.get(fs.realpathSync(image)).shared.size, 1);
+        viewers[viewers.length - 1].leave();
+        assert.equal(activeImages.size, 0);
+    });
+
+    it('refuses a persisting session while non-persisting ones are in, and lets it in after', async () => {
+        const viewer = makeModule({ name: 'Viewer', image, persist: false });
+        assert.equal(await startModule(viewer), 'ran');
+
+        const writer = makeModule({ image });
+        const theme = require('../core/theme.js');
+        const saved = theme.displayThemeArt;
+        let shown;
+        theme.displayThemeArt = (opts, cb) => {
+            shown = opts.name;
+            cb();
+        };
+        try {
+            const busy = makeModule({ image, tooManyArt: 'DOORMANY' });
+            assert.equal(await startModule(busy), 'refused');
+            assert.equal(shown, 'DOORMANY', 'the usual busy path');
+        } finally {
+            theme.displayThemeArt = saved;
+        }
+        assert.equal(await startModule(writer), 'refused');
+        assert.ok(
+            writer.client.log.lines.some(
+                l =>
+                    /in use by another session/.test(l.msg) &&
+                    1 === l.obj.heldBy.shared.length
+            )
+        );
+
+        viewer.leave();
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+    });
+
+    it('keeps sharedState doors at one session (nodeMax 1) as before', async () => {
+        const one = makeModule({ image, persist: false, sharedState: true });
+        assert.equal(await startModule(one), 'ran');
+        const two = makeModule({ image, persist: false, sharedState: true });
+        assert.equal(await startModule(two), 'refused');
+        assert.ok(
+            two.client.log.lines.some(l => /Too many active instances/.test(l.msg))
+        );
     });
 
     it('follows a symlink to the image', async () => {
@@ -1422,6 +1877,49 @@ describe('amiga_door image lock', () => {
         await closed;
         assert.equal(activeImages.size, 0, 'image freed once the worker is gone');
         assert.equal(await startModule(makeModule({ image })), 'ran');
+    });
+
+    it('keeps the image from a second session between done and the worker being gone', async () => {
+        const m = makeModule({ image });
+        assert.equal(await startModule(m), 'ran');
+        const s = makeSession({ image }, { client: m.client });
+        s.worker.autoStop = false;
+        m._attachSession(s.session, null);
+        m.autoNextMenu = () => {};
+        const closed = new Promise(r => s.session.once('closed', r));
+
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await s.done;
+        assert.equal(s.worker.sent('stop').length, 1);
+        assert.equal(await startModule(makeModule({ image })), 'refused', 'after done');
+
+        s.worker.emit('message', {
+            type: 'synced',
+            writes: 1,
+            bytes: 1,
+            sessionWrites: 1,
+        });
+        assert.equal(await startModule(makeModule({ image })), 'refused', 'after synced');
+        s.worker.emit('exit', 0);
+        await closed;
+        assert.equal(activeImages.size, 0);
+        assert.equal(await startModule(makeModule({ image })), 'ran', 'after closed');
+    });
+
+    it('emits closed even when worker.terminate() never finishes', async () => {
+        const s = makeSession({ image }, { timeouts: { terminate: 40 } });
+        s.worker.terminate = () => new Promise(() => {});
+        const t = Date.now();
+        const closed = new Promise(r => s.session.once('closed', r));
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closed;
+        const ms = Date.now() - t;
+        assert.ok(ms >= 35 && ms < 1500, `took ${ms} ms`);
+        assert.ok(
+            s.client.log.lines.some(
+                l => 'warn' === l.level && /terminate\(\) did not finish/.test(l.msg)
+            )
+        );
     });
 
     it('time-up puts the font and scroll region back before the next menu', async () => {
@@ -1511,6 +2009,13 @@ describe('amiga_door image lock', () => {
                 AmigaDoorSession.prototype.start = realStart;
             }
 
+            if ('start' === stage) {
+                //  the session's worker is still stopping (it syncs first)
+                assert.equal(activeImages.size, 1, 'image held until the worker is gone');
+            }
+            for (let i = 0; i < 20 && activeImages.size; ++i) {
+                await new Promise(resolve => setImmediate(resolve));
+            }
             assert.equal(terminated, 1, 'worker stopped once');
             assert.equal(activeImages.size, 0, 'image released');
             assert.equal(activeDoorInstances[BASE.name], 0, 'slot released');
@@ -1579,6 +2084,38 @@ describe('amiga_door image lock', () => {
         const busy = makeModule({ image });
         assert.equal(await startModule(busy), 'refused');
         assert.doesNotMatch(busy.client.term.written.join(''), /could not be run/);
+    });
+
+    it('runs a C-Net ARexx door only for a logged-in user', async () => {
+        const cnet = { image, doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' };
+        const user = (userId, authenticated) => ({
+            userId,
+            isAuthenticated: () => authenticated,
+        });
+
+        for (const u of [undefined, user(0, false), user(7, false), user(0, true)]) {
+            const client = fakeClient();
+            client.user = u;
+            const m = makeModule(cnet, client);
+            assert.equal(await startModule(m), 'refused');
+            assert.match(m.client.term.written.join(''), /XIMTest could not be run/);
+            assert.ok(
+                m.client.log.lines.some(
+                    l => 'warn' === l.level && /needs a logged-in user/.test(l.msg)
+                ),
+                'the log says why'
+            );
+            assert.equal(activeImages.size, 0, 'nothing held');
+        }
+
+        const client = fakeClient();
+        client.user = user(7, true);
+        const m = makeModule(cnet, client);
+        assert.equal(await startModule(m), 'ran');
+        m.leave();
+
+        //  other door types do not ask
+        assert.equal(await startModule(makeModule({ image })), 'ran');
     });
 
     it('leave() before any session frees both at once', async () => {
@@ -1651,6 +2188,8 @@ describe('amiga_door session keys', () => {
         assert.equal(keys.log, 1);
         assert.equal(keys.crlf, 0);
         assert.equal(keys.regtimeout, 30);
+        assert.equal(keys.baud, 115200, 'the default rate goes out too');
+        assert.equal(buildSessionKeys(stubClient(), config({ baud: 38400 })).baud, 38400);
         //  unlimited clamps to the drop-file ceiling rather than a sentinel
         assert.equal(keys.timeleft, MaxDoorMinutes);
         assert.equal(keys.timelimit, MaxDoorMinutes);
@@ -1765,6 +2304,73 @@ describe('amiga_door session keys', () => {
         assert.equal(plain.env, undefined);
         const text = protocol.encode('s', plain).toString('latin1');
         assert.ok(!text.includes('assign=') && !text.includes('env='));
+    });
+
+    it('a C-Net ARexx door gets type=cnetrexx, the user block, its account and options', () => {
+        const keys = buildSessionKeys(
+            stubClient(),
+            config({
+                doorType: 'cnetrexx',
+                door: 'PFILES:Badlibs/badlibs',
+                doorArgs: '{level}',
+                panicGraceSeconds: 0,
+                wordWrap: false,
+            })
+        );
+        assert.equal(keys.type, 'cnetrexx');
+        assert.equal(keys.console, undefined);
+        assert.equal(keys.args, '30'); //  the script's own arguments, no port number
+        assert.equal(keys.name, 'Handle');
+        assert.equal(keys.node, 2); //  the shim makes CNETREXX1 of it
+        assert.equal(keys.account, 1);
+        assert.equal(keys.panicgrace, 0);
+        assert.equal(keys.wrap, 0);
+        const payload = protocol.parseKeys(protocol.encode('s', keys).subarray(4));
+        assert.equal(payload.type, 'cnetrexx');
+        assert.equal(payload.account, '1');
+        assert.equal(payload.panicgrace, '0');
+        assert.equal(payload.wrap, '0');
+
+        //  defaults are the shim's: no keys
+        const plain = buildSessionKeys(
+            stubClient(),
+            config({ doorType: 'cnetrexx', door: 'PFILES:x' })
+        );
+        assert.equal(plain.panicgrace, undefined);
+        assert.equal(plain.wrap, undefined);
+        assert.equal(plain.account, 1);
+        //  any other user is their own account; no ID is no account
+        const other = stubClient();
+        other.user.userId = 7;
+        assert.equal(
+            buildSessionKeys(other, config({ doorType: 'cnetrexx', door: 'PFILES:x' }))
+                .account,
+            7
+        );
+        other.user.userId = 0;
+        assert.throws(
+            () =>
+                buildSessionKeys(
+                    other,
+                    config({ doorType: 'cnetrexx', door: 'PFILES:x' })
+                ),
+            /no C-Net account number for user ID 0/
+        );
+        assert.equal(cnetAccount({ userId: 1 }), 1);
+        for (const u of [undefined, { userId: 0 }, { userId: -2 }, { userId: '5' }]) {
+            assert.equal(cnetAccount(u), null);
+        }
+        //  and the other door types do not get them
+        const xim = buildSessionKeys(stubClient(), config({}));
+        assert.equal(xim.account, undefined);
+        assert.equal(xim.panicgrace, undefined);
+        assert.equal(xim.wrap, undefined);
+    });
+
+    it("a C-Net ARexx door's command line is door[ args]", () => {
+        const c = config({ doorType: 'cnetrexx', door: 'PFILES:x' });
+        assert.equal(commandLength(c, '', 12), 'PFILES:x'.length);
+        assert.equal(commandLength(c, 'ab', 12345), 'PFILES:x ab'.length);
     });
 
     it('a Paragon door\'s command line is "door" <one digit>[ args]', () => {

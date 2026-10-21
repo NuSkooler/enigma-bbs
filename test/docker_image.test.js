@@ -266,3 +266,34 @@ describe('.github/workflows/docker.yml cache (#814)', () => {
         assert.match(m[1], /github\.event_name != 'pull_request'/);
     });
 });
+
+describe('docker/bin/docker-entrypoint.sh', () => {
+    const ENTRYPOINT = paths.join(REPO_ROOT, 'docker', 'bin', 'docker-entrypoint.sh');
+    let lines;
+
+    before(() => {
+        lines = fs
+            .readFileSync(ENTRYPOINT, 'utf8')
+            .split('\n')
+            .filter(l => !/^\s*(#|$)/.test(l));
+    });
+
+    it('gives pm2-runtime a kill timeout that outlasts the shutdown, unless one is set', () => {
+        //  PM2's default of 1600 ms SIGKILLs ENiGMA½ in the middle of its
+        //  shutdown. pm2-runtime has no --kill-timeout option and ignores
+        //  the flag; PM2_KILL_TIMEOUT is read by the PM2 it runs.
+        const exp = lines.find(l => /PM2_KILL_TIMEOUT=/.test(l));
+        assert(exp, 'PM2_KILL_TIMEOUT is not set');
+        const m = exp.match(/export PM2_KILL_TIMEOUT="\$\{PM2_KILL_TIMEOUT:-(\d+)\}"/);
+        assert(m, `not overridable: ${exp.trim()}`);
+        const { ShutdownTimeoutMs } = require('../core/bbs.js');
+        assert(
+            Number(m[1]) > ShutdownTimeoutMs,
+            `${m[1]} ms does not outlast the ${ShutdownTimeoutMs} ms shutdown timer`
+        );
+
+        const execAt = lines.findIndex(l => /exec pm2-runtime/.test(l));
+        assert(lines.indexOf(exp) < execAt, 'set after pm2-runtime starts');
+        assert.doesNotMatch(lines[execAt], /--kill-timeout/);
+    });
+});

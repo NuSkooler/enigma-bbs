@@ -27,20 +27,33 @@
  * its GETUSER/TRANSMIT/QUERY/... commands from the same user block as XIM
  * doors. It needs ARexx inside the image, which AROS
  * does not have: the image must be built with the sysop's own Workbench 3.1
- * (misc/amiga_door/image/make_image.sh -w).
+ * (oputil.js amiga-door create --workbench, or make_image.sh -w).
  *
  * A Paragon door (doorType: 'tim'; Paragon, StarNet and MAX's BBS doors, /X's
  * TYPE=TIM) sends its requests to the BBS's DoorControl<line> port, which the
  * shim publishes; it gets the same user block as an XIM door. Its install
  * notes often ask for an assign or an ENV: variable: |assigns| and |env|.
  *
+ * A C-Net ARexx door (doorType: 'cnetrexx', a C-Net Amiga ARexx pfile) is a
+ * script the shim hands to ARexx with C-Net's port CNETREXX<node - 1> as its
+ * host, answering C-Net's TRANSMIT/GETUSER/PROMPT/... commands and MCI codes
+ * from the same user block. Like an AIM door it needs the sysop's Workbench
+ * ARexx in the image; pfiles expect PFILES: (and CNET:) assigns, which the
+ * shim makes when the image has SYS:PFiles (SYS:CNet), or |assigns|. Its C-Net
+ * account number is the caller's user ID, so only ENiGMA's root sysop (ID 1)
+ * is C-Net's sysop account 1; a caller who has not logged in is refused.
+ *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.
- * Persistence is "Model A": after a clean door exit the disk chunks the
- * session changed are written into a copy of the image, which is renamed over
- * it, and the door's snapshots are dropped. Sessions are independent copies of
- * the disk, so a persisting session holds its image (activeImages): a second
- * persisting session on the same image, of any door, is refused as nodeMax
+ * The door's disk is its image file (enigma-vamiga 0.2.0's file-backed disk):
+ * the emulator reads it as the guest asks and writes the guest's changes into
+ * it as the door makes them, and at the end of the session, whatever the
+ * door's exit (a clean one, a hangup, an error, a crash of the shim), syncs
+ * it. With persist: false nothing the door writes reaches the image. A session
+ * that wrote leaves the image's snapshots stale (snapshot_cache.js): the next
+ * session boots. Images are held readers/writer (activeImages): a persisting
+ * session holds its image exclusively, sessions with persist: false share it,
+ * and a session that cannot have its hold, of any door, is refused as nodeMax
  * refuses.
  *
  * Config (menu.hjson):
@@ -50,24 +63,33 @@
  *     image:              string   - path to the door's HDF image (required)
  *     door:               string   - Amiga path of the door executable inside the
  *                                    image (required), e.g. BBS:Doors/DreamSweeper/dreamsweeper.xim
- *     doorType:           string   - xim | aim | tim | cli (default: xim). xim: an /X door
- *                                    that talks to AEDoorPort<node>; aim: an /X ARexx script
- *                                    (door = the script's Amiga path, run as RX <door> <node>;
- *                                    the image needs ARexx); tim: a Paragon door that talks to
- *                                    DoorControl<line>, run as <door> <line> (line = the
- *                                    node's last digit); cli: a program on Input()/Output()
+ *     doorType:           string   - xim | aim | tim | cnetrexx | cli (default: xim). xim: an
+ *                                    /X door that talks to AEDoorPort<node>; aim: an /X ARexx
+ *                                    script (door = the script's Amiga path, run as RX <door>
+ *                                    <node>; the image needs ARexx); tim: a Paragon door that
+ *                                    talks to DoorControl<line>, run as <door> <line> (line =
+ *                                    the node's last digit); cnetrexx: a C-Net ARexx pfile (door
+ *                                    = the script's Amiga path, hosted by CNETREXX<node - 1>; the
+ *                                    image needs ARexx); cli: a program on Input()/Output()
  *     consoleMode:        string   - cli only: cooked | raw, the console's mode until the
  *                                    door calls SetMode() itself (default: cooked)
  *     doorDir:            string   - door's current directory (default: its own)
  *     doorStack:          number   - door stack size in bytes (default: 32768)
  *     doorArgs:           string   - xim, aim: extra arguments after the node number; tim:
- *                                    after the line; cli: the door's whole argument line.
+ *                                    after the line; cnetrexx: the script's arguments (C-Net
+ *                                    gave pfiles none); cli: the door's whole argument line.
  *                                    {name}, {node}, {level} and {timeleft} are replaced
  *                                    ({name} as one quoted argument)
  *     assigns:            object   - { NAME: 'PATH' }: assigns NAME: for the session, before the
  *                                    door's path is checked (e.g. { MSE: 'BBS:Doors/MSE' })
  *     env:                object   - { NAME: 'value' }: sets the global variable ENV:NAME for
  *                                    the session (ENV: is made in RAM: if the image has none)
+ *     panicGraceSeconds:  number   - cnetrexx: seconds from carrier loss (###PANIC) to the
+ *                                    script's CTRL-C, 0..25 (default: 10); 0 breaks it before
+ *                                    its waiting command is answered (doors that would save
+ *                                    "###PANIC" as a player name)
+ *     wordWrap:           boolean  - cnetrexx: word-wrap the door's text at the caller's width,
+ *                                    as C-Net did (default: true)
  *     mainline:           string   - the /X command line the caller "typed" (BB_MAINLINE;
  *                                    some doors parse it, e.g. Wallhall); default empty
  *     rom:                string   - Kickstart ROM path (default: bundled AROS)
@@ -78,6 +100,12 @@
  *     slowKb:             number   - 0..1536, multiple of 256 (default: 512)
  *     fastKb:             number   - 0..8192, multiple of 64 (default: 8192)
  *     overclock:          number   - 1..16 (default: 1)
+ *     baud:               number   - the serial line's rate for the session (axshim 1.5 and
+ *                                    later): 9600, 19200, 38400, 57600, 115200 or 230400
+ *                                    (default: 115200). Without enigma-vamiga's byte holding a
+ *                                    7 MHz AROS machine keeps up with 38400, or 57600 with
+ *                                    overclock 2 (misc/amiga_door/README.md,
+ *                                    "Serial line")
  *     nodeMax:            number   - max concurrent sessions, 0 = unlimited (default: 0);
  *                                    a persisting door is also one session per image
  *     sharedState:        boolean  - the door writes state all callers share; makes
@@ -91,13 +119,10 @@
  *                                    terminal (default: true with a Latin-1 encoding)
  *     font:               string   - SyncTERM font for the door's duration (default:
  *                                    topaz); 'none' leaves the caller's font alone
- *     persist:            boolean  - write the door's disk changes back (default: true)
- *     persistOn:          [string] - X statuses after which to persist (default: ['ok'] for
- *                                    doorType cli, aim and tim, ['ok', 'carrier'] for xim; an
- *                                    explicit list always wins). carrier, timeout and break
- *                                    persist only when the door ended by itself (the X frame's
- *                                    rc is its return code; -1 or none means the shim gave up
- *                                    on a door still running)
+ *     persist:            boolean  - the door's disk writes reach the image, as it makes
+ *                                    them (default: true); false: none ever does
+ *     persistOn:          [string] - ignored since 0.6.0 (a warning says so): changes are
+ *                                    written as the door makes them, whatever its exit
  *     log:                boolean  - log every door request at debug level (default: false)
  *     warpBootSeconds:    number   - first boot runs flat out this long (default: 30)
  *     regTimeoutSeconds:  number   - the door must register (tim: send its first request)
@@ -127,6 +152,7 @@ const Events = require('../events.js');
 const protocol = require('./protocol.js');
 const { AmigaConsoleTranslator } = require('./host_link.js');
 const { SnapshotCache, DefaultMaxEntries } = require('./snapshot_cache.js');
+const { checkPackage } = require('./vamiga_package.js');
 
 //  Late bound: config.js replaces its |get| when the system configuration is
 //  created, so capturing it at require time would pin whichever was first.
@@ -150,11 +176,13 @@ const WORKER_PATH = paths.join(__dirname, 'amiga_worker.js');
 const ShimCarrierGraceSeconds = 30;
 //  boot (warp) or restore to the shim having been sent `s`
 const ReadyTimeoutMs = 60 * 1000;
-//  the worker settles 3 s of Amiga time, copies the image and writes a few
-//  chunks; generous. Past it the caller moves on, but the worker is never
-//  stopped mid-write: it gets until PersistAbandonMs to finish.
-const PersistTimeoutMs = 30 * 1000;
-const PersistAbandonMs = 5 * 60 * 1000;
+//  At the end of a session the worker settles 3 s of Amiga time (about 0.2 s
+//  flat out) and syncs the image; it is not stopped mid-write unless it takes
+//  this long, after which it is terminated and the image keeps what reached it.
+const StopTimeoutMs = 60 * 1000;
+//  worker.terminate() should resolve at once; 'closed' (and with it the image
+//  hold) must not depend on it
+const TerminateTimeoutMs = 5 * 1000;
 const ResizePollMs = 1000;
 const TimePollMs = 5000;
 const BackpressurePollMs = 50;
@@ -164,10 +192,14 @@ const BackpressurePollMs = 50;
 const MaxDoorMinutes = 546;
 
 const CPU_MODELS = ['68000', '68010', '68EC020']; //  enigma-vamiga's CPU_MODELS
-const DOOR_TYPES = ['xim', 'aim', 'tim', 'cli'];
-//  an ARexx door's script goes on RX's command line through the Amiga shell:
-//  an absolute Amiga path (VOLUME:dir/file) with no blanks, quotes or shell
-//  characters
+const DOOR_TYPES = ['xim', 'aim', 'tim', 'cnetrexx', 'cli'];
+//  Line rates for `baud` (the shim takes 1200 to 230400; these are the ones worth having)
+const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400];
+//  the ARexx door types: the script's path is the first word of a command line
+//  (RX's through the Amiga shell for aim, ARexx's own for cnetrexx)
+const SCRIPT_DOOR_TYPES = ['aim', 'cnetrexx'];
+//  an ARexx door's script goes on a command line: an absolute Amiga path
+//  (VOLUME:dir/file) with no blanks, quotes or shell characters
 const AmigaScriptPath = /^[^\s":;<>|*`$]+:[^\s":;<>|*`$]*[^\s":;<>|*`$/]$/;
 //  an XIM or CLI door's path goes on the command line in quotes: nothing that
 //  ends the quotes, is the shell's escape character or substitutes
@@ -187,7 +219,6 @@ const RxCommand = 'SYS:Rexxc/RX';
 //  characters; it is cut to fit at session time)
 const PlaceholderWidths = { node: 5, level: 5, timeleft: 3, name: 10 };
 const CHIP_KB = [256, 512, 1024, 2048];
-const EXIT_STATUSES = ['ok', 'carrier', 'timeout', 'break', 'error'];
 
 //  Every key this module reads from its config block (see the header)...
 const ConfigKeys = [
@@ -201,6 +232,8 @@ const ConfigKeys = [
     'doorArgs',
     'assigns',
     'env',
+    'panicGraceSeconds',
+    'wordWrap',
     'mainline',
     'rom',
     'extRom',
@@ -209,6 +242,7 @@ const ConfigKeys = [
     'slowKb',
     'fastKb',
     'overclock',
+    'baud',
     'nodeMax',
     'sharedState',
     'tooManyArt',
@@ -218,7 +252,7 @@ const ConfigKeys = [
     'amigaConsole',
     'font',
     'persist',
-    'persistOn',
+    'persistOn', //  ignored since 0.6.0, with a warning
     'log',
     'warpBootSeconds',
     'regTimeoutSeconds',
@@ -251,11 +285,11 @@ const Defaults = {
     slowKb: 512,
     fastKb: 8192,
     overclock: 1,
+    baud: 115200,
     nodeMax: 0,
     encoding: 'latin1',
     font: 'topaz',
     persist: true,
-    persistOn: ['ok', 'carrier'],
     sharedState: false,
     log: false,
     warpBootSeconds: 30,
@@ -271,13 +305,105 @@ const activeDoorInstances = {};
 const snapshotCache = new SnapshotCache();
 
 //
-//  Images held by a persisting session: real path -> { name, node }. A
-//  session that persists writes back the chunks that differ from the disk it
-//  started with; two of them on one image would each undo the other's
-//  directory and allocation blocks. So while one runs, every other persisting
-//  session on that image -- of any door -- is refused.
+//  Images in use, held readers/writer: real path -> { exclusive, shared },
+//  |exclusive| the persisting session's { name, node } or null, |shared| a Set
+//  of the { name, node } of sessions with persist: false. The emulator's disk
+//  is the image file, read page by page and, for a persisting session, written
+//  as the guest goes. A second writer would neither see those writes nor share
+//  the first one's file system, and the two would overwrite each other's
+//  directory and allocation blocks; a reader would read a disk changing under
+//  its guest's caches. Readers alone never write the file, so any number of
+//  them share it. So: a persisting session needs the image to itself, and a
+//  persist: false session needs it to have no persisting session -- of any
+//  door.
 //
 const activeImages = new Map();
+
+//
+//  The installed enigma-vamiga, checked once when this module loads: doors
+//  need 0.2.0 or later (the file-backed disk). |problem| is null when they can
+//  run, else the line every refused door start logs.
+//
+let vamigaPackage = checkPackage();
+
+//  Doors already warned that their persistOn does nothing (once per door name)
+const persistOnWarned = new Set();
+
+//  Sessions whose worker has not stopped yet (from start() to 'closed')
+const runningSessions = new Set();
+
+//  How long a server shutdown waits for running doors to sync their images
+const ShutdownSyncMs = 3000;
+
+//
+//  Server shutdown (bbs.js shutdownSystem, after the callers have been
+//  disconnected): end every running session, so that each worker settles,
+//  syncs its image and stops, and wait for them, at most |timeoutMs| in all.
+//  Best effort: what has not synced by then is logged, and the process exit
+//  that follows takes the workers with it (their images keep what
+//  write-through had written). Calls back without an error, always.
+//
+function shutdown(cb, { timeoutMs = ShutdownSyncMs, log } = {}) {
+    const sessions = [...runningSessions];
+    if (0 === sessions.length) {
+        return cb(null);
+    }
+    log = log || require('../logger.js').log;
+    const t0 = Date.now();
+    let left = sessions.length;
+    let timer = null;
+    let reported = false;
+    const report = () => {
+        if (reported) {
+            return;
+        }
+        reported = true;
+        clearTimeout(timer);
+        const synced = [];
+        const notSynced = [];
+        for (const s of sessions) {
+            const who = { name: s.config.name, node: s.client.node };
+            const r = s.synced;
+            if (r && !r.error) {
+                synced.push(
+                    Object.assign(
+                        who,
+                        r.skipped ? { skipped: true } : { writes: r.writes }
+                    )
+                );
+            } else {
+                notSynced.push(
+                    Object.assign(who, {
+                        why: r
+                            ? r.error
+                            : s.closeDone
+                              ? 'the worker was gone'
+                              : 'no answer',
+                    })
+                );
+            }
+        }
+        (notSynced.length ? log.warn : log.info).call(
+            log,
+            { synced, notSynced, ms: Date.now() - t0 },
+            `Amiga doors at shutdown: ${synced.length} synced, ${notSynced.length} not`
+        );
+        return cb(null);
+    };
+    timer = setTimeout(report, timeoutMs);
+    for (const s of sessions) {
+        s.once('closed', () => {
+            if (0 === --left) {
+                report();
+            }
+        });
+        try {
+            s.shutdownStop();
+        } catch (e) {
+            //  best effort; it is reported as not synced
+        }
+    }
+}
 
 //  enigma-vamiga's compiled WebAssembly module, compiled once per process
 let compiledModulePromise = null;
@@ -326,20 +452,12 @@ function isLatin1(encoding) {
 //  { config, problems, warnings }: |problems| lists everything wrong (empty
 //  when the config is usable), so a sysop sees every mistake in one log line;
 //  |warnings| lists keys nothing reads, with a likely meaning when there is
-//  one (a misspelt persistOn is otherwise silently the default).
+//  one (a misspelt persist is otherwise silently the default), and keys that
+//  no longer do anything.
 //
-//  A CLI, ARexx or Paragon door is sent a break on a hangup, so a return code does not
-//  prove it finished its writes; an XIM door only sees carrier-lost replies
-//  to its input requests. Hence 'carrier' is a default persistOn status for
-//  XIM doors only.
-//
-const DefaultPersistOn = {
-    xim: ['ok', 'carrier'],
-    cli: ['ok'],
-    aim: ['ok'],
-    tim: ['ok'],
-};
 const AROS_MAX_FFS_BLOCKS = 4066;
+const PersistOnIgnored =
+    '"persistOn" is ignored since 0.6.0: changes are written to the image as the door makes them';
 
 function normalizeConfig(raw) {
     const c = Object.assign({}, raw || {});
@@ -354,7 +472,11 @@ function normalizeConfig(raw) {
         //  late: only needed when there is something to say
         const { suggestKey } = require('../config/validate.js');
         for (const key of unknown) {
-            const near = suggestKey(key, ConfigKeys);
+            //  never suggest a retired key
+            const near = suggestKey(
+                key,
+                ConfigKeys.filter(k => 'persistOn' !== k)
+            );
             warnings.push(
                 near
                     ? `unknown key "${key}"; did you mean "${near}"?`
@@ -391,11 +513,26 @@ function normalizeConfig(raw) {
     } else if ('cli' !== c.doorType) {
         problems.push('"consoleMode" applies to doorType "cli" only');
     }
-    if ('aim' === c.doorType && _.isString(c.door) && !AmigaScriptPath.test(c.door)) {
+    if (
+        SCRIPT_DOOR_TYPES.includes(c.doorType) &&
+        _.isString(c.door) &&
+        !AmigaScriptPath.test(c.door)
+    ) {
         problems.push(
-            '"door" for doorType "aim" must be the script\'s absolute Amiga path ' +
+            `"door" for doorType "${c.doorType}" must be the script's absolute Amiga path ` +
                 '(e.g. BBS:Doors/KickBox.Rexx) without blanks, quotes or shell characters'
         );
+    }
+    for (const key of ['panicGraceSeconds', 'wordWrap']) {
+        if (undefined !== c[key] && 'cnetrexx' !== c.doorType) {
+            problems.push(`"${key}" applies to doorType "cnetrexx" only`);
+        }
+    }
+    if (undefined !== c.panicGraceSeconds && !intIn('panicGraceSeconds', 0, 25)) {
+        problems.push('"panicGraceSeconds" must be an integer from 0 to 25');
+    }
+    if (undefined !== c.wordWrap && !_.isBoolean(c.wordWrap)) {
+        problems.push('"wordWrap" must be true or false');
     }
 
     for (const key of [
@@ -539,6 +676,11 @@ function normalizeConfig(raw) {
     if (!intIn('overclock', 1, 16)) {
         problems.push('"overclock" must be an integer from 1 to 16');
     }
+    if (undefined === c.baud) {
+        c.baud = Defaults.baud;
+    } else if (!BAUD_RATES.includes(c.baud)) {
+        problems.push(`"baud" must be one of ${BAUD_RATES.join(', ')}`);
+    }
     if (
         !c.rom &&
         isInt(c.chipKb) &&
@@ -551,10 +693,11 @@ function normalizeConfig(raw) {
         );
     }
 
-    //  A stock AROS ROM corrupts an FFS volume of more than one bitmap block
-    //  (4066 blocks) when the guest writes. The ROM bundled with enigma-vamiga
+    //  An AROS ROM built before AROS#1720 was merged (2026-10-19) corrupts an FFS volume of more than
+    //  one bitmap block (4066 blocks) when the guest writes (fixed upstream in
+    //  aros-development-team/AROS#1720). The ROM bundled with enigma-vamiga
     //  0.1.2 and later carries the fix, so only a ROM supplied through |rom|
-    //  (which may be a stock build) is warned about; oputil's create is what
+    //  (which may be an older build) is warned about; oputil's create is what
     //  refuses
     if (c.rom && 'string' === typeof c.image) {
         let imageBytes = 0;
@@ -566,11 +709,23 @@ function normalizeConfig(raw) {
         if (imageBytes > AROS_MAX_FFS_BLOCKS * 512) {
             warnings.push(
                 `image ${c.image} is ${Math.round(imageBytes / 1024)} KB, over ` +
-                    `${(AROS_MAX_FFS_BLOCKS * 512) / 1024} KB; if this ROM is a stock ` +
-                    'AROS build, keep the image at 2032 KB or less, or use the fixed ROM ' +
-                    'bundled with enigma-vamiga 0.1.2 and later'
+                    `${(AROS_MAX_FFS_BLOCKS * 512) / 1024} KB; if this ROM is an AROS ` +
+                    'build from before AROS#1720 was merged (2026-10-19), keep the image at 2032 KB or less, or ' +
+                    'use the fixed ROM bundled with enigma-vamiga 0.1.2 and later'
             );
         }
+    }
+
+    //  The emulator opens the image itself (its disk is the file) and knows a
+    //  hard disk image by its extension, after symlinks
+    if (
+        _.isString(c.image) &&
+        c.image.trim() &&
+        '.hdf' !== paths.extname(imageKey(c.image)).toLowerCase()
+    ) {
+        problems.push(
+            '"image" must be an .hdf file (the emulator knows disk images by that name)'
+        );
     }
 
     //  node and time limits
@@ -618,17 +773,10 @@ function normalizeConfig(raw) {
     } else if (!_.isBoolean(c.persist)) {
         problems.push('"persist" must be true or false');
     }
-    if (undefined === c.persistOn) {
-        c.persistOn = (DefaultPersistOn[c.doorType] || Defaults.persistOn).slice();
-    } else {
-        const list = _.isString(c.persistOn) ? [c.persistOn] : c.persistOn;
-        if (!Array.isArray(list) || !list.every(s => EXIT_STATUSES.includes(s))) {
-            problems.push(
-                `"persistOn" must be a list of exit statuses (${EXIT_STATUSES.join(', ')})`
-            );
-        } else {
-            c.persistOn = list.slice();
-        }
+    if (undefined !== c.persistOn) {
+        //  kept so that an older menu still loads; nothing reads it
+        warnings.push(PersistOnIgnored);
+        delete c.persistOn;
     }
 
     //  shim session options
@@ -714,6 +862,8 @@ function commandLength(config, args, node) {
             );
         case 'tim': //  "door" line[ args]; the line is one digit
             return door + 3 + 1 + (args ? 1 + args.length : 0);
+        case 'cnetrexx': //  door[ args], the RexxMsg's command; no port number
+            return door + (args ? 1 + args.length : 0);
         default: //  "door" node args
             return door + 3 + nodeLen + 1 + args.length;
     }
@@ -765,40 +915,12 @@ function sessionPairs(pairs, stripColon) {
         .join(';');
 }
 
-//  Statuses that mean the session was cut short from our side; the door's
-//  disk is only safe to keep if the door itself ended (a return code, not -1).
-const CutShortStatuses = ['carrier', 'timeout', 'break'];
-
-function endedByItself(keys) {
-    const raw = keys ? keys.rc : undefined;
-    //  only a plain integer is a return code; '', ' ', null and junk are not
-    if (!/^-?\d+$/.test(String(raw))) {
-        return false;
-    }
-    return -1 !== Number(raw);
-}
-
-function persistDecision(config, status, keys) {
-    if (true !== config.persist) {
-        return { persist: false, why: 'persist is off' };
-    }
-    if (!(config.persistOn || []).includes(status)) {
-        return { persist: false };
-    }
-    if (CutShortStatuses.includes(status) && !endedByItself(keys)) {
-        return {
-            persist: false,
-            cutShort: true,
-            why: `the door had not ended by itself (rc ${
-                keys && undefined !== keys.rc ? keys.rc : 'absent'
-            }); the shim gave up on it`,
-        };
-    }
-    return { persist: true };
-}
-
-function shouldPersist(config, status, keys) {
-    return persistDecision(config, status, keys).persist;
+//  A C-Net door's account number: the user ID. C-Net's account 1 is its sysop,
+//  as ENiGMA's user 1 is the root sysop; the shim makes 0 or no number 1, so
+//  anything but a real ID (1 or more) is null and the door is not run.
+function cnetAccount(user) {
+    const id = user ? user.userId : undefined;
+    return Number.isInteger(id) && id >= 1 ? id : null;
 }
 
 //
@@ -819,6 +941,12 @@ function buildSessionKeys(client, config) {
     const allowed = UserTime.getAllowedMinutesToday(client);
     const clampMinutes = m => Math.min(null === m ? Infinity : m, MaxDoorMinutes);
     const cli = 'cli' === config.doorType;
+    const cnet = 'cnetrexx' === config.doorType;
+    const account = cnet ? cnetAccount(user) : undefined;
+    if (null === account) {
+        //  initSequence() refuses this; the shim would make it the sysop
+        throw new Error(`no C-Net account number for user ID ${user.userId}`);
+    }
 
     let args = expandDoorArgs(
         config.doorArgs,
@@ -855,6 +983,10 @@ function buildSessionKeys(client, config) {
         assign: sessionPairs(config.assigns, true),
         env: sessionPairs(config.env, false),
         node: client.node,
+        //  C-Net: GETUSER 39/40, FINDACCOUNT (see cnetAccount())
+        account,
+        panicgrace: cnet ? config.panicGraceSeconds : undefined,
+        wrap: cnet && false === config.wordWrap ? 0 : undefined,
         name: userText(user.getSanitizedName()),
         realname: userText(user.getSanitizedName('real')),
         location: userText(prop(UserProps.Location)),
@@ -880,6 +1012,7 @@ function buildSessionKeys(client, config) {
         log: config.log ? 1 : 0,
         regtimeout: config.regTimeoutSeconds,
         crlf: config.crlf ? 1 : 0,
+        baud: config.baud || Defaults.baud,
         tz: _.isNumber(config.timezoneMinutes)
             ? config.timezoneMinutes
             : hostTimezoneMinutes(),
@@ -891,10 +1024,11 @@ function buildSessionKeys(client, config) {
 
 //
 //  One door session: the worker's messages, the caller's input, the host
-//  frames ENiGMA sends (t, d, w, e), the exit and persist decision.
+//  frames ENiGMA sends (t, d, w, e), the exit and the final sync.
 //
 //  Emits 'firstOutput' once, then 'done' exactly once with
-//  { status, keys, persisted, error, reason }.
+//  { status, keys, error, reason } (the caller moves on), then 'closed' once
+//  the worker has synced the image and stopped (the image is free).
 //
 class AmigaDoorSession extends EventEmitter {
     constructor({
@@ -915,8 +1049,8 @@ class AmigaDoorSession extends EventEmitter {
                 exitAfterDisconnect:
                     1000 *
                     (config.disconnectGraceSeconds || Defaults.disconnectGraceSeconds),
-                persist: PersistTimeoutMs,
-                persistAbandon: PersistAbandonMs,
+                stop: StopTimeoutMs,
+                terminate: TerminateTimeoutMs,
             },
             timeouts
         );
@@ -945,10 +1079,10 @@ class AmigaDoorSession extends EventEmitter {
             : null;
 
         this.ready = false;
+        this.sessionHello = null; //  the H after `s` (axshim 1.5 and later)
         this.disconnectReason = null; //  set once `d` has been sent
         this.exitInfo = null; //  the X frame, once seen
-        this.persisting = false; //  a persist has been asked for and not answered
-        this.persistTmp = null;
+        this.synced = null; //  the worker's 'synced', once seen
         this.finished = false;
         this.closed = false;
         this.firstOutput = true;
@@ -963,6 +1097,7 @@ class AmigaDoorSession extends EventEmitter {
     }
 
     start() {
+        runningSessions.add(this);
         this.onWorkerMessageBound = msg => this.onWorkerMessage(msg);
         this.onWorkerErrorBound = err => {
             this.workerGone = true; //  an uncaught error ends the thread
@@ -1033,6 +1168,8 @@ class AmigaDoorSession extends EventEmitter {
         }
 
         switch (msg.type) {
+            case 'snapshotRefused':
+                return this.onSnapshotRefused(msg);
             case 'snapshot':
                 return this.onSnapshot(msg);
             case 'ready':
@@ -1045,13 +1182,27 @@ class AmigaDoorSession extends EventEmitter {
                 return this.onFrame(msg.frame);
             case 'exit':
                 return this.onExit(msg);
-            case 'persisted':
-                return this.onPersisted(msg);
             case 'error':
                 return this.onWorkerError(msg);
+            case 'inputFull':
+                return this.log.warn(
+                    { name: this.config.name, limit: msg.limit },
+                    'Amiga door input queue is full; caller input beyond it is dropped'
+                );
             default:
                 return;
         }
+    }
+
+    //  The core would not restore the cached snapshot (made by another version
+    //  of enigma-vamiga, or naming another file): drop it; the worker boots
+    //  and caches a new one.
+    onSnapshotRefused(msg) {
+        const dropped = !!(this.cache && this.cacheKey && this.cache.drop(this.cacheKey));
+        this.log.debug(
+            { name: this.config.name, reason: msg.message, dropped },
+            'Amiga door snapshot refused by the emulator; booting'
+        );
     }
 
     onSnapshot(msg) {
@@ -1059,7 +1210,15 @@ class AmigaDoorSession extends EventEmitter {
             return;
         }
         this.cache.maxEntries = snapshotCacheEntries();
-        const stored = this.cache.set(this.cacheKey, msg.snapshot);
+        //  what the snapshot's machine ran with travels beside it (worker:
+        //  RTS/CTS), and the image's stat right after it, which a restore
+        //  checks the image against
+        const stored = this.cache.set(
+            this.cacheKey,
+            msg.snapshot,
+            { serialHandshake: true === msg.serialHandshake },
+            msg.stat
+        );
         this.log.info(
             {
                 name: this.config.name,
@@ -1070,7 +1229,9 @@ class AmigaDoorSession extends EventEmitter {
             },
             stored
                 ? 'Amiga door snapshot cached'
-                : 'Amiga door snapshot not cached (doors.amiga.snapshotCacheEntries is 0)'
+                : msg.stat
+                  ? 'Amiga door snapshot not cached (doors.amiga.snapshotCacheEntries is 0)'
+                  : 'Amiga door snapshot not cached (no stat of the image to check it against)'
         );
     }
 
@@ -1084,6 +1245,7 @@ class AmigaDoorSession extends EventEmitter {
                 readyMs: Math.round(msg.ms),
                 restoreMs: null === msg.restoreMs ? undefined : +msg.restoreMs.toFixed(1),
                 shim: _.get(msg, 'hello.shim'),
+                serialHandshake: msg.serialHandshake,
                 wasmMemoryBytes: _.get(msg, 'stats.wasmMemoryBytes'),
             },
             msg.restored
@@ -1099,14 +1261,39 @@ class AmigaDoorSession extends EventEmitter {
         const keys = frame.keys || {};
         switch (frame.type) {
             case 'H':
+                //  after `s`: axshim 1.5 and later confirm the session's line rate
+                if (this.ready) {
+                    this.sessionHello = keys;
+                    if (parseInt(keys.baud, 10) !== this.config.baud) {
+                        this.log.warn(
+                            {
+                                name: this.config.name,
+                                baud: this.config.baud,
+                                shim: keys,
+                            },
+                            'Amiga shim runs the session at another line rate than "baud"'
+                        );
+                    }
+                }
                 return this.log.debug(
                     { name: this.config.name, hello: keys },
                     'Amiga shim hello'
                 );
 
             case 'L':
+                if (!this.sessionHello && this.config.baud !== Defaults.baud) {
+                    //  axshim 1.4 and older ignore baud= and keep the image's rate
+                    this.log.warn(
+                        { name: this.config.name, baud: this.config.baud },
+                        'The image\'s axshim predates 1.5 and ignores "baud"; rebuild the image'
+                    );
+                }
                 return this.log.info(
-                    { name: this.config.name, door: keys.door },
+                    {
+                        name: this.config.name,
+                        door: keys.door,
+                        baud: _.get(this.sessionHello, 'baud'),
+                    },
                     'Amiga door launched'
                 );
 
@@ -1139,14 +1326,18 @@ class AmigaDoorSession extends EventEmitter {
         }
     }
 
+    //
+    //  The shim's X: the door is over, whatever its status. There is nothing
+    //  to decide: what the door wrote is in the image already (or, with
+    //  persist: false, nowhere). The caller moves on now; close() has the
+    //  worker sync the image and stop, and only then is the image free.
+    //
     onExit(msg) {
         this.exitInfo = msg;
         clearTimeout(this.timers.disconnect);
         this.stopPolling();
 
         const status = msg.status;
-        const decision = persistDecision(this.config, status, msg.keys);
-        const persist = decision.persist;
         const logFn = 'error' === status ? this.log.warn : this.log.info;
         logFn.call(
             this.log,
@@ -1154,116 +1345,56 @@ class AmigaDoorSession extends EventEmitter {
                 name: this.config.name,
                 exit: msg.keys,
                 inputDropped: msg.inputDropped || undefined,
-                persist,
-                notPersistedBecause: decision.why,
             },
             `Amiga door exited (status=${status})`
         );
-
-        if (!persist) {
-            if (decision.cutShort) {
-                this.log.info(
-                    {
-                        name: this.config.name,
-                        image: this.config.image,
-                        status,
-                        rc: msg.keys ? msg.keys.rc : undefined,
-                    },
-                    `Amiga door disk changes NOT persisted: ${decision.why}`
-                );
-            }
-            return this.finish({ status, keys: msg.keys, persisted: false });
-        }
-
-        this.startPersist(status, msg.keys);
+        this.finish({ status, keys: msg.keys });
     }
 
     //
-    //  The worker writes the changes into a copy of the image beside it and
-    //  renames the copy over the image. A persist that overruns
-    //  timeouts.persist ends the session for the caller, but the worker is
-    //  left to finish (a rename is atomic, a half-written copy is not the
-    //  image) until timeouts.persistAbandon; only then is it stopped and its
-    //  copy removed.
+    //  The worker's account of the final sync (close()). A session that wrote
+    //  to the image leaves its snapshots stale: they are dropped here (a
+    //  restore would also find the image's stat changed, but an mtime can be
+    //  coarser than a session is short).
     //
-    startPersist(status, keys) {
-        let target = this.config.image;
-        try {
-            target = fs.realpathSync(this.config.image);
-        } catch (e) {
-            //  the worker reports a missing image
-        }
-        this.persistTmp = `${target}.${process.pid}.${Date.now()}.persist`;
-        this.persisting = true;
-        this.timers.persist = setTimeout(() => {
-            this.log.warn(
+    onSynced(msg) {
+        this.synced = msg;
+        if (msg.skipped) {
+            return this.log.debug(
                 { name: this.config.name, image: this.config.image },
-                `Amiga door persist did not finish within ${this.timeouts.persist} ms; letting it finish in the background`
+                'Amiga door disk not synced: persist is off, the image is unchanged'
             );
-            this.finish({
-                status,
-                keys,
-                persisted: false,
-                error: `persist did not finish within ${this.timeouts.persist} ms`,
-            });
-        }, this.timeouts.persist);
-        this.post({ type: 'persist', path: this.config.image, tmp: this.persistTmp });
-    }
-
-    persistSettled() {
-        this.persisting = false;
-    }
-
-    onPersisted(msg) {
-        clearTimeout(this.timers.persist);
-        this.persistSettled();
-
-        if (msg.refused) {
-            //  someone wrote the image under this session: its changes were
-            //  measured against a disk that is no longer there
-            const dropped = this.cache
-                ? this.cache.invalidateImage(this.config.image)
-                : 0;
-            this.log.warn(
-                {
-                    name: this.config.name,
-                    image: this.config.image,
-                    reason: msg.refused,
-                    snapshotsDropped: dropped,
-                },
-                'Amiga door disk changes NOT persisted: the image changed during the session'
-            );
-            return this.finish({
-                status: this.exitInfo.status,
-                keys: this.exitInfo.keys,
-                persisted: false,
-                refused: msg.refused,
-            });
         }
-
-        let invalidated = 0;
-        if (msg.chunks > 0 && this.cache) {
-            invalidated = this.cache.invalidateImage(this.config.image);
+        let snapshotsDropped = 0;
+        //  writes unknown (the worker could not read the core's counters): the
+        //  snapshots may be stale, drop them
+        const writesUnknown = !Number.isFinite(msg.sessionWrites);
+        if (this.cache && (writesUnknown || msg.sessionWrites > 0)) {
+            snapshotsDropped = this.cache.invalidateImage(this.config.image);
+        }
+        const info = {
+            name: this.config.name,
+            image: this.config.image,
+            writes: msg.writes,
+            bytes: msg.bytes,
+            syncMs: Number.isFinite(msg.ms) ? Math.round(msg.ms) : undefined,
+            snapshotsDropped,
+            writesUnknown: writesUnknown || undefined,
+        };
+        if (msg.error) {
+            return this.log.warn(
+                Object.assign(info, { error: msg.error, code: msg.code }),
+                `Amiga door disk sync FAILED: ${msg.error}; the image holds what reached it before`
+            );
         }
         this.log.info(
-            {
-                name: this.config.name,
-                image: this.config.image,
-                chunks: msg.chunks,
-                bytes: msg.bytes,
-                persistMs: Math.round(msg.ms),
-                snapshotsDropped: invalidated,
-            },
-            msg.chunks > 0
-                ? 'Amiga door disk changes persisted'
-                : 'Amiga door left its disk unchanged'
+            info,
+            writesUnknown
+                ? 'Amiga door disk synced (the write counters were unavailable)'
+                : msg.writes > 0
+                  ? 'Amiga door disk synced'
+                  : 'Amiga door left its disk unchanged'
         );
-        this.finish({
-            status: this.exitInfo.status,
-            keys: this.exitInfo.keys,
-            persisted: true,
-            chunks: msg.chunks,
-        });
     }
 
     onWorkerError(msg) {
@@ -1274,14 +1405,10 @@ class AmigaDoorSession extends EventEmitter {
         if (false === msg.fatal) {
             return this.log.warn(err, 'Amiga door worker problem');
         }
-        if ('persist' === msg.during) {
-            this.persistSettled(); //  the worker removed its copy
-        }
         this.log.warn(err, 'Amiga door worker error');
         this.finish({
             status: this.exitInfo ? this.exitInfo.status : undefined,
             keys: this.exitInfo ? this.exitInfo.keys : undefined,
-            persisted: false,
             error: msg.message,
             code: msg.code,
         });
@@ -1291,9 +1418,9 @@ class AmigaDoorSession extends EventEmitter {
     //  End the session from our side: hangup, timeup or break. The shim answers
     //  with X once the door has gone (or after its own 30 s grace); we give it
     //  disconnectGraceSeconds (35 by default, so the shim's X arrives) and
-    //  then drop the worker regardless. The X decides persisting as usual
-    //  (an XIM door's default persistOn keeps what it saved on a hangup);
-    //  without one nothing is persisted.
+    //  then drop the worker regardless. Either way the image keeps what the
+    //  door wrote (close() syncs it); a door the shim gave up on may have
+    //  been stopped between two of its writes.
     //
     disconnect(reason) {
         if (this.finished || this.disconnectReason || this.exitInfo) {
@@ -1309,7 +1436,7 @@ class AmigaDoorSession extends EventEmitter {
         );
 
         if (!this.ready) {
-            return this.finish({ persisted: false, reason });
+            return this.finish({ reason });
         }
 
         this.sendFrame('d', { reason });
@@ -1318,7 +1445,7 @@ class AmigaDoorSession extends EventEmitter {
                 { name: this.config.name, reason },
                 `No X within ${this.timeouts.exitAfterDisconnect} ms of d; dropping the Amiga door worker`
             );
-            this.finish({ persisted: false, reason });
+            this.finish({ reason });
         }, this.timeouts.exitAfterDisconnect);
     }
 
@@ -1488,12 +1615,8 @@ class AmigaDoorSession extends EventEmitter {
             this.onClientDisconnectedBound
         );
 
-        //  Model A: a worker is never reused (shim protocol v1)
-        if (this.persisting && !this.workerGone) {
-            this.awaitPersistThenClose();
-        } else {
-            this.close();
-        }
+        //  a worker is never reused (shim protocol v1)
+        this.close();
 
         if (this.outputStats.pauses > 0) {
             this.log.info(
@@ -1505,71 +1628,101 @@ class AmigaDoorSession extends EventEmitter {
         this.emit('done', Object.assign({ reason: this.disconnectReason }, result));
     }
 
-    //  Stop the worker; 'closed' once it is gone. Nothing of the session is
-    //  left after that.
+    //  The server is shutting down: tell the door the carrier is gone (`d`),
+    //  end the session now, and have the worker give the door about two
+    //  seconds of Amiga time to save and exit before it syncs and stops (see
+    //  close()). A session already ended is closing.
+    shutdownStop() {
+        if (!this.finished) {
+            if (this.ready && !this.exitInfo && !this.disconnectReason) {
+                this.sendFrame('d', { reason: 'shutdown' });
+            }
+            this.finish({ reason: 'shutdown' });
+        }
+    }
+
+    //
+    //  Stop the worker: it lets the guest's file system flush, syncs the image
+    //  ('synced') and exits. 'closed' once it is gone; nothing of the session
+    //  is left after that. A worker that takes longer than timeouts.stop is
+    //  terminated, mid-write or not (the image then has what reached it); one
+    //  that is gone already cannot sync, and its writes since the drive was
+    //  last idle are lost.
+    //
     close() {
         if (this.closed) {
             return;
         }
         this.closed = true;
-        clearTimeout(this.abandonTimer);
-        let terminated;
-        try {
-            terminated = this.worker.terminate();
-        } catch (e) {
-            //  already gone
-        }
-        const tmp = this.persisting ? this.persistTmp : null;
-        this.persistSettled();
-        Promise.resolve(terminated)
-            .catch(() => {})
-            .then(() => {
-                if (tmp) {
-                    //  stopped mid-persist: its copy is not the image, and goes
-                    fs.unlink(tmp, () => {});
-                }
-                this.emit('closed');
-            });
-    }
+        const worker = this.worker;
 
-    //  The session is over but the worker is still writing the image: let it
-    //  finish (or give up on it after timeouts.persistAbandon).
-    awaitPersistThenClose() {
         const onMessage = msg => {
-            if (
-                'persisted' === msg.type ||
-                ('error' === msg.type && msg.fatal !== false)
-            ) {
+            if ('synced' === msg.type) {
+                this.onSynced(msg);
+            } else if ('exit' === msg.type && !this.exitInfo) {
+                //  the door answered the carrier loss while the worker stopped
+                this.exitInfo = msg;
                 this.log.info(
-                    {
-                        name: this.config.name,
-                        image: this.config.image,
-                        chunks: msg.chunks,
-                        refused: msg.refused,
-                        error: 'error' === msg.type ? msg.message : undefined,
-                    },
-                    'Amiga door persist finished after the session ended'
+                    { name: this.config.name, exit: msg.keys },
+                    `Amiga door exited after carrier loss (status=${msg.status})`
                 );
-                if ('persisted' === msg.type && msg.chunks > 0 && this.cache) {
-                    this.cache.invalidateImage(this.config.image);
-                }
-                done();
             }
         };
-        const done = () => {
-            this.worker.removeListener('message', onMessage);
-            this.worker.removeListener('exit', done);
-            this.close();
+        let timer = null;
+        const gone = () => {
+            if (this.closeDone) {
+                return;
+            }
+            this.closeDone = true;
+            runningSessions.delete(this);
+            clearTimeout(timer);
+            worker.removeListener('message', onMessage);
+            worker.removeListener('exit', gone);
+            if (!this.synced && this.cache && true === this.config.persist) {
+                //  whether it wrote is unknown: its snapshots may be stale
+                this.cache.invalidateImage(this.config.image);
+            }
+            let terminated;
+            try {
+                terminated = worker.terminate();
+            } catch (e) {
+                //  already gone
+            }
+            let terminateTimer = null;
+            const timedOut = new Promise(resolve => {
+                terminateTimer = setTimeout(() => {
+                    this.log.warn(
+                        { name: this.config.name, image: this.config.image },
+                        `Amiga door worker.terminate() did not finish within ${this.timeouts.terminate} ms; releasing the door anyway`
+                    );
+                    resolve();
+                }, this.timeouts.terminate);
+            });
+            Promise.race([Promise.resolve(terminated).catch(() => {}), timedOut]).then(
+                () => {
+                    clearTimeout(terminateTimer);
+                    this.emit('closed');
+                }
+            );
         };
-        this.worker.on('message', onMessage);
-        this.worker.on('exit', done);
-        this.abandonTimer = setTimeout(() => {
+
+        if (this.workerGone) {
+            return gone();
+        }
+        worker.on('message', onMessage);
+        worker.on('exit', gone);
+        timer = setTimeout(() => {
             this.log.warn(
                 { name: this.config.name, image: this.config.image },
-                `Amiga door persist did not finish within ${this.timeouts.persistAbandon} ms; stopping the worker, the image is unchanged`
+                `Amiga door worker did not stop within ${this.timeouts.stop} ms; terminating it, the image keeps what reached it`
             );
-            done();
-        }, this.timeouts.persistAbandon);
+            gone();
+        }, this.timeouts.stop);
+        try {
+            worker.postMessage({ type: 'stop' });
+        } catch (e) {
+            gone();
+        }
     }
 }
 
@@ -1600,7 +1753,16 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                 },
 
                 function normalize(callback) {
-                    const { config, problems, warnings } = normalizeConfig(self.config);
+                    const normalized = normalizeConfig(self.config);
+                    const { config, problems } = normalized;
+                    let warnings = normalized.warnings;
+                    //  a retired key is worth one line per door, not one per session
+                    if (warnings.includes(PersistOnIgnored)) {
+                        if (persistOnWarned.has(self.config.name)) {
+                            warnings = warnings.filter(w => w !== PersistOnIgnored);
+                        }
+                        persistOnWarned.add(self.config.name);
+                    }
                     if (warnings.length > 0) {
                         self.client.log.warn(
                             { name: self.config.name, warnings },
@@ -1618,6 +1780,33 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     return callback(null);
                 },
 
+                function requireEmulator(callback) {
+                    //  enigma-vamiga 0.2.0 or later (file-backed disk); see vamigaPackage
+                    if (!vamigaPackage.problem) return callback(null);
+                    return callback(Errors.General(vamigaPackage.problem));
+                },
+
+                function requireCNetAccount(callback) {
+                    //  a C-Net door's account number is the user ID: no
+                    //  number before login (the shim would use the sysop's)
+                    if ('cnetrexx' !== self.config.doorType) return callback(null);
+                    const user = self.client.user;
+                    if (user && user.isAuthenticated() && null !== cnetAccount(user)) {
+                        return callback(null);
+                    }
+                    self.client.log.warn(
+                        {
+                            name: self.config.name,
+                            userId: user ? user.userId : undefined,
+                        },
+                        `C-Net ARexx door "${self.config.name}" needs a logged-in user ` +
+                            '(its C-Net account number is the user ID); refusing'
+                    );
+                    return callback(
+                        Errors.AccessDenied('C-Net ARexx doors need a logged-in user')
+                    );
+                },
+
                 function checkFiles(callback) {
                     for (const [label, p] of [
                         ['image', self.config.image],
@@ -1631,6 +1820,24 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                                 )
                             );
                         }
+                    }
+                    //  the emulator writes a persisting door's changes into the image itself
+                    const writable = self.config.persist;
+                    try {
+                        fs.accessSync(
+                            self.config.image,
+                            writable
+                                ? fs.constants.R_OK | fs.constants.W_OK
+                                : fs.constants.R_OK
+                        );
+                    } catch (e) {
+                        return callback(
+                            Errors.AccessDenied(
+                                `amiga_door: ENiGMA cannot ${
+                                    writable ? 'read and write' : 'read'
+                                } the image ${self.config.image}`
+                            )
+                        );
                     }
                     return callback(null);
                 },
@@ -1651,13 +1858,22 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
 
                     //  checked and taken in one step: nothing runs in between
                     if (!self._holdImage()) {
+                        const held = activeImages.get(imageKey(self.config.image));
                         self.client.log.info(
                             {
                                 name,
                                 image: self.config.image,
-                                heldBy: activeImages.get(imageKey(self.config.image)),
+                                persist: self.config.persist,
+                                heldBy: held
+                                    ? {
+                                          exclusive: held.exclusive,
+                                          shared: [...held.shared],
+                                      }
+                                    : undefined,
                             },
-                            `Amiga door image is in use by another session; refusing door "${name}"`
+                            self.config.persist
+                                ? `Amiga door image is in use by another session; refusing door "${name}"`
+                                : `Amiga door image is in use by a session that writes it; refusing door "${name}"`
                         );
                         return self._refuseBusy(callback);
                     }
@@ -1743,25 +1959,39 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         return this.pausePrompt(denied);
     }
 
-    //  A persisting door holds its image for the session (see activeImages).
-    //  Returns false when another session holds it.
+    //  Hold the image for the session (see activeImages): exclusively for a
+    //  persisting door, shared for one with persist: false. Returns false
+    //  when a session holds it in a way this one cannot join.
     _holdImage() {
-        if (!this.config.persist) {
-            return true;
-        }
         const key = imageKey(this.config.image);
-        if (activeImages.has(key)) {
+        const held = activeImages.get(key) || { exclusive: null, shared: new Set() };
+        const exclusive = true === this.config.persist;
+        if (held.exclusive || (exclusive && held.shared.size > 0)) {
             return false;
         }
         this._imageHold = { name: this.config.name, node: this.client.node };
         this._imageKey = key;
-        activeImages.set(key, this._imageHold);
+        this._imageExclusive = exclusive;
+        if (exclusive) {
+            held.exclusive = this._imageHold;
+        } else {
+            held.shared.add(this._imageHold);
+        }
+        activeImages.set(key, held);
         return true;
     }
 
     _releaseImage() {
-        if (this._imageHold && activeImages.get(this._imageKey) === this._imageHold) {
-            activeImages.delete(this._imageKey);
+        const held = this._imageHold && activeImages.get(this._imageKey);
+        if (held) {
+            if (this._imageExclusive && held.exclusive === this._imageHold) {
+                held.exclusive = null;
+            } else if (!this._imageExclusive) {
+                held.shared.delete(this._imageHold);
+            }
+            if (!held.exclusive && 0 === held.shared.size) {
+                activeImages.delete(this._imageKey);
+            }
         }
         this._imageHold = null;
     }
@@ -1787,8 +2017,23 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
             return this._doorFinished(doorTracking, { error: err.message });
         }
 
-        const cacheKey = SnapshotCache.keyFor(config.image, stat, config);
-        const snapshot = snapshotCache.get(cacheKey) || null;
+        //  A snapshot is good only for the image exactly as it was when it was
+        //  taken; one whose image has changed since (a session that wrote, a
+        //  sysop's edit) is dropped here, and this session boots
+        const cacheKey = SnapshotCache.keyFor(
+            config.image,
+            config,
+            vamigaPackage.version
+        );
+        const cached = snapshotCache.lookup(cacheKey, stat);
+        if (cached && cached.stale) {
+            this.client.log.debug(
+                { name: doorName, image: config.image, was: cached.was },
+                'Amiga door snapshot dropped: the image changed since it was taken'
+            );
+        }
+        const snapshot = (cached && cached.snapshot) || null;
+        const snapshotMeta = (cached && cached.meta) || {};
 
         //  Loading spinner, shown until the door's first output
         const SPINNER_FRAMES = ['|', '/', '-', '\\'];
@@ -1814,6 +2059,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     module: wasmModule,
                     snapshot,
                     image: config.image,
+                    persist: config.persist,
                     rom: config.rom,
                     extRom: config.extRom,
                     machine: {
@@ -1824,6 +2070,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                         overclock: config.overclock,
                     },
                     warpBootSeconds: config.warpBootSeconds,
+                    serialHandshake: snapshotMeta.serialHandshake,
                     session: sessionKeys,
                 };
 
@@ -1877,10 +2124,14 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         const session = this.session;
         this.session = null;
         this.sessionStarted = false;
+        //  the worker may still be stopping (it syncs the image first): the
+        //  hold is released once it is gone, not by _doorFinished
+        this._holdUntilClosed = true;
         let stopped = false;
         if (session) {
             session.removeAllListeners('done');
             session.removeAllListeners('closed');
+            session.once('closed', () => this._releaseImage());
             try {
                 session.finish({ error: 'startup failed' });
                 stopped = true;
@@ -1888,13 +2139,18 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                 //  start() had not wired everything up; stop the worker below
             }
         }
-        if (worker && !stopped) {
-            try {
-                Promise.resolve(worker.terminate()).catch(() => {});
-            } catch (e) {
-                //  already gone
-            }
+        if (stopped) {
+            return;
         }
+        let terminated;
+        try {
+            terminated = worker ? worker.terminate() : null;
+        } catch (e) {
+            //  already gone
+        }
+        Promise.resolve(terminated)
+            .catch(() => {})
+            .then(() => this._releaseImage());
     }
 
     _attachSession(session, doorTracking) {
@@ -1997,7 +2253,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         this._stopSpinner(false);
         trackDoorRunEnd(doorTracking);
         this._decrementInstances();
-        if (!this.sessionStarted) {
+        if (!this.sessionStarted && !this._holdUntilClosed) {
             this._releaseImage(); //  no worker ever had it
         }
 
@@ -2069,11 +2325,24 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
     }
 };
 
+//  For bbs.js shutdownSystem
+exports.shutdown = shutdown;
+
 //  Exported for unit tests only — not part of the public API
 exports._test = {
+    runningSessions,
     normalizeConfig,
-    shouldPersist,
+    PersistOnIgnored,
+    persistOnWarned,
+    //  what checkPackage() found at load; tests set their own
+    get vamigaPackage() {
+        return vamigaPackage;
+    },
+    set vamigaPackage(v) {
+        vamigaPackage = v;
+    },
     buildSessionKeys,
+    cnetAccount,
     expandDoorArgs,
     quoteArg,
     userText,

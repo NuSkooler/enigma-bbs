@@ -107,3 +107,34 @@ next time it restarts. The `semanage fcontext` rule above makes the correct cont
 for that path, so a quick `restorecon` after editing puts things right. If you prefer not to
 remember that, edit the file in place (`sed -i`, `nano` with `set backupcopy yes` in vim, etc.).
 :::
+
+## Stopping
+ENiGMA½ shuts down in order on `SIGINT` (Ctrl+C, and what PM2 sends) and on `SIGTERM` (what
+systemd, Docker and `kill` send): it stops accepting new connections, tells every connected caller
+the server is going down and disconnects them, gives running [Amiga doors](../doors/amiga.md) up
+to about 3 seconds to sync their disk images, stops the event scheduler and the message networks,
+and exits with status 0. That normally takes well under 5 seconds. If a step hangs, ENiGMA½ gives
+up on it after 15 seconds, logs which step it was, and exits with status 1. A second signal while
+it is shutting down is ignored. A signal in the first moments after launch (about 100 ms, before
+the log's `ENiGMA½ Bulletin Board System Starting Up!` line) still ends the process at once,
+which is harmless because nothing is running yet.
+
+Whatever runs it has to allow it that long before killing it:
+
+* **systemd**: `TimeoutStopSec` defaults to 90 seconds, which is plenty. Don't lower it below
+  20 seconds.
+* **PM2**: `kill_timeout` defaults to 1600 ms, after which PM2 sends `SIGKILL`, often in the
+  middle of the shutdown. Set it to 20000 in your ecosystem file:
+
+  ```js
+  // ecosystem.config.js
+  module.exports = {
+      apps: [{ name: 'enigma-bbs', script: 'main.js', kill_timeout: 20000 }],
+  };
+  ```
+
+  or start it with `pm2 start main.js --kill-timeout 20000`.
+* **Docker**: the image's entrypoint sets `PM2_KILL_TIMEOUT=20000` for `pm2-runtime`; pass
+  `-e PM2_KILL_TIMEOUT=...` to change it. Docker itself kills the container 10 seconds after
+  `docker stop`, so give it longer: `docker stop -t 30 ENiGMABBS`, or `stop_grace_period: 30s`
+  in Compose.

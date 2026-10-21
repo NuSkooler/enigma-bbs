@@ -15,6 +15,7 @@ const handleApCommand = require('./activitypub').handleUserCommand;
 const handleSSHKeyCommand = require('./oputil_ssh_key.js').handleSSHKeyCommand;
 const handleFatCommand = require('./oputil_fat.js').handleFatCommand;
 const handleV86Command = require('./oputil_v86.js').handleV86Command;
+const handleAmigaDoorCommand = require('./oputil_amiga_door.js').handleAmigaDoorCommand;
 const handleRestCommand = require('./oputil_rest.js').handleRestCommand;
 const getHelpFor = require('./oputil_help.js').getHelpFor;
 
@@ -48,6 +49,8 @@ module.exports = function () {
             return handleFatCommand();
         case 'v86':
             return handleV86Command();
+        case 'amiga-door':
+            return handleAmigaDoorCommand();
         case 'rest':
             return handleRestCommand();
         default:

@@ -186,59 +186,218 @@ function main() {
     );
 }
 
-function shutdownSystem() {
-    const msg = 'Process interrupted. Shutting down...';
-    console.info(msg);
-    logger.log.info(msg);
+//
+//  How long an orderly shutdown may take in all before the process exits
+//  anyway, with a non-zero code. Every step below either bounds itself
+//  (the listening servers get about 1 s to stop, running Amiga doors about
+//  3 s to sync their images) or is quick, so this only fires when one of
+//  them hangs. A service manager must allow at least this long before it
+//  kills ENiGMA½: see "Stopping" in
+//  website/src/content/docs/installation/production.md.
+//
+const ShutdownTimeoutMs = 15000;
 
-    async.series(
-        [
-            function closeConnections(callback) {
-                const ClientConns = require('./client_connections.js');
-                const activeConnections = ClientConns.getActiveConnections(
-                    ClientConns.AllConnections
-                );
-                let i = activeConnections.length;
-                while (i--) {
-                    const activeTerm = activeConnections[i].term;
-                    if (activeTerm) {
-                        activeTerm.write(
-                            '\n\nServer is shutting down NOW! Disconnecting...\n\n'
-                        );
-                    }
-                    ClientConns.removeClient(activeConnections[i]);
+//  SIGINT is ^C at a terminal and what PM2 sends; SIGTERM is what systemd,
+//  Docker and a plain kill(1) send
+const ShutdownSignals = ['SIGINT', 'SIGTERM'];
+
+//
+//  What an orderly shutdown stops, in this order. The listening servers stop
+//  accepting connections first, so that nobody new can call in, or start an
+//  Amiga door, while the rest stops; connected callers are then told and
+//  disconnected, and running Amiga doors get to sync their disk images. Each
+//  step calls back without an error.
+//
+const shutdownSteps = [
+    {
+        //  About 1 s at most; connections already open are left to the next step
+        name: 'stopListeningServers',
+        run: cb => require('./listening_server.js').shutdown(() => cb(null)),
+    },
+    {
+        name: 'closeConnections',
+        run: cb => {
+            const ClientConns = require('./client_connections.js');
+            const activeConnections = ClientConns.getActiveConnections(
+                ClientConns.AllConnections
+            );
+            let i = activeConnections.length;
+            while (i--) {
+                const activeTerm = activeConnections[i].term;
+                if (activeTerm) {
+                    activeTerm.write(
+                        '\n\nServer is shutting down NOW! Disconnecting...\n\n'
+                    );
                 }
-                callback(null);
-            },
-            function stopListeningServers(callback) {
-                return require('./listening_server.js').shutdown(() => {
-                    return callback(null); //  ignore err
-                });
-            },
-            function stopEventScheduler(callback) {
-                if (initServices.eventScheduler) {
-                    return initServices.eventScheduler.shutdown(() => {
-                        return callback(null); // ignore err
-                    });
-                } else {
-                    return callback(null);
-                }
-            },
-            function stopFileAreaWeb(callback) {
-                require('./file_area_web.js').startup(() => {
-                    return callback(null); // ignore err
-                });
-            },
-            function stopMsgNetwork(callback) {
-                require('./msg_network.js').shutdown(callback);
-            },
-        ],
-        () => {
-            console.info('Goodbye!');
-            return process.exit();
+                ClientConns.removeClient(activeConnections[i]);
+            }
+            logger.log.info(
+                { callers: activeConnections.length },
+                'Disconnected callers'
+            );
+            return cb(null);
+        },
+    },
+    {
+        name: 'stopAmigaDoors',
+        //  Best effort, about 3 s at most: running Amiga doors sync their
+        //  disk images before the process exits
+        run: cb => require('./amiga_door/amiga_door.js').shutdown(() => cb(null)),
+    },
+    {
+        name: 'stopEventScheduler',
+        run: cb => {
+            if (!initServices.eventScheduler) {
+                return cb(null);
+            }
+            return initServices.eventScheduler.shutdown(() => cb(null));
+        },
+    },
+    {
+        name: 'stopFileAreaWeb',
+        run: cb => require('./file_area_web.js').shutdown(() => cb(null)),
+    },
+    {
+        name: 'stopMsgNetwork',
+        run: cb => require('./msg_network.js').shutdown(() => cb(null)),
+    },
+];
+
+//
+//  Make the function that shuts the system down when a signal arrives.
+//
+//  It runs once: a second signal of either kind, while a shutdown is under
+//  way, is logged and otherwise ignored, so an impatient second ^C or a
+//  service manager that sends SIGINT and then SIGTERM cannot cut the Amiga
+//  doors' sync short or exit before the rest has stopped. What ends a
+//  shutdown that will not finish is the safety timer, not another signal.
+//
+//  The timer is deliberately not unref()'d: it exists only while a step has
+//  not called back, and is cleared before the normal exit. Unref()'d, a step
+//  that hung with nothing else keeping the event loop alive would let the
+//  process end on its own with status 0, which a service manager reads as a
+//  clean stop.
+//
+//  Either way out waits, a second at most, for the log file to catch up, so
+//  that the shutdown's own lines are not lost to process.exit().
+//
+//  The options are for tests.
+//
+function createShutdown({
+    steps = shutdownSteps,
+    timeoutMs = ShutdownTimeoutMs,
+    exit = code => process.exit(code),
+    flush = cb => logger.flush(cb),
+    log,
+    out = console,
+} = {}) {
+    let inProgress = false;
+
+    return function shutdownSystem(signal = 'a shutdown request') {
+        const sysLog = log || logger.log;
+
+        if (inProgress) {
+            const msg = `Shutdown already in progress; ignoring ${signal}`;
+            out.info(msg);
+            sysLog.info({ signal }, msg);
+            return;
         }
-    );
+        inProgress = true;
+
+        const msg = `Received ${signal}. Shutting down...`;
+        out.info(msg);
+        sysLog.info({ signal }, msg);
+
+        let current = null;
+        let finished = false;
+
+        //  Report, flush, exit. Nothing here may stop the exit: a throw would
+        //  go to the uncaughtException handler, which logs it and carries on,
+        //  and with the safety timer cleared (or already fired) nothing else
+        //  would end the process.
+        const end = (code, report) => {
+            try {
+                report();
+            } catch (err) {
+                //  nowhere left to report it; the exit matters more
+            }
+            let exited = false;
+            const exitOnce = () => {
+                if (!exited) {
+                    exited = true;
+                    return exit(code);
+                }
+            };
+            try {
+                return flush(exitOnce);
+            } catch (err) {
+                return exitOnce();
+            }
+        };
+
+        const timer = setTimeout(() => {
+            finished = true;
+            return end(1, () => {
+                const stuck = `Shutdown did not finish within ${
+                    timeoutMs / 1000
+                } s: step "${current}" never completed. Exiting anyway`;
+                out.error(stuck);
+                sysLog.error({ step: current, timeoutMs }, stuck);
+            });
+        }, timeoutMs);
+
+        async.eachSeries(
+            steps,
+            (step, next) => {
+                current = step.name;
+                let called = false;
+                const done = () => {
+                    if (!called) {
+                        called = true;
+                        return next(null);
+                    }
+                };
+                try {
+                    return step.run(done);
+                } catch (err) {
+                    //  one broken step must not stop the ones after it
+                    sysLog.warn(
+                        { err, step: step.name },
+                        'Shutdown step failed; continuing'
+                    );
+                    return done();
+                }
+            },
+            () => {
+                clearTimeout(timer);
+                if (finished) {
+                    return; //  the safety timer has already exited
+                }
+                finished = true;
+                return end(0, () => {
+                    sysLog.info('Shutdown complete');
+                    out.info('Goodbye!');
+                });
+            }
+        );
+    };
 }
+
+const shutdownSystem = createShutdown();
+
+//  |proc| is for tests
+function registerShutdownSignals(shutdown = shutdownSystem, proc = process) {
+    ShutdownSignals.forEach(signal => {
+        proc.on(signal, () => shutdown(signal));
+    });
+}
+
+//  For tests
+exports.createShutdown = createShutdown;
+exports.registerShutdownSignals = registerShutdownSignals;
+exports.shutdownSteps = shutdownSteps;
+exports.ShutdownSignals = ShutdownSignals;
+exports.ShutdownTimeoutMs = ShutdownTimeoutMs;
 
 function initialize(cb) {
     async.series(
@@ -275,7 +434,7 @@ function initialize(cb) {
                     '**** ENiGMA½ Bulletin Board System Starting Up! ****'
                 );
 
-                process.on('SIGINT', shutdownSystem);
+                registerShutdownSignals();
 
                 //  Safety net: a single unhandled throw/rejection in one
                 //  user's menu method (e.g. a missing cb, a typo in a slash

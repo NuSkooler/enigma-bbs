@@ -183,7 +183,7 @@
         //       it bundles the AROS ROM.
         //    2. A door image (.hdf): a small FFS disk holding the host shim, the
         //       door library, a startup sequence and the door. Build one with
-        //       misc/amiga_door/image/make_image.sh
+        //       ./oputil.js amiga-door create IMAGE DOORDIR
         //
         //  The door path is the Amiga path of the door inside the image.
         //
@@ -192,11 +192,13 @@
         //  what it needs on its command line with doorArgs.
         //
         //  Each session restores a snapshot of the booted machine, so starting
-        //  is fast after the first caller. Writes the door makes are saved to
-        //  the image after a clean exit, and while a door that saves is in use
-        //  its image is held: other doors on the same image wait their turn
-        //  (callers see tooManyArt). Give doors their own images to run them
-        //  side by side.
+        //  is fast after the first caller. The image is the emulator's disk:
+        //  the door's writes go into it as the door makes them, however the
+        //  session ends. While a door that saves is in use its image is held:
+        //  other doors on the same image wait their turn (callers see
+        //  tooManyArt); doors with persist: false share an image with each
+        //  other, never with one that saves. Give doors their own images to
+        //  run them side by side.
         //
         //  See doors/amiga.md for full setup instructions.
         //
@@ -213,22 +215,29 @@
                 //  doorType: cli                // a CLI (stdio) door instead of XIM
                 //  doorType: aim                // an /X ARexx script (door: its path, e.g.
                 //                               // BBS:Doors/KickBox.Rexx); the image needs
-                //                               // your Workbench 3.1's ARexx (make_image.sh -w)
+                //                               // your Workbench 3.1's ARexx (amiga-door create --workbench)
                 //  doorType: tim                // a Paragon / MAX's BBS door (/X TYPE=TIM)
                 //  assigns: { MSE: "BBS:Doors/MSE" }  // assigns its install notes ask for
                 //  env: { MSE: "" }             // ENV: variables it reads
+                //  doorType: cnetrexx           // a C-Net ARexx pfile (door: its path, e.g.
+                //                               // PFILES:Badlibs/badlibs); needs ARexx (-w)
+                //  panicGraceSeconds: 10        // C-Net: seconds to save after a hangup
+                //  wordWrap: true               // C-Net: wrap the door's text at word ends
                 //  consoleMode: raw             // CLI doors: cooked (default) or raw
                 //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
                 //                               // also {node} and {level}
                 //  rom: /path/to/kick31.rom     // default: bundled AROS ROM
                 //  cpu: 68EC020                 // 68000 | 68010 | 68EC020
                 //  fastKb: 8192                 // 0..8192
+                //  baud: 38400                  // serial line rate (default 115200); 38400
+                //                               // at the default 7 MHz, or 57600 with
+                //                               // overclock: 2, once the emulator no
+                //                               // longer holds bytes (doors/amiga.md)
                 //  font: topaz                  // SyncTERM font, or none
                 //  minTimeLeftMinutes: 10
                 //  notEnoughTimeArt: DOORTIME
-                //  persist: true                // save the door's writes
-                //  persistOn: [ok, carrier]     // save after these exits (default: ok and
-                //                               // carrier for XIM doors, only ok for cli/aim/tim)
+                //  persist: true                // keep the door's writes in the image;
+                //                               // false: every session starts from it as is
                 //  disconnectGraceSeconds: 35   // after a hangup, wait this long for the door
                 //                               // to finish (keep above the shim's 30)
                 //  amigaConsole: true           // translate Amiga console controls (default:

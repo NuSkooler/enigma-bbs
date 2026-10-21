@@ -13,26 +13,48 @@
  * emulated serial port: door terminal bytes unframed, control messages framed
  * (core/amiga_door/protocol.js).
  *
+ * The door's disk is its image file (enigma-vamiga 0.2.0's file-backed disk):
+ * the core reads the image page by page as the guest asks and, for a door
+ * that persists, writes the guest's changes back as it makes them (write-through
+ * when the drive goes idle). A door with persist: false runs with write-through
+ * off: its changes stay in the core and go with it. At the end, whatever the
+ * door's exit, 'stop' lets the guest's file system flush, then syncs the image.
+ *
  * workerData shape:
  * {
  *   module:          WebAssembly.Module - enigma-vamiga's, compiled once by the parent
  *   snapshot:        Uint8Array|null    - booted machine to restore (SharedArrayBuffer backed);
  *                                         null to boot from the image
- *   image:           string             - HDF path; the persist baseline
+ *   image:           string             - the door's .hdf, the disk itself
+ *   persist:         boolean            - false: nothing the guest writes reaches the image
  *   rom, extRom:     string|undefined   - Kickstart override paths (boot only)
  *   machine:         { cpu, chipKb, slowKb, fastKb, overclock } (boot only)
  *   warpBootSeconds: number             - first boot runs flat out this long
+ *   serialHandshake: boolean|undefined  - the snapshot's machine ran with RTS/CTS on (its
+ *                                         shim drives RTS); the shim's H decides from then on
  *   session:         { ... }            - `s` frame keys; `now` is added when it is sent
  * }
  *
  * MessagePort protocol (worker -> parent):
- *   { type: 'snapshot', snapshot: Uint8Array, ms }      - booted, idle, warp over: cache me
- *   { type: 'ready', restored, ms, restoreMs, hello, stats } - `s` has been sent
+ *   { type: 'snapshotRefused', message }                - the core would not restore the
+ *                                                         snapshot (another core version, or
+ *                                                         another file); booting instead
+ *   { type: 'snapshot', snapshot: Uint8Array, ms, serialHandshake, stat }
+ *                                                       - booted, idle, warp over: cache me;
+ *                                                         |stat| is the image's right after it
+ *   { type: 'ready', restored, ms, restoreMs, hello, stats, serialHandshake }
+ *                                                       - `s` has been sent
  *   { type: 'output', data: Uint8Array }                - door bytes (frames removed), per frame batch
  *   { type: 'frame', frame: { type, keys } }            - H, R, L, C, E (protocol frames)
  *   { type: 'exit', status, keys }                      - the shim's X frame (the first one only)
- *   { type: 'persisted', chunks, bytes, ms, refused }   - answer to 'persist'; |refused| says why
- *                                                         nothing was written (the image changed)
+ *   { type: 'inputFull', limit }                        - caller input reached MaxInputQueueBytes
+ *                                                         (once per session; the excess is dropped)
+ *   { type: 'synced', writes, bytes, sessionWrites, ms, error, code, skipped }
+ *                                                         (sessionWrites: null when the core's
+ *                                                         write counters were unavailable)
+ *                                                       - while stopping: the image holds what the
+ *                                                         guest wrote (|error|: the sync failed;
+ *                                                         |skipped|: persist is off)
  *   { type: 'error', message, code, fatal }             - see below
  *   { type: 'stopped' }                                 - answer to 'stop', worker exits
  *
@@ -41,10 +63,7 @@
  *   { type: 'frame', frame: { type, keys } } - send a host frame (t, d, w, e); `d` drops queued
  *                                            input, but finishes a frame or RS RS pair already begun
  *   { type: 'pause' } / { type: 'resume' } - output back-pressure: stop / restart the emulator
- *   { type: 'persist', path, tmp }         - after X: settle, then write the changed HDF chunks
- *                                            into |tmp| (a copy of the image) and rename it over
- *                                            the image
- *   { type: 'stop' }                       - shut down
+ *   { type: 'stop' }                       - settle and sync the disk ('synced'), then shut down
  */
 
 const { isMainThread, workerData, parentPort } = require('worker_threads');
@@ -57,36 +76,59 @@ if (isMainThread) {
 }
 
 const fs = require('fs');
-const paths = require('path');
 const protocol = require('./protocol.js');
 const { HostLink } = require('./host_link.js');
 
 const { RS } = protocol;
 
-//  Caller typeahead we hold while the guest drains its 8 KB receive buffer
-//  (escaped bytes). The shim drops keystrokes the door is not reading anyway
-//  (X `indrop`).
-const MaxInputQueueBytes = 64 * 1024;
+//
+//  Serial line discipline (misc/amiga_door/README.md, "Serial line"). Caller
+//  input is never dropped for being early: it waits here until the guest has
+//  room. What is in flight is bounded twice:
+//
+//  - InputWindowBytes: at most this many bytes sit in the core's receive
+//    buffer (SerServer, 8 KB) that the guest's UART has not taken yet
+//    (|serialInPending|). The shim drops RTS at 3/4 of its 4 KB ring, which
+//    leaves 1 KB for what is already on its way: a window below that keeps a
+//    sender that only stops writing when RTS drops lossless, and keeps a `d`
+//    from queueing behind kilobytes of typeahead the door has not read.
+//  - MaxInputQueueBytes: what waits here. A caller pasting a megabyte into a
+//    door that reads nothing is not typing; past this the excess is dropped,
+//    counted (X `inputDropped`) and reported once ('inputFull').
+//
+const InputWindowBytes = 768;
+const MaxInputQueueBytes = 1024 * 1024;
 
-//  Persist granularity: what differs from the baseline is written in blocks of
-//  this size (a multiple of the 512-byte sector).
-const PersistChunkBytes = 64 * 1024;
+//  Amiga time to let the guest's file system flush before the final sync: X
+//  comes after the door has exited plus the shim's 2 s drain, and AmigaOS
+//  writes back dirty buffers within a few seconds. 150 frames = 3 s, computed
+//  flat out (about 0.2 s of host time).
+const SettleFrames = 150;
 
-//  Amiga time to let the guest's file system flush before persisting: X comes
-//  after the door has exited plus the shim's 2 s drain, and AmigaOS writes
-//  back dirty buffers within a few seconds. 150 frames = 3 s, computed flat
-//  out (about 0.15 s of host time).
-const PersistSettleFrames = 150;
+//  A stop that finds the carrier gone (`d` sent) with the door still running:
+//  frames, pumped like the Pacer's, for the door to see it and the shim to
+//  answer X. 100 frames = 2 s of Amiga time, flat out (about 0.15 s of host
+//  time); well inside the parent's shutdown budget (3 s).
+const CarrierGraceFrames = 100;
 
 const t0 = performance.now();
+
+//  When the guest's writes reach the image: as the door makes them (the core
+//  writes back once the drive has been idle for 100 ms of Amiga time), or, for
+//  a door that keeps nothing, never
+const writeThrough = false === workerData.persist ? 'never' : 'onIdle';
 
 let emu = null;
 let pacer = null;
 let link = null;
 let state = 'starting'; //  starting | booting | warpEnding | session | exited | stopping
 let inputDropped = 0;
+let inputFullReported = false;
+let carrierGone = false; //  a `d` was passed to the shim
+let restored = false;
 let restoreMs = null;
-let baselineStat = null; //  the image file as this session read it
+let writesAtStart = 0; //  the core's writes to the image before the session began
+let handshake = false; //  the core's RTS/CTS handshake (SER.HANDSHAKE) is on
 
 //
 //  Host -> shim bytes waiting for room in the guest's receive buffer, in
@@ -163,6 +205,10 @@ function queueInput(raw) {
     const take = fitEscaped(raw, MaxInputQueueBytes - queuedDataBytes);
     if (take < raw.length) {
         inputDropped += raw.length - take;
+        if (!inputFullReported) {
+            inputFullReported = true;
+            post({ type: 'inputFull', limit: MaxInputQueueBytes });
+        }
     }
     if (take > 0) {
         enqueue(false, protocol.escapeData(raw.subarray(0, take)));
@@ -175,6 +221,7 @@ function sendHostFrame(frame) {
     }
     const bytes = protocol.encode(frame.type, frame.keys || {});
     if ('d' === frame.type) {
+        carrierGone = true;
         //  Carrier is gone or time is up: whatever the caller typed before
         //  that is moot, and the shim drops bytes after `d` anyway. What is
         //  already on its way must still arrive whole, though: the shim is
@@ -217,24 +264,82 @@ function rsPairOpen(buf, n, open) {
     return 1 === run % 2;
 }
 
-//  As much of the queue as the guest's receive buffer takes
+//
+//  RTS/CTS on the emulated null modem (enigma-vamiga 0.1.3, vAmiga's
+//  SER.HANDSHAKE): the core then starts a byte only while the guest's RTS is
+//  asserted. axshim 1.5 and later drive RTS; an older shim never touches it,
+//  and on AROS it boots deasserted, so with the handshake on such an image
+//  would receive nothing. The shim's H frame says which it is: `shim=axshim
+//  1.5`. Before an H (a restored snapshot) workerData says what the machine
+//  that made the snapshot ran with.
+//
+function shimDrivesRts(hello) {
+    const m = /^axshim (\d+)\.(\d+)/.exec((hello && hello.shim) || '');
+    if (!m) {
+        return false;
+    }
+    const major = parseInt(m[1], 10);
+    return major > 1 || (1 === major && parseInt(m[2], 10) >= 5);
+}
+
+//  enigma-vamiga 0.1.2 and older have no handshake (nor guestRts)
+function canHandshake(VAmiga) {
+    return 'function' === typeof VAmiga.prototype.setSerialHandshake;
+}
+
+function setHandshake(on) {
+    if (on === handshake || 'function' !== typeof emu.setSerialHandshake) {
+        return;
+    }
+    emu.setSerialHandshake(on);
+    handshake = on;
+}
+
+//
+//  May the host send now? The guest's RTS (CIA-B PA6), which axshim 1.5
+//  drops when its receive ring is three quarters full and while it starts a
+//  door. With the handshake on the core holds back what it has already
+//  accepted, so this only keeps more from piling up behind it; the window
+//  above keeps what is in flight within the shim's headroom. Without the
+//  handshake (an older shim, or an older package) RTS means nothing and the
+//  core's byte holding (patch 0001) is all there is.
+//
+function guestClearToSend() {
+    return !handshake || emu.guestRts;
+}
+
+//  Bytes the core has accepted that the guest's UART has not taken yet
+function inFlight() {
+    const n = emu.serialInPending;
+    return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+//  As much of the queue as the window, and the core's receive buffer, take
 function pumpInput() {
-    while (outQueue.length) {
+    if (!guestClearToSend()) {
+        return;
+    }
+    let room = InputWindowBytes - inFlight();
+    while (outQueue.length && room > 0) {
         const seg = outQueue[0];
-        const n = emu.serialWrite(seg.buf);
+        const offer = Math.min(room, seg.buf.length);
+        const n = emu.serialWrite(seg.buf.subarray(0, offer));
         if (n > 0) {
             if (!seg.frame) {
-                queuedDataBytes -= Math.min(n, seg.buf.length);
-                seg.rsOpen = rsPairOpen(seg.buf, Math.min(n, seg.buf.length), seg.rsOpen);
+                queuedDataBytes -= n;
+                seg.rsOpen = rsPairOpen(seg.buf, n, seg.rsOpen);
             }
             seg.started = true;
+            room -= n;
         }
         if (n >= seg.buf.length) {
             outQueue.shift();
             continue;
         }
         seg.buf = seg.buf.subarray(n);
-        return;
+        if (n < offer) {
+            return; //  the core's buffer is full
+        }
     }
 }
 
@@ -256,34 +361,72 @@ function startSession() {
     } catch (e) {
         //  informational only
     }
+    try {
+        writesAtStart = emu.hdfWriteStats.writes;
+    } catch (e) {
+        writesAtStart = null; //  the session's writes will be unknown
+    }
 
     post({
         type: 'ready',
-        restored: !!workerData.snapshot,
+        restored,
         ms: performance.now() - t0,
         restoreMs,
         hello: link.hello,
         stats,
+        serialHandshake: handshake,
     });
 }
 
+//
+//  Snapshot the booted machine for the cache, with the image's stat taken
+//  right after it: the snapshot holds the image's path and the guest's caches
+//  of its file system, so it is good only while the file is exactly this one
+//  (snapshot_cache.js). Taking it writes the core's pending changes into the
+//  image first, whatever the write-through; for a door that keeps nothing
+//  there is no snapshot when the boot has changed the disk (an AROS boot
+//  writes nothing, but an image's startup sequence might).
+//
 function takeSnapshot() {
     const ts = performance.now();
     let snapshot;
+    let stat;
     try {
+        if ('never' === writeThrough && emu.hdfPending) {
+            throw new Error(
+                'the boot wrote to the disk, and persist is off: not snapshotting, which ' +
+                    'would write it into the image (every session of this door boots)'
+            );
+        }
         const { Compressor } = require('enigma-vamiga');
         snapshot = emu.takeSnapshot({ compressor: Compressor.LZ4 });
+        const s = fs.statSync(workerData.image);
+        stat = { size: s.size, mtimeMs: s.mtimeMs, ino: s.ino, dev: s.dev };
     } catch (e) {
         //  not fatal: this session runs, the next one boots again
         postError(e, { during: 'snapshot', fatal: false });
         return;
     }
     const copy = new Uint8Array(snapshot); //  own ArrayBuffer, safe to transfer
-    post({ type: 'snapshot', snapshot: copy, ms: performance.now() - ts }, [copy.buffer]);
+    post(
+        {
+            type: 'snapshot',
+            snapshot: copy,
+            ms: performance.now() - ts,
+            serialHandshake: handshake,
+            stat,
+        },
+        [copy.buffer]
+    );
 }
 
 function handleFrame(frame) {
     switch (frame.type) {
+        case 'H':
+            //  at boot, and after each `s` from axshim 1.5 on
+            setHandshake(shimDrivesRts(frame.keys));
+            break;
+
         case 'R':
             if ('booting' === state) {
                 //  Booted and idle. Stop warping now and snapshot once a
@@ -355,155 +498,73 @@ function onFrame({ warping }) {
     }
 }
 
-function sameFile(a, b) {
-    return (
-        a.size === b.size && a.mtimeMs === b.mtimeMs && a.ino === b.ino && a.dev === b.dev
-    );
-}
-
-function fsyncDir(dir) {
-    let fd;
-    try {
-        fd = fs.openSync(dir, 'r');
-        fs.fsyncSync(fd);
-    } catch (e) {
-        //  not every platform syncs a directory; the rename stands regardless
-    } finally {
-        if (undefined !== fd) {
-            fs.closeSync(fd);
-        }
+//
+//  The door is over (its X, or the parent gave up on it): give the guest's
+//  file system time to write back what it still buffers, then have the core
+//  write the rest of its changes into the image and fsync it. With
+//  write-through on, most of the session's writes are in the image already;
+//  this is the remainder. A failure is reported, never thrown: the image keeps
+//  what reached it, in place (there is no copy to fall back to).
+//
+function syncDisk() {
+    if ('never' === writeThrough) {
+        return post({ type: 'synced', skipped: true });
     }
-}
-
-//  A persist copies the image and renames the copy over it: the image's
-//  directory must be writable with room for a second copy, and the image must
-//  be a plain file, not a single-file bind mount (a rename onto one fails).
-const PersistEnvErrors = ['EACCES', 'EPERM', 'EXDEV', 'EBUSY'];
-const PersistHint =
-    'persist needs a writable directory for the image with free space for a ' +
-    'copy of it, and an image that is not a single-file bind mount';
-const StaleTmpMs = 60 * 60 * 1000;
-
-//  Remove this image's own abandoned copies (<image>.<pid>.<ms>.persist, a
-//  crashed or killed persist) older than an hour; nothing else is touched.
-function removeStaleCopies(target) {
-    try {
-        const dir = paths.dirname(target);
-        const name = paths.basename(target);
-        const mine = new RegExp(
-            `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.\\d+\\.\\d+\\.persist$`
-        );
-        for (const f of fs.readdirSync(dir)) {
-            if (!mine.test(f)) {
-                continue;
-            }
-            const full = paths.join(dir, f);
-            try {
-                if (Date.now() - fs.statSync(full).mtimeMs > StaleTmpMs) {
-                    fs.unlinkSync(full);
-                }
-            } catch (e) {
-                //  gone already, or not ours to remove
-            }
-        }
-    } catch (e) {
-        //  best effort
-    }
-}
-
-//
-//  Write the session's disk changes back to the image, atomically: the image
-//  is copied to |tmp| beside it, the changed chunks go into the copy, the
-//  copy is synced and renamed over the image. A crash, a kill or a full disk
-//  at any point leaves the image as it was, never half written.
-//
-//  Nothing is written when the image is no longer the file this session read
-//  its baseline from (someone else wrote it meanwhile): the changes would be
-//  measured against the wrong disk.
-//
-function persist(path, tmp) {
     const ts = performance.now();
-    let tmpMade = false;
     try {
-        if (pacer) {
-            pacer.stop();
-        }
-        emu.runFrames(PersistSettleFrames);
+        emu.runFrames(SettleFrames);
         emu.serialRead(); //  the shim's R after X; nobody is listening
-
-        const target = fs.realpathSync(path);
-        const changed = () =>
-            baselineStat && !sameFile(baselineStat, fs.statSync(target));
-        const refuse = () =>
-            post({
-                type: 'persisted',
-                chunks: 0,
-                bytes: 0,
-                ms: performance.now() - ts,
-                refused: 'the image changed during the session',
-            });
-
-        if (changed()) {
-            return refuse();
-        }
-
-        const chunks = emu.hdfChangedChunks(PersistChunkBytes);
-        let bytes = 0;
-        if (chunks.length) {
-            removeStaleCopies(target);
-            tmp = tmp || `${target}.${process.pid}.${Date.now()}.persist`;
-            if (paths.dirname(paths.resolve(tmp)) !== paths.dirname(target)) {
-                throw new Error(`persist: ${tmp} is not beside ${target}`);
-            }
-            fs.copyFileSync(target, tmp, fs.constants.COPYFILE_EXCL);
-            tmpMade = true;
-            const fd = fs.openSync(tmp, 'r+');
-            try {
-                const size = fs.fstatSync(fd).size;
-                if (size !== emu.hdfSize) {
-                    throw new Error(
-                        `persist: ${target} is ${size} bytes, the disk is ${emu.hdfSize}`
-                    );
-                }
-                for (const { offset, data } of chunks) {
-                    let w = 0;
-                    while (w < data.length) {
-                        w += fs.writeSync(fd, data, w, data.length - w, offset + w);
-                    }
-                    bytes += data.length;
-                }
-                fs.fsyncSync(fd);
-            } finally {
-                fs.closeSync(fd);
-            }
-            //  last look: the copy was taken from the file we expect
-            if (changed()) {
-                fs.unlinkSync(tmp);
-                tmpMade = false;
-                return refuse();
-            }
-            fs.renameSync(tmp, target);
-            tmpMade = false;
-            fsyncDir(paths.dirname(target));
-        }
-        post({
-            type: 'persisted',
-            chunks: chunks.length,
-            bytes,
-            ms: performance.now() - ts,
-        });
     } catch (e) {
-        if (tmpMade) {
-            try {
-                fs.unlinkSync(tmp);
-            } catch (e2) {
-                //  best effort
+        //  a halted or failed machine: sync what the core has
+    }
+    let error = null;
+    try {
+        emu.hdfSync();
+    } catch (e) {
+        error = e;
+    }
+    //  Writes unknown (the core would not say, or never did at the start):
+    //  sessionWrites is null, and the parent treats the image as written.
+    let stats = { writes: null, bytes: null };
+    let sessionWrites = null;
+    try {
+        const now = emu.hdfWriteStats;
+        stats = now;
+        if (Number.isFinite(now.writes) && Number.isFinite(writesAtStart)) {
+            sessionWrites = Math.max(0, now.writes - writesAtStart);
+        }
+    } catch (e) {
+        //  stays unknown
+    }
+    post({
+        type: 'synced',
+        writes: stats.writes,
+        bytes: stats.bytes,
+        sessionWrites,
+        ms: performance.now() - ts,
+        error: error ? error.message || String(error) : undefined,
+        code: error ? error.code : undefined,
+    });
+}
+
+//
+//  Stopping with the carrier gone and the door still running (the server is
+//  shutting down): the Pacer is stopped, so nothing else would deliver the
+//  queued `d` or hear the shim's X. Run frames, pumping the serial line each
+//  one, until X arrives or the grace is used up. A door that has not answered
+//  by then is synced where it stands, like a power cut.
+//
+function deliverCarrierLoss() {
+    try {
+        for (let i = 0; i < CarrierGraceFrames && 'session' === state; ++i) {
+            if (outQueue.length) {
+                pumpInput();
             }
+            emu.runFrames(1);
+            onFrame({ warping: false });
         }
-        if (PersistEnvErrors.includes(e.code)) {
-            e.message = `${e.message} (${PersistHint})`;
-        }
-        postError(e, { during: 'persist', fatal: true });
+    } catch (e) {
+        //  a halted or failed machine: sync what the core has
     }
 }
 
@@ -511,16 +572,24 @@ function stop() {
     if ('stopping' === state) {
         return;
     }
-    state = 'stopping';
     try {
         if (pacer) {
             pacer.stop();
         }
-        if (emu) {
-            emu.destroy();
-        }
     } catch (e) {
         //  going away regardless
+    }
+    if (emu && carrierGone && 'session' === state) {
+        deliverCarrierLoss();
+    }
+    state = 'stopping';
+    if (emu) {
+        syncDisk();
+        try {
+            emu.destroy();
+        } catch (e) {
+            //  going away regardless
+        }
     }
     post({ type: 'stopped' });
     process.exit(0);
@@ -549,9 +618,6 @@ parentPort.on('message', msg => {
             }
             return;
 
-        case 'persist':
-            return persist(msg.path, msg.tmp);
-
         case 'stop':
             return stop();
 
@@ -559,6 +625,39 @@ parentPort.on('message', msg => {
             return;
     }
 });
+
+//
+//  The emulator for this session, on the image file. A restore needs an
+//  emulator with the same file-backed disk (the snapshot names the image's
+//  path); its RAM sizes are irrelevant (the snapshot brings its own
+//  configuration) and small ones keep the peak down. A boot gets the machine.
+//
+function createEmulator(VAmiga, boot) {
+    const common = {
+        module: workerData.module,
+        hdf: { path: workerData.image, mode: 'file' },
+        writeThrough,
+    };
+    if (canHandshake(VAmiga)) {
+        common.serialHandshake = handshake;
+    }
+    if (!boot) {
+        return VAmiga.create(Object.assign(common, { fastKb: 0, slowKb: 0 }));
+    }
+    const m = workerData.machine || {};
+    return VAmiga.create(
+        Object.assign(common, {
+            rom: workerData.rom,
+            ext: workerData.extRom,
+            cpu: m.cpu,
+            chipKb: m.chipKb,
+            slowKb: m.slowKb,
+            fastKb: m.fastKb,
+            overclock: m.overclock,
+            warpBootSeconds: workerData.warpBootSeconds,
+        })
+    );
+}
 
 async function main() {
     let VAmiga;
@@ -570,39 +669,35 @@ async function main() {
         return process.exit(1);
     }
 
+    //  until the shim's H says otherwise (a boot sees it before anything is sent)
+    handshake = canHandshake(VAmiga) && true === workerData.serialHandshake;
+
     try {
-        //  before the image is read: a write after this shows at persist time
-        baselineStat = fs.statSync(workerData.image);
         if (workerData.snapshot) {
-            //  RAM sizes are irrelevant here (the snapshot brings its own
-            //  configuration); a small one keeps the peak down
-            emu = await VAmiga.create({
-                module: workerData.module,
-                fastKb: 0,
-                slowKb: 0,
-            });
+            emu = await createEmulator(VAmiga, false);
             const tr = performance.now();
-            emu.loadSnapshot(workerData.snapshot);
-            //  persist against the image file, not the snapshot's disk
-            emu.markHdfClean(workerData.image);
-            restoreMs = performance.now() - tr;
-            link = new HostLink({ helloSeen: true });
-        } else {
-            const m = workerData.machine || {};
-            emu = await VAmiga.create({
-                module: workerData.module,
-                hdf: workerData.image,
-                rom: workerData.rom,
-                ext: workerData.extRom,
-                cpu: m.cpu,
-                chipKb: m.chipKb,
-                slowKb: m.slowKb,
-                fastKb: m.fastKb,
-                overclock: m.overclock,
-                warpBootSeconds: workerData.warpBootSeconds,
-            });
-            link = new HostLink();
+            try {
+                emu.loadSnapshot(workerData.snapshot);
+                restored = true;
+                restoreMs = performance.now() - tr;
+            } catch (e) {
+                //  A snapshot of another core (0.1.x), of another file, or
+                //  whose file did not open (VAmigaError): the cache drops it,
+                //  and this session boots instead
+                post({ type: 'snapshotRefused', message: e.message, code: e.code });
+                try {
+                    emu.destroy();
+                } catch (e2) {
+                    //  replaced below regardless
+                }
+                emu = null;
+                handshake = false;
+            }
         }
+        if (!emu) {
+            emu = await createEmulator(VAmiga, true);
+        }
+        link = new HostLink({ helloSeen: restored });
     } catch (e) {
         //  ConfigError (EVAMIGA_CONFIG) or VAmigaError (EVAMIGA_CORE)
         postError(e, { during: 'create', fatal: true });
@@ -621,7 +716,7 @@ async function main() {
         }
     });
 
-    if (workerData.snapshot) {
+    if (restored) {
         startSession();
     } else {
         emu.powerOn();

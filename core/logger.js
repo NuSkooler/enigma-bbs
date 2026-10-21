@@ -44,6 +44,48 @@ module.exports = class Log {
         });
     }
 
+    //
+    //  Call back once what has been logged so far has reached the log file,
+    //  or after |timeoutMs|, whichever is first. process.exit() drops what a
+    //  file stream still has queued, which used to cost the last lines before
+    //  an exit -- the shutdown's own, among them. (A record logged while the
+    //  rotating file is being rotated waits in bunyan's own queue and is not
+    //  covered; that is a moment a day.)
+    //
+    static flush(cb, timeoutMs = 1000) {
+        const pending = [];
+        ((this.log && this.log.streams) || []).forEach(s => {
+            //  a rotating-file stream wraps the fs.WriteStream doing the writes
+            const w = s.stream && s.stream.stream ? s.stream.stream : s.stream;
+            if (w && typeof w.write === 'function' && w.writableLength > 0) {
+                pending.push(w);
+            }
+        });
+
+        if (0 === pending.length) {
+            return cb();
+        }
+
+        let left = pending.length;
+        let called = false;
+        const done = () => {
+            if (!called) {
+                called = true;
+                clearTimeout(timer);
+                return cb();
+            }
+        };
+        const timer = setTimeout(done, timeoutMs);
+        //  write callbacks run in order, so this one runs after the rest
+        pending.forEach(w =>
+            w.write('', () => {
+                if (0 === --left) {
+                    return done();
+                }
+            })
+        );
+    }
+
     //  Path of the active rotating log file, or undefined if not enabled.
     //  Prefer this over Config().logging.rotatingFile.path; see init().
     static getRotatingFilePath() {
