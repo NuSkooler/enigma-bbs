@@ -252,3 +252,254 @@ describe('msg_list: the focused row', () => {
         });
     });
 });
+
+describe('msg_list: first unread navigation', () => {
+    function navigationList(messages, lastReadId = 20, focusedIndex = 0) {
+        const mod = makeList({ messageAreaTag: 'general', messageList: messages });
+        mod.lastReadId = lastReadId;
+        const view = {
+            focusedItemIndex: focusedIndex,
+            setFocusItemIndex(index) {
+                this.focusedItemIndex = index;
+            },
+        };
+        mod.viewControllers.allViews = { getView: () => view };
+        mod.populateCustomLabelsForSelected = index => {
+            mod.labelIndex = index;
+        };
+        return { mod, view };
+    }
+
+    const messages = () => [10, 20, 30, 40, 50].map(messageId => ({ messageId }));
+
+    function navigate(mod, method, cb) {
+        mod.menuMethods[method](keyPress(0), {}, cb);
+    }
+
+    it('jumps back to the first unread after the restored focus changes', done => {
+        const { mod, view } = navigationList(messages(), 20, 4);
+        mod.restoreSavedState({ initialFocusIndex: 4 });
+        navigate(mod, 'jumpToFirstUnread', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 2);
+            assert.equal(mod.labelIndex, 2);
+            assert.equal(mod.initialFocusIndex, 4);
+            done();
+        });
+    });
+
+    it('honours explicit unread flags in a list spanning areas', done => {
+        const { mod, view } = navigationList(
+            [
+                { messageId: 100, isNew: false },
+                { messageId: 5, isNew: true },
+                { messageId: 200, isNew: true },
+            ],
+            0,
+            2
+        );
+        navigate(mod, 'jumpToFirstUnread', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 1);
+            done();
+        });
+    });
+
+    it('can jump to unread index zero', done => {
+        const { mod, view } = navigationList(messages(), 0, 4);
+        navigate(mod, 'jumpToFirstUnread', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 0);
+            done();
+        });
+    });
+
+    it('does nothing when all messages are read', done => {
+        const { mod, view } = navigationList(messages(), 50, 3);
+        navigate(mod, 'jumpToFirstUnread', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 3);
+            assert.equal(mod.labelIndex, undefined);
+            done();
+        });
+    });
+
+    it('does nothing for an empty list', done => {
+        const { mod, view } = navigationList([], 0);
+        view.setFocusItemIndex = () => assert.fail('empty list must not move focus');
+        navigate(mod, 'jumpToFirstUnread', done);
+    });
+
+    it('does not change the list when another view holds focus', done => {
+        const { mod, view } = navigationList(messages(), 20, 4);
+        mod.menuMethods.jumpToFirstUnread({ submitId: 2, value: {} }, {}, err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 4);
+            done();
+        });
+    });
+
+    it('finds the unread row after earlier entries are removed', done => {
+        const { mod, view } = navigationList(messages(), 20, 3);
+        mod.config.messageList.splice(0, 1);
+        navigate(mod, 'jumpToFirstUnread', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 1);
+            done();
+        });
+    });
+
+    it('does not jump to messages after marking the area read', done => {
+        const messageArea = require('../core/message_area');
+        const original = messageArea.updateMessageAreaLastReadId;
+        const { mod, view } = navigationList(
+            [
+                { areaTag: 'general', messageId: 30, isNew: true },
+                { areaTag: 'general', messageId: 40, isNew: true },
+            ],
+            20,
+            1
+        );
+        mod.menuConfig.config = {};
+        view.setItems = () => {};
+        view.redraw = () => {};
+        messageArea.updateMessageAreaLastReadId = (_user, _area, _id, cb) => cb(null);
+        mod.markAllMessagesAsRead(err => {
+            messageArea.updateMessageAreaLastReadId = original;
+            assert.ifError(err);
+            navigate(mod, 'jumpToFirstUnread', err2 => {
+                assert.ifError(err2);
+                assert.equal(view.focusedItemIndex, 1);
+                done();
+            });
+        });
+    });
+
+    it('Home stops at the first unread before reaching the top', done => {
+        const { mod, view } = navigationList(messages(), 20, 4);
+        navigate(mod, 'messageListHome', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 2);
+            navigate(mod, 'messageListHome', err2 => {
+                assert.ifError(err2);
+                assert.equal(view.focusedItemIndex, 0);
+                done();
+            });
+        });
+    });
+
+    it('End stops at the first unread before reaching the bottom', done => {
+        const { mod, view } = navigationList(messages(), 20, 0);
+        navigate(mod, 'messageListEnd', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 2);
+            navigate(mod, 'messageListEnd', err2 => {
+                assert.ifError(err2);
+                assert.equal(view.focusedItemIndex, 4);
+                done();
+            });
+        });
+    });
+
+    it('Home and End reach the extremes when there are no unread messages', done => {
+        const { mod, view } = navigationList(messages(), 50, 3);
+        navigate(mod, 'messageListHome', err => {
+            assert.ifError(err);
+            assert.equal(view.focusedItemIndex, 0);
+            navigate(mod, 'messageListEnd', err2 => {
+                assert.ifError(err2);
+                assert.equal(view.focusedItemIndex, 4);
+                done();
+            });
+        });
+    });
+});
+
+describe('msg_list: shipped keyboard bindings', () => {
+    const fs = require('fs');
+    const paths = require('path');
+    const hjson = require('hjson');
+    const ConfigLoader = require('../core/config_loader');
+    const { ViewController } = require('../core/view_controller');
+    const { VerticalMenuView } = require('../core/vertical_menu_view');
+    const readTemplate = name =>
+        hjson.parse(
+            fs
+                .readFileSync(
+                    paths.join(__dirname, '../misc/menu_templates', `${name}.in.hjson`),
+                    'utf8'
+                )
+                .replace(/%INCLUDE_FILES%/g, '')
+        );
+    const menus = new ConfigLoader({ hotReload: false })._resolveAtSpecs(
+        require('lodash').defaultsDeep(readTemplate('main'), readTemplate('message_base'))
+    ).menus;
+
+    for (const name of [
+        'messageBaseMessageList',
+        'messageBaseMyMessagesList',
+        'messageBaseSearchResultsMessageList',
+    ]) {
+        it(`${name} dispatches U and Home/End through the real view controller`, () => {
+            const mod = makeList({
+                messageList: [10, 20, 30, 40, 50].map(messageId => ({
+                    messageId,
+                    text: String(messageId),
+                })),
+            });
+            mod.lastReadId = 20;
+            const client = Object.assign(
+                new (require('events').EventEmitter)(),
+                mod.client
+            );
+            mod.client = client;
+            client.log.trace = () => {};
+            client.log.warn = err => assert.fail(JSON.stringify(err));
+            client.currentMenuModule = mod;
+            client.term = { termWidth: 80, termHeight: 25, write() {}, rawWrite() {} };
+            const view = new VerticalMenuView({
+                client,
+                id: 1,
+                position: { row: 1, col: 1 },
+                dimens: { width: 40, height: 5 },
+            });
+            view.setItems(mod.config.messageList);
+            view.submitArgName = 'messageIndex';
+            view.setFocusItemIndex(4);
+            const vc = new ViewController({ client });
+            vc.addView(view);
+            vc.focusedView = view;
+            mod.viewControllers.allViews = vc;
+            mod.populateCustomLabelsForSelected = index => {
+                mod.labelIndex = index;
+            };
+            vc.mapActionKeys(menus[name].form[0].actionKeys, 'form');
+
+            for (const [key, expected] of [
+                ['u', 2],
+                ['home', 0],
+                ['end', 2],
+                ['end', 4],
+                ['shift + u', 2],
+            ]) {
+                vc.clientKeyPressHandler(null, { name: key });
+                assert.equal(view.focusedItemIndex, expected, key);
+                assert.equal(mod.labelIndex, expected, 'selection labels follow focus');
+                assert.equal(vc.focusedView, view, 'keyboard focus remains on the list');
+            }
+        });
+    }
+
+    for (const name of ['MSGLIST.ANS', 'MYMSGLST.ANS', 'MSRCHLST.ANS']) {
+        it(`${name} tells the caller about the unread shortcut`, () => {
+            const bytes = fs.readFileSync(
+                paths.join(__dirname, '../art/themes/luciano_blocktronics', name)
+            );
+            const text = bytes
+                .subarray(0, bytes.indexOf(0x1a))
+                .toString('latin1')
+                .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+            assert.match(text, /U:unread/);
+        });
+    }
+});

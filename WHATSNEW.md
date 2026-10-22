@@ -17,6 +17,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Press `U` in a message list to return to the first unread message** ([#197](https://github.com/NuSkooler/enigma-bbs/issues/197)). The shipped area, personal and search-result lists also make Home and End stop there before continuing to the top or bottom. Read/post return-focus positions remain independent of this action. Existing boards can add the configurable shortcuts as [UPGRADE](UPGRADE.md) describes.
+
 * **The file base can read ARC, PAK, ZOO, ACE, Squeeze It, UltraCompressor II, Unix `.Z`, xz, Zstandard and Microsoft Cabinet archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks** -- with [unarc](https://github.com/mkrueger/unarc-rs) installed. Uploads in these formats were treated as plain files, so nothing inside them was listed or used for a description. unarc is a single program that reads most archive formats found on BBSes; ENiGMA½ now lists their contents and takes descriptions from a `FILE_ID.DIZ` or `README` inside, as it does for ZIP. A DMS disk's attached `FILE_ID.DIZ` becomes its description. unarc is **not** shipped with ENiGMA½, and nothing changes until it is installed.
 
   * **New boards:** install unarc (see [Archivers](website/src/content/docs/configuration/archivers.md#unarc)) and it covers most archive types on its own, including Amiga LZX and Atari ATR in place of `unlzx` and `atr` -- point those two archivers at it as the Archivers page shows.
