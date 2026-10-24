@@ -294,12 +294,14 @@ describe('docker/Dockerfile (#814)', () => {
         }
     });
 
-    it('copies only the unarc binary into the runtime stage', () => {
-        const copies = runtime.instructions.filter(
-            i => i.name === 'COPY' && /^--from=unarc\b/.test(i.args)
-        );
-        assert.equal(copies.length, 1);
-        assert.match(copies[0].args, /\/bin\/unarc \/usr\/local\/bin\/unarc$/);
+    it('copies only the unarc binary and its licence into the runtime stage', () => {
+        const copies = runtime.instructions
+            .filter(i => i.name === 'COPY' && /^--from=unarc\b/.test(i.args))
+            .map(i => i.args.replace(/^--from=unarc\s+/, ''));
+        assert.deepEqual(copies.sort(), [
+            '/opt/unarc/bin/unarc /usr/local/bin/unarc',
+            '/opt/unarc/share/doc/unarc/ /usr/share/doc/unarc/',
+        ]);
     });
 
     it('reads LZX and ATR with unarc, and keeps RAR on unrar (#906)', () => {
@@ -382,10 +384,19 @@ describe('.github/workflows/docker.yml cache (#814)', () => {
         assert.match(m[1], /github\.event_name != 'pull_request'/);
     });
 
-    it('builds a pull request that changes the default config (#905)', () => {
-        //  docker/check_tools.js reads core/config_default.js, so a new
-        //  default that calls a program the image lacks fails the build.
-        assert.match(text, /^\s*- 'core\/config_default\.js'$/m);
+    it('builds a pull request that changes what check_tools reads (#905)', () => {
+        //  docker/check_tools.js reads the defaults through core/config.js,
+        //  and checks util/exiftool2desc.js, so a change to any of them can
+        //  fail the build.
+        for (const path of [
+            'core/config_default.js',
+            'core/config.js',
+            'core/config/unarc_archivers.js',
+            'util/exiftool2desc.js',
+        ]) {
+            const re = new RegExp(`^\\s*- '${path.replace(/[./]/g, '\\$&')}'$`, 'm');
+            assert.match(text, re, `docker.yml does not build on ${path}`);
+        }
     });
 });
 

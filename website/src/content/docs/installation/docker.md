@@ -101,8 +101,13 @@ setup:
 Debian packages neither `unlzx` nor `atr`, so the image reads LZX and ATR with
 [unarc](../configuration/archivers.md#unarc) instead. It sets `ENIGMA_UNARC_ARCHIVERS=Atr,Lzx`,
 which points those two archivers at the `Unarc` archiver, as the Archivers page shows for
-`config.hjson`. An `Atr` or `Lzx` entry in your own `config.hjson` still wins, and
-`-e ENIGMA_UNARC_ARCHIVERS=` turns the redirection off.
+`config.hjson`. `-e ENIGMA_UNARC_ARCHIVERS=` turns the redirection off. Names must match an
+archiver key exactly; others are ignored.
+
+An `Atr` or `Lzx` entry in your own `config.hjson` replaces the redirection outright, so it must
+be a *complete* archiver entry, with every operation it needs. A partial one, such as
+`Lzx: { list: { cmd: "my-unlzx" } }`, is not merged with anything: it becomes the whole `Lzx`
+archiver, and listing an LZX then fails.
 
 `unarc` is built from its [crates.io](https://crates.io/crates/unarc-cli) release for each
 platform during the image build, pinned by `UNARC_VERSION` in `docker/Dockerfile`. The build then
@@ -112,8 +117,10 @@ version.
 
 :::note
 Files uploaded or imported while an image lacked one of these tools were stored as plain files,
-without a listing or description. Rescan the area to fill them in, for example
+with only a description made from their file name. A rescan re-describes them, taking a
+`FILE_ID.DIZ` or similar from inside the archive, for example
 `docker exec ENiGMABBS ./oputil.js fb scan --full --update AREA_TAG` (see [oputil](../admin/oputil.md)).
+It does not change their recorded file type: they stay plain files in the database.
 :::
 
 ## Volumes

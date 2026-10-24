@@ -12,9 +12,10 @@
 //  have listed is filed as a plain file, with no FILE_ID.DIZ and nothing in the
 //  log to say why, which is how the image shipped without unzip and with an
 //  unrar that made every RAR look empty. So this reads the defaults the way
-//  the BBS will -- core/config_default.js, with this image's environment, so
-//  ENIGMA_UNARC_ARCHIVERS applies -- and fails the build on any program it
-//  cannot find. A new default that calls a new program therefore has to bring
+//  the BBS will -- the config loader's effectiveDefaults(), so this image's
+//  ENIGMA_UNARC_ARCHIVERS applies exactly as it does at runtime -- and fails
+//  the build on any program it cannot find, or on a name in that variable
+//  the loader would ignore. A new default that calls a new program therefore has to bring
 //  that program into the image with it, or route through unarc.
 //
 //  It also checks a few things command -v cannot see: that unrar is RARLAB's
@@ -26,7 +27,14 @@ const paths = require('path');
 
 const _ = require('lodash');
 
-const defaults = require(paths.join(__dirname, '..', 'core', 'config_default.js'))();
+const ROOT = paths.join(__dirname, '..');
+const { effectiveDefaults } = require(paths.join(ROOT, 'core', 'config.js'));
+const DefaultConfig = require(paths.join(ROOT, 'core', 'config_default.js'));
+const { EnvVar, parseUnarcArchivers } = require(
+    paths.join(ROOT, 'core', 'config', 'unarc_archivers.js')
+);
+
+const defaults = effectiveDefaults();
 
 //  Programs the image installs that no default names. Listed so a package
 //  that stops providing one fails the build like any other.
@@ -90,6 +98,18 @@ function main() {
     const unarcVersion = at >= 0 ? argv[at + 1] : undefined;
 
     const problems = [];
+
+    //  A misspelt name is ignored at runtime, leaving that archiver on a tool
+    //  the image may not have; here it fails the build instead.
+    const { ignored } = parseUnarcArchivers(
+        DefaultConfig().archives.archivers,
+        process.env[EnvVar]
+    );
+    for (const name of ignored) {
+        problems.push(
+            `${EnvVar} names "${name}", which is not an archiver unarc can stand in for`
+        );
+    }
 
     for (const [cmd, where] of wantedPrograms()) {
         //  command -v also takes an absolute path, as Exiftool2Desc's is

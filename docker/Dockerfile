@@ -79,6 +79,10 @@ RUN set -e \
         "CARGO_TARGET_$(echo "$target" | tr a-z A-Z)_LINKER=${gnu}-gcc" \
     && CARGO_PROFILE_RELEASE_STRIP=true cargo install --locked unarc-cli \
         --version "$UNARC_VERSION" --target "$rust" --root /opt/unarc \
+    && src=$(echo "$CARGO_HOME"/registry/src/*/"unarc-cli-${UNARC_VERSION}") \
+    && mkdir -p /opt/unarc/share/doc/unarc \
+    && cp "$src/LICENSE" /opt/unarc/share/doc/unarc/ \
+    && grep -E '^(license|repository) =' "$src/Cargo.toml" > /opt/unarc/share/doc/unarc/copyright \
     && rm -rf "$CARGO_HOME/registry"
 
 
@@ -125,8 +129,10 @@ RUN sed -i 's/^Components: main$/Components: main non-free/' /etc/apt/sources.li
 #  compilation, or a different base image in either stage, breaks this copy.
 COPY --from=build /enigma-bbs/node_modules /enigma-bbs/node_modules
 
-#  Only the binary: unarc needs no runtime files of its own.
+#  The binary, which needs no runtime files of its own, and its licence:
+#  unarc is MIT OR Apache-2.0, and the crate ships the Apache-2.0 text.
 COPY --from=unarc /opt/unarc/bin/unarc /usr/local/bin/unarc
+COPY --from=unarc /opt/unarc/share/doc/unarc/ /usr/share/doc/unarc/
 
 #  Do this after node_modules so a source change does not invalidate it.
 #  node_modules is in .dockerignore, so this cannot overwrite the copy above.
@@ -143,9 +149,9 @@ ARG UNARC_VERSION
 
 #  Debian packages neither unlzx nor atr, so the image reads LZX and ATR with
 #  unarc instead, as the Archivers docs suggest for any board that has it.
-#  core/config_default.js points the archivers named here at the Unarc
-#  archiver; an Atr or Lzx entry in config.hjson still overrides it. Rar stays
-#  on unrar, which the image has.
+#  The config loader points the archivers named here at the Unarc archiver
+#  (core/config/unarc_archivers.js); a complete Atr or Lzx entry in
+#  config.hjson replaces that. Rar stays on unrar, which the image has.
 ENV ENIGMA_UNARC_ARCHIVERS=Atr,Lzx
 
 #  Post source copy steps that have to happen every time. The entrypoint may

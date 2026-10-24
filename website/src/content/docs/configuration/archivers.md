@@ -116,7 +116,7 @@ ENiGMA½ needs `unarc` 0.8.0 or later, for `list --json` and for DMS, LZX and AT
 cargo install --locked unarc-cli
 ```
 
-Instead of editing `config.hjson`, the `ENIGMA_UNARC_ARCHIVERS` environment variable can name archivers to point at `Unarc`, separated by commas: `ENIGMA_UNARC_ARCHIVERS=Atr,Lzx` does the same as the example above. The Docker image sets exactly that. An entry for the same archiver in `config.hjson` takes precedence.
+Instead of editing `config.hjson`, the `ENIGMA_UNARC_ARCHIVERS` environment variable can name archivers to point at `Unarc`, separated by commas: `ENIGMA_UNARC_ARCHIVERS=Atr,Lzx` does the same as the example above. The Docker image sets exactly that. Names must match an archiver key exactly; others are ignored. The variable changes the defaults only, so an entry for the same archiver in `config.hjson` replaces it outright -- and must therefore be a *complete* archiver entry. A partial one, such as `Lzx: { list: { cmd: "my-unlzx" } }`, becomes the whole `Lzx` archiver, and listing an LZX then fails.
 
 `unarc` cannot create archives, so it is not a choice for `compress`.
 

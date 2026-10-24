@@ -1,31 +1,7 @@
 const paths = require('path');
 
-//
-//  Archivers to read with unarc in place of their own tool: a comma separated
-//  list of archives.archivers keys in the ENIGMA_UNARC_ARCHIVERS environment
-//  variable, e.g. "Atr,Lzx". Each named archiver becomes a reference to the
-//  Unarc archiver, as UPGRADE and the Archivers docs show for config.hjson.
-//
-//  The Docker image sets it, because it ships unarc but neither unlzx nor atr,
-//  which Debian does not package (#906). Unset, as it is anywhere else, the
-//  defaults are unchanged. An entry for the same archiver in config.hjson
-//  replaces the reference, as it would any default.
-//
-const routeArchiversToUnarc = defaults => {
-    const archivers = defaults.archives.archivers;
-    (process.env.ENIGMA_UNARC_ARCHIVERS || '')
-        .split(',')
-        .map(name => name.trim())
-        //  only archivers that exist: a misspelt name is not a new archiver
-        .filter(name => name && 'Unarc' !== name && archivers[name])
-        .forEach(name => {
-            archivers[name] = '@reference:archives.archivers.Unarc';
-        });
-    return defaults;
-};
-
 module.exports = () => {
-    const defaults = {
+    return {
         general: {
             boardName: 'Another Fine ENiGMA½ BBS',
             prettyBoardName: '|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS',
@@ -1118,9 +1094,9 @@ module.exports = () => {
                 external: {
                     //  :TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
                     //  Upstream ships Win32 builds and C source only; on *nix it is built
-                    //  from source. See http://wiki.synchro.net/util:sexyz. The binary in
-                    //  docker/bin is x86-64, so the Docker image only installs it on amd64
-                    //  -- elsewhere zmodem8kSz (lrzsz) is the working handler.
+                    //  from source. See http://wiki.synchro.net/util:sexyz. The Docker
+                    //  image ships one built for each platform it publishes (amd64, arm64
+                    //  and arm/v7); see docker/sexyz/build.sh.
                     sendCmd: 'sexyz',
                     sendArgs: ['-telnet', '-8', 'sz', '@{fileListPath}'],
                     recvCmd: 'sexyz',
@@ -1733,6 +1709,4 @@ module.exports = () => {
             },
         },
     };
-
-    return routeArchiversToUnarc(defaults);
 };
