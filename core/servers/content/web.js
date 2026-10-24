@@ -17,6 +17,7 @@ const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
 const WebLog = require('../../web_log.js');
+const { getUrlPath } = require('../../web_util.js');
 
 class RateLimiter {
     constructor() {
@@ -389,7 +390,7 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     tryRouteIndex(req, resp, cb) {
-        const tryFiles = Config().contentServers.web.tryFiles || [
+        const tryFiles = _.get(Config(), 'contentServers.web.tryFiles') || [
             'index.html',
             'index.htm',
         ];
@@ -459,12 +460,11 @@ exports.getModule = class WebServerModule extends ServerModule {
         });
     }
 
-    //  The path part of the request URL only. Links shared on social media come
-    //  back with tracking parameters appended (e.g. Facebook's ?fbclid=...), and
-    //  a query string or fragment must not become part of the file name.
+    //  The request path a static file is looked up by: never the query string
+    //  or fragment, which must not become part of the file name.
     staticRequestPath(req) {
-        const path = req.url.split(/[?#]/, 1)[0];
-        return path.substr(path.lastIndexOf('/', 1));
+        const urlPath = getUrlPath(req.url);
+        return urlPath.substr(urlPath.lastIndexOf('/', 1));
     }
 
     resolveStaticPath(requestPath, cb) {

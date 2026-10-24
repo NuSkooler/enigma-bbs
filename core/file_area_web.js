@@ -17,7 +17,7 @@ const webServerPackageName = require('./servers/content/web.js').moduleInfo.pack
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_menu_method.js');
-const { buildUrl } = require('./web_util');
+const { buildUrl, getUrlPath } = require('./web_util');
 const { hasFileAreaDownloadAccess } = require('./file_base_area.js');
 
 //  deps
@@ -337,7 +337,7 @@ class FileAreaWebAccess {
     }
 
     routeWebRequest(req, resp) {
-        const hashId = paths.basename(req.url);
+        const hashId = paths.basename(getUrlPath(req.url));
 
         Log.debug({ hashId: hashId, url: req.url }, 'File area web request');
 

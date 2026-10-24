@@ -1587,7 +1587,9 @@ module.exports = () => {
                 //  if you change the /_f/ prefix here, ensure something
                 //  non-colliding with other routes is utilized
                 path: '/_f/',
-                routePath: '^/_f/[a-zA-Z0-9]+$',
+                //  a query string is allowed, and ignored: shared links come
+                //  back with tracking parameters such as ?fbclid= appended
+                routePath: '^/_f/[a-zA-Z0-9]+(\\?.*)?$',
                 expireMinutes: 1440, //  1 day
             },
 

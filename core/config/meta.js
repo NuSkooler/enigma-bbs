@@ -549,6 +549,12 @@ module.exports = {
         type: 'string',
         description: 'Domain this board is reached at; used to build links in email and on the web.',
     },
+    'contentServers.web.tryFiles': {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+            'File names tried, in order, when a request names a directory under staticRoot. Unset tries index.html, then index.htm.',
+    },
     'contentServers.gopher.port': PORT,
     'contentServers.gopher.publicPort': port(
         'Port advertised in Gopher selectors, for when the board is reached through a forward.'
