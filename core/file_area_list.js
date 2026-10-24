@@ -433,45 +433,48 @@ exports.getModule = class FileAreaList extends MenuModule {
                         const descView = self.viewControllers.browse.getView(
                             MciViewIds.browse.desc
                         );
-                        if (descView) {
-                            //
-                            //  For descriptions we want to support as many color code systems
-                            //  as we can for coverage of what is found in the while (e.g. Renegade
-                            //  pipes, PCB @X##, etc.)
-                            //
-                            //  MLTEV doesn't support all of this, so convert. If we produced ANSI
-                            //  esc sequences, we'll proceed with specialization, else just treat
-                            //  it as text.
-                            //
-                            const desc = controlCodesToAnsi(self.currentFileEntry.desc);
-                            if (
-                                desc.length != self.currentFileEntry.desc.length ||
-                                isAnsi(desc)
-                            ) {
-                                const opts = {
-                                    prepped: false,
-                                    forceLineTerm: true,
-                                };
+                        if (!descView) {
+                            //  no desc view in this theme; still must move on
+                            return callback(null);
+                        }
 
-                                //
-                                //  if SAUCE states a term width, honor it else we may see
-                                //  display corruption
-                                //
-                                const sauceTermWidth = _.get(
-                                    self.currentFileEntry.meta,
-                                    'desc_sauce.Character.characterWidth'
-                                );
-                                if (_.isNumber(sauceTermWidth)) {
-                                    opts.termWidth = sauceTermWidth;
-                                }
+                        //
+                        //  For descriptions we want to support as many color code systems
+                        //  as we can for coverage of what is found in the while (e.g. Renegade
+                        //  pipes, PCB @X##, etc.)
+                        //
+                        //  MLTEV doesn't support all of this, so convert. If we produced ANSI
+                        //  esc sequences, we'll proceed with specialization, else just treat
+                        //  it as text.
+                        //
+                        const desc = controlCodesToAnsi(self.currentFileEntry.desc);
+                        if (
+                            desc.length != self.currentFileEntry.desc.length ||
+                            isAnsi(desc)
+                        ) {
+                            const opts = {
+                                prepped: false,
+                                forceLineTerm: true,
+                            };
 
-                                descView.setAnsi(desc, opts, () => {
-                                    return callback(null);
-                                });
-                            } else {
-                                descView.setText(self.currentFileEntry.desc);
-                                return callback(null);
+                            //
+                            //  if SAUCE states a term width, honor it else we may see
+                            //  display corruption
+                            //
+                            const sauceTermWidth = _.get(
+                                self.currentFileEntry.meta,
+                                'desc_sauce.Character.characterWidth'
+                            );
+                            if (_.isNumber(sauceTermWidth)) {
+                                opts.termWidth = sauceTermWidth;
                             }
+
+                            descView.setAnsi(desc, opts, () => {
+                                return callback(null);
+                            });
+                        } else {
+                            descView.setText(self.currentFileEntry.desc);
+                            return callback(null);
                         }
                     } else {
                         return callback(null);

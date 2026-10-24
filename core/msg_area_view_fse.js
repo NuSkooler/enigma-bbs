@@ -118,7 +118,8 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
                         'preAuthFeedbackNoReply';
                     return self.gotoMenuOrShowMessage(
                         noReplyMenu,
-                        'Sender has no account; reply cannot be delivered.'
+                        'Sender has no account; reply cannot be delivered.',
+                        cb
                     );
                 }
 

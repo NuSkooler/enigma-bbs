@@ -70,6 +70,11 @@ function sendUnfollowRequest(fromUser, toActor, cb) {
                 return cb(err);
             }
 
+            if (!followedActor) {
+                //  Not in our following collection: nothing to Undo
+                return cb(Errors.DoesNotExist(`Not following Actor "${toActor.id}"`));
+            }
+
             //  Always remove from the local collection, notify the remote server
             Collection.removeOwnedById(
                 Collections.Following,

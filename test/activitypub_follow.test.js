@@ -223,6 +223,13 @@ describe('sendUnfollowRequest()', function () {
         assert.equal(deliveredType, 'Undo', 'Undo activity should be delivered');
     });
 
+    it('errors (rather than throwing) when not following the Actor', done => {
+        sendUnfollowRequest(makeLocalUser(), makeRemoteActor(), err => {
+            assert.ok(err, 'should error');
+            done();
+        });
+    });
+
     it('errors when local user is missing ActivityPubActorId', done => {
         const user = { username: 'broken', getProperty: () => null };
         sendUnfollowRequest(user, makeRemoteActor(), err => {
