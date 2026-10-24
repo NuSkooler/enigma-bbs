@@ -1093,6 +1093,13 @@
                         },
                         "restApi": {
                             "type": "object"
+                        },
+                        "tryFiles": {
+                            "description": "File names tried, in order, when a request names a directory under staticRoot. Unset tries index.html, then index.htm.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
                         }
                     },
                     "patternProperties": {
@@ -2076,7 +2083,7 @@
                         },
                         "routePath": {
                             "type": "string",
-                            "default": "^/_f/[a-zA-Z0-9]+$"
+                            "default": "^/_f/[a-zA-Z0-9]+(\\?.*)?$"
                         },
                         "expireMinutes": {
                             "description": "How long a generated web download link stays valid.",

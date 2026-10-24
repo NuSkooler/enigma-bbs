@@ -17,6 +17,7 @@ const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
 const WebLog = require('../../web_log.js');
+const { getUrlPath } = require('../../web_util.js');
 
 class RateLimiter {
     constructor() {
@@ -389,7 +390,7 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     tryRouteIndex(req, resp, cb) {
-        const tryFiles = Config().contentServers.web.tryFiles || [
+        const tryFiles = _.get(Config(), 'contentServers.web.tryFiles') || [
             'index.html',
             'index.htm',
         ];
@@ -397,10 +398,7 @@ exports.getModule = class WebServerModule extends ServerModule {
         findSeries(
             tryFiles,
             (tryFile, nextTryFile) => {
-                const fileName = paths.join(
-                    req.url.substr(req.url.lastIndexOf('/', 1)),
-                    tryFile
-                );
+                const fileName = paths.join(this.staticRequestPath(req), tryFile);
 
                 this.resolveStaticPath(fileName, (err, filePath) => {
                     if (err || !filePath) {
@@ -434,7 +432,7 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     tryStaticRoute(req, resp, cb) {
-        const fileName = req.url.substr(req.url.lastIndexOf('/', 1));
+        const fileName = this.staticRequestPath(req);
 
         this.resolveStaticPath(fileName, (err, filePath) => {
             if (err || !filePath) {
@@ -460,6 +458,13 @@ exports.getModule = class WebServerModule extends ServerModule {
                 return cb(true);
             });
         });
+    }
+
+    //  The request path a static file is looked up by: never the query string
+    //  or fragment, which must not become part of the file name.
+    staticRequestPath(req) {
+        const urlPath = getUrlPath(req.url);
+        return urlPath.substr(urlPath.lastIndexOf('/', 1));
     }
 
     resolveStaticPath(requestPath, cb) {

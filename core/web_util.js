@@ -7,6 +7,7 @@ exports.getWebDomain = getWebDomain;
 exports.getBaseUrl = getBaseUrl;
 exports.getFullUrl = getFullUrl;
 exports.buildUrl = buildUrl;
+exports.getUrlPath = getUrlPath;
 
 function getWebDomain() {
     const config = Config();
@@ -48,6 +49,13 @@ function getBaseUrl() {
 function getFullUrl(req) {
     const base = getBaseUrl();
     return new URL(`${base}${req.url}`);
+}
+
+//  The path part of a request URL, without its query string or fragment. Links
+//  shared on social media come back with tracking parameters appended (e.g.
+//  Facebook's ?fbclid=...), and those must not end up in a file name or an id.
+function getUrlPath(url) {
+    return url.split(/[?#]/, 1)[0];
 }
 
 function buildUrl(pathAndQuery) {
