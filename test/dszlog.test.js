@@ -151,7 +151,7 @@ describe('DSZLOG parsing', () => {
 
     it('accepts CRLF endings, blank lines, and a last line with no newline', () => {
         const text =
-            sexyzLine('R', 1, 'one.zip').replace('\n', '\r\n') +
+            sexyzLine('R', 1, 'one.zip').replace(/\n/g, '\r\n') +
             '\r\n' +
             sexyzLine('R', 2, 'two.zip').trim() +
             '\r';
