@@ -1525,6 +1525,9 @@
                                     "type": "string"
                                 }
                             },
+                            "dszLog": {
+                                "type": "boolean"
+                            },
                             "processIACs": {
                                 "type": "boolean"
                             }

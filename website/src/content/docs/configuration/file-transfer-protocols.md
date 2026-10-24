@@ -54,6 +54,8 @@ For protocols of type `external` the following members may be defined:
     `escapeTelnet` is a deprecated name; it is still accepted for compatibility.
     :::
 
+* `dszLog`: Optional; If set to `true`, uploads point the protocol's `DSZLOG` environment variable at a temporary file, where the protocol records the result of each file it receives. If the protocol then exits with an error, the files the log records as received in full are kept rather than the whole upload being thrown away; anything else in the upload directory, such as a partial file, is not. Some senders botch the end of a batch after the last file has already arrived -- VTX's YModem, for one -- and without this the caller's upload is lost. The predefined SEXYZ protocols set it. Upstream `lrzsz` does not write a DSZLOG, but some distributions patch `rz` to (Ubuntu's, for example), so it can be set on an `rz` based protocol where that is the case; where it is not, it does nothing.
+
 ## Adding Your Own
 Take a look a the example below as well as [core/config_default.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config_default.js).
 
@@ -69,6 +71,7 @@ zmodem8kSexyz : {
         recvCmd             : 'sexyz',
         recvArgs            : [ '-telnet', '-8', 'rz', '{uploadDir}' ],
         recvArgsNonBatch    : [ '-telnet', '-8', 'rz', '{fileName}' ],
+        dszLog              : true,
     }
 }
 ```
