@@ -26,7 +26,20 @@ const DOCKERIGNORE = paths.join(REPO_ROOT, '.dockerignore');
 const WORKFLOW = paths.join(REPO_ROOT, '.github', 'workflows', 'docker.yml');
 
 const BUILD_ONLY_PACKAGES = ['build-essential', 'python3', 'libssl-dev', 'git', 'curl'];
-const RUNTIME_PACKAGES = ['lrzsz', 'arj', 'lhasa', 'unrar-free', 'p7zip-full'];
+//  #905: zip/unzip, exiftool, poppler-utils and xdms are what the default
+//  archivers and info-extract utilities call; unrar is RARLAB's, from non-free.
+const RUNTIME_PACKAGES = [
+    'lrzsz',
+    'arj',
+    'lhasa',
+    'unrar',
+    'p7zip-full',
+    'zip',
+    'unzip',
+    'libimage-exiftool-perl',
+    'poppler-utils',
+    'xdms',
+];
 
 //  Reduce a Dockerfile to its instructions: comments dropped, backslash
 //  continuations joined, each instruction as { name, args } with |args| being
@@ -59,15 +72,27 @@ function parseInstructions(text) {
     return instructions;
 }
 
-//  Group instructions by stage. Each stage records the image it starts FROM
-//  and the name given with AS, if any.
-function parseStages(text) {
+//  Group instructions by stage. Each stage records the image it starts FROM,
+//  the --platform it pins, if any, and the name given with AS, if any. ARGs
+//  before the first FROM are global and land in |globals|.
+function parseStages(text, globals = []) {
     const stages = [];
     for (const inst of parseInstructions(text)) {
         if (inst.name === 'FROM') {
-            const m = inst.args.match(/^(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?$/i);
+            const m = inst.args.match(
+                /^(?:--platform=(\S+)\s+)?(\S+)(?:\s+AS\s+(\S+))?$/i
+            );
             assert(m, `unparseable FROM: ${inst.args}`);
-            stages.push({ image: m[1], name: m[2] || null, instructions: [] });
+            stages.push({
+                image: m[2],
+                platform: m[1] || null,
+                name: m[3] || null,
+                instructions: [],
+            });
+            continue;
+        }
+        if (!stages.length && inst.name === 'ARG') {
+            globals.push(inst);
             continue;
         }
         assert(stages.length, `instruction before first FROM: ${inst.name}`);
@@ -122,11 +147,11 @@ describe('docker/Dockerfile (#814)', () => {
         assert.doesNotMatch(build.image, /\$\{?BUILDPLATFORM/);
     });
 
-    it('does not pin --platform on either FROM (#794)', () => {
-        const text = fs.readFileSync(DOCKERFILE, 'utf8');
-        for (const inst of parseInstructions(text).filter(i => i.name === 'FROM')) {
-            assert.doesNotMatch(inst.args, /--platform/, `FROM ${inst.args}`);
-        }
+    it('does not pin --platform on the build or runtime stage (#794)', () => {
+        //  Only a stage that cross compiles may run on BUILDPLATFORM; these
+        //  two run npm ci and copy the tree, so they must run on the target.
+        assert.equal(build.platform, null, `build stage pins ${build.platform}`);
+        assert.equal(runtime.platform, null, `runtime stage pins ${runtime.platform}`);
     });
 
     it('installs the toolchain and runs npm ci in the build stage', () => {
@@ -176,6 +201,24 @@ describe('docker/Dockerfile (#814)', () => {
         }
     });
 
+    it('installs RARLAB unrar from non-free, not unrar-free (#905)', () => {
+        //  unrar-free prints each entry over two lines, so the Rar archiver's
+        //  list pattern matches nothing and every RAR looks empty.
+        assert(
+            !aptInstalls(runtime).includes('unrar-free'),
+            'runtime installs unrar-free'
+        );
+        const runs = runtime.instructions.filter(i => i.name === 'RUN').map(i => i.args);
+        const install = runs.find(r => /apt-get\s+install\b[^&]*\bunrar\b/.test(r));
+        assert(install, 'no RUN installs unrar');
+        const enable = install.indexOf('non-free');
+        assert(enable >= 0, 'the RUN that installs unrar does not enable non-free');
+        assert(
+            enable < install.indexOf('apt-get update'),
+            'non-free enabled after apt-get update'
+        );
+    });
+
     it('copies node_modules out of the build stage, before the source tree', () => {
         const copies = runtime.instructions.filter(i => i.name === 'COPY');
         const fromBuild = copies.findIndex(c => /^--from=build\b/.test(c.args));
@@ -208,6 +251,81 @@ describe('docker/Dockerfile (#814)', () => {
         assert(
             runtime.instructions.some(i => i.name === 'ARG' && i.args === 'TARGETARCH')
         );
+    });
+
+    it('builds a pinned unarc for the target in a stage of its own (#906)', () => {
+        const unarc = stages.find(s => s.name === 'unarc');
+        assert(unarc, 'no stage named "unarc"');
+        assert.notEqual(unarc, runtime);
+
+        //  Cross compiled on the builder rather than built under QEMU, so it
+        //  must run on BUILDPLATFORM and pick its target from TARGETARCH.
+        assert.equal(unarc.platform, '$BUILDPLATFORM');
+        assert(unarc.instructions.some(i => i.name === 'ARG' && i.args === 'TARGETARCH'));
+        const install = unarc.instructions
+            .filter(i => i.name === 'RUN')
+            .map(i => i.args)
+            .find(r => /cargo install\b/.test(r));
+        assert(install, 'unarc stage does not cargo install');
+        assert.match(install, /--locked\b/);
+        assert.match(install, /\bunarc-cli\b/);
+        assert.match(install, /--version "\$UNARC_VERSION"/);
+        for (const arch of ['amd64', 'arm64', 'arm']) {
+            assert.match(install, new RegExp(`\\b${arch}\\)`), `no case for ${arch}`);
+        }
+    });
+
+    it('pins one unarc version, shared by the build and the check (#801)', () => {
+        const globals = [];
+        parseStages(fs.readFileSync(DOCKERFILE, 'utf8'), globals);
+        const pin = globals.find(g => /^UNARC_VERSION=/.test(g.args));
+        assert(pin, 'no global ARG UNARC_VERSION');
+        assert.match(pin.args, /^UNARC_VERSION=\d+\.\d+\.\d+$/);
+
+        //  Stages redeclare it without a default, so there is one place to bump.
+        for (const stage of stages) {
+            for (const arg of stage.instructions.filter(i => i.name === 'ARG')) {
+                assert.doesNotMatch(
+                    arg.args,
+                    /^UNARC_VERSION=/,
+                    `${stage.name}: ${arg.args}`
+                );
+            }
+        }
+    });
+
+    it('copies only the unarc binary and its licence into the runtime stage', () => {
+        const copies = runtime.instructions
+            .filter(i => i.name === 'COPY' && /^--from=unarc\b/.test(i.args))
+            .map(i => i.args.replace(/^--from=unarc\s+/, ''));
+        assert.deepEqual(copies.sort(), [
+            '/opt/unarc/bin/unarc /usr/local/bin/unarc',
+            '/opt/unarc/share/doc/unarc/ /usr/share/doc/unarc/',
+        ]);
+    });
+
+    it('reads LZX and ATR with unarc, and keeps RAR on unrar (#906)', () => {
+        const env = runtime.instructions.find(
+            i => i.name === 'ENV' && /^ENIGMA_UNARC_ARCHIVERS=/.test(i.args)
+        );
+        assert(env, 'runtime stage does not set ENIGMA_UNARC_ARCHIVERS');
+        const names = env.args.replace(/^ENIGMA_UNARC_ARCHIVERS=/, '').split(',');
+        assert.deepEqual(names.sort(), ['Atr', 'Lzx']);
+    });
+
+    it('checks every default archiver and info-extract tool while building (#905)', () => {
+        const runs = runtime.instructions.filter(i => i.name === 'RUN').map(i => i.args);
+        const check = runs.find(r => /docker\/check_tools\.js\b/.test(r));
+        assert(check, 'runtime stage does not run docker/check_tools.js');
+        assert.match(check, /--unarc-version "\$UNARC_VERSION"/);
+        //  as a step of the chain, so a failure fails the build
+        assert.match(check, /&& node \/enigma-bbs\/docker\/check_tools\.js/);
+
+        const envAt = runtime.instructions.findIndex(
+            i => i.name === 'ENV' && /^ENIGMA_UNARC_ARCHIVERS=/.test(i.args)
+        );
+        const checkAt = runtime.instructions.findIndex(i => i.args === check);
+        assert(envAt >= 0 && envAt < checkAt, 'the check runs before the routing is set');
     });
 
     it('never starts the BBS while building the image', () => {
@@ -264,6 +382,21 @@ describe('.github/workflows/docker.yml cache (#814)', () => {
     it('still writes no cache from a pull request', () => {
         const m = text.match(/cache-to:\s*(.*)/);
         assert.match(m[1], /github\.event_name != 'pull_request'/);
+    });
+
+    it('builds a pull request that changes what check_tools reads (#905)', () => {
+        //  docker/check_tools.js reads the defaults through core/config.js,
+        //  and checks util/exiftool2desc.js, so a change to any of them can
+        //  fail the build.
+        for (const path of [
+            'core/config_default.js',
+            'core/config.js',
+            'core/config/unarc_archivers.js',
+            'util/exiftool2desc.js',
+        ]) {
+            const re = new RegExp(`^\\s*- '${path.replace(/[./]/g, '\\$&')}'$`, 'm');
+            assert.match(text, re, `docker.yml does not build on ${path}`);
+        }
     });
 });
 

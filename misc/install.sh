@@ -257,6 +257,23 @@ ADDITIONAL ACTIONS ARE REQUIRED!
   Arj: Archive support
     Debian/Ubuntu : apt-get install arj
 
+  zip/unzip: ZIP support, the most common upload format
+    Debian/Ubuntu : apt-get install zip unzip
+    CentOS        : yum install zip unzip
+
+  unrar: RAR support. It must be RARLAB's unrar: unrar-free lists RARs in a
+  layout ENiGMA cannot read, so every RAR looks empty
+    Debian        : enable non-free, then apt-get install unrar
+    Ubuntu        : enable multiverse, then apt-get install unrar
+    CentOS        : yum install unrar (RPM Fusion nonfree)
+
+  unarc: Reads ARC/PAK, ZOO, ACE, SQZ, UC2, .Z, xz, Zstandard, CAB, C64 and
+  Amiga DMS files, and can stand in for unlzx and atr (LZX and ATR)
+    Any           : cargo install --locked unarc-cli
+                    (needs Rust 1.95 or later: https://rustup.rs, or with mise:
+                     mise use -g rust, then the cargo command above. It
+                     installs to ~/.cargo/bin, which must be in ENiGMA's PATH)
+
   sz/rz: Various X/Y/Z modem support
     Debian/Ubuntu : apt-get install lrzsz
     CentOS        : yum install lrzsz

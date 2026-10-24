@@ -1094,9 +1094,9 @@ module.exports = () => {
                 external: {
                     //  :TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
                     //  Upstream ships Win32 builds and C source only; on *nix it is built
-                    //  from source. See http://wiki.synchro.net/util:sexyz. The binary in
-                    //  docker/bin is x86-64, so the Docker image only installs it on amd64
-                    //  -- elsewhere zmodem8kSz (lrzsz) is the working handler.
+                    //  from source. See http://wiki.synchro.net/util:sexyz. The Docker
+                    //  image ships one built for each platform it publishes (amd64, arm64
+                    //  and arm/v7); see docker/sexyz/build.sh.
                     sendCmd: 'sexyz',
                     sendArgs: ['-telnet', '-8', 'sz', '@{fileListPath}'],
                     recvCmd: 'sexyz',

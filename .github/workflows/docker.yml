@@ -7,12 +7,20 @@ on:
   pull_request:
     #  The inputs that decide whether the image builds. Application source is
     #  copied in after npm ci and cannot fail it, so it is left out rather
-    #  than spending eleven minutes under QEMU on every pull request.
+    #  than spending eleven minutes under QEMU on every pull request. The
+    #  exception is what docker/check_tools.js reads: it fails the build when
+    #  a default archiver or info-extract tool calls a program the image
+    #  lacks (#905), so a change to the defaults, the loader that routes
+    #  archivers to unarc, or exiftool2desc can fail it too.
     paths:
       - 'docker/**'
       - '.dockerignore'
       - 'package.json'
       - 'package-lock.json'
+      - 'core/config_default.js'
+      - 'core/config.js'
+      - 'core/config/unarc_archivers.js'
+      - 'util/exiftool2desc.js'
       - '.github/workflows/docker.yml'
 
   workflow_dispatch:

@@ -1,6 +1,7 @@
 //  ENiGMA½
 const DefaultConfig = require('./config_default');
 const ConfigLoader = require('./config_loader');
+const { routeArchiversToUnarc } = require('./config/unarc_archivers');
 
 const _ = require('lodash');
 
@@ -20,6 +21,18 @@ function getSchema() {
     }
     return schemaInstance;
 }
+
+//
+//  The defaults as this process runs them: config_default.js with
+//  ENIGMA_UNARC_ARCHIVERS applied. It is applied here and never in
+//  config_default.js itself, which the schema, `oputil.js config new` and the
+//  reference checks are built from and which must not vary with the
+//  environment. See config/unarc_archivers.js.
+//
+function effectiveDefaults() {
+    return routeArchiversToUnarc(DefaultConfig());
+}
+exports.effectiveDefaults = effectiveDefaults;
 
 exports.Config = class Config extends ConfigLoader {
     constructor(options) {
@@ -51,7 +64,7 @@ exports.Config = class Config extends ConfigLoader {
         const reportValidation = false !== options.reportValidation;
 
         const configOptions = Object.assign({}, _.omit(options, 'reportValidation'), {
-            defaultConfig: DefaultConfig,
+            defaultConfig: effectiveDefaults,
             defaultsCustomizer: (defaultVal, configVal, key, path) => {
                 if (Array.isArray(defaultVal) && Array.isArray(configVal)) {
                     if (replacePaths.includes(path) || replaceKeys.includes(key)) {
