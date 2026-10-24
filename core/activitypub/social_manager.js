@@ -110,8 +110,8 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
     initSequence() {
         this.webServer = getServer('codes.l33t.enigma.web.server');
         if (!this.webServer) {
-            this.client.log('Could not get Web server');
-            return this.prevMenu();
+            this.client.log.warn('Could not get Web server');
+            return this.prevMenu(() => {});
         }
         this.webServer = this.webServer.instance;
 
@@ -133,7 +133,7 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                         { error: err.message },
                         'Failed to initialize ActivityPub Social Manager'
                     );
-                    return this.prevMenu();
+                    return this.prevMenu(() => {});
                 }
 
                 return this.finishedLoading();

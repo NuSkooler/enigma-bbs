@@ -186,7 +186,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
         this.webServer = getServer('codes.l33t.enigma.web.server');
         if (!this.webServer) {
             this.client.log.warn('AP search: could not get web server');
-            return this.prevMenu();
+            return this.prevMenu(() => {});
         }
         this.webServer = this.webServer.instance;
 

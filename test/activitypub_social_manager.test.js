@@ -128,29 +128,31 @@ describe('ActivityPub Social Manager', () => {
             //  module against a stubbed listening_server, then restore the cache.
             const lsPath = require.resolve('../core/listening_server.js');
             const smPath = require.resolve('../core/activitypub/social_manager.js');
-            const savedLs = require.cache[lsPath];
+            const savedLsExports = require.cache[lsPath].exports;
             const savedSm = require.cache[smPath];
 
             let getModule;
             try {
-                require('../core/listening_server.js');
                 require.cache[lsPath].exports = {
                     getServer: () => ({ instance: {} }),
                 };
                 delete require.cache[smPath];
                 getModule = require(smPath).getModule;
             } finally {
-                if (savedLs) {
-                    require.cache[lsPath] = savedLs;
-                } else {
-                    delete require.cache[lsPath];
-                }
+                require.cache[lsPath].exports = savedLsExports;
                 if (savedSm) {
                     require.cache[smPath] = savedSm;
                 } else {
                     delete require.cache[smPath];
                 }
             }
+
+            //  the stub must not leak into later requires
+            assert.equal(require('../core/listening_server.js'), savedLsExports);
+            assert.equal(
+                typeof require('../core/listening_server.js').startup,
+                'function'
+            );
 
             const { mgr, client } = makeManager({ getModule });
             const logged = [];

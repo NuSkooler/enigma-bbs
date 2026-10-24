@@ -51,6 +51,7 @@ dbModule.dbs.activitypub = _apDb;
     '../core/activitypub/follow_util.js',
 ].forEach(m => delete require.cache[require.resolve(m)]);
 
+const { ErrorCodes } = require('../core/enig_error.js');
 const ActivityPubObject = require('../core/activitypub/object.js');
 const Actor = require('../core/activitypub/actor.js');
 const Collection = require('../core/activitypub/collection.js');
@@ -226,6 +227,8 @@ describe('sendUnfollowRequest()', function () {
     it('errors (rather than throwing) when not following the Actor', done => {
         sendUnfollowRequest(makeLocalUser(), makeRemoteActor(), err => {
             assert.ok(err, 'should error');
+            assert.equal(err.code, ErrorCodes.DoesNotExist);
+            assert.ok(/Not following/.test(err.message), err.message);
             done();
         });
     });

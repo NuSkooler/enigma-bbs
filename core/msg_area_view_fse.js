@@ -134,7 +134,7 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
                     return self.gotoMenu(extraArgs.menu, modOpts, cb);
                 }
 
-                self.client.log(extraArgs, 'Missing extraArgs.menu');
+                self.client.log.warn(extraArgs, 'Missing extraArgs.menu');
                 return cb(null);
             },
         });
