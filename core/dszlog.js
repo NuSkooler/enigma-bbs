@@ -30,14 +30,31 @@ const async = require('async');
 //  stripped. sexyz.ini can instead ask for the bare name ([DSZLOG] Path=false)
 //  or for the name in double quotes ([DSZLOG] Quotes=true, or -quotes). It is
 //  never escaped, so it may contain spaces; the serial number is always the
-//  last field.
+//  last field. The name sits between exactly one space either side, and is
+//  matched greedily up to the last one, so a name that begins or ends with a
+//  space comes back as it was written.
+//
+//  Never escaped also means a name can hold a newline, and the sender picks
+//  the name: "X 0\nR 100 ... B.ZIP" would write a line for X and then a
+//  forged one for B.ZIP. So a log is all or nothing -- one line that does
+//  not match the format and nothing in it is believed (see parseDszLog()) --
+//  and a caller should refuse to salvage from a receive directory holding a
+//  name with a control character in it (see hasControlChar()), which covers
+//  a forgery that does match.
 //
 //  Debian and Ubuntu patch lrzsz to write the same format (upstream lrzsz has
 //  no DSZLOG support). Their rz logs the name relative to its working
 //  directory, and ends lines with CRLF.
 //
 const LINE_RE =
-    /^(\S)\s+(\d+)\s+(\d+)\s+bps\s+(\d+)\s+cps\s+(\d+)\s+errors\s+(\d+)\s+(\d+)\s+(.+?)\s+(-?\d+)\s*$/;
+    /^(\S)\s+(\d+)\s+(\d+)\s+bps\s+(\d+)\s+cps\s+(\d+)\s+errors\s+(\d+)\s+(\d+) (.+) (-?\d+)$/;
+
+//  C0 controls and DEL: nothing a real upload is named with
+const CONTROL_CHAR_RE = /[\x00-\x1f\x7f]/;
+
+function hasControlChar(name) {
+    return CONTROL_CHAR_RE.test(name);
+}
 
 //
 //  Codes that mean "this file was received". Only receive logs are read, so
@@ -57,21 +74,33 @@ function isReceivedOk(code) {
 }
 
 //
-//  Parse DSZLOG text into entries. Lines that do not match the format are
-//  skipped rather than guessed at.
+//  Parse DSZLOG text. Returns { entries, malformed }: |malformed| holds a
+//  { line, text } for every non-empty line that does not match the format,
+//  numbered from 1. Any at all and the log as a whole is suspect -- the line
+//  may be the remains of one a forged name broke in two -- so a caller must
+//  not act on |entries| unless |malformed| is empty. Blank lines (the one
+//  after the final newline, say) and a CR before each newline are fine.
 //
 function parseDszLog(text) {
+    const entries = [];
+    const malformed = [];
     if (!text) {
-        return [];
+        return { entries, malformed };
     }
 
-    const entries = [];
     String(text)
-        .split(/\r?\n/)
-        .forEach(line => {
+        .split('\n')
+        .forEach((line, index) => {
+            if (line.endsWith('\r')) {
+                line = line.slice(0, -1);
+            }
+            if (!line) {
+                return;
+            }
+
             const m = LINE_RE.exec(line);
             if (!m) {
-                return;
+                return malformed.push({ line: index + 1, text: line });
             }
 
             let fileName = m[8];
@@ -95,7 +124,7 @@ function parseDszLog(text) {
             });
         });
 
-    return entries;
+    return { entries, malformed };
 }
 
 //
@@ -105,7 +134,8 @@ function parseDszLog(text) {
 //  never trusted to name a path: a relative name is resolved against
 //  |recvDirectory| (the program's working directory), and the result must be
 //  a direct child of |recvDirectory|. Anything else -- "..", a subdirectory,
-//  an absolute path elsewhere -- is rejected.
+//  an absolute path elsewhere, a name with a control character -- is
+//  rejected.
 //
 //  A file that appears more than once is judged by its last entry: a file
 //  received and then sent again over the top, unsuccessfully, is not good.
@@ -119,7 +149,7 @@ function receivedFilesFromEntries(entries, recvDirectory) {
 
     (entries || []).forEach(entry => {
         const fileName = entry.fileName;
-        if (!fileName || fileName.includes('\0')) {
+        if (!fileName || hasControlChar(fileName)) {
             return rejected.push({ fileName, reason: 'invalid name' });
         }
 
@@ -214,6 +244,7 @@ function buildProtocolEnv(baseEnv, dszLogPath) {
 module.exports = {
     ReceivedOkCodes,
     isReceivedOk,
+    hasControlChar,
     parseDszLog,
     receivedFilesFromEntries,
     confirmReceivedFiles,

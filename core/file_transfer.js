@@ -27,6 +27,7 @@ const {
     applyTransportFlags,
 } = require('./telnet_iac.js');
 const {
+    hasControlChar,
     parseDszLog,
     receivedFilesFromEntries,
     confirmReceivedFiles,
@@ -307,47 +308,79 @@ exports.getModule = class TransferFileModule extends MenuModule {
     //  DSZLOG, keep the files it confirms, and only those: anything else in
     //  |recvDirectory| may be a partial file. See core/dszlog.js.
     //
+    //  The names in the log are the sender's, written unescaped, so a name
+    //  with a newline in it can forge a line. Nothing is kept from a log with
+    //  a line that does not parse, or from a receive directory holding a name
+    //  with a control character in it.
+    //
     salvageReceivedFiles(err, exitInfo, dszLogText, cb) {
         if (!_.isString(dszLogText) || 'EBADEXIT' !== err.reasonCode) {
             return cb(err);
         }
 
-        const entries = parseDszLog(dszLogText);
-        const { received, rejected } = receivedFilesFromEntries(
-            entries,
-            this.recvDirectory
-        );
+        const logInfo = {
+            cmd: exitInfo && exitInfo.cmd,
+            exitCode: exitInfo && exitInfo.exitCode,
+        };
 
-        //  non-batch: the one file we asked for, or nothing
-        let candidates = received;
-        if (this.recvFileName) {
-            const expectedPath = paths.resolve(this.recvDirectory, this.recvFileName);
-            candidates = received.filter(c => c.path === expectedPath);
+        const { entries, malformed } = parseDszLog(dszLogText);
+        if (malformed.length > 0) {
+            this.client.log.warn(
+                Object.assign(logInfo, { malformed }),
+                'Protocol failed and its DSZLOG has lines that do not parse; not trusting it'
+            );
+            return cb(err);
         }
 
-        confirmReceivedFiles(candidates, (_err, result) => {
-            const notConfirmed = rejected.concat(result.rejected);
-            const logInfo = {
-                cmd: exitInfo && exitInfo.cmd,
-                exitCode: exitInfo && exitInfo.exitCode,
-                notConfirmed,
-            };
-
-            if (0 === result.confirmed.length) {
+        fs.readdir(this.recvDirectory, (readErr, dirNames) => {
+            if (readErr) {
                 this.client.log.warn(
-                    Object.assign(logInfo, { dszLog: entries }),
-                    'Protocol failed and its DSZLOG confirms no received files'
+                    Object.assign(logInfo, { error: readErr.message }),
+                    'Protocol failed and its receive directory cannot be read'
                 );
                 return cb(err);
             }
 
-            this.recvFilePaths = result.confirmed;
+            const suspectNames = dirNames.filter(hasControlChar);
+            if (suspectNames.length > 0) {
+                this.client.log.warn(
+                    Object.assign(logInfo, { suspectNames }),
+                    'Protocol failed and a received file name has control characters; not trusting its DSZLOG'
+                );
+                return cb(err);
+            }
 
-            this.client.log.warn(
-                Object.assign(logInfo, { files: result.confirmed }),
-                `Protocol exited with code ${logInfo.exitCode}, but its DSZLOG confirms ${result.confirmed.length} file(s) received; keeping them`
+            const { received, rejected } = receivedFilesFromEntries(
+                entries,
+                this.recvDirectory
             );
-            return cb(null);
+
+            //  non-batch: the one file we asked for, or nothing
+            let candidates = received;
+            if (this.recvFileName) {
+                const expectedPath = paths.resolve(this.recvDirectory, this.recvFileName);
+                candidates = received.filter(c => c.path === expectedPath);
+            }
+
+            confirmReceivedFiles(candidates, (_err, result) => {
+                logInfo.notConfirmed = rejected.concat(result.rejected);
+
+                if (0 === result.confirmed.length) {
+                    this.client.log.warn(
+                        Object.assign(logInfo, { dszLog: entries }),
+                        'Protocol failed and its DSZLOG confirms no received files'
+                    );
+                    return cb(err);
+                }
+
+                this.recvFilePaths = result.confirmed;
+
+                this.client.log.warn(
+                    Object.assign(logInfo, { files: result.confirmed }),
+                    `Protocol exited with code ${logInfo.exitCode}, but its DSZLOG confirms ${result.confirmed.length} file(s) received; keeping them`
+                );
+                return cb(null);
+            });
         });
     }
 
@@ -661,11 +694,30 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     ? { env: buildProtocolEnv(process.env, dszLog.path) }
                     : {};
 
-                this.executeExternalProtocolHandler(args, options, (err, exitInfo) => {
-                    this.consumeDszLog(dszLog, dszLogText => {
-                        return cb(err, exitInfo, dszLogText);
-                    });
-                });
+                //
+                //  A protocol program that cannot be spawned at all throws
+                //  (node-pty). We are inside an async callback here, so a
+                //  rethrow would skip the caller's try/catch -- and with it the
+                //  free time release -- and land in the process-level handler.
+                //  Hand it back as an ordinary transfer error instead, without
+                //  the log left behind.
+                //
+                try {
+                    this.executeExternalProtocolHandler(
+                        args,
+                        options,
+                        (err, exitInfo) => {
+                            this.consumeDszLog(dszLog, dszLogText => {
+                                return cb(err, exitInfo, dszLogText);
+                            });
+                        }
+                    );
+                } catch (e) {
+                    if (dszLog) {
+                        dszLog.session.cleanup();
+                    }
+                    return cb(e);
+                }
             });
         });
     }

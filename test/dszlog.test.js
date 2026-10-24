@@ -7,6 +7,7 @@ const paths = require('path');
 
 const {
     isReceivedOk,
+    hasControlChar,
     parseDszLog,
     receivedFilesFromEntries,
     confirmReceivedFiles,
@@ -44,28 +45,30 @@ function writeFile(dir, name, size) {
 
 describe('DSZLOG parsing', () => {
     it('parses a sexyz receive line', () => {
-        //  captured from sexyz -telnet ry against a VTX-style sender
-        const entries = parseDszLog(
-            'R  20000 115200 bps 20000 cps   0 errors     0 1024 /tmp/enigul-abc/test.zip -1\n'
+        //  written by a real sexyz -telnet ry, receiving from a VTX-style sender
+        const { entries, malformed } = parseDszLog(
+            'R  20123 115200 bps 20123 cps   0 errors     0 1024 /tmp/enigul-live-ptKHYR/test_upload.bin 0\n'
         );
+        assert.deepEqual(malformed, []);
         assert.equal(entries.length, 1);
         assert.deepEqual(entries[0], {
             code: 'R',
             ok: true,
-            bytes: 20000,
-            cps: 20000,
+            bytes: 20123,
+            cps: 20123,
             errors: 0,
             blockSize: 1024,
-            fileName: '/tmp/enigul-abc/test.zip',
-            serial: -1,
+            fileName: '/tmp/enigul-live-ptKHYR/test_upload.bin',
+            serial: 0,
         });
     });
 
     it('parses a Debian lrzsz rz line, CRLF and all', () => {
-        //  captured from Ubuntu's lrzsz 0.12.21-11build1
-        const entries = parseDszLog(
+        //  written by a real rz from Ubuntu's lrzsz 0.12.21-11build1
+        const { entries, malformed } = parseDszLog(
             'z  50000 467853200 bps 58481650 cps   0 errors     0    0 test file.bin -1\r\n'
         );
+        assert.deepEqual(malformed, []);
         assert.equal(entries.length, 1);
         assert.equal(entries[0].code, 'z');
         assert.equal(entries[0].ok, true);
@@ -74,13 +77,23 @@ describe('DSZLOG parsing', () => {
     });
 
     it('keeps spaces in names, and takes the serial from the end', () => {
-        const entries = parseDszLog(sexyzLine('Z', 10, '/up/my file 123.zip', 4242));
+        const { entries } = parseDszLog(sexyzLine('Z', 10, '/up/my file 123.zip', 4242));
         assert.equal(entries[0].fileName, '/up/my file 123.zip');
         assert.equal(entries[0].serial, 4242);
     });
 
+    it('keeps spaces at either end of a name', () => {
+        const { entries } = parseDszLog(
+            sexyzLine('R', 10, ' lead.zip') + sexyzLine('R', 10, 'trail.zip  ')
+        );
+        assert.deepEqual(
+            entries.map(e => e.fileName),
+            [' lead.zip', 'trail.zip  ']
+        );
+    });
+
     it('strips the quotes sexyz -quotes adds', () => {
-        const entries = parseDszLog(sexyzLine('R', 10, '"/up/a b.zip"'));
+        const { entries } = parseDszLog(sexyzLine('R', 10, '"/up/a b.zip"'));
         assert.equal(entries[0].fileName, '/up/a b.zip');
     });
 
@@ -92,28 +105,62 @@ describe('DSZLOG parsing', () => {
             assert.equal(isReceivedOk(code), false, code);
         });
 
-        const entries = parseDszLog(sexyzLine('E', 10, '/up/bad.zip'));
+        const { entries } = parseDszLog(sexyzLine('E', 10, '/up/bad.zip'));
         assert.equal(entries[0].ok, false);
     });
 
     it('returns nothing for an empty or missing log', () => {
-        assert.deepEqual(parseDszLog(''), []);
-        assert.deepEqual(parseDszLog(null), []);
-        assert.deepEqual(parseDszLog(undefined), []);
-        assert.deepEqual(parseDszLog('\n\r\n'), []);
+        const none = { entries: [], malformed: [] };
+        assert.deepEqual(parseDszLog(''), none);
+        assert.deepEqual(parseDszLog(null), none);
+        assert.deepEqual(parseDszLog(undefined), none);
+        assert.deepEqual(parseDszLog('\n\r\n'), none);
     });
 
-    it('skips lines that do not match the format', () => {
-        const text = [
+    it('reports every line that does not match the format', () => {
+        const bad = [
             'garbage',
             'R 12 bytes /up/x.zip',
             'R abc 115200 bps 1 cps 0 errors 0 1024 /up/x.zip -1',
             'R 12 115200 bps 1 cps 0 errors 0 1024 -1', //  no filename
-            sexyzLine('R', 12, '/up/good.zip').trim(),
-        ].join('\n');
-        const entries = parseDszLog(text);
+            'R 12 115200 bps 1 cps 0 errors 0 1024 /up/x.zip', //  no serial
+            '   ', //  not blank: whitespace
+        ];
+        const text = bad.concat(sexyzLine('R', 12, '/up/good.zip')).join('\n');
+        const { entries, malformed } = parseDszLog(text);
+        assert.deepEqual(
+            malformed,
+            bad.map((text, i) => ({ line: i + 1, text }))
+        );
         assert.equal(entries.length, 1);
-        assert.equal(entries[0].fileName, '/up/good.zip');
+    });
+
+    it('reports the remains of a line a forged name broke in two', () => {
+        //  a sender named its file "X\nR ... B.ZIP -1"; sexyz wrote it as is
+        const { malformed } = parseDszLog(
+            'E      50 115200 bps    1 cps   0 errors     0 1024 /tmp/enigul-abc/X\n' +
+                'R     100 115200 bps    1 cps   0 errors     0 1024 B.ZIP -1\n'
+        );
+        assert.deepEqual(malformed, [
+            {
+                line: 1,
+                text: 'E      50 115200 bps    1 cps   0 errors     0 1024 /tmp/enigul-abc/X',
+            },
+        ]);
+    });
+
+    it('accepts CRLF endings, blank lines, and a last line with no newline', () => {
+        const text =
+            sexyzLine('R', 1, 'one.zip').replace('\n', '\r\n') +
+            '\r\n' +
+            sexyzLine('R', 2, 'two.zip').trim() +
+            '\r';
+        const { entries, malformed } = parseDszLog(text);
+        assert.deepEqual(malformed, []);
+        assert.deepEqual(
+            entries.map(e => e.fileName),
+            ['one.zip', 'two.zip']
+        );
     });
 
     it('parses several files in order', () => {
@@ -121,7 +168,7 @@ describe('DSZLOG parsing', () => {
             sexyzLine('R', 1, '/up/one.zip') +
             sexyzLine('E', 2, '/up/two.zip') +
             sexyzLine('R', 3, '/up/three.zip');
-        const entries = parseDszLog(text);
+        const { entries } = parseDszLog(text);
         assert.deepEqual(
             entries.map(e => [e.code, e.fileName]),
             [
@@ -131,11 +178,20 @@ describe('DSZLOG parsing', () => {
             ]
         );
     });
+
+    it('spots control characters in names', () => {
+        ['a\nb', 'a\rb', 'a\tb', 'a\0b', '\x1b[2Jx.zip', 'x\x7f'].forEach(name =>
+            assert.ok(hasControlChar(name), JSON.stringify(name))
+        );
+        ['plain.zip', 'with space.zip', 'caf\u00e9.zip', '~!@#$%^&().zip'].forEach(name =>
+            assert.equal(hasControlChar(name), false, name)
+        );
+    });
 });
 
 describe('DSZLOG received files', () => {
     const recvDir = '/tmp/enigul-xyz/';
-    const select = text => receivedFilesFromEntries(parseDszLog(text), recvDir);
+    const select = text => receivedFilesFromEntries(parseDszLog(text).entries, recvDir);
 
     it('accepts full paths and bare names inside the receive directory', () => {
         const { received, rejected } = select(
@@ -196,13 +252,15 @@ describe('DSZLOG received files', () => {
         rejected.forEach(r => assert.equal(r.reason, 'outside receive directory'));
     });
 
-    it('rejects names carrying a NUL', () => {
+    it('rejects names carrying a control character', () => {
+        const names = ['a\0.zip', 'a\n.zip', 'a\r.zip', 'a\t.zip', '\x1b.zip'];
         const { received, rejected } = receivedFilesFromEntries(
-            [{ code: 'R', ok: true, bytes: 1, fileName: 'a\0.zip' }],
+            names.map(fileName => ({ code: 'R', ok: true, bytes: 1, fileName })),
             recvDir
         );
         assert.deepEqual(received, []);
-        assert.equal(rejected[0].reason, 'invalid name');
+        assert.equal(rejected.length, names.length);
+        rejected.forEach(r => assert.equal(r.reason, 'invalid name'));
     });
 
     it('confirms candidates against the disk', done => {
@@ -225,6 +283,22 @@ describe('DSZLOG received files', () => {
             assert.equal(err, null);
             assert.deepEqual(result.confirmed, [good]);
             assert.equal(result.rejected.length, 4);
+            return done();
+        });
+    });
+
+    it('never confirms a symlink, even to a file of the logged size', done => {
+        const dir = makeTempDir();
+        const target = writeFile(dir, 'target.zip', 100);
+        const link = paths.join(dir, 'link.zip');
+        fs.symlinkSync(target, link);
+
+        confirmReceivedFiles([{ path: link, bytes: 100 }], (err, result) => {
+            fs.rmSync(dir, { recursive: true, force: true });
+            assert.deepEqual(result.confirmed, []);
+            assert.deepEqual(result.rejected, [
+                { fileName: link, reason: 'not a regular file' },
+            ]);
             return done();
         });
     });
@@ -272,6 +346,7 @@ describe('Upload salvage from DSZLOG', () => {
             recvDirectory: recvDir,
             recvFileName,
             protocolConfig: { external: external || { dszLog: true } },
+            dszLogText,
             warnings,
             recvFiles: proto.recvFiles,
             salvageReceivedFiles: proto.salvageReceivedFiles,
@@ -369,6 +444,65 @@ describe('Upload salvage from DSZLOG', () => {
         } finally {
             fs.rmSync(outside, { recursive: true, force: true });
         }
+    });
+
+    it('salvages nothing from a log with a line a forged name broke', async () => {
+        //  the sender named its file "X\nR ... B.ZIP -1": the real E line for
+        //  it loses its serial, and what follows reads as B.ZIP received
+        const forged = writeFile(recvDir, 'B.ZIP', 100);
+        const transfer = makeReceiver({
+            exitCode: 1,
+            dszLogText:
+                `E      50 115200 bps    1 cps   0 errors     0 1024 ${recvDir}X\n` +
+                'R     100 115200 bps    1 cps   0 errors     0 1024 B.ZIP -1\n',
+        });
+
+        //  on its own, the forged line would be believed
+        assert.deepEqual(
+            receivedFilesFromEntries(parseDszLog(transfer.dszLogText).entries, recvDir)
+                .received,
+            [{ path: forged, bytes: 100 }]
+        );
+
+        const err = await recv(transfer);
+        assert.equal(err.reasonCode, 'EBADEXIT');
+        assert.equal(transfer.recvFilePaths, undefined);
+        assert.equal(transfer.warnings.length, 1);
+        assert.match(transfer.warnings[0].msg, /do not parse/);
+        assert.equal(transfer.warnings[0].obj.malformed[0].line, 1);
+    });
+
+    it('salvages nothing when a received name has a control character', async () => {
+        //  a forgery that parses: the sender gave the real line a serial too
+        const forgedName =
+            'X 0\nR    100 115200 bps    1 cps   0 errors     0 1024 B.ZIP';
+        writeFile(recvDir, forgedName, 50);
+        writeFile(recvDir, 'B.ZIP', 100);
+        const transfer = makeReceiver({
+            exitCode: 1,
+            dszLogText: sexyzLine('E', 50, recvDir + forgedName),
+        });
+        assert.deepEqual(parseDszLog(transfer.dszLogText).malformed, []);
+
+        const err = await recv(transfer);
+        assert.equal(err.reasonCode, 'EBADEXIT');
+        assert.equal(transfer.recvFilePaths, undefined);
+        assert.equal(transfer.warnings.length, 1);
+        assert.match(transfer.warnings[0].msg, /control characters/);
+        assert.deepEqual(transfer.warnings[0].obj.suspectNames, [forgedName]);
+    });
+
+    it('salvages from a CRLF log with a trailing blank line', async () => {
+        const file = writeFile(recvDir, 'test file.bin', 50000);
+        const transfer = makeReceiver({
+            exitCode: 1,
+            //  Debian rz: name relative to its working directory, CRLF
+            dszLogText:
+                'z  50000 467853200 bps 58481650 cps   0 errors     0    0 test file.bin -1\r\n\r\n',
+        });
+
+        assert.equal(await recv(transfer), null);
+        assert.deepEqual(transfer.recvFilePaths, [file]);
     });
 
     it('salvages only the named file on a non-batch upload', async () => {
@@ -478,6 +612,27 @@ describe('DSZLOG plumbing', () => {
                 'never inside the receive directory'
             );
             assert.equal(transfer.seen.options.env.PATH, process.env.PATH);
+
+            //  temptmp's cleanup is asynchronous
+            setTimeout(() => {
+                assert.equal(fs.existsSync(transfer.seen.dszLogPath), false);
+                done();
+            }, 100);
+        });
+    });
+
+    it('removes the log when the protocol program cannot be spawned', done => {
+        const transfer = makeRunner({ dszLog: true }, null);
+        transfer.executeExternalProtocolHandler = (args, options) => {
+            transfer.seen.dszLogPath = options.env.DSZLOG;
+            throw new Error('File not found: sexyz'); //  as node-pty does
+        };
+
+        //  the throw comes back as an ordinary error, not out of the event loop
+        transfer.executeExternalProtocolHandlerForRecv(err => {
+            assert.ok(err);
+            assert.match(err.message, /File not found/);
+            assert.ok(transfer.seen.dszLogPath);
 
             //  temptmp's cleanup is asynchronous
             setTimeout(() => {
