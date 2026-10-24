@@ -74,8 +74,8 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
     initSequence() {
         this.webServer = getServer('codes.l33t.enigma.web.server');
         if (!this.webServer) {
-            this.client.log('Could not get Web server');
-            return this.prevMenu();
+            this.client.log.warn('Could not get Web server');
+            return this.prevMenu(() => {});
         }
         this.webServer = this.webServer.instance;
 

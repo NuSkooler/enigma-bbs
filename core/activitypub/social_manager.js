@@ -110,8 +110,8 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
     initSequence() {
         this.webServer = getServer('codes.l33t.enigma.web.server');
         if (!this.webServer) {
-            this.client.log('Could not get Web server');
-            return this.prevMenu();
+            this.client.log.warn('Could not get Web server');
+            return this.prevMenu(() => {});
         }
         this.webServer = this.webServer.instance;
 
@@ -124,8 +124,19 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                     return this._displayMainPage(callback);
                 },
             ],
-            () => {
-                this.finishedLoading();
+            err => {
+                if (err) {
+                    //  The screen is only partly set up (lists unpopulated, listeners
+                    //  not wired) and can't be used, so log and leave rather than
+                    //  strand the user on it.
+                    this.client.log.error(
+                        { error: err.message },
+                        'Failed to initialize ActivityPub Social Manager'
+                    );
+                    return this.prevMenu(() => {});
+                }
+
+                return this.finishedLoading();
             }
         );
     }
@@ -297,43 +308,46 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
         const selectedActor = this._getSelectedActorItem(
             actorListView.getFocusItemIndex()
         );
-        if (selectedActor) {
-            selectedActor.status = !selectedActor.status;
-            selectedActor.statusIndicator = this._getStatusIndicator(
-                selectedActor.status
-            );
-
-            async.series(
-                [
-                    callback => {
-                        return this._followingActorToggled(selectedActor, callback);
-                    },
-                ],
-                err => {
-                    if (err) {
-                        this.client.log.error(
-                            { error: err.message, type: this.currentCollection },
-                            `Failed to toggle "${this.currentCollection}" status`
-                        );
-                    }
-
-                    //  :TODO: we really need updateItem() call on MenuView
-                    actorListView.setItems(this._getCurrentActorList());
-                    actorListView.redraw(); //  oof
-
-                    const selectedActorInfoView = this.getView(
-                        'main',
-                        MciViewIds.main.selectedActorInfo
-                    );
-                    this._updateSelectedActorInfo(
-                        selectedActorInfoView,
-                        this._getSelectedActorItem(actorListView.getFocusItemIndex())
-                    );
-
-                    return cb(null);
-                }
-            );
+        if (!selectedActor) {
+            //  Nothing selected (e.g. empty Following list). We must still call
+            //  back or the view controller stays in waitActionCompletion and
+            //  drops every later key, including ESC.
+            return cb(null);
         }
+
+        selectedActor.status = !selectedActor.status;
+        selectedActor.statusIndicator = this._getStatusIndicator(selectedActor.status);
+
+        async.series(
+            [
+                callback => {
+                    return this._followingActorToggled(selectedActor, callback);
+                },
+            ],
+            err => {
+                if (err) {
+                    this.client.log.error(
+                        { error: err.message, type: this.currentCollection },
+                        `Failed to toggle "${this.currentCollection}" status`
+                    );
+                }
+
+                //  :TODO: we really need updateItem() call on MenuView
+                actorListView.setItems(this._getCurrentActorList());
+                actorListView.redraw(); //  oof
+
+                const selectedActorInfoView = this.getView(
+                    'main',
+                    MciViewIds.main.selectedActorInfo
+                );
+                this._updateSelectedActorInfo(
+                    selectedActorInfoView,
+                    this._getSelectedActorItem(actorListView.getFocusItemIndex())
+                );
+
+                return cb(null);
+            }
+        );
     }
 
     _removeSelectedFollowRequest(actorListView, moveToFollowers) {
