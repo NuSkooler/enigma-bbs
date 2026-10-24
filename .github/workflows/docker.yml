@@ -7,12 +7,16 @@ on:
   pull_request:
     #  The inputs that decide whether the image builds. Application source is
     #  copied in after npm ci and cannot fail it, so it is left out rather
-    #  than spending eleven minutes under QEMU on every pull request.
+    #  than spending eleven minutes under QEMU on every pull request. The
+    #  exception is the default config: docker/check_tools.js fails the build
+    #  when a default archiver or info-extract tool calls a program the image
+    #  lacks (#905), so a change there can fail it too.
     paths:
       - 'docker/**'
       - '.dockerignore'
       - 'package.json'
       - 'package-lock.json'
+      - 'core/config_default.js'
       - '.github/workflows/docker.yml'
 
   workflow_dispatch:

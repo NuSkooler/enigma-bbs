@@ -34,11 +34,15 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** if you run ENiGMA½ under `pm2`, set `kill_timeout: 20000` in your ecosystem file, or start it with `pm2 start main.js --kill-timeout 20000`. The Docker image now sets `PM2_KILL_TIMEOUT=20000` for `pm2-runtime` itself; give the container longer than that to stop (`docker stop -t 30`, or `stop_grace_period: 30s` in Compose), since Docker's default is 10 seconds. Under systemd the default `TimeoutStopSec` of 90 seconds is enough. See [Stopping](website/src/content/docs/installation/production.md#stopping).
 
+* **Docker image: new archivers, and RARLAB `unrar` in place of `unrar-free`** ([#905](https://github.com/NuSkooler/enigma-bbs/issues/905), [#906](https://github.com/NuSkooler/enigma-bbs/issues/906)). The image now has everything the default archivers and description tools call, including `zip`/`unzip`, `exiftool`, `xdms` and [unarc](website/src/content/docs/configuration/archivers.md#unarc), and reads Amiga LZX and Atari ATR with unarc through the new `ENIGMA_UNARC_ARCHIVERS` variable. `unrar-free` is gone.
+
+  **Action:** none, unless your `config.hjson` changes the `Rar` archiver to work with `unrar-free` (a `cmd` of `unrar-free`, or your own `entryMatch`): remove that, and the default, written for RARLAB's `unrar`, applies. An `Atr` or `Lzx` entry of your own also replaces the image's unarc redirection. To list and describe files stored while the image lacked a tool, rescan their areas: `docker exec ENiGMABBS ./oputil.js fb scan --full --update AREA_TAG`. See [Docker](website/src/content/docs/installation/docker.md#archivers-and-file-descriptions).
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
 
-  **Action:** none required. To use the new formats, install unarc as [Archivers](website/src/content/docs/configuration/archivers.md#unarc) describes. It needs a version newer than 0.7.0, so build it from the repository until one is released.
+  **Action:** none required. To use the new formats, install unarc as [Archivers](website/src/content/docs/configuration/archivers.md#unarc) describes. It needs version 0.8.0 or later, now on crates.io: `cargo install --locked unarc-cli`. The Docker image ships it from 0.6.0-beta on.
 
   * **Amiga LZX and Atari ATR** still use `unlzx` and `atr` by default, so a board with those keeps working unchanged. unarc reads both as well, including SpartaDOS ATR disks, which `atr` cannot. Once it is installed you can drop the two tools by pointing their archivers at it in `config.hjson`:
 

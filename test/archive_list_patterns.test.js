@@ -41,4 +41,35 @@ describe('archiver list patterns', () => {
             assert.deepEqual(listWith('7Zip', output), [[4053, 'Disk 1 of 2.adf']]);
         });
     });
+
+    describe('Rar', () => {
+        //  unrar l, RARLAB UNRAR 6.21 (Debian bookworm non-free, as the Docker
+        //  image ships it since #905)
+        it('lists the entries of a RARLAB unrar listing', () => {
+            const output = [
+                '',
+                'UNRAR 6.21 freeware      Copyright (c) 1993-2023 Alexander Roshal',
+                '',
+                'Archive: /fixtures/acid-70a.rar',
+                'Details: RAR 4',
+                '',
+                ' Attributes      Size     Date    Time   Name',
+                '----------- ---------  ---------- -----  ----',
+                '    ...D...         0  1998-07-09 17:36  AcidView',
+                '    ..A....      3544  1998-04-26 11:32  AcidView/AcidAnsi.class',
+                '    ..A....    142961  1998-07-01 18:26  ass-psycho.jpg',
+                '    ..A....       375  1998-07-09 18:24  file_id.diz',
+                '----------- ---------  ---------- -----  ----',
+                '              146880                    4',
+                '',
+            ].join('\n');
+
+            assert.deepEqual(listWith('Rar', output), [
+                [0, 'AcidView'],
+                [3544, 'AcidView/AcidAnsi.class'],
+                [142961, 'ass-psycho.jpg'],
+                [375, 'file_id.diz'],
+            ]);
+        });
+    });
 });

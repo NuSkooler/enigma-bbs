@@ -79,6 +79,43 @@ was).
 
 See [File Transfer Protocols](../configuration/file-transfer-protocols.md) for the full picture.
 
+## Archivers and file descriptions
+
+The image ships every program ENiGMA½'s default [archivers](../configuration/archivers.md) and
+description tools call, on all three platforms, so uploads are listed and described with no
+setup:
+
+| Program | Used for |
+|:--------|:---------|
+| `zip`, `unzip` | ZIP (`InfoZip`) |
+| `7za` | 7-Zip (`7Zip`) |
+| `lha` | LHA/LZH (`Lha`) |
+| `arj` | ARJ (`Arj`) |
+| `unrar` | RAR (`Rar`): RARLAB's, from Debian non-free |
+| `tar` | tar, `.tar.gz` (`TarGz`) |
+| `unarc` | ARC/PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard, CAB, C64 Lynx/T64/D64, Amiga DMS, and Amiga LZX and Atari ATR (`Unarc`) |
+| `exiftool` | descriptions of PDFs, audio, video and images |
+| `xdms` | descriptions of Amiga DMS disks |
+| `pdftotext` | PDF text, if you configure it (from `poppler-utils`) |
+
+Debian packages neither `unlzx` nor `atr`, so the image reads LZX and ATR with
+[unarc](../configuration/archivers.md#unarc) instead. It sets `ENIGMA_UNARC_ARCHIVERS=Atr,Lzx`,
+which points those two archivers at the `Unarc` archiver, as the Archivers page shows for
+`config.hjson`. An `Atr` or `Lzx` entry in your own `config.hjson` still wins, and
+`-e ENIGMA_UNARC_ARCHIVERS=` turns the redirection off.
+
+`unarc` is built from its [crates.io](https://crates.io/crates/unarc-cli) release for each
+platform during the image build, pinned by `UNARC_VERSION` in `docker/Dockerfile`. The build then
+runs `docker/check_tools.js`, which reads the default archivers and description tools and fails
+if any program they call is missing, if `unrar` is not RARLAB's, or if `unarc` is not the pinned
+version.
+
+:::note
+Files uploaded or imported while an image lacked one of these tools were stored as plain files,
+without a listing or description. Rescan the area to fill them in, for example
+`docker exec ENiGMABBS ./oputil.js fb scan --full --update AREA_TAG` (see [oputil](../admin/oputil.md)).
+:::
+
 ## Volumes
 
 Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs
@@ -105,17 +142,21 @@ Customising the Docker image is easy!
 docker build -t enigmabbs -f ./docker/Dockerfile .
 ```
 
-The Dockerfile has two stages. A `build` stage installs a compiler toolchain and runs
+The Dockerfile has three stages. A `build` stage installs a compiler toolchain and runs
 `npm ci`, which is where the native modules (node-pty, better-sqlite3 and friends) are
-compiled. The stage that ships installs only the runtime packages -- the archivers and
-`lrzsz` -- and copies `node_modules` out of the build stage, so no compiler reaches the
-published image ([#814](https://github.com/NuSkooler/enigma-bbs/issues/814)). Because the
-compiled modules are copied rather than rebuilt, both stages must start from the same base
-image; keep them in step if you change one.
+compiled. An `unarc` stage builds `unarc` with Rust; it runs on the machine doing the build
+and cross compiles for each target platform, which takes a minute or two where building
+under emulation would take far longer. The stage that ships installs only the runtime
+packages -- the archivers, the description tools and `lrzsz` -- and copies `node_modules`
+and the `unarc` binary out of the other two, so no compiler reaches the published image
+([#814](https://github.com/NuSkooler/enigma-bbs/issues/814)). Because the compiled modules
+are copied rather than rebuilt, the `build` stage and the one that ships must start from the
+same base image; keep them in step if you change one.
 
 `ENIGMA_DOCKER_LIVE=1 npm run test:live` builds the image and checks it from the inside:
-that the toolchain is absent, the archivers and `sexyz` are present, and the copied native
-modules load. Point `ENIGMA_DOCKER_IMAGE` at a tag to check an image you already have.
+that the toolchain is absent, the archivers, description tools and `sexyz` are present, and
+the copied native modules load. Point `ENIGMA_DOCKER_IMAGE` at a tag to check an image you
+already have.
 
 3. Run the image
 ```bash

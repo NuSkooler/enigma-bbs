@@ -1,7 +1,31 @@
 const paths = require('path');
 
+//
+//  Archivers to read with unarc in place of their own tool: a comma separated
+//  list of archives.archivers keys in the ENIGMA_UNARC_ARCHIVERS environment
+//  variable, e.g. "Atr,Lzx". Each named archiver becomes a reference to the
+//  Unarc archiver, as UPGRADE and the Archivers docs show for config.hjson.
+//
+//  The Docker image sets it, because it ships unarc but neither unlzx nor atr,
+//  which Debian does not package (#906). Unset, as it is anywhere else, the
+//  defaults are unchanged. An entry for the same archiver in config.hjson
+//  replaces the reference, as it would any default.
+//
+const routeArchiversToUnarc = defaults => {
+    const archivers = defaults.archives.archivers;
+    (process.env.ENIGMA_UNARC_ARCHIVERS || '')
+        .split(',')
+        .map(name => name.trim())
+        //  only archivers that exist: a misspelt name is not a new archiver
+        .filter(name => name && 'Unarc' !== name && archivers[name])
+        .forEach(name => {
+            archivers[name] = '@reference:archives.archivers.Unarc';
+        });
+    return defaults;
+};
+
 module.exports = () => {
-    return {
+    const defaults = {
         general: {
             boardName: 'Another Fine ENiGMA½ BBS',
             prettyBoardName: '|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS',
@@ -1709,4 +1733,6 @@ module.exports = () => {
             },
         },
     };
+
+    return routeArchiversToUnarc(defaults);
 };
