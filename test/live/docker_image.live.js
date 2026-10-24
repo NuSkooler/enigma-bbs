@@ -124,9 +124,37 @@ function inImageOk(script) {
     });
 
     it('ships the runtime archivers and lrzsz', () => {
-        for (const tool of ['sz', 'rz', 'arj', 'lha', 'unrar-free', '7z']) {
+        const tools = ['sz', 'rz', 'arj', 'lha', 'unrar', '7z', 'zip', 'unzip', 'unarc'];
+        for (const tool of tools) {
             inImageOk(`command -v ${tool}`);
         }
+    });
+
+    it('ships the description tools the defaults call (#905)', () => {
+        for (const tool of ['exiftool', 'pdftotext', 'xdms']) {
+            inImageOk(`command -v ${tool}`);
+        }
+    });
+
+    it('has every program the default archivers and info-extract utilities run (#905)', () => {
+        //  The same check the build runs, here against a prebuilt image too.
+        const out = inImageOk('node /enigma-bbs/docker/check_tools.js 2>&1');
+        assert.match(out, /every default archiver and info-extract tool is present/);
+    });
+
+    it('ships RARLAB unrar, not unrar-free (#905)', () => {
+        const r = inImage('command -v unrar-free');
+        assert.notEqual(r.status, 0, 'unrar-free is installed');
+        assert.match(inImage('unrar').stdout, /Alexander Roshal/);
+    });
+
+    it('lists a ZIP with unzip and with unarc (#905, #906)', () => {
+        const out = inImageOk(
+            'cd "$(mktemp -d)" && echo hello > FILE_ID.DIZ && zip -q t.zip FILE_ID.DIZ ' +
+                '&& unzip -l t.zip && unarc list --json t.zip'
+        );
+        assert.match(out, /^\s*6\s+\S+\s+\S+\s+FILE_ID\.DIZ$/m);
+        assert.match(out, /"name": "FILE_ID\.DIZ"/);
     });
 
     it('loads the native modules copied out of the build stage', () => {

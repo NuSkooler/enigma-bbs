@@ -11,6 +11,10 @@ ENiGMA½ relies on various external binaries to perform common tasks such as pro
 Before using features such as the [File Base](../filebase/index.md) or [File Transfer Protocols](../configuration/file-transfer-protocols.md) it is highly recommended to install support binaries!
 :::
 
+:::tip
+The [Docker image](../installation/docker.md#archivers-and-file-descriptions) already has everything the defaults call, `unarc` included.
+:::
+
 ## Quick Check
 
 On Linux, you can quickly check what is available in your PATH:
@@ -31,18 +35,21 @@ These commands install the most common dependencies from OS packages. Some tools
 sudo apt update
 sudo apt install -y \
 	arj \
+	lhasa \
 	p7zip-full \
 	zip unzip \
 	lrzsz \
 	poppler-utils \
 	libimage-exiftool-perl \
+	xdms \
 	tar
 ```
 
 Notes:
 
-- `unrar` is not always available in default Debian/Ubuntu repos (it may require enabling non-free / multiverse).
+- RARLAB's `unrar` is in Debian's `non-free` component and Ubuntu's `multiverse`; enable it, then `sudo apt install unrar`. Do not use `unrar-free`: the `Rar` archiver cannot read its listing, so every RAR archive appears empty.
 - `lhasa` may provide an `lha` command on some distros.
+- For `unarc`, see below.
 
 ### RHEL / AlmaLinux / Rocky
 
@@ -60,6 +67,16 @@ Notes:
 
 - `p7zip` / `p7zip-plugins` and `unrar` often require extra repositories (commonly EPEL and/or RPM Fusion), depending on distro/version.
 - On some releases (EL 10, for one) the package named `unrar` installs `unrar-free`. It accepts the same commands but prints its listing in a different layout, so the `Rar` archiver finds no files in any RAR archive. If `unrar --version` says `unrar-free`, install RARLAB's `unrar` (RPM Fusion's nonfree repository carries it), or read RAR archives with [unarc](archivers.md#unarc) instead.
+
+### unarc (any OS)
+
+[unarc](archivers.md#unarc) is not packaged by distributions. Install version 0.8.0 or later from crates.io with Cargo (Rust 1.95 or later, from [rustup](https://rustup.rs) or `mise use -g rust`):
+
+```sh
+cargo install --locked unarc-cli
+```
+
+It reads ARC/PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard, CAB, C64 Lynx/T64/D64 and Amiga DMS, and can stand in for `unlzx` and `atr`. Cargo installs it to `~/.cargo/bin`, which must be in the `PATH` ENiGMA½ runs with (see [Production Installation](../installation/production.md) if it runs as a service).
 
 ### Manual installs
 

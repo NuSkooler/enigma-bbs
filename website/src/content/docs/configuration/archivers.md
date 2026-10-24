@@ -96,7 +96,7 @@ This applies to any archive: when its archiver fails to list it -- a misnamed or
 ## unarc
 [unarc](https://github.com/mkrueger/unarc-rs) is a single program that reads most of the archive formats found on BBSes: ARC and PAK, ZOO, ACE, Squeeze It (SQZ), UltraCompressor II (UC2), HA, HYP and Unix `.Z`; ZIP, RAR (all versions), 7z, ARJ, LHA, tar, xz, Zstandard and Microsoft Cabinet; and the C64 Lynx, T64 and D64 formats. It is written in Rust and does not need any other archiver installed.
 
-ENiGMA½ uses it, through the `Unarc` archiver, for ARC/PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz (including `.tar.xz`), Zstandard (including `.tar.zst`), Microsoft Cabinet, C64 Lynx, T64 and D64, and Amiga DMS files. `unarc` is not shipped with ENiGMA½: until it is installed, those files are handled as plain files, as they always were.
+ENiGMA½ uses it, through the `Unarc` archiver, for ARC/PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz (including `.tar.xz`), Zstandard (including `.tar.zst`), Microsoft Cabinet, C64 Lynx, T64 and D64, and Amiga DMS files. `unarc` is not shipped with ENiGMA½, though the [Docker image](../installation/docker.md#archivers-and-file-descriptions) includes it: until it is installed, those files are handled as plain files, as they always were.
 
 - **Amiga DMS:** `unarc` unpacks the disk and lists the files on it, and the `FILE_ID.DIZ` many DMS archives carry becomes the description. A disk it cannot list -- a damaged or non-AmigaDOS disk, or an `unarc` without DMS support -- still gets its description from `xdms`, as before.
 - **Amiga LZX** and **Atari ATR** are still read with `unlzx` and `atr` by default, so a board that has them keeps working. `unarc` reads both as well -- including SpartaDOS ATR disks, which `atr` cannot -- so once it is installed you can drop those two tools by pointing their archivers at it:
@@ -110,11 +110,13 @@ archives: {
 }
 ```
 
-ENiGMA½ needs a version of `unarc` whose `list` command has the `--json` option. Until one newer than 0.7.0 is released on crates.io, install it from the repository, which also has the DMS, LZX and ATR support:
+ENiGMA½ needs `unarc` 0.8.0 or later, for `list --json` and for DMS, LZX and ATR. Install it from crates.io with Cargo (Rust 1.95 or later, from [rustup](https://rustup.rs) or `mise use -g rust`):
 
 ```sh
-cargo install --git https://github.com/mkrueger/unarc-rs unarc-cli
+cargo install --locked unarc-cli
 ```
+
+Instead of editing `config.hjson`, the `ENIGMA_UNARC_ARCHIVERS` environment variable can name archivers to point at `Unarc`, separated by commas: `ENIGMA_UNARC_ARCHIVERS=Atr,Lzx` does the same as the example above. The Docker image sets exactly that. Names must match an archiver key exactly; others are ignored. The variable changes the defaults only, so an entry for the same archiver in `config.hjson` replaces it outright -- and must therefore be a *complete* archiver entry. A partial one, such as `Lzx: { list: { cmd: "my-unlzx" } }`, becomes the whole `Lzx` archiver, and listing an LZX then fails.
 
 `unarc` cannot create archives, so it is not a choice for `compress`.
 
