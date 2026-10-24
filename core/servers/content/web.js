@@ -397,10 +397,7 @@ exports.getModule = class WebServerModule extends ServerModule {
         findSeries(
             tryFiles,
             (tryFile, nextTryFile) => {
-                const fileName = paths.join(
-                    req.url.substr(req.url.lastIndexOf('/', 1)),
-                    tryFile
-                );
+                const fileName = paths.join(this.staticRequestPath(req), tryFile);
 
                 this.resolveStaticPath(fileName, (err, filePath) => {
                     if (err || !filePath) {
@@ -434,7 +431,7 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     tryStaticRoute(req, resp, cb) {
-        const fileName = req.url.substr(req.url.lastIndexOf('/', 1));
+        const fileName = this.staticRequestPath(req);
 
         this.resolveStaticPath(fileName, (err, filePath) => {
             if (err || !filePath) {
@@ -460,6 +457,14 @@ exports.getModule = class WebServerModule extends ServerModule {
                 return cb(true);
             });
         });
+    }
+
+    //  The path part of the request URL only. Links shared on social media come
+    //  back with tracking parameters appended (e.g. Facebook's ?fbclid=...), and
+    //  a query string or fragment must not become part of the file name.
+    staticRequestPath(req) {
+        const path = req.url.split(/[?#]/, 1)[0];
+        return path.substr(path.lastIndexOf('/', 1));
     }
 
     resolveStaticPath(requestPath, cb) {
