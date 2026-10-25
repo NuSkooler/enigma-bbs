@@ -26,14 +26,23 @@ const {
     createIacDeEscaper,
     applyTransportFlags,
 } = require('./telnet_iac.js');
+const {
+    hasControlChar,
+    parseDszLog,
+    receivedFilesFromEntries,
+    confirmReceivedFiles,
+    buildProtocolEnv,
+} = require('./dszlog.js');
 
 //  deps
 const async = require('async');
 const _ = require('lodash');
 const pty = require('node-pty');
-const temptmp = require('temptmp').createTrackedSession('transfer_file');
+const TempTmp = require('temptmp');
+const temptmp = TempTmp.createTrackedSession('transfer_file');
 const paths = require('path');
 const fs = require('graceful-fs');
+const crypto = require('crypto');
 
 //  some consts
 const SYSTEM_EOL = require('os').EOL;
@@ -218,9 +227,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     recvFiles(cb) {
-        this.executeExternalProtocolHandlerForRecv(err => {
+        this.executeExternalProtocolHandlerForRecv((err, exitInfo, dszLogText) => {
             if (err) {
-                return cb(err);
+                return this.salvageReceivedFiles(err, exitInfo, dszLogText, cb);
+            }
+
+            if (_.isString(dszLogText)) {
+                this.client.log.debug(
+                    { dszLog: parseDszLog(dszLogText) },
+                    'Protocol DSZLOG after a clean exit'
+                );
             }
 
             this.recvFilePaths = [];
@@ -281,6 +297,141 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     );
                 });
             }
+        });
+    }
+
+    //
+    //  The protocol program exited non-zero. That covers the whole session,
+    //  not each file: a sender that botches the end of a batch -- VTX's YModem
+    //  sends CAN where the end-of-batch block belongs (#914) -- fails the run
+    //  after every file has been received and saved. If the protocol wrote a
+    //  DSZLOG, keep the files it confirms, and only those: anything else in
+    //  |recvDirectory| may be a partial file. See core/dszlog.js.
+    //
+    //  The names in the log are the sender's, written unescaped, so a name
+    //  with a newline in it can forge a line. Nothing is kept from a log with
+    //  a line that does not parse, or from a receive directory holding a name
+    //  with a control character in it.
+    //
+    salvageReceivedFiles(err, exitInfo, dszLogText, cb) {
+        if (!_.isString(dszLogText) || 'EBADEXIT' !== err.reasonCode) {
+            return cb(err);
+        }
+
+        const logInfo = {
+            cmd: exitInfo && exitInfo.cmd,
+            exitCode: exitInfo && exitInfo.exitCode,
+        };
+
+        const { entries, malformed } = parseDszLog(dszLogText);
+        if (malformed.length > 0) {
+            this.client.log.warn(
+                Object.assign(logInfo, { malformed }),
+                'Protocol failed and its DSZLOG has lines that do not parse; not trusting it'
+            );
+            return cb(err);
+        }
+
+        fs.readdir(this.recvDirectory, (readErr, dirNames) => {
+            if (readErr) {
+                this.client.log.warn(
+                    Object.assign(logInfo, { error: readErr.message }),
+                    'Protocol failed and its receive directory cannot be read'
+                );
+                return cb(err);
+            }
+
+            const suspectNames = dirNames.filter(hasControlChar);
+            if (suspectNames.length > 0) {
+                this.client.log.warn(
+                    Object.assign(logInfo, { suspectNames }),
+                    'Protocol failed and a received file name has control characters; not trusting its DSZLOG'
+                );
+                return cb(err);
+            }
+
+            const { received, rejected } = receivedFilesFromEntries(
+                entries,
+                this.recvDirectory
+            );
+
+            //  non-batch: the one file we asked for, or nothing
+            let candidates = received;
+            if (this.recvFileName) {
+                const expectedPath = paths.resolve(this.recvDirectory, this.recvFileName);
+                candidates = received.filter(c => c.path === expectedPath);
+            }
+
+            confirmReceivedFiles(candidates, (_err, result) => {
+                logInfo.notConfirmed = rejected.concat(result.rejected);
+
+                if (0 === result.confirmed.length) {
+                    this.client.log.warn(
+                        Object.assign(logInfo, { dszLog: entries }),
+                        'Protocol failed and its DSZLOG confirms no received files'
+                    );
+                    return cb(err);
+                }
+
+                this.recvFilePaths = result.confirmed;
+
+                this.client.log.warn(
+                    Object.assign(logInfo, { files: result.confirmed }),
+                    `Protocol exited with code ${logInfo.exitCode}, but its DSZLOG confirms ${result.confirmed.length} file(s) received; keeping them`
+                );
+                return cb(null);
+            });
+        });
+    }
+
+    //
+    //  A per-transfer DSZLOG for protocols that declare |dszLog|. Its own
+    //  tracked temptmp session, because the module-wide one is cleaned up by
+    //  whichever transfer finishes first -- another caller's, possibly, while
+    //  this one is still writing. Calls back (null, { path, session }), or
+    //  (null, null) if there is to be no log; failing to make one only costs
+    //  the salvage, so it never fails the transfer.
+    //
+    createDszLog(cb) {
+        if (!this.protocolConfig.external.dszLog) {
+            return cb(null, null);
+        }
+
+        const session = TempTmp.createTrackedSession(
+            `transfer_file_dszlog_${crypto.randomUUID()}`
+        );
+        session.open({ prefix: TEMP_SUFFIX, suffix: '.dszlog' }, (err, tempFileInfo) => {
+            if (err) {
+                this.client.log.warn(
+                    { error: err.message },
+                    'Failed to create DSZLOG; continuing without it'
+                );
+                session.cleanup();
+                return cb(null, null);
+            }
+
+            fs.close(tempFileInfo.fd, () => {
+                return cb(null, { path: tempFileInfo.path, session });
+            });
+        });
+    }
+
+    //  Read and remove a DSZLOG. Calls back with its text, or null.
+    consumeDszLog(dszLog, cb) {
+        if (!dszLog) {
+            return cb(null);
+        }
+
+        fs.readFile(dszLog.path, 'utf8', (err, text) => {
+            if (err) {
+                this.client.log.warn(
+                    { path: dszLog.path, error: err.message },
+                    'Failed to read DSZLOG'
+                );
+            }
+
+            dszLog.session.cleanup();
+            return cb(err ? null : text);
         });
     }
 
@@ -360,7 +511,18 @@ exports.getModule = class TransferFileModule extends MenuModule {
         return cb(null, args);
     }
 
-    executeExternalProtocolHandler(args, cb) {
+    //
+    //  |options.env|: the environment for the protocol program; node-pty's
+    //  default (process.env) if absent.
+    //
+    //  Calls back (err, { cmd, exitCode, signal }).
+    //
+    executeExternalProtocolHandler(args, options, cb) {
+        if (!cb && 'function' === typeof options) {
+            cb = options;
+            options = {};
+        }
+
         const external = this.protocolConfig.external;
         const cmd = external[`${this.direction}Cmd`];
 
@@ -429,6 +591,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
             encoding: null, //  don't bork our data!
         };
 
+        if (options.env) {
+            spawnOpts.env = options.env;
+        }
+
         const externalProc = pty.spawn(cmd, args, spawnOpts);
 
         let dataHits = 0;
@@ -491,7 +657,8 @@ exports.getModule = class TransferFileModule extends MenuModule {
                           `Process exited with exit code ${exitCode}`,
                           'EBADEXIT'
                       )
-                    : null
+                    : null,
+                { cmd, exitCode, signal }
             );
         });
     }
@@ -512,14 +679,45 @@ exports.getModule = class TransferFileModule extends MenuModule {
         });
     }
 
+    //
+    //  Calls back (err, exitInfo, dszLogText); |dszLogText| is null unless the
+    //  protocol declares |dszLog| and its log could be read.
+    //
     executeExternalProtocolHandlerForRecv(cb) {
         this.prepAndBuildRecvArgs((err, args) => {
             if (err) {
                 return cb(err);
             }
 
-            this.executeExternalProtocolHandler(args, err => {
-                return cb(err);
+            this.createDszLog((err, dszLog) => {
+                const options = dszLog
+                    ? { env: buildProtocolEnv(process.env, dszLog.path) }
+                    : {};
+
+                //
+                //  A protocol program that cannot be spawned at all throws
+                //  (node-pty). We are inside an async callback here, so a
+                //  rethrow would skip the caller's try/catch -- and with it the
+                //  free time release -- and land in the process-level handler.
+                //  Hand it back as an ordinary transfer error instead, without
+                //  the log left behind.
+                //
+                try {
+                    this.executeExternalProtocolHandler(
+                        args,
+                        options,
+                        (err, exitInfo) => {
+                            this.consumeDszLog(dszLog, dszLogText => {
+                                return cb(err, exitInfo, dszLogText);
+                            });
+                        }
+                    );
+                } catch (e) {
+                    if (dszLog) {
+                        dszLog.session.cleanup();
+                    }
+                    return cb(e);
+                }
             });
         });
     }

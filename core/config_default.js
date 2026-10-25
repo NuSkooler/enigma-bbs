@@ -1102,6 +1102,9 @@ module.exports = () => {
                     recvCmd: 'sexyz',
                     recvArgs: ['-telnet', '-8', 'rz', '{uploadDir}'],
                     recvArgsNonBatch: ['-telnet', '-8', 'rz', '{fileName}'],
+                    //  sexyz writes a DSZLOG: lets an upload that ends badly
+                    //  keep the files it did receive (see dszLog in the docs)
+                    dszLog: true,
                 },
             },
 
@@ -1114,6 +1117,7 @@ module.exports = () => {
                     sendArgs: ['-telnet', 'sX', '@{fileListPath}'],
                     recvCmd: 'sexyz',
                     recvArgsNonBatch: ['-telnet', 'rC', '{fileName}'],
+                    dszLog: true,
                 },
             },
 
@@ -1126,6 +1130,7 @@ module.exports = () => {
                     sendArgs: ['-telnet', 'sY', '@{fileListPath}'],
                     recvCmd: 'sexyz',
                     recvArgs: ['-telnet', 'ry', '{uploadDir}'],
+                    dszLog: true,
                 },
             },
 
