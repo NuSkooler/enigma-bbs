@@ -50,11 +50,9 @@ class FileAreaWebAccess {
                 function addWebRoute(callback) {
                     self.webServer = getServer(webServerPackageName);
                     if (!self.webServer) {
-                        return callback(
-                            Errors.DoesNotExist(
-                                `Server with package name "${webServerPackageName}" does not exist`
-                            )
-                        );
+                        //  contentServers.web.enabled is false: not loaded at all
+                        Log.debug('Web server not loaded; file area web access is off');
+                        return callback(null);
                     }
 
                     if (self.isEnabled()) {
@@ -90,7 +88,7 @@ class FileAreaWebAccess {
     }
 
     isEnabled() {
-        return this.webServer.instance.isEnabled();
+        return Boolean(this.webServer) && this.webServer.instance.isEnabled();
     }
 
     static getHashIdTypes() {
