@@ -12,6 +12,10 @@ The WebSocket Login Server provides **secure** (`wss://`) as well as non-secure 
 If you run into any trouble getting WebSocket or VTX set up, see [Troubleshooting WebSocket & VTX](../../troubleshooting/websocket-troubleshooting.md).
 :::
 
+:::tip[enig-term (preview)]
+ENiGMA½ can also serve [enig-term](./enig-term.md), a browser terminal in development, at `/_enig/ws-term/` once you install its files. It connects to this server over `wss://`.
+:::
+
 ---
 
 ## Configuration
