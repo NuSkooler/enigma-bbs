@@ -50,7 +50,58 @@ const _ = require('lodash');
 
 exports.Client = Client;
 exports.getCtermVersion = getCtermVersion;
+exports.getDeviceAttrVersion = getDeviceAttrVersion;
+exports.getTermClientFromDeviceAttr = getTermClientFromDeviceAttr;
 exports.getCtermCapabilitiesFromCtda = getCtermCapabilitiesFromCtda;
+
+//
+//  Terminals that answer DA with their name in ASCII, as decimal parameters,
+//  followed by version components. |versioned| marks the ones whose trailing
+//  parameters are known to be a version.
+//
+//  * CTerm (SyncTERM): '67;84;101;114;109' is "CTerm".
+//    See https://syncterm.bbsdev.net/cterm.html
+//  * enig-term: '101;110;105;103;45;116;101;114;109' is "enig-term", then
+//    major;minor;patch. CTerm-shaped, but it is not CTerm: it is identified
+//    as its own client and does not set ctermVersion.
+//  * IcyTerm: '73;99;121;84;101;114;109' is "IcyTerm"; the remaining bytes
+//    are version info in a form not relied on here.
+//    See https://github.com/mkrueger/icy_tools
+//
+const NamedDeviceAttrClients = [
+    { prefix: '67;84;101;114;109', termClient: 'cterm', versioned: true },
+    {
+        prefix: '101;110;105;103;45;116;101;114;109',
+        termClient: 'enig_term',
+        versioned: true,
+    },
+    { prefix: '73;99;121;84;101;114;109', termClient: 'icy_term', versioned: false },
+];
+
+//  DA replies matched exactly
+const ExactDeviceAttrClients = {
+    '63;1;2': 'arctel', //  https://web.archive.org/web/20190828112223/http://www.fbl.cz/arctel/download/techman.pdf - Irssi ConnectBot (Android)
+    '50;86;84;88': 'vtx', //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
+};
+
+//
+//  The version that follows a name |prefix| in a DA reply, its components
+//  joined with dots: '67;84;101;114;109;1;332' with the CTerm prefix is
+//  '1.332'. Whatever follows the prefix is kept as-is, so a fork that appends
+//  a component keeps it. null when nothing usable follows the prefix.
+//
+function getDeviceAttrVersion(deviceAttr, prefix) {
+    const prefixLen = prefix.split(';').length;
+    const parts = deviceAttr.split(';');
+    if (parts.slice(0, prefixLen).join(';') !== prefix) {
+        return null;
+    }
+    const revision = parts.slice(prefixLen);
+    if (!revision.length || revision.some(part => !/^(?:0|[1-9][0-9]*)$/.test(part))) {
+        return null;
+    }
+    return revision.join('.');
+}
 
 //
 //  CTerm answers DA with the "CTerm" prefix followed by its revision, dots
@@ -58,14 +109,32 @@ exports.getCtermCapabilitiesFromCtda = getCtermCapabilitiesFromCtda;
 //  fork appends a further component rather than incrementing one of these, so
 //  whatever follows the prefix is kept as-is.
 //
-//  See https://syncterm.bbsdev.net/cterm.html
-//
 function getCtermVersion(deviceAttr) {
-    const revision = deviceAttr.split(';').slice(5);
-    if (!revision.length || revision.some(part => !/^(?:0|[1-9][0-9]*)$/.test(part))) {
+    return getDeviceAttrVersion(deviceAttr, NamedDeviceAttrClients[0].prefix);
+}
+
+//
+//  The terminal client a DA reply identifies, and its version where the reply
+//  carries one: { termClient, version }, or null for a reply we don't know.
+//
+function getTermClientFromDeviceAttr(deviceAttr) {
+    const exact = ExactDeviceAttrClients[deviceAttr];
+    if (exact) {
+        return { termClient: exact, version: null };
+    }
+
+    //  match on a whole parameter boundary: a prefix followed by ';' or nothing
+    const named = NamedDeviceAttrClients.find(
+        c => deviceAttr === c.prefix || deviceAttr.startsWith(`${c.prefix};`)
+    );
+    if (!named) {
         return null;
     }
-    return revision.join('.');
+
+    return {
+        termClient: named.termClient,
+        version: named.versioned ? getDeviceAttrVersion(deviceAttr, named.prefix) : null,
+    };
 }
 
 //
@@ -237,30 +306,8 @@ function Client(/*input, output*/) {
     //  *   Christopher Jeffrey's Blessed library @ https://github.com/chjj/blessed/
     //
     this.getTermClient = function (deviceAttr) {
-        let termClient = {
-            '63;1;2': 'arctel', //  https://web.archive.org/web/20190828112223/http://www.fbl.cz/arctel/download/techman.pdf - Irssi ConnectBot (Android)
-            '50;86;84;88': 'vtx', //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
-        }[deviceAttr];
-
-        if (!termClient) {
-            if (deviceAttr.startsWith('67;84;101;114;109')) {
-                //
-                //  See https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
-                //
-                //  Known clients:
-                //  * SyncTERM
-                //
-                termClient = 'cterm';
-            } else if (deviceAttr.startsWith('73;99;121;84;101;114;109')) {
-                //
-                //  DA prefix decodes to "IcyTerm"; remaining bytes are version info.
-                //  See https://github.com/mkrueger/icy_tools
-                //
-                termClient = 'icy_term';
-            }
-        }
-
-        return termClient;
+        const identified = getTermClientFromDeviceAttr(deviceAttr);
+        return identified ? identified.termClient : undefined;
     };
 
     /* eslint-disable no-control-regex */
@@ -425,11 +472,12 @@ function Client(/*input, output*/) {
                 }
             } else if ((parts = RE_DEV_ATTR_RESPONSE_ANYWHERE.exec(s))) {
                 assert('c' === parts[2]);
-                var termClient = self.getTermClient(parts[1]);
-                if (termClient) {
-                    self.term.termClient = termClient;
-                    if ('cterm' === termClient) {
-                        self.term.ctermVersion = getCtermVersion(parts[1]);
+                const identified = getTermClientFromDeviceAttr(parts[1]);
+                if (identified) {
+                    self.term.termClientVersion = identified.version;
+                    self.term.termClient = identified.termClient;
+                    if ('cterm' === identified.termClient) {
+                        self.term.ctermVersion = identified.version;
                     }
                 }
             } else if ((parts = RE_CTERM_CAP_RESPONSE_ANYWHERE.exec(s))) {
@@ -819,7 +867,8 @@ Client.prototype.terminalSupports = function (query) {
 
         case 'osc8_hyperlink':
             //  OSC 8 clickable hyperlink support
-            //  cterm/SyncTERM: confirmed via active capability query (CSI = 6 n)
+            //  cterm/SyncTERM, enig-term: confirmed via active capability
+            //  query (CSI = 6 n); never assumed from the client name
             //  IcyTerm: confirmed via DA response + feature documentation
             //  VTX: uses xterm.js which supports OSC 8
             //  *nix xterm-class: broad support
