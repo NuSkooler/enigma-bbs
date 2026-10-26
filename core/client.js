@@ -97,8 +97,10 @@ const CtdaFeatures = Object.freeze({
 exports.CtdaFeatures = CtdaFeatures;
 
 //
-//  The capabilities a CTDA reply reports, from its parameters after the
-//  leading 0 ('0;1;2;3;5' or [1, 2, 3, 5]): { ctda: [...], <name>: bool, ... }.
+//  The capabilities a CTDA reply reports, from its parameters ('0;1;2;3;5' or
+//  [1, 2, 3, 5]): { ctda: [...], <name>: bool, ... }. The leading 0 that CTerm
+//  sends is not a feature and is dropped, so a reply without it (IcyTerm 0.8)
+//  reads the same.
 //  Every known feature gets a boolean, so a feature the reply leaves out is
 //  false rather than missing; numbers we have no name for are kept in |ctda|.
 //
@@ -132,9 +134,11 @@ const RE_CTERM_CAP_RESPONSE_ANYWHERE = /\u001b\[=([0-9]+);([0-9]+)n/;
 //  e.g. \x1b[<0;1;2;3;5c. CTerm builds from before 2020-04-25 (Synchronet
 //  commit 3c5bb707, ahead of the SyncTERM 1.1 release) ended it with 'n'
 //  instead; both are taken so neither leaks into input as keystrokes.
-//  IcyTerm 0.8.0 to 0.8.4 leave the leading 0 out (\x1b[<1;2;3;4;5;6;7c): a
-//  reply that does not start with 0 is all feature numbers.
+//  IcyTerm 0.8.0 to 0.8.4 leave the leading 0 out (\x1b[<1;2;3;4;5;6;7c).
+//  Ends in c or n only: SGR mouse reports, which also start ESC [ <, end in
+//  M or m.
 const RE_CTDA_RESPONSE_ANYWHERE = /\u001b\[<([0-9]+(?:;[0-9]*)*)([cn])/;
+exports.RE_CTDA_RESPONSE = RE_CTDA_RESPONSE_ANYWHERE;
 const RE_META_KEYCODE_ANYWHERE = /(?:\u001b)([a-zA-Z0-9])/;
 const RE_META_KEYCODE = new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
 const RE_FUNCTION_KEYCODE_ANYWHERE = new RegExp(
@@ -434,11 +438,7 @@ function Client(/*input, output*/) {
                     value: parseInt(parts[2], 10),
                 });
             } else if ((parts = RE_CTDA_RESPONSE_ANYWHERE.exec(s))) {
-                //  parameters after the leading 0 are the features
-                const params = parts[1].split(';');
-                const caps = getCtermCapabilitiesFromCtda(
-                    0 === parseInt(params[0], 10) ? params.slice(1) : params
-                );
+                const caps = getCtermCapabilitiesFromCtda(parts[1]);
                 Object.assign(self.term.termCapabilities, caps);
                 if (self.log) {
                     self.log.debug(

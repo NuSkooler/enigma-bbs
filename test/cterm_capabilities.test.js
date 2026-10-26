@@ -121,7 +121,13 @@ describe('CTerm capabilities (CTDA)', function () {
             assert.deepEqual(keys, []);
         });
 
-        it('still leaves SGR mouse reports (also CSI <) alone', () => {
+        it('does not take SGR mouse reports (also CSI <) for a CTDA reply', () => {
+            //  on the data path isMouseInput() drops a mouse chunk before the
+            //  reply parser runs, so check the parser's own pattern
+            assert.equal(ClientModule.RE_CTDA_RESPONSE.exec('\x1b[<0;10;5M'), null);
+            assert.equal(ClientModule.RE_CTDA_RESPONSE.exec('\x1b[<0;10;5m'), null);
+            assert.ok(ClientModule.RE_CTDA_RESPONSE.exec('\x1b[<0;1;2;3;5c'));
+
             client.emit('data', Buffer.from('\x1b[<0;10;5M'));
             assert.equal(client.term.termCapabilities.ctda, undefined);
         });
