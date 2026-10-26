@@ -112,6 +112,15 @@ describe('CTerm capabilities (CTDA)', function () {
             assert.deepEqual(keys, []);
         });
 
+        it("takes IcyTerm 0.8's reply, which has no leading 0", () => {
+            const keys = collectKeys();
+            client.emit('data', Buffer.from('\x1b[<1;2;3;4;5;6;7c'));
+            assert.deepEqual(client.term.termCapabilities.ctda, [1, 2, 3, 4, 5, 6, 7]);
+            assert.equal(client.term.termCapabilities.fontSelect, true);
+            assert.equal(client.term.termCapabilities.keyEvents, false);
+            assert.deepEqual(keys, []);
+        });
+
         it('still leaves SGR mouse reports (also CSI <) alone', () => {
             client.emit('data', Buffer.from('\x1b[<0;10;5M'));
             assert.equal(client.term.termCapabilities.ctda, undefined);
@@ -295,6 +304,43 @@ describe('CTerm capabilities (CTDA)', function () {
                     }
                 })
             );
+        });
+
+        it('asks IcyTerm CTDA too, and takes its answer for the font decision', done => {
+            const client = makeClient('icy_term');
+            Connect.ansiQueryCtermCapabilities(client, err => {
+                assert.ifError(err);
+                //  IcyTerm swallows CSI = 6 n; OSC 8 stays as terminalSupports has it
+                assert.equal(client.term.termCapabilities.osc8, undefined);
+                Connect.ansiQuerySyncTermFontSupport(client, () => {
+                    assert.equal(client.term.syncTermFontsEnabled, true);
+                    assert.equal(client.writes.length, 1, 'no CPR font probe');
+                    return done();
+                });
+            });
+            assert.deepEqual(client.writes, [CTERM_QUERY]);
+            client.term.termCapabilities = {
+                ctda: [1, 2, 3, 4, 5, 6, 7, 8],
+                fontSelect: true,
+            };
+            client.emit('cursor position report', [1, 1]);
+        });
+
+        it('finishes on the CPR for an IcyTerm too old to answer CTDA', done => {
+            const client = makeClient('icy_term');
+            const started = Date.now();
+            Connect.ansiQueryCtermCapabilities(client, () => {
+                assert(Date.now() - started < 500, 'no timeout wait');
+                assert.equal(client.term.termCapabilities.ctda, undefined);
+                //  not CTerm-shaped: no name fast path, the CPR probe stays
+                Connect.ansiQuerySyncTermFontSupport(client, () => {
+                    assert.equal(client.writes.length, 2);
+                    assert.match(client.writes[1], / D/);
+                    return done();
+                });
+                client.emit('cursor position report', [1, 1]);
+            });
+            client.emit('cursor position report', [1, 1]);
         });
 
         it('wires the client parser and the probes together', done => {

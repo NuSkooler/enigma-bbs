@@ -24,6 +24,15 @@ const CtermCompatibleClients = new Set(['cterm']);
 
 const isCtermCompatible = client => CtermCompatibleClients.has(client.term.termClient);
 
+//
+//  Clients sent the CTerm capability queries without being CTerm-shaped: IcyTerm
+//  answers CSI < c (CTDA), and drops CSI = 6 n without a reply. It is not
+//  SyncTERM-font-by-name (it keeps the CPR font probe when CTDA is unanswered).
+//
+const CtermQueryClients = new Set([...CtermCompatibleClients, 'icy_term']);
+
+const wantsCtermQueries = client => CtermQueryClients.has(client.term.termClient);
+
 //  true once the terminal has answered CSI < c
 const ctdaAnswered = client => Array.isArray(client.term.termCapabilities.ctda);
 
@@ -286,7 +295,7 @@ const CTERM_CAP_OSC8 = 6; //  CSI = 6 n: OSC 8 hyperlink support
 //  Gives up after the usual 2s if even the CPR never comes.
 //
 function ansiQueryCtermCapabilities(client, cb) {
-    if (!isCtermCompatible(client)) {
+    if (!wantsCtermQueries(client)) {
         return cb(null);
     }
 
