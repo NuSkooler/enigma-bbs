@@ -28,3 +28,6 @@ dev_util/gotosocial/bin/
 dev_util/gotosocial/data/
 dev_util/gotosocial/web/
 dev_util/ngrok/bin/
+
+#   enig-term, the browser terminal: installed by the operator, not shipped
+/ws-term/
