@@ -956,6 +956,30 @@
                             },
                             "additionalProperties": false
                         },
+                        "wsTerm": {
+                            "type": "object",
+                            "properties": {
+                                "root": {
+                                    "description": "Directory enig-term is installed in. /_enig/ws-term/ answers only while it holds an index.html. Must not be under staticRoot.",
+                                    "type": "string",
+                                    "$comment": "Default: <installation directory>/ws-term"
+                                },
+                                "endpoint": {
+                                    "description": "Public wss:// URL enig-term connects to. Empty builds it from domain and loginServers.webSocket.wss.",
+                                    "type": "string",
+                                    "default": ""
+                                },
+                                "client": {
+                                    "description": "Options merged into the generated enig-term config.json.",
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            },
+                            "patternProperties": {
+                                "^_": true
+                            },
+                            "additionalProperties": false
+                        },
                         "rateLimits": {
                             "type": "object",
                             "properties": {

@@ -241,6 +241,14 @@
             //  Standard issue "www" folder. Place static content here
             staticRoot: XXXXX
 
+            //  enig-term, the browser terminal, is served at /_enig/ws-term/
+            //  once its files are copied into <install dir>/ws-term/. Set
+            //  endpoint when a TLS proxy publishes a different port than
+            //  loginServers.webSocket.wss listens on. See the enig-term docs.
+            //  wsTerm: {
+            //      endpoint: "wss://another-fine-enigma-bbs.org:44512"
+            //  }
+
             //  Configuration for individual web handlers
             handlers: {
                 //  webFinger is needed for activityPub support, or can
