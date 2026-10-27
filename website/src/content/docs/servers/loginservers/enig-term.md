@@ -102,6 +102,7 @@ The page reads `config.json` from its own directory. Unless you put one there, E
 
 - `version`: the format of this file, currently `1`;
 - `endpoint`: as described above, or `null`;
+- `lockEndpoint`: `true` when there is an endpoint. The page then connects only there, and a link such as `/_enig/ws-term/?endpoint=wss://elsewhere` cannot send your callers to another host. Set `lockEndpoint: false` in `wsTerm.client` only if you want callers to be able to choose a host;
 - `title`: your `general.boardName`;
 - everything in `wsTerm.client`, merged in last.
 
@@ -127,6 +128,7 @@ contentServers: {
 {
     "version": 1,
     "endpoint": "wss://bbs.example.com:44512",
+    "lockEndpoint": true,
     "title": "Another Fine ENiGMA½ BBS",
     "autoConnect": true,
     "crt": false
