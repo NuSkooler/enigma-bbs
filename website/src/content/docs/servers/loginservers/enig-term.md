@@ -8,7 +8,7 @@ sidebar:
 
 enig-term is a browser terminal for ANSI-BBS boards. It runs the emulation in WebAssembly and draws with WebGL, so callers get CP437 and Amiga fonts, SyncTERM font switching, iCE colours, 4:3 aspect correction and an optional CRT look, with nothing to install. It connects to ENiGMA½'s [WebSocket login server](./websocket.md).
 
-enig-term is its own project. ENiGMA½ does not ship its files: you install them, and ENiGMA½ serves them at `/_enig/ws-term/` on the [web server](../contentservers/web-server.md).
+enig-term is its own project, at [github.com/NuSkooler/enig-term](https://github.com/NuSkooler/enig-term). ENiGMA½ does not ship its files: you install them, and ENiGMA½ serves them at `/_enig/ws-term/` on the [web server](../contentservers/web-server.md).
 
 :::caution[Preview]
 enig-term is under active development and has no release yet. There are no prebuilt downloads, so you build it from source, and its options and files may change between versions. Until it is released, [VTX](./websocket.md#vtx-web-client) remains the documented web client.
@@ -27,7 +27,7 @@ enig-term is under active development and has no release yet. There are no prebu
 
 The route is **off until you install enig-term**. It answers only while its directory exists and contains an `index.html`; otherwise every request under `/_enig/ws-term/` is a 404. There is nothing to switch on, and no restart is needed either way.
 
-1. **Get enig-term's `dist/` directory.** For now, build it from a checkout of enig-term following its own README. Its build needs Node.js and a Rust toolchain with the `wasm32-unknown-unknown` target:
+1. **Get enig-term's `dist/` directory.** For now, build it from a checkout of [enig-term](https://github.com/NuSkooler/enig-term) following its own README. Its build needs Node.js and a Rust toolchain with the `wasm32-unknown-unknown` target:
 
    ```shell
    npm install
