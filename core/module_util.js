@@ -2,8 +2,11 @@
 'use strict';
 
 //  ENiGMA½
-const Config = require('./config.js').get;
-const Log = require('./logger.js').log;
+const configModule = require('./config.js');
+//  configModule.get is replaced when the config is created (and by tests), so
+//  capturing it at load time would go stale: always read through the module.
+const Config = () => configModule.get();
+const logger = require('./logger.js'); //  logger.log is set by init(): read it late
 const { Errors, ErrorReasons } = require('./enig_error.js');
 
 //  deps
@@ -34,9 +37,13 @@ function loadModuleEx(options, cb) {
     assert(_.isString(options.name));
     assert(_.isString(options.path));
 
-    const modConfig = _.isObject(Config[options.category])
-        ? Config[options.category][options.name]
-        : null;
+    //
+    //  |category| is the config section the module's own block lives in, e.g.
+    //  'loginServers' -> loginServers.telnet; "enabled: false" there skips it.
+    //
+    const config = Config();
+    const categoryConfig = options.category ? config[options.category] : null;
+    const modConfig = _.isObject(categoryConfig) ? categoryConfig[options.name] : null;
 
     if (_.isObject(modConfig) && false === modConfig.enabled) {
         return cb(
@@ -119,9 +126,12 @@ function loadModulesForCategory(category, iterator, complete) {
                 loadModule(paths.basename(file, '.js'), category, (err, mod) => {
                     if (err) {
                         if (ErrorReasons.Disabled === err.reasonCode) {
-                            Log.debug(err.message);
+                            logger.log.info(
+                                { module: paths.basename(file, '.js'), category },
+                                'Module disabled in configuration; not loading'
+                            );
                         } else {
-                            Log.info({ err: err }, 'Failed loading module');
+                            logger.log.info({ err: err }, 'Failed loading module');
                         }
                         return next(null); //  continue no matter what
                     }
@@ -178,7 +188,7 @@ function initializeModules(cb) {
 
                                     mod.moduleInitialize(initInfo, err => {
                                         if (err) {
-                                            Log.warn(
+                                            logger.log.warn(
                                                 {
                                                     error: err.message,
                                                     modulePath: fullModulePath,
@@ -192,7 +202,7 @@ function initializeModules(cb) {
                                     return nextModule(null);
                                 }
                             } catch (e) {
-                                Log.warn(
+                                logger.log.warn(
                                     { error: e.message, fullModulePath },
                                     'Exception during "moduleInitialize"'
                                 );
