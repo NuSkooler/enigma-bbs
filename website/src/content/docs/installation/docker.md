@@ -123,6 +123,46 @@ with only a description made from their file name. A rescan re-describes them, t
 It does not change their recorded file type: they stay plain files in the database.
 :::
 
+## enig-term web terminal
+
+The image carries [enig-term](../servers/loginservers/enig-term.md), the browser terminal, at
+`/opt/enig-term`. It is off by default, as in any other install: ENiGMA½ serves enig-term from
+`ws-term` under its install directory, and the image leaves that empty. To turn it on, point
+`wsTerm.root` at the image's copy in your `config.hjson`:
+
+```hjson
+contentServers: {
+    web: {
+        wsTerm: {
+            root: /opt/enig-term
+        }
+    }
+}
+```
+
+The page needs the [web server](../servers/contentservers/web-server.md) enabled, and a secure
+WebSocket (`wss://`) that browsers can reach, so publish the web server's port and the
+WebSocket's with `-p`, as well as `8888`. In a container that usually means a TLS proxy in
+front of ENiGMA½'s plain `ws` listener (port 8810 by default). The port browsers connect to is
+then the proxy's, so set it as the public endpoint, next to `root`:
+
+```hjson
+wsTerm: {
+    root: /opt/enig-term
+    endpoint: "wss://bbs.example.com:44512"
+}
+```
+
+Then browse to `https://bbs.example.com/_enig/ws-term/`. See [The endpoint](../servers/loginservers/enig-term.md#the-endpoint)
+for when ENiGMA½ can work the endpoint out itself.
+
+The enig-term version is pinned to the image: `ENIG_TERM_VERSION` in `docker/Dockerfile` names
+the release, and `ENIG_TERM_SHA256` its checksum, which the build checks. It changes when the
+image does. To run a different release, mount your own copy and point `root` at it instead,
+for example `-v "$(pwd)/ws-term:/enigma-bbs/ws-term"` with `root` left at its default. The
+image has no Amiga fonts, which enig-term does not ship either; a mounted copy can have them
+(see enig-term's `tools/fetch-amiga-fonts.mjs`).
+
 ## Volumes
 
 Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs
@@ -149,13 +189,15 @@ Customising the Docker image is easy!
 docker build -t enigmabbs -f ./docker/Dockerfile .
 ```
 
-The Dockerfile has three stages. A `build` stage installs a compiler toolchain and runs
+The Dockerfile has four stages. A `build` stage installs a compiler toolchain and runs
 `npm ci`, which is where the native modules (node-pty, better-sqlite3 and friends) are
 compiled. An `unarc` stage builds `unarc` with Rust; it runs on the machine doing the build
 and cross compiles for each target platform, which takes a minute or two where building
-under emulation would take far longer. The stage that ships installs only the runtime
-packages -- the archivers, the description tools and `lrzsz` -- and copies `node_modules`
-and the `unarc` binary out of the other two, so no compiler reaches the published image
+under emulation would take far longer. An `enig-term` stage downloads the pinned enig-term
+release and checks it; its files are the same on every platform, so it too runs once, on the
+machine doing the build. The stage that ships installs only the runtime packages -- the
+archivers, the description tools and `lrzsz` -- and copies `node_modules`, the `unarc` binary
+and enig-term's files out of the other three, so no compiler reaches the published image
 ([#814](https://github.com/NuSkooler/enigma-bbs/issues/814)). Because the compiled modules
 are copied rather than rebuilt, the `build` stage and the one that ships must start from the
 same base image; keep them in step if you change one.
