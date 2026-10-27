@@ -10,8 +10,8 @@ enig-term is a browser terminal for ANSI-BBS boards. It runs the emulation in We
 
 enig-term is its own project, at [github.com/NuSkooler/enig-term](https://github.com/NuSkooler/enig-term). ENiGMA½ does not ship its files: you install them, and ENiGMA½ serves them at `/_enig/ws-term/` on the [web server](../contentservers/web-server.md).
 
-:::caution[Preview]
-enig-term is under active development and has no release yet. There are no prebuilt downloads, so you build it from source, and its options and files may change between versions. Until it is released, [VTX](./websocket.md#vtx-web-client) remains the documented web client.
+:::caution[Early release]
+enig-term is at version 0.1, and its options and files may still change between versions. [VTX](./websocket.md#vtx-web-client) remains documented as an alternative.
 :::
 
 ---
@@ -27,20 +27,20 @@ enig-term is under active development and has no release yet. There are no prebu
 
 The route is **off until you install enig-term**. It answers only while its directory exists and contains an `index.html`; otherwise every request under `/_enig/ws-term/` is a 404. There is nothing to switch on, and no restart is needed either way.
 
-1. **Get enig-term's `dist/` directory.** For now, build it from a checkout of [enig-term](https://github.com/NuSkooler/enig-term) following its own README. Its build needs Node.js and a Rust toolchain with the `wasm32-unknown-unknown` target:
+1. **Download a release.** Get `enig-term-<version>.zip` (or `.tar.gz`) and `SHA256SUMS` from the [releases page](https://github.com/NuSkooler/enig-term/releases), and check the download:
 
    ```shell
-   npm install
-   npm run build
+   sha256sum -c SHA256SUMS --ignore-missing
+   unzip enig-term-0.1.0.zip
    ```
 
-   The build writes `dist/`, which holds `index.html`, `enig-term.js`, `enig_term_core_bg.wasm` and its licence notices.
+   The archive holds one folder, `enig-term-<version>/`, with `index.html`, `enig-term.js`, the `.wasm` files, fonts and licence notices. To build it yourself instead, follow [Building from source](https://github.com/NuSkooler/enig-term/blob/main/docs/building.md); the build writes the same files to `dist/`.
 
 2. **Copy it into place.** The default location is a `ws-term` directory at the top of your ENiGMA½ install, next to `www`:
 
    ```shell
    mkdir -p /path/to/enigma-bbs/ws-term
-   cp -r /path/to/enig-term/dist/. /path/to/enigma-bbs/ws-term/
+   cp -a enig-term-0.1.0/. /path/to/enigma-bbs/ws-term/
    ```
 
    If the copy includes a `config.json`, delete it unless you mean to use it as an [override](#configjson): while it is there, ENiGMA½ serves it instead of generating one.
@@ -49,7 +49,7 @@ The route is **off until you install enig-term**. It answers only while its dire
 
 4. **Browse to** `https://your-hostname.here/_enig/ws-term/`.
 
-To upgrade, copy a newer `dist/` over the old files. Every file is revalidated on each page load, so callers pick up the new version straight away rather than mixing old and new files from their cache. To remove enig-term, delete the directory.
+To upgrade, copy a newer release over the old files. Every file is revalidated on each page load, so callers pick up the new version straight away rather than mixing old and new files from their cache. To remove enig-term, delete the directory.
 
 :::note
 Keep the directory outside the web server's `staticRoot` (`www` by default), or its files are served twice: once at `/_enig/ws-term/` and once as plain static files.
