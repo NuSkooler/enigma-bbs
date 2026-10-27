@@ -153,7 +153,9 @@ wsTerm: {
 }
 ```
 
-Then browse to `https://bbs.example.com/_enig/ws-term/`. See [The endpoint](../servers/loginservers/enig-term.md#the-endpoint)
+Then browse to `https://bbs.example.com/_enig/ws-term/`. `root` is read on each request and
+`config.hjson` is [hot-reloaded](../configuration/config-files.md#hot-reload), so changing it
+needs no container restart. See [The endpoint](../servers/loginservers/enig-term.md#the-endpoint)
 for when ENiGMA½ can work the endpoint out itself.
 
 The enig-term version is pinned to the image: `ENIG_TERM_VERSION` in `docker/Dockerfile` names
