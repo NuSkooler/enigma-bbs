@@ -194,12 +194,17 @@ function resolveEndpoint(config) {
 }
 
 //  { version, endpoint, title, ...wsTerm.client }
+//  With an endpoint the page is locked to it, so a crafted link
+//  (?endpoint=wss://elsewhere&connect=1) cannot point this board's own page at
+//  another host. wsTerm.client can still set lockEndpoint: false.
 function generateClientConfig(config) {
     const client = wsTermConfig(config).client;
+    const endpoint = resolveEndpoint(config);
     return Object.assign(
         {
             version: ClientConfigVersion,
-            endpoint: resolveEndpoint(config),
+            endpoint,
+            lockEndpoint: null !== endpoint,
             title: _.get(config, 'general.boardName') || null,
         },
         _.isPlainObject(client) ? client : {}

@@ -281,11 +281,35 @@ describe('enig-term', function () {
                 {
                     version: 1,
                     endpoint: 'wss://bbs.example.com:8811',
+                    lockEndpoint: true,
                     title: 'Test Board',
                     cols: 80,
                     crt: true,
                 }
             );
+        });
+
+        it('locks the page to the endpoint, unless the operator says otherwise', () => {
+            const locked = WsTerm.generateClientConfig(
+                base({ endpoint: 'wss://bbs.example.com:44512' }, undefined)
+            );
+            assert.equal(locked.lockEndpoint, true);
+
+            //  no endpoint: the page asks for a host, so there is nothing to lock to
+            const open = WsTerm.generateClientConfig(base({ endpoint: '' }, undefined));
+            assert.equal(open.endpoint, null);
+            assert.equal(open.lockEndpoint, false);
+
+            const unlocked = WsTerm.generateClientConfig(
+                base(
+                    {
+                        endpoint: 'wss://bbs.example.com:44512',
+                        client: { lockEndpoint: false },
+                    },
+                    undefined
+                )
+            );
+            assert.equal(unlocked.lockEndpoint, false);
         });
     });
 
@@ -554,6 +578,7 @@ describe('enig-term', function () {
             assert.deepEqual(JSON.parse(resp.body.toString()), {
                 version: 1,
                 endpoint: 'wss://bbs.example.com:8811',
+                lockEndpoint: true,
                 title: 'Test Board',
                 cols: 80,
                 rows: 25,
