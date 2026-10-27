@@ -8,7 +8,7 @@ sidebar:
 
 enig-term is a browser terminal for ANSI-BBS boards. It runs the emulation in WebAssembly and draws with WebGL, so callers get CP437 and Amiga fonts, SyncTERM font switching, iCE colours, 4:3 aspect correction and an optional CRT look, with nothing to install. It connects to ENiGMA½'s [WebSocket login server](./websocket.md).
 
-enig-term is its own project, at [github.com/NuSkooler/enig-term](https://github.com/NuSkooler/enig-term). ENiGMA½ does not ship its files: you install them, and ENiGMA½ serves them at `/_enig/ws-term/` on the [web server](../contentservers/web-server.md).
+enig-term is its own project, at [github.com/NuSkooler/enig-term](https://github.com/NuSkooler/enig-term). ENiGMA½'s source does not include its files: you install them, and ENiGMA½ serves them at `/_enig/ws-term/` on the [web server](../contentservers/web-server.md). The [install script](../../installation/install-script.md) can install them for you, and the [Docker image](../../installation/docker.md#enig-term-web-terminal) carries a copy.
 
 :::caution[Early release]
 enig-term is at version 0.1, and its options and files may still change between versions. [VTX](./websocket.md#vtx-web-client) remains documented as an alternative.
@@ -25,7 +25,29 @@ enig-term is at version 0.1, and its options and files may still change between 
 
 ## Installing
 
-The route is **off until you install enig-term**. It answers only while its directory exists and contains an `index.html`; otherwise every request under `/_enig/ws-term/` is a 404. There is nothing to switch on, and no restart is needed either way.
+The route is **off until you install enig-term**. It answers only while its directory exists and contains an `index.html`; otherwise every request under `/_enig/ws-term/` is a 404. Outside Docker there is nothing else to switch on, and no restart is needed either way.
+
+### With the install script
+
+`install.sh` asks `Install the enig-term web terminal? [y/N]`. Answer `y` and it downloads the latest release, checks it against the release's `SHA256SUMS`, and unpacks it into `ws-term` in your install directory, which turns the route on. Then carry on from step 3 below. Running the script again later installs the latest release over the old one. See [Install Script](../../installation/install-script.md#enig-term).
+
+### With Docker
+
+The image carries enig-term at `/opt/enig-term`, pinned to the release the image was built with, and leaves it off. Turn it on by setting `root`:
+
+```hjson
+contentServers: {
+    web: {
+        wsTerm: {
+            root: /opt/enig-term
+        }
+    }
+}
+```
+
+Then carry on from step 3 below. See [Docker](../../installation/docker.md#enig-term-web-terminal).
+
+### By hand
 
 1. **Download a release.** Get `enig-term-<version>.zip` (or `.tar.gz`) and `SHA256SUMS` from the [releases page](https://github.com/NuSkooler/enig-term/releases), and check the download:
 

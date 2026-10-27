@@ -304,6 +304,51 @@ describe('docker/Dockerfile (#814)', () => {
         ]);
     });
 
+    it('fetches a pinned, checksummed enig-term once for every platform', () => {
+        const globals = [];
+        parseStages(fs.readFileSync(DOCKERFILE, 'utf8'), globals);
+        const version = globals.find(g => /^ENIG_TERM_VERSION=/.test(g.args));
+        const sum = globals.find(g => /^ENIG_TERM_SHA256=/.test(g.args));
+        assert(version, 'no global ARG ENIG_TERM_VERSION');
+        assert.match(version.args, /^ENIG_TERM_VERSION=\d+\.\d+\.\d+$/);
+        assert(sum, 'no global ARG ENIG_TERM_SHA256');
+        assert.match(sum.args, /^ENIG_TERM_SHA256=[0-9a-f]{64}$/);
+
+        const stage = stages.find(s => s.name === 'enig-term');
+        assert(stage, 'no stage named "enig-term"');
+        assert.notEqual(stage, runtime);
+        //  the files are the same on every target, so fetch them once
+        assert.equal(stage.platform, '$BUILDPLATFORM');
+        const run = stage.instructions
+            .filter(i => i.name === 'RUN')
+            .map(i => i.args)
+            .join(' && ');
+        assert.match(
+            run,
+            /\$\{ENIG_TERM_SHA256\}\s+enig-term\.tar\.gz" \| sha256sum -c -/
+        );
+        assert.match(run, /test -f "enig-term-\$\{ENIG_TERM_VERSION\}\/index\.html"/);
+        assert.doesNotMatch(
+            run,
+            /fetch-amiga-fonts/,
+            'the image must not carry Amiga fonts'
+        );
+    });
+
+    it('installs enig-term outside the default wsTerm.root, so the route stays off', () => {
+        const copies = runtime.instructions
+            .filter(i => i.name === 'COPY' && /^--from=enig-term\b/.test(i.args))
+            .map(i => i.args.replace(/^--from=enig-term\s+/, ''));
+        assert.deepEqual(copies, ['/opt/enig-term/ /opt/enig-term/']);
+
+        //  a ws-term/ in the build context would land at the default root
+        const patterns = fs
+            .readFileSync(DOCKERIGNORE, 'utf8')
+            .split('\n')
+            .map(l => l.trim());
+        assert(patterns.includes('ws-term'), '.dockerignore does not exclude ws-term');
+    });
+
     it('reads LZX and ATR with unarc, and keeps RAR on unrar (#906)', () => {
         const env = runtime.instructions.find(
             i => i.name === 'ENV' && /^ENIGMA_UNARC_ARCHIVERS=/.test(i.args)

@@ -5,6 +5,12 @@ set -euo pipefail
 ENIGMA_BRANCH=${ENIGMA_BRANCH:=master}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
+# enig-term, the optional browser terminal: yes/no answers the prompt ahead of
+# time (unset asks, or means no when there is no terminal to ask on), and a
+# version such as 0.1.0 installs that release instead of the latest
+ENIGMA_INSTALL_ENIG_TERM=${ENIGMA_INSTALL_ENIG_TERM:=}
+ENIGMA_ENIG_TERM_VERSION=${ENIGMA_ENIG_TERM_VERSION:=}
+ENIG_TERM_INSTALLED=""
 TIME_FORMAT=$(date "+%Y-%m-%d %H:%M:%S")
 
 # ANSI Codes
@@ -228,6 +234,144 @@ download_v86_bios() {
     log "v86 BIOS files ready."
 }
 
+# enig-term, the browser terminal ENiGMA½ serves at /_enig/ws-term/. Optional,
+# and asked about before anything is installed, so a long npm build does not
+# sit waiting on the answer.
+ask_enig_term() {
+    local ANSWER="${ENIGMA_INSTALL_ENIG_TERM}"
+
+    if [[ -z "$ANSWER" ]]; then
+        printf "Install the enig-term web terminal? [y/N] "
+        # piped from curl, stdin is this script: ask the terminal, as the menu
+        # does. With none (cron, CI), the answer is the default.
+        if ! read -r ANSWER 2>/dev/null < /dev/tty; then
+            ANSWER=""
+            printf "\n"
+            log "No terminal to ask on; not installing enig-term (set ENIGMA_INSTALL_ENIG_TERM=yes to)."
+        fi
+    fi
+
+    case "$ANSWER" in
+        [yY]|[yY][eE][sS]) ENIGMA_INSTALL_ENIG_TERM=yes ;;
+        *) ENIGMA_INSTALL_ENIG_TERM=no ;;
+    esac
+}
+
+enig_term_fetch() {
+    local URL=$1
+    local OUT=$2
+
+    if check_exists curl; then
+        curl -fsSL "$URL" -o "$OUT"
+    else
+        wget -q "$URL" -O "$OUT"
+    fi
+}
+
+enig_term_sha256() {
+    if check_exists sha256sum; then
+        sha256sum "$1" | cut -d ' ' -f 1
+    elif check_exists shasum; then
+        shasum -a 256 "$1" | cut -d ' ' -f 1
+    else
+        return 1
+    fi
+}
+
+# Downloads into WORK_DIR and installs into ${ENIGMA_INSTALL_DIR}/ws-term.
+# Returns non-zero if any step fails; nothing is copied into place until the
+# download has passed its checksum.
+enig_term_download_and_install() {
+    local WORK_DIR=$1
+    local REPO="NuSkooler/enig-term"
+    local VERSION="${ENIGMA_ENIG_TERM_VERSION#v}"
+    local DEST="${ENIGMA_INSTALL_DIR}/ws-term"
+
+    if ! check_exists curl && ! check_exists wget; then
+        log "ERROR: enig-term needs curl or wget to download it."
+        return 1
+    fi
+    if ! check_exists tar; then
+        log "ERROR: enig-term needs tar to unpack it."
+        return 1
+    fi
+    if ! check_exists sha256sum && ! check_exists shasum; then
+        log "ERROR: enig-term needs sha256sum (or shasum) to check the download."
+        return 1
+    fi
+
+    if [[ -z "$VERSION" ]]; then
+        log "Finding the latest enig-term release..."
+        enig_term_fetch "https://api.github.com/repos/${REPO}/releases/latest" "${WORK_DIR}/latest.json" || return 1
+        VERSION=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/p' "${WORK_DIR}/latest.json" | head -n 1)
+        if [[ -z "$VERSION" ]]; then
+            log "ERROR: Could not read the latest enig-term version from GitHub."
+            return 1
+        fi
+    fi
+
+    # it names a path below, so take nothing but a version number
+    if [[ ! "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ ]]; then
+        log "ERROR: '${VERSION}' is not an enig-term version."
+        return 1
+    fi
+
+    local NAME="enig-term-${VERSION}"
+    local BASE="https://github.com/${REPO}/releases/download/v${VERSION}"
+
+    log "Downloading enig-term ${VERSION}..."
+    enig_term_fetch "${BASE}/${NAME}.tar.gz" "${WORK_DIR}/${NAME}.tar.gz" || return 1
+    enig_term_fetch "${BASE}/SHA256SUMS" "${WORK_DIR}/SHA256SUMS" || return 1
+
+    local EXPECTED ACTUAL
+    EXPECTED=$(awk -v f="${NAME}.tar.gz" '$2 == f || $2 == "*" f { print $1; exit }' "${WORK_DIR}/SHA256SUMS")
+    ACTUAL=$(enig_term_sha256 "${WORK_DIR}/${NAME}.tar.gz") || return 1
+    if [[ -z "$EXPECTED" ]]; then
+        log "ERROR: SHA256SUMS has no entry for ${NAME}.tar.gz."
+        return 1
+    fi
+    if [[ "$EXPECTED" != "$ACTUAL" ]]; then
+        log "ERROR: ${NAME}.tar.gz failed its checksum (expected ${EXPECTED}, got ${ACTUAL})."
+        return 1
+    fi
+    log "  Checksum OK."
+
+    mkdir -p "${WORK_DIR}/unpack"
+    tar -xzf "${WORK_DIR}/${NAME}.tar.gz" -C "${WORK_DIR}/unpack" || return 1
+    if [[ ! -f "${WORK_DIR}/unpack/${NAME}/index.html" ]]; then
+        log "ERROR: ${NAME}.tar.gz does not hold ${NAME}/index.html."
+        return 1
+    fi
+
+    # a config.json in ws-term overrides the one ENiGMA½ generates: never
+    # bring one in from a release, nor replace one the operator put there
+    rm -f "${WORK_DIR}/unpack/${NAME}/config.json"
+
+    mkdir -p "$DEST" || return 1
+    cp -R "${WORK_DIR}/unpack/${NAME}/." "$DEST/" || return 1
+
+    log "enig-term ${VERSION} installed in ${DEST}"
+}
+
+install_enig_term() {
+    [[ "${ENIGMA_INSTALL_ENIG_TERM}" == "yes" ]] || return 0
+
+    local WORK_DIR
+    WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/enig-term.XXXXXX") || {
+        log "ERROR: Could not create a temporary directory; enig-term was not installed."
+        return 0
+    }
+
+    if enig_term_download_and_install "$WORK_DIR"; then
+        ENIG_TERM_INSTALLED=yes
+    else
+        printf "%benig-term was not installed. The rest of the installation is unaffected; see\n  %s\nto install it by hand.%b\n" \
+            "${FOREGROUND_STRONG_RED}" "https://enigma-bbs.github.io/servers/loginservers/enig-term/" "${RESET}"
+    fi
+
+    rm -rf "$WORK_DIR"
+}
+
 enigma_footer() {
     log "ENiGMA½ installation complete!"
     printf "${FOREGROUND_YELLOW}"
@@ -304,6 +448,30 @@ ADDITIONAL ACTIONS ARE REQUIRED!
     Run 'sudo systemctl enable bbs.service'
 
 EndOfMessage
+
+    if [[ -n "${ENIG_TERM_INSTALLED}" ]]; then
+        cat << EndOfMessage
+6 - enig-term web terminal
+
+    enig-term is installed in:
+        ${ENIGMA_INSTALL_DIR}/ws-term
+
+    It needs the web server (contentServers.web) enabled, and a secure
+    WebSocket (wss://) that browsers can reach. Behind a TLS proxy, set the
+    public endpoint in config.hjson:
+
+        contentServers: {
+            web: {
+                wsTerm: {
+                    endpoint: "wss://your-hostname.here:44512"
+                }
+            }
+        }
+
+    Then browse to https://your-hostname.here/_enig/ws-term/
+
+EndOfMessage
+    fi
     printf "${RESET}"
 }
 
@@ -331,19 +499,23 @@ install_dependencies() {
 }
 
 install_bbs() {
+    ask_enig_term
     log "Installing ENiGMA½..."
 
     download_enigma_source
     copy_template_files
     download_v86_bios
+    install_enig_term
 }
 
 install_everything() {
+    ask_enig_term
     log "Installing Everything..."
     download_enigma_source
     install_dependencies
     copy_template_files
     download_v86_bios
+    install_enig_term
 }
 
 menu() {
