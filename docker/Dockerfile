@@ -28,8 +28,8 @@ ARG UNARC_VERSION=0.8.0
 #  .tar.gz. The sum is pinned here rather than read from the release's own
 #  SHA256SUMS, which would come from the same place as the file it vouches
 #  for. Bump both together: the .tar.gz line of that release's SHA256SUMS.
-ARG ENIG_TERM_VERSION=0.1.0
-ARG ENIG_TERM_SHA256=0550f3a052a3d90ee2d3b645c2ef53fd78fbc1b8e5093def6d27c42aacc2334c
+ARG ENIG_TERM_VERSION=0.2.0
+ARG ENIG_TERM_SHA256=255a411ef4c106afe08e4674bb53f084cd7672cda745496720403a76f566b3f8
 
 FROM node:22-bookworm-slim AS build
 
