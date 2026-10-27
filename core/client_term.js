@@ -35,6 +35,13 @@ function ClientTerminal(output) {
     this.convertLF = true;
 
     this.syncTermFontsEnabled = false;
+
+    //  What the terminal reported it can do, by query rather than by name:
+    //  * osc8: true once CSI = 6 n is answered yes
+    //  * ctda: the CTerm Device Attributes (CSI < c) feature numbers, plus a
+    //    boolean per known feature (loadableFonts, brightBackground,
+    //    paletteOsc, pixelOps, fontSelect, extendedPalette, mouse,
+    //    keyEvents); absent until a CTDA reply arrives
     this.termCapabilities = {};
 
     //

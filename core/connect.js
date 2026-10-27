@@ -11,6 +11,30 @@ const { Errors } = require('./enig_error.js');
 const async = require('async');
 
 exports.connectEntry = connectEntry;
+exports.ansiQuerySyncTermFontSupport = ansiQuerySyncTermFontSupport;
+exports.ansiQueryCtermCapabilities = ansiQueryCtermCapabilities;
+
+//
+//  Clients whose DA reply already tells us they are CTerm-shaped: they answer
+//  CTerm's CSI < c (CTDA) and CSI = Ps n queries, and implement its SyncTERM
+//  font selection (CSI Ps1;Ps2 SP D). Only these are sent the CTerm queries;
+//  an unknown terminal could show them as text.
+//
+const CtermCompatibleClients = new Set(['cterm']);
+
+const isCtermCompatible = client => CtermCompatibleClients.has(client.term.termClient);
+
+//
+//  Clients sent the CTerm capability queries without being CTerm-shaped: IcyTerm
+//  answers CSI < c (CTDA), and drops CSI = 6 n without a reply. It is not
+//  SyncTERM-font-by-name (it keeps the CPR font probe when CTDA is unanswered).
+//
+const CtermQueryClients = new Set([...CtermCompatibleClients, 'icy_term']);
+
+const wantsCtermQueries = client => CtermQueryClients.has(client.term.termClient);
+
+//  true once the terminal has answered CSI < c
+const ctdaAnswered = client => Array.isArray(client.term.termCapabilities.ctda);
 
 const withCursorPositionReport = (client, cprHandler, failMessage, cb) => {
     let giveUpTimer;
@@ -200,9 +224,28 @@ function ansiProbeUTF8Upward(client, cb) {
     client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`);
 }
 
-const ansiQuerySyncTermFontSupport = (client, cb) => {
-    // If we know it's SyncTERM, then good to go
-    if (client.term.termClient === 'cterm') {
+function ansiQuerySyncTermFontSupport(client, cb) {
+    //  A CTDA reply says whether font selection is there right now, e.g.
+    //  SyncTERM leaves it out in its curses output mode: that decides it
+    if (ctdaAnswered(client)) {
+        const fontSelect = true === client.term.termCapabilities.fontSelect;
+        client.log.info(
+            { termClient: client.term.termClient, fontSelect },
+            `SyncTERM font support ${
+                fontSelect ? 'enabled' : 'disabled'
+            } on node ${client.node} (CTDA)`
+        );
+        client.term.syncTermFontsEnabled = fontSelect;
+        return cb(null);
+    }
+
+    //  If DA told us it's SyncTERM (or another CTerm-shaped client) that did
+    //  not answer CTDA, we're good to go without the CPR probe
+    if (isCtermCompatible(client)) {
+        client.log.info(
+            { termClient: client.term.termClient },
+            `SyncTERM font support enabled on node ${client.node} (known client)`
+        );
         client.term.syncTermFontsEnabled = true;
         return cb(null);
     }
@@ -234,41 +277,65 @@ const ansiQuerySyncTermFontSupport = (client, cb) => {
     client.term.rawWrite(
         `${ansi.goto(1, 1)}${ansi.setSyncTermFont('cp437')}${ansi.queryPos()}`
     );
-};
+}
 
-const CTERM_CAP_OSC8 = 6; //  capability ID for OSC 8 hyperlink support
+const CTERM_CAP_OSC8 = 6; //  CSI = 6 n: OSC 8 hyperlink support
 
-const ansiQueryCtermOsc8Support = (client, cb) => {
-    if (client.term.termClient !== 'cterm') {
+//
+//  Ask a CTerm-shaped client what it can do, in one round trip:
+//
+//  * CSI < c (CTDA): its feature list, which the client parser stores in
+//    termCapabilities (ctda, fontSelect, ...)
+//  * CSI = 6 n: OSC 8 hyperlinks, enabled only on a yes, never on the name
+//  * CSI 6 n (CPR): a sentinel. Terminals answer in order, so once the
+//    cursor position comes back, any answer to the two queries before it
+//    has too; a terminal that knows neither (SyncTERM before 1.1 has no
+//    CTDA, before 1.8 no CSI = 6 n) costs that round trip, not a timeout.
+//
+//  Gives up after the usual 2s if even the CPR never comes.
+//
+function ansiQueryCtermCapabilities(client, cb) {
+    if (!wantsCtermQueries(client)) {
         return cb(null);
     }
 
-    let giveUpTimer;
-
-    const done = () => {
-        client.removeListener('cterm capability response', capListener);
-        clearTimeout(giveUpTimer);
-        return cb(null);
-    };
-
     const capListener = ({ id, value }) => {
-        if (id === CTERM_CAP_OSC8) {
-            if (value === 1) {
-                client.log.info(
-                    `CTerm OSC 8 hyperlink support enabled on node ${client.node}`
-                );
-                client.term.termCapabilities.osc8 = true;
-            }
-            return done();
+        if (id === CTERM_CAP_OSC8 && value === 1) {
+            client.log.info(
+                `CTerm OSC 8 hyperlink support enabled on node ${client.node}`
+            );
+            client.term.termCapabilities.osc8 = true;
         }
     };
 
     client.on('cterm capability response', capListener);
-    giveUpTimer = setTimeout(done, 2000);
 
-    //  Query: CSI = 6 n
-    client.term.rawWrite('[=6n');
-};
+    withCursorPositionReport(
+        client,
+        () => {},
+        'CTerm capability query timed out',
+        err => {
+            client.removeListener('cterm capability response', capListener);
+            client.log.info(
+                {
+                    termClient: client.term.termClient,
+                    termCapabilities: client.term.termCapabilities,
+                    timedOut: !!err,
+                },
+                ctdaAnswered(client)
+                    ? 'CTerm capabilities (CTDA answered)'
+                    : 'CTerm capabilities (no CTDA answer)'
+            );
+            return cb(null);
+        }
+    );
+
+    client.log.debug(
+        { termClient: client.term.termClient },
+        'Querying CTerm capabilities (CSI < c, CSI = 6 n)'
+    );
+    client.term.rawWrite(`\x1b[<c\x1b[=${CTERM_CAP_OSC8}n${ansi.queryPos()}`);
+}
 
 function ansiQueryTermSizeIfNeeded(client, cb) {
     if (client.term.termHeight > 0 || client.term.termWidth > 0) {
@@ -383,11 +450,11 @@ function connectEntry(client, nextMenu) {
             function probeUtf8IfOptedIn(callback) {
                 return ansiProbeUTF8Upward(client, callback);
             },
+            function queryCtermCapabilities(callback) {
+                return ansiQueryCtermCapabilities(client, callback);
+            },
             function querySyncTERMFontSupport(callback) {
                 return ansiQuerySyncTermFontSupport(client, callback);
-            },
-            function queryCtermOsc8Support(callback) {
-                return ansiQueryCtermOsc8Support(client, callback);
             },
         ],
         () => {

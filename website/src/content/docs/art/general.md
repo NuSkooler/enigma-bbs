@@ -109,6 +109,13 @@ The [ACS](../configuration/acs.md) system can be used to make conditional art se
 ### SyncTERM Style Fonts
 ENiGMA½ can set a [SyncTERM](http://syncterm.bbsdev.net/) style font for art display. This is supported by many other popular BBS terminals as well. A common usage is for displaying Amiga style fonts for example. The system will use the `font` specifier or look for a font declared in an artworks SAUCE record (unless `readSauce` is `false`).
 
+Fonts are only sent to terminals that can switch fonts. ENiGMA½ finds out while a caller connects:
+
+* SyncTERM is asked for its CTerm Device Attributes (`CSI < c`), which say whether font selection is available. SyncTERM in its curses (text console) mode, for example, says it is not, and gets no font changes. A SyncTERM too old to answer (1.0) is taken at its name. IcyTerm is asked too, and goes by its answer; if an older IcyTerm does not answer, it is treated like any other terminal below.
+* Any other terminal is sent a font change followed by a cursor position query. If the cursor has not moved, the terminal at least ignored the sequence, and fonts are enabled.
+
+The log line `CTerm capabilities (CTDA answered)` shows what a terminal reported, as `termCapabilities`: `ctda`, the feature numbers, and a `true` or `false` for each feature (`loadableFonts`, `brightBackground`, `paletteOsc`, `pixelOps`, `fontSelect`, `extendedPalette`, `mouse`, `keyEvents`). The numbers are the features as the [CTerm manual](https://syncterm.bbsdev.net/cterm.html) numbers them. Older copies of `cterm.txt` list them in a different order; that was an error in the document, and SyncTERM has always sent the manual's numbering.
+
 The most common fonts are probably as follows:
 
 * `cp437`

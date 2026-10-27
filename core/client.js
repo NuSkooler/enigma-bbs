@@ -50,6 +50,7 @@ const _ = require('lodash');
 
 exports.Client = Client;
 exports.getCtermVersion = getCtermVersion;
+exports.getCtermCapabilitiesFromCtda = getCtermCapabilitiesFromCtda;
 
 //
 //  CTerm answers DA with the "CTerm" prefix followed by its revision, dots
@@ -67,6 +68,55 @@ function getCtermVersion(deviceAttr) {
     return revision.join('.');
 }
 
+//
+//  CTerm Device Attributes (CTDA): asked with CSI < c, answered with
+//  CSI < 0 ; Ps... c, one Ps per feature the terminal has right now (SyncTERM
+//  for example leaves out font selection in its curses output mode).
+//
+//  The numbering is the current CTerm manual's (Table 4), and the one CTerm's
+//  code has used since it first answered CTDA (Synchronet commit 6b0845de,
+//  2018-02-09, shipped in SyncTERM 1.1). cterm.txt documented a different
+//  order (no bright background; 2 palette, 3 pixel, 4 font select, 5 "more
+//  than 16 colours") until the 2023-04-21 fix 44f5dccc: that was only ever a
+//  documentation error, so there is no older numbering to map from, and no
+//  CTerm revision to tell the two apart by.
+//
+//  See https://syncterm.bbsdev.net/cterm.html
+//
+const CtdaFeatures = Object.freeze({
+    1: 'loadableFonts', //  fonts loadable by DCS
+    2: 'brightBackground', //  bright background, CSI ? 33 h (iCE colours)
+    3: 'paletteOsc', //  palette entries settable by OSC
+    4: 'pixelOps', //  pixel operations: sixel, PPM
+    5: 'fontSelect', //  font selection by CSI Ps1 ; Ps2 SP D
+    6: 'extendedPalette', //  extended palette
+    7: 'mouse', //  mouse reports
+    8: 'keyEvents', //  physical key press/release reports
+});
+
+exports.CtdaFeatures = CtdaFeatures;
+
+//
+//  The capabilities a CTDA reply reports, from its parameters ('0;1;2;3;5' or
+//  [1, 2, 3, 5]): { ctda: [...], <name>: bool, ... }. The leading 0 that CTerm
+//  sends is not a feature and is dropped, so a reply without it (IcyTerm 0.8)
+//  reads the same.
+//  Every known feature gets a boolean, so a feature the reply leaves out is
+//  false rather than missing; numbers we have no name for are kept in |ctda|.
+//
+function getCtermCapabilitiesFromCtda(params) {
+    const list = (Array.isArray(params) ? params : String(params).split(';'))
+        .map(p => parseInt(p, 10))
+        .filter(n => Number.isInteger(n) && n > 0);
+
+    const ctda = [...new Set(list)].sort((a, b) => a - b);
+    const caps = { ctda };
+    Object.entries(CtdaFeatures).forEach(([n, name]) => {
+        caps[name] = ctda.includes(parseInt(n, 10));
+    });
+    return caps;
+}
+
 //  :TODO: Move all of the key stuff to it's own module
 
 //
@@ -80,6 +130,15 @@ const RE_DEV_ATTR_RESPONSE_ANYWHERE = /(?:\u001b\[)[=?]([0-9a-zA-Z;]+)(c)/;
 //  e.g. \x1b[=6;1n  → capability 6 (OSC 8 hyperlinks) supported
 //  See https://syncterm.bbsdev.net/cterm.html
 const RE_CTERM_CAP_RESPONSE_ANYWHERE = /\u001b\[=([0-9]+);([0-9]+)n/;
+//  CTerm Device Attributes (CTDA) response: ESC [ < 0 ; Ps... c
+//  e.g. \x1b[<0;1;2;3;5c. CTerm builds from before 2020-04-25 (Synchronet
+//  commit 3c5bb707, ahead of the SyncTERM 1.1 release) ended it with 'n'
+//  instead; both are taken so neither leaks into input as keystrokes.
+//  IcyTerm 0.8.0 to 0.8.4 leave the leading 0 out (\x1b[<1;2;3;4;5;6;7c).
+//  Ends in c or n only: SGR mouse reports, which also start ESC [ <, end in
+//  M or m.
+const RE_CTDA_RESPONSE_ANYWHERE = /\u001b\[<([0-9]+(?:;[0-9]*)*)([cn])/;
+exports.RE_CTDA_RESPONSE = RE_CTDA_RESPONSE_ANYWHERE;
 const RE_META_KEYCODE_ANYWHERE = /(?:\u001b)([a-zA-Z0-9])/;
 const RE_META_KEYCODE = new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
 const RE_FUNCTION_KEYCODE_ANYWHERE = new RegExp(
@@ -101,6 +160,7 @@ const RE_ESC_CODE_ANYWHERE = new RegExp(
         RE_DSR_RESPONSE_ANYWHERE.source,
         RE_DEV_ATTR_RESPONSE_ANYWHERE.source,
         RE_CTERM_CAP_RESPONSE_ANYWHERE.source,
+        RE_CTDA_RESPONSE_ANYWHERE.source,
         /\u001b./.source, //  eslint-disable-line no-control-regex
     ].join('|')
 );
@@ -377,6 +437,16 @@ function Client(/*input, output*/) {
                     id: parseInt(parts[1], 10),
                     value: parseInt(parts[2], 10),
                 });
+            } else if ((parts = RE_CTDA_RESPONSE_ANYWHERE.exec(s))) {
+                const caps = getCtermCapabilitiesFromCtda(parts[1]);
+                Object.assign(self.term.termCapabilities, caps);
+                if (self.log) {
+                    self.log.debug(
+                        { termClient: self.term.termClient, ctda: caps.ctda },
+                        'CTerm device attributes (CTDA) reported'
+                    );
+                }
+                self.emit('cterm device attributes', caps);
             } else if ('\r' === s) {
                 key.name = 'return';
             } else if ('\n' === s) {
