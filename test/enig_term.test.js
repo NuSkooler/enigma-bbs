@@ -458,6 +458,50 @@ describe('enig-term', function () {
             assert.equal(again.body.length, 0);
         });
 
+        it('treats a strong form of the ETag as a match (weak comparison)', async () => {
+            install();
+            const first = await request('/_enig/ws-term/enig_term_core_bg.wasm');
+            const strong = first.headers.etag.replace(/^W\//, '');
+            for (const inm of [strong, `"nope", ${strong}`, '*']) {
+                const resp = await request('/_enig/ws-term/enig_term_core_bg.wasm', {
+                    headers: { 'If-None-Match': inm },
+                });
+                assert.equal(resp.status, 304, inm);
+            }
+        });
+
+        it('closes the file when the caller aborts a download', async function () {
+            if (!fs.existsSync('/proc/self/fd')) {
+                return this.skip();
+            }
+            install();
+            fs.writeFileSync(paths.join(root, 'big.bin'), Buffer.alloc(32 * 1024 * 1024));
+
+            const openFds = () => fs.readdirSync('/proc/self/fd').length;
+            const abort = () =>
+                new Promise(resolve => {
+                    const req = http.get(
+                        { host: '127.0.0.1', port, path: '/_enig/ws-term/big.bin' },
+                        resp => {
+                            resp.once('data', () => {
+                                req.destroy();
+                                resp.destroy();
+                                setTimeout(resolve, 20);
+                            });
+                        }
+                    );
+                    req.on('error', () => {});
+                });
+
+            await abort(); //  warm up sockets and lazily opened descriptors
+            const before = openFds();
+            for (let i = 0; i < 15; i++) {
+                await abort();
+            }
+            await new Promise(resolve => setTimeout(resolve, 300));
+            assert.ok(openFds() - before < 5, `${openFds() - before} descriptors leaked`);
+        });
+
         it('never serves anything outside the root', async () => {
             install();
             fs.symlinkSync(

@@ -23,6 +23,7 @@ const { getUrlPath } = require('./web_util.js');
 //  deps
 const fs = require('graceful-fs');
 const paths = require('path');
+const { pipeline } = require('stream');
 const mimeTypes = require('mime-types');
 const _ = require('lodash');
 
@@ -229,10 +230,12 @@ function etagFor(stats) {
 function isNotModified(req, etag, stats) {
     const ifNoneMatch = req.headers['if-none-match'];
     if (ifNoneMatch) {
+        //  weak comparison (RFC 9110 13.1.2): W/"x" and "x" match
+        const bare = etag.replace(/^W\//, '');
         return ifNoneMatch
             .split(',')
             .map(tag => tag.trim())
-            .some(tag => tag === etag || tag === '*');
+            .some(tag => '*' === tag || tag.replace(/^W\//, '') === bare);
     }
 
     const ifModifiedSince = Date.parse(req.headers['if-modified-since'] || '');
@@ -264,9 +267,17 @@ function serveFile(req, resp, { filePath, stats }) {
         return resp.end();
     }
 
-    const readStream = fs.createReadStream(filePath);
-    readStream.on('error', () => resp.destroy());
-    return readStream.pipe(resp);
+    //  pipeline(), not pipe(): when the caller goes away mid-download the file
+    //  must be closed too, or every aborted request of a large .wasm leaks a
+    //  descriptor. A file that grew since the stat is cut at the length that
+    //  was promised.
+    if (0 === stats.size) {
+        return resp.end();
+    }
+    const readStream = fs.createReadStream(filePath, { start: 0, end: stats.size - 1 });
+    return pipeline(readStream, resp, () => {
+        /* an error or early close has already torn both ends down */
+    });
 }
 
 function serveGeneratedConfig(req, resp) {
