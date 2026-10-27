@@ -38,6 +38,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none, unless your `config.hjson` changes the `Rar` archiver to work with `unrar-free` (a `cmd` of `unrar-free`, or your own `entryMatch`): remove that, and the default, written for RARLAB's `unrar`, applies. An `Atr` or `Lzx` entry of your own replaces the image's unarc redirection outright, so it must be a complete archiver entry; a partial one such as `Lzx: { list: { cmd: "my-unlzx" } }` leaves LZX listing broken. To re-describe files stored while the image lacked a tool, rescan their areas: `docker exec ENiGMABBS ./oputil.js fb scan --full --update AREA_TAG`. The rescan updates descriptions only; such files stay recorded as plain files. See [Docker](website/src/content/docs/installation/docker.md#archivers-and-file-descriptions).
 
+* **`enabled: false` on a server is now obeyed.** It was ignored for Telnet: a board with `loginServers.telnet.enabled: false` in its `config.hjson` still accepted Telnet callers.
+
+  **Action:** look for `enabled: false` directly inside `loginServers.telnet` in your `config.hjson`. If it is there and you want Telnet, remove it or set it to `true`, or Telnet stops after the upgrade. The same goes for an `enabled: false` placed directly inside `contentServers.web`, `contentServers.nntp` or `scannerTossers.ftn_bso`: these were ignored too and now turn that module off (the configuration check reports them as unknown keys). The `enabled` flags one level down, such as `contentServers.web.http.enabled` or `loginServers.webSocket.ws.enabled`, work as they always did.
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
