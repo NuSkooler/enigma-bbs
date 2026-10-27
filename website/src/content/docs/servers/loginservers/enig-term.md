@@ -31,7 +31,7 @@ The route is **off until you install enig-term**. It answers only while its dire
 
    ```shell
    sha256sum -c SHA256SUMS --ignore-missing
-   unzip enig-term-0.1.0.zip
+   unzip enig-term-0.2.0.zip
    ```
 
    The archive holds one folder, `enig-term-<version>/`, with `index.html`, `enig-term.js`, the `.wasm` files, fonts and licence notices. To build it yourself instead, follow [Building from source](https://github.com/NuSkooler/enig-term/blob/main/docs/building.md); the build writes the same files to `dist/`.
@@ -40,7 +40,7 @@ The route is **off until you install enig-term**. It answers only while its dire
 
    ```shell
    mkdir -p /path/to/enigma-bbs/ws-term
-   cp -a enig-term-0.1.0/. /path/to/enigma-bbs/ws-term/
+   cp -a enig-term-0.2.0/. /path/to/enigma-bbs/ws-term/
    ```
 
    If the copy includes a `config.json`, delete it unless you mean to use it as an [override](#configjson): while it is there, ENiGMA½ serves it instead of generating one.
