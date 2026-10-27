@@ -183,6 +183,16 @@ function inImageOk(script) {
         assert.match(out, /Synchronet External X\/Y\/ZMODEM/);
     });
 
+    it('carries enig-term at /opt/enig-term, and nothing at the default root', () => {
+        inImageOk(
+            'test -f /opt/enig-term/index.html && test -f /opt/enig-term/enig-term.js'
+        );
+        inImageOk(
+            'test ! -e /opt/enig-term/config.json && test ! -e /opt/enig-term/fonts/amiga'
+        );
+        inImageOk('test ! -e /enigma-bbs/ws-term');
+    });
+
     it('has pm2-runtime for the entrypoint', () => {
         inImageOk('command -v pm2-runtime');
     });

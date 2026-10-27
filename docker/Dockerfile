@@ -1,6 +1,7 @@
-#  Three stages. The first installs a compiler toolchain and runs npm ci; the
-#  second builds unarc; the last is what ships, and it copies node_modules and
-#  the unarc binary out of the other two rather than building them in place.
+#  Four stages. The first installs a compiler toolchain and runs npm ci; the
+#  second builds unarc; the third fetches enig-term; the last is what ships,
+#  and it copies node_modules, the unarc binary and enig-term's files out of
+#  the other three rather than building them in place.
 #  A single-stage image that installs the toolchain and then apt-get removes
 #  it does not get smaller -- a layer can only add to an image, and a later
 #  delete records a whiteout over bytes that are still pulled. That was #814:
@@ -14,13 +15,21 @@
 #  were all amd64 (#794). The two must also name the *same* base image: see
 #  the comment on the COPY --from below.
 #
-#  The unarc stage further down is the one exception, and it is one because it
-#  really does cross compile.
+#  The unarc and enig-term stages further down are the exceptions: unarc
+#  really does cross compile, and enig-term's files are the same on every
+#  architecture.
 
 #  The unarc release to build (crates.io unarc-cli), pinned so an image build is
 #  reproducible (#801). Declared here so the stage that builds it and the check
 #  in the runtime stage cannot disagree.
 ARG UNARC_VERSION=0.8.0
+
+#  The enig-term release baked into the image, and the SHA-256 of its
+#  .tar.gz. The sum is pinned here rather than read from the release's own
+#  SHA256SUMS, which would come from the same place as the file it vouches
+#  for. Bump both together: the .tar.gz line of that release's SHA256SUMS.
+ARG ENIG_TERM_VERSION=0.1.0
+ARG ENIG_TERM_SHA256=0550f3a052a3d90ee2d3b645c2ef53fd78fbc1b8e5093def6d27c42aacc2334c
 
 FROM node:22-bookworm-slim AS build
 
@@ -86,6 +95,33 @@ RUN set -e \
     && rm -rf "$CARGO_HOME/registry"
 
 
+#  enig-term (https://github.com/NuSkooler/enig-term), the browser terminal
+#  ENiGMA serves at /_enig/ws-term/. Its release is HTML, JavaScript,
+#  WebAssembly and fonts, identical for every platform, so this stage runs
+#  once on the builder's own architecture and every target copies the same
+#  files. Only the release's own files: no Amiga fonts, which enig-term does
+#  not ship and its tools/fetch-amiga-fonts.mjs would fetch.
+#
+#  The files go to /opt/enig-term, not to ws-term/ under /enigma-bbs, which is
+#  the default wsTerm.root: the route stays off until an operator points
+#  contentServers.web.wsTerm.root at /opt/enig-term.
+FROM --platform=$BUILDPLATFORM alpine:3.22 AS enig-term
+
+ARG ENIG_TERM_VERSION
+ARG ENIG_TERM_SHA256
+
+RUN set -e \
+    && cd /tmp \
+    && wget -q -O enig-term.tar.gz \
+        "https://github.com/NuSkooler/enig-term/releases/download/v${ENIG_TERM_VERSION}/enig-term-${ENIG_TERM_VERSION}.tar.gz" \
+    && echo "${ENIG_TERM_SHA256}  enig-term.tar.gz" | sha256sum -c - \
+    && tar -xzf enig-term.tar.gz \
+    && test -f "enig-term-${ENIG_TERM_VERSION}/index.html" \
+    && rm -f "enig-term-${ENIG_TERM_VERSION}/config.json" \
+    && mv "enig-term-${ENIG_TERM_VERSION}" /opt/enig-term \
+    && rm enig-term.tar.gz
+
+
 FROM node:22-bookworm-slim
 
 LABEL maintainer="dave@force9.org"
@@ -133,6 +169,10 @@ COPY --from=build /enigma-bbs/node_modules /enigma-bbs/node_modules
 #  unarc is MIT OR Apache-2.0, and the crate ships the Apache-2.0 text.
 COPY --from=unarc /opt/unarc/bin/unarc /usr/local/bin/unarc
 COPY --from=unarc /opt/unarc/share/doc/unarc/ /usr/share/doc/unarc/
+
+#  enig-term, off until wsTerm.root points here; see its stage above. Its
+#  licence notices (LICENSE, NOTICE, fonts/LICENSE) are part of the release.
+COPY --from=enig-term /opt/enig-term/ /opt/enig-term/
 
 #  Do this after node_modules so a source change does not invalidate it.
 #  node_modules is in .dockerignore, so this cannot overwrite the copy above.
