@@ -23,6 +23,8 @@ exports.getISOTimestampString = getISOTimestampString;
 exports.coerceToText = coerceToText;
 exports.initializeDatabases = initializeDatabases;
 exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
+exports.initMessageDatabase = initMessageDatabase;
+exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
 
 exports.dbs = dbs;
 
@@ -221,6 +223,286 @@ function repairNumberTextValuesV1() {
         .run(NUMBER_TEXT_REPAIR_FLAG, `${totalRepaired}/${totalDeleted}`);
 }
 
+//
+//  message.sqlite3 schema versions, kept in PRAGMA user_version:
+//    0: message.message_id INTEGER PRIMARY KEY (an ID could be handed out again)
+//    1: message.message_id INTEGER PRIMARY KEY AUTOINCREMENT (#958)
+//
+const MESSAGE_DB_VERSION_AUTOINCREMENT = 1;
+
+//  Columns in declaration order; the rebuild copies them by name.
+const MESSAGE_TABLE_COLUMNS = [
+    'message_id',
+    'area_tag',
+    'message_uuid',
+    'reply_to_message_id',
+    'to_user_name',
+    'from_user_name',
+    'subject',
+    'message',
+    'modified_timestamp',
+    'view_count',
+];
+
+//
+//  AUTOINCREMENT: a deleted message's ID is never given to a later one.
+//  Last read pointers, FTN export pointers (message_area_last_scan) and
+//  offline mail all mean "everything up to this ID", and plain INTEGER
+//  PRIMARY KEY reuses max(rowid) once the newest message is deleted (#958).
+//
+function messageTableSql(tableName) {
+    return `CREATE TABLE IF NOT EXISTS ${tableName} (
+                message_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                area_tag                VARCHAR NOT NULL,
+                message_uuid            VARCHAR(36) NOT NULL,
+                reply_to_message_id     INTEGER,
+                to_user_name            VARCHAR NOT NULL,
+                from_user_name          VARCHAR NOT NULL,
+                subject, /* FTS @ message_fts */
+                message, /* FTS @ message_fts */
+                modified_timestamp      DATETIME NOT NULL,
+                view_count              INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(message_uuid)
+            );`;
+}
+
+//
+//  message_fts is an external content FTS4 table (content="message"): it keeps
+//  only the index, keyed by docid = message rowid (= message_id), and reads
+//  the text from whatever table is called "message". The triggers below keep
+//  it in step, and are dropped with the table they are on.
+//
+const MESSAGE_INDEX_AND_TRIGGERS_SQL = `
+            CREATE INDEX IF NOT EXISTS message_by_area_tag_index
+                ON message (area_tag);
+
+            CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
+                DELETE FROM message_fts WHERE docid=old.rowid;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
+                DELETE FROM message_fts WHERE docid=old.rowid;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
+                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
+                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+            END;
+`;
+
+function initMessageDatabase(db) {
+    db.exec(`
+            ${messageTableSql('message')}
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (
+                content="message",
+                subject,
+                message
+            );
+
+            ${MESSAGE_INDEX_AND_TRIGGERS_SQL}
+
+            CREATE TABLE IF NOT EXISTS message_meta (
+                message_id      INTEGER NOT NULL,
+                meta_category   INTEGER NOT NULL,
+                meta_name       VARCHAR NOT NULL,
+                meta_value      VARCHAR NOT NULL,
+                UNIQUE(message_id, meta_category, meta_name, meta_value),
+                FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS user_message_area_last_read (
+                user_id     INTEGER NOT NULL,
+                area_tag    VARCHAR NOT NULL,
+                message_id  INTEGER NOT NULL,
+                UNIQUE(user_id, area_tag)
+            );
+
+            CREATE TABLE IF NOT EXISTS message_area_last_scan (
+                scan_toss       VARCHAR NOT NULL,
+                area_tag        VARCHAR NOT NULL,
+                message_id      INTEGER NOT NULL,
+                UNIQUE(scan_toss, area_tag)
+            );
+        `);
+
+    migrateMessageIdAutoincrement(db);
+}
+
+function isAutoincrementTable(db, tableName) {
+    const row = db
+        .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?;`)
+        .get(tableName);
+    return !!row && /\bAUTOINCREMENT\b/i.test(row.sql);
+}
+
+//
+//  The highest message ID this database has ever handed out, as far as it can
+//  tell. The newest message may have been deleted before the upgrade, and its
+//  ID can still be held by a last read pointer, an FTN export pointer, orphaned
+//  meta or the FTS index, so all of them count: starting the sequence at the
+//  surviving MAX(message_id) would give that ID out once more.
+//
+function highestMessageIdSeen(db) {
+    const sources = [
+        ['message', 'message_id'],
+        ['message_meta', 'message_id'],
+        ['user_message_area_last_read', 'message_id'],
+        ['message_area_last_scan', 'message_id'],
+        ['message_fts_docsize', 'docid'],
+    ];
+    const tableExists = db.prepare(
+        `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?;`
+    );
+    let highest = 0;
+    for (const [table, column] of sources) {
+        if (!tableExists.get(table)) {
+            continue;
+        }
+        const { id } = db.prepare(`SELECT MAX("${column}") AS id FROM "${table}";`).get();
+        //  a pointer is only ever written from a real message ID; anything
+        //  else is ignored rather than allowed to push the sequence to its end
+        if (Number.isSafeInteger(id) && id > highest) {
+            highest = id;
+        }
+    }
+    return highest;
+}
+
+//
+//  One-time migration (#958): rebuild |message| with message_id INTEGER PRIMARY
+//  KEY AUTOINCREMENT, which ALTER TABLE cannot add. This is SQLite's documented
+//  12-step procedure (https://www.sqlite.org/lang_altertable.html#otheralter):
+//  foreign keys off outside the transaction, so DROP TABLE cascades nothing
+//  into message_meta; then in one transaction: create, copy, drop, rename,
+//  recreate the index and FTS triggers, seed sqlite_sequence, foreign key
+//  check, bump user_version. Any failure rolls the whole thing back and the
+//  old table is untouched; the next start tries again.
+//
+//  Every message_id (= rowid = FTS docid) is copied as is, so the external
+//  content FTS index stays valid and is not rebuilt.
+//
+function migrateMessageIdAutoincrement(db) {
+    if (db.pragma('user_version', { simple: true }) >= MESSAGE_DB_VERSION_AUTOINCREMENT) {
+        return;
+    }
+
+    //  a fresh install was just created with AUTOINCREMENT: only record that
+    if (isAutoincrementTable(db, 'message')) {
+        db.pragma(`user_version = ${MESSAGE_DB_VERSION_AUTOINCREMENT}`);
+        return;
+    }
+
+    const log = Logger.log;
+    const rowCount = db.prepare('SELECT COUNT(*) AS n FROM message;').get().n;
+    if (log) {
+        log.info(
+            { rowCount },
+            'Upgrading the message table so message IDs are never reused (#958); this runs once and may take a while on a large message base'
+        );
+    }
+
+    const startedAt = Date.now();
+    const columns = MESSAGE_TABLE_COLUMNS.join(', ');
+    const metaViolations = () => db.pragma('foreign_key_check(message_meta)').length;
+
+    let result;
+    const fkWasOn = db.pragma('foreign_keys', { simple: true }) === 1;
+    db.pragma('foreign_keys = OFF');
+    try {
+        result = db
+            .transaction(() => {
+                //  another process (oputil, say) may have got here first
+                if (
+                    db.pragma('user_version', { simple: true }) >=
+                    MESSAGE_DB_VERSION_AUTOINCREMENT
+                ) {
+                    return null;
+                }
+
+                const violationsBefore = metaViolations();
+
+                db.exec(`
+                    DROP TABLE IF EXISTS message_new;
+                    ${messageTableSql('message_new')}
+                    INSERT INTO message_new (${columns})
+                        SELECT ${columns} FROM message ORDER BY message_id;
+                `);
+                const copied = db
+                    .prepare('SELECT COUNT(*) AS n FROM message_new;')
+                    .get().n;
+                if (copied !== rowCount) {
+                    throw new Error(
+                        `Message table rebuild copied ${copied} of ${rowCount} rows`
+                    );
+                }
+
+                const sequence = highestMessageIdSeen(db);
+
+                //  DROP TABLE also drops the index and the four FTS triggers
+                db.exec(`
+                    DROP TABLE message;
+                    ALTER TABLE message_new RENAME TO message;
+                    ${MESSAGE_INDEX_AND_TRIGGERS_SQL}
+                `);
+
+                //  RENAME carries the sqlite_sequence row along; it holds
+                //  MAX(message_id) from the copy, or is missing if there was
+                //  nothing to copy
+                const seeded = db
+                    .prepare(
+                        `UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'message';`
+                    )
+                    .run(sequence).changes;
+                if (!seeded) {
+                    db.prepare(
+                        `INSERT INTO sqlite_sequence (name, seq) VALUES ('message', ?);`
+                    ).run(sequence);
+                }
+
+                const violationsAfter = metaViolations();
+                if (violationsAfter > violationsBefore) {
+                    throw new Error(
+                        `Message table rebuild left ${
+                            violationsAfter - violationsBefore
+                        } message_meta rows without a message`
+                    );
+                }
+
+                db.pragma(`user_version = ${MESSAGE_DB_VERSION_AUTOINCREMENT}`);
+                return { sequence, metaOrphans: violationsBefore };
+            })
+            .immediate();
+    } catch (err) {
+        if (log) {
+            log.error(
+                { error: err.message, rowCount },
+                'Upgrading the message table failed; it is unchanged, and the upgrade will be tried again at the next start'
+            );
+        }
+        return;
+    } finally {
+        if (fkWasOn) {
+            db.pragma('foreign_keys = ON');
+        }
+    }
+
+    if (result && log) {
+        log.info(
+            {
+                rowCount,
+                sequence: result.sequence,
+                metaOrphans: result.metaOrphans,
+                durationMs: Date.now() - startedAt,
+            },
+            'Upgraded the message table: message IDs are no longer reused'
+        );
+    }
+}
+
 const DB_INIT_TABLE = {
     system: () => {
         dbs.system.exec(`
@@ -330,69 +612,7 @@ const DB_INIT_TABLE = {
     },
 
     message: () => {
-        dbs.message.exec(`
-            CREATE TABLE IF NOT EXISTS message (
-                message_id              INTEGER PRIMARY KEY,
-                area_tag                VARCHAR NOT NULL,
-                message_uuid            VARCHAR(36) NOT NULL,
-                reply_to_message_id     INTEGER,
-                to_user_name            VARCHAR NOT NULL,
-                from_user_name          VARCHAR NOT NULL,
-                subject, /* FTS @ message_fts */
-                message, /* FTS @ message_fts */
-                modified_timestamp      DATETIME NOT NULL,
-                view_count              INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(message_uuid)
-            );
-
-            CREATE INDEX IF NOT EXISTS message_by_area_tag_index
-                ON message (area_tag);
-
-            CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (
-                content="message",
-                subject,
-                message
-            );
-
-            CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
-                DELETE FROM message_fts WHERE docid=old.rowid;
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
-                DELETE FROM message_fts WHERE docid=old.rowid;
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
-                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
-                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-            END;
-
-            CREATE TABLE IF NOT EXISTS message_meta (
-                message_id      INTEGER NOT NULL,
-                meta_category   INTEGER NOT NULL,
-                meta_name       VARCHAR NOT NULL,
-                meta_value      VARCHAR NOT NULL,
-                UNIQUE(message_id, meta_category, meta_name, meta_value),
-                FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS user_message_area_last_read (
-                user_id     INTEGER NOT NULL,
-                area_tag    VARCHAR NOT NULL,
-                message_id  INTEGER NOT NULL,
-                UNIQUE(user_id, area_tag)
-            );
-
-            CREATE TABLE IF NOT EXISTS message_area_last_scan (
-                scan_toss       VARCHAR NOT NULL,
-                area_tag        VARCHAR NOT NULL,
-                message_id      INTEGER NOT NULL,
-                UNIQUE(scan_toss, area_tag)
-            );
-        `);
+        initMessageDatabase(dbs.message);
     },
 
     file: () => {
