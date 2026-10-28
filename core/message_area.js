@@ -1048,7 +1048,7 @@ function trimMessageAreasScheduledEvent(args, cb) {
 
                 let maxExternalSentAgeDays = configured;
                 if (
-                    !Number.isInteger(maxExternalSentAgeDays) ||
+                    !Number.isFinite(maxExternalSentAgeDays) ||
                     maxExternalSentAgeDays < 0
                 ) {
                     Log.warn(

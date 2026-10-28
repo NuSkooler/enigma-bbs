@@ -184,7 +184,16 @@ describe('trimming exported external private mail', () => {
         });
     });
 
-    it('falls back to 30 days for a value that is not a whole number of days', done => {
+    //  SQLite takes fractional days, so half a day is half a day
+    it('honours a fractional age', done => {
+        trimWith({ maxExternalSentAgeDays: 0.5 }, (err, remaining) => {
+            assert.ifError(err);
+            assert.deepEqual(remaining, [3]);
+            done();
+        });
+    });
+
+    it('falls back to 30 days for a value that is not a number of days', done => {
         trimWith(
             { maxExternalSentAgeDays: '5 days; DROP TABLE message' },
             (err, remaining) => {
