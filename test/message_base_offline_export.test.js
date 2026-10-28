@@ -237,6 +237,7 @@ describe('offline packet export flow', () => {
 
         appendMessage(message) {
             this.messages.push(message.subject);
+            return true;
         }
 
         finish(packetDirectory) {

@@ -391,13 +391,19 @@ describe('offline mail scan pointers (#928)', function () {
             constructor() {
                 super();
                 this.messageIds = [];
+                this.cap = Infinity;
             }
             init() {
                 process.nextTick(() => this.emit('ready'));
             }
             addArea() {}
+            //  |cap| stands in for a format's per-area limit
             appendMessage(message) {
+                if (this.messageIds.length >= this.cap) {
+                    return false;
+                }
                 this.messageIds.push(message.messageId);
+                return true;
             }
             finish() {
                 process.nextTick(() => {
@@ -612,6 +618,38 @@ describe('offline mail scan pointers (#928)', function () {
                             assert.equal(lastRead('general'), 11);
                             done();
                         });
+                    });
+                });
+            });
+        });
+
+        //
+        //  A format that holds only so many messages per area (Blue Wave's
+        //  65535) refuses the rest. Those were counted as packed, so the
+        //  pointer jumped past messages the caller never got.
+        //
+        it('moves lastread only past what the writer took, and packs the rest next time', done => {
+            addMessage(10, 'general', '2026-09-01');
+            addMessage(11, 'general', '2026-09-02');
+            addMessage(12, 'general', '2026-09-03');
+
+            const client = makeClient({ offline_mail_msg_areas: selection(['general']) });
+            const first = makeExport(BlueWaveExport, client);
+            first.writer.cap = 2;
+
+            runExport(first, err => {
+                assert.ifError(err);
+                assert.deepEqual(first.writer.messageIds, [10, 11]);
+
+                download(client, first.fileId);
+                settle(() => {
+                    assert.equal(lastRead('general'), 11);
+
+                    const second = makeExport(BlueWaveExport, client);
+                    runExport(second, err => {
+                        assert.ifError(err);
+                        assert.deepEqual(second.writer.messageIds, [12]);
+                        done();
                     });
                 });
             });

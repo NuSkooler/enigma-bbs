@@ -169,6 +169,10 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
     //  Hooks. Those with no default here are required; _missingHook()
     //  checks for them before an export touches the session.
 
+    //  A writer's appendMessage() returns true for a message it took, and
+    //  anything else for one it refused; only the ones it took move the
+    //  caller's pointers.
+
     //  'QWK', 'Blue Wave', ... -- names the format in status text and logs
     get packetFormatName() {
         throw Errors.MissingParam('packetFormatName is required');
@@ -567,6 +571,10 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     return cb(err);
                 }
 
+                //  the writer refused a message: the area is full, and nothing
+                //  after it is loaded
+                const AreaFull = {};
+
                 let current = 1;
                 async.eachSeries(
                     messageIds,
@@ -580,7 +588,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             const progress = {
                                 message,
                                 step: 'message',
-                                total: ++totalExported,
+                                total: totalExported + 1,
                                 areaCurrent: current,
                                 areaCount: messageIds.length,
                                 status: `${_.truncate(message.subject, {
@@ -593,8 +601,15 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                                     return nextMessageId(err);
                                 }
 
-                                packetWriter.appendMessage(message);
+                                //  only what the writer took counts as packed:
+                                //  a format with a per-area limit leaves the
+                                //  rest for the next packet, which resumes
+                                //  right after the last message taken
+                                if (true !== packetWriter.appendMessage(message)) {
+                                    return nextMessageId(AreaFull);
+                                }
                                 current += 1;
+                                totalExported += 1;
 
                                 highestIds[pointerAreaTag] = Math.max(
                                     highestIds[pointerAreaTag] || 0,
@@ -606,7 +621,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                         });
                     },
                     err => {
-                        return cb(err);
+                        return cb(AreaFull === err ? null : err);
                     }
                 );
             });
