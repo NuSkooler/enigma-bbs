@@ -72,7 +72,7 @@
         "moment": "2.31.0",
         "nntp-server": "3.1.0",
         "node-pty": "1.1.0",
-        "nodemailer": "^10.0.10",
+        "nodemailer": "^10.1.4",
         "otplib": "11.0.1",
         "postal-mime": "^2.7.4",
         "qrcode-generator": "2.0.4",
