@@ -7,10 +7,13 @@
 //
 
 const { strict: assert } = require('assert');
+const fs = require('fs');
+const os = require('os');
+const paths = require('path');
 const Database = require('better-sqlite3');
 
 const Logger = require('../core/logger.js');
-const { initMessageDatabase } = require('../core/database.js');
+const { initMessageDatabase, openDatabase } = require('../core/database.js');
 
 //  The message database exactly as core/database.js created it before #958.
 const PRE_958_SCHEMA = `
@@ -106,8 +109,7 @@ function addMeta(db, messageId, name, value) {
 
 //  A pre-#958 board: IDs with gaps (old messages trimmed), meta on each, and a
 //  caller's last read pointer.
-function buildPre958Db() {
-    const db = openMemoryDb();
+function buildPre958Db(db = openMemoryDb()) {
     db.exec(PRE_958_SCHEMA);
     const bodies = [
         [3, 'Welcome', 'Welcome to the board, enjoy the amiga doors'],
@@ -161,6 +163,19 @@ function messageTableSql(db) {
     return db
         .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='message';`)
         .get().sql;
+}
+
+//  Runs |fn| right after |db| executes the pragma |statement|, which lets a
+//  test act at that exact point of the migration.
+function afterPragma(db, statement, fn) {
+    const pragma = db.pragma.bind(db);
+    db.pragma = (source, options) => {
+        const result = pragma(source, options);
+        if (source === statement) {
+            fn();
+        }
+        return result;
+    };
 }
 
 function sequenceOf(db) {
@@ -408,5 +423,104 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
         assert.equal(schemaObjectsOn(db, 'trigger').length, 4);
         assert.deepEqual(ftsSearch(db, 'kept'), [5]);
         assert.ok(logged.some(l => l.level === 'error'));
+    });
+
+    it('does not migrate inside a transaction the caller opened', function () {
+        //  PRAGMA foreign_keys is a no-op inside a transaction, so DROP TABLE
+        //  message would cascade-delete every message_meta row
+        const db = buildPre958Db();
+        const sql = messageTableSql(db);
+        const before = snapshot(db);
+
+        db.transaction(() => initMessageDatabase(db))();
+
+        assert.deepEqual(snapshot(db), before, 'every meta row is still there');
+        assert.equal(messageTableSql(db), sql);
+        assert.equal(db.pragma('user_version', { simple: true }), 0);
+        const errors = logged.filter(l => l.level === 'error');
+        assert.equal(errors.length, 1);
+        assert.match(errors[0].obj, /inside an open transaction/);
+
+        //  and outside one, it goes ahead
+        initMessageDatabase(db);
+        assert.match(messageTableSql(db), /AUTOINCREMENT/);
+        assert.deepEqual(snapshot(db), before);
+    });
+
+    it('rolls back if any message_meta row goes missing', function () {
+        const db = buildPre958Db();
+        const sql = messageTableSql(db);
+        const before = snapshot(db);
+
+        //  as if turning foreign keys off had not taken (as inside a
+        //  caller's transaction): DROP TABLE message then cascades
+        db.pragma = (pragma => (source, options) =>
+            source === 'foreign_keys = OFF' ? [] : pragma(source, options))(
+            db.pragma.bind(db)
+        );
+
+        initMessageDatabase(db);
+
+        assert.deepEqual(snapshot(db), before, 'every meta row is still there');
+        assert.equal(messageTableSql(db), sql);
+        assert.equal(db.pragma('user_version', { simple: true }), 0);
+        assert.equal(schemaObjectsOn(db, 'trigger').length, 4);
+        const errors = logged.filter(l => l.level === 'error');
+        assert.equal(errors.length, 1);
+        assert.match(errors[0].obj.error, /lost 10 of 10 message_meta rows/);
+    });
+
+    describe('with another process writing', function () {
+        let dir;
+        let db;
+        let other;
+
+        beforeEach(function () {
+            dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigma-958-'));
+            const file = paths.join(dir, 'message.sqlite3');
+            db = buildPre958Db(openDatabase(file));
+            other = openDatabase(file);
+        });
+
+        afterEach(function () {
+            other.close();
+            db.close();
+            fs.rmSync(dir, { recursive: true, force: true });
+        });
+
+        it('copies a message posted after the count it logs, before it takes the lock', function () {
+            //  foreign_keys = OFF comes after the logged count and before the
+            //  transaction: post a message from the other connection there
+            let postedId;
+            afterPragma(db, 'foreign_keys = OFF', () => {
+                postedId = insertMessage(other, {
+                    subject: 'Racing',
+                    body: 'posted mid upgrade',
+                });
+            });
+
+            initMessageDatabase(db);
+
+            assert.equal(postedId, 43);
+            assert.match(messageTableSql(db), /AUTOINCREMENT/);
+            assert.equal(db.pragma('user_version', { simple: true }), 1);
+            assert.deepEqual(
+                db
+                    .prepare('SELECT message_id FROM message ORDER BY message_id;')
+                    .raw()
+                    .all()
+                    .map(r => r[0]),
+                [3, 7, 8, 15, 42, 43]
+            );
+            assert.deepEqual(ftsSearch(db, 'upgrade'), [43]);
+            assert.equal(sequenceOf(db), 43);
+            assert.deepEqual(
+                logged.filter(l => l.level === 'error'),
+                []
+            );
+            const infos = logged.filter(l => l.level === 'info');
+            assert.equal(infos[0].obj.rowCount, 5, 'counted before the post');
+            assert.equal(infos[1].obj.rowCount, 6, 'copied the post as well');
+        });
     });
 });

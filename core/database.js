@@ -382,6 +382,10 @@ function highestMessageIdSeen(db) {
 //  check, bump user_version. Any failure rolls the whole thing back and the
 //  old table is untouched; the next start tries again.
 //
+//  It must not run inside a transaction someone else opened: PRAGMA
+//  foreign_keys is a no-op there, and DROP TABLE would then cascade-delete
+//  every message_meta row.
+//
 //  Every message_id (= rowid = FTS docid) is copied as is, so the external
 //  content FTS index stays valid and is not rebuilt.
 //
@@ -397,6 +401,16 @@ function migrateMessageIdAutoincrement(db) {
     }
 
     const log = Logger.log;
+    if (db.inTransaction) {
+        if (log) {
+            log.error(
+                'Not upgrading the message table inside an open transaction, where foreign keys cannot be turned off; it is unchanged, and the upgrade will be tried again at the next start'
+            );
+        }
+        return;
+    }
+
+    //  for the log only: another process may add messages before we lock
     const rowCount = db.prepare('SELECT COUNT(*) AS n FROM message;').get().n;
     if (log) {
         log.info(
@@ -408,6 +422,7 @@ function migrateMessageIdAutoincrement(db) {
     const startedAt = Date.now();
     const columns = MESSAGE_TABLE_COLUMNS.join(', ');
     const metaViolations = () => db.pragma('foreign_key_check(message_meta)').length;
+    const countRows = table => db.prepare(`SELECT COUNT(*) AS n FROM ${table};`).get().n;
 
     let result;
     const fkWasOn = db.pragma('foreign_keys', { simple: true }) === 1;
@@ -424,6 +439,8 @@ function migrateMessageIdAutoincrement(db) {
                 }
 
                 const violationsBefore = metaViolations();
+                const messagesBefore = countRows('message');
+                const metaBefore = countRows('message_meta');
 
                 db.exec(`
                     DROP TABLE IF EXISTS message_new;
@@ -431,12 +448,10 @@ function migrateMessageIdAutoincrement(db) {
                     INSERT INTO message_new (${columns})
                         SELECT ${columns} FROM message ORDER BY message_id;
                 `);
-                const copied = db
-                    .prepare('SELECT COUNT(*) AS n FROM message_new;')
-                    .get().n;
-                if (copied !== rowCount) {
+                const copied = countRows('message_new');
+                if (copied !== messagesBefore) {
                     throw new Error(
-                        `Message table rebuild copied ${copied} of ${rowCount} rows`
+                        `Message table rebuild copied ${copied} of ${messagesBefore} rows`
                     );
                 }
 
@@ -448,6 +463,17 @@ function migrateMessageIdAutoincrement(db) {
                     ALTER TABLE message_new RENAME TO message;
                     ${MESSAGE_INDEX_AND_TRIGGERS_SQL}
                 `);
+
+                //  foreign_key_check cannot see rows that are gone: had foreign
+                //  keys still been on, DROP TABLE would have cascaded
+                const metaAfter = countRows('message_meta');
+                if (metaAfter !== metaBefore) {
+                    throw new Error(
+                        `Message table rebuild lost ${
+                            metaBefore - metaAfter
+                        } of ${metaBefore} message_meta rows`
+                    );
+                }
 
                 //  RENAME carries the sqlite_sequence row along; it holds
                 //  MAX(message_id) from the copy, or is missing if there was
@@ -473,7 +499,7 @@ function migrateMessageIdAutoincrement(db) {
                 }
 
                 db.pragma(`user_version = ${MESSAGE_DB_VERSION_AUTOINCREMENT}`);
-                return { sequence, metaOrphans: violationsBefore };
+                return { rowCount: copied, sequence, metaOrphans: violationsBefore };
             })
             .immediate();
     } catch (err) {
@@ -493,7 +519,7 @@ function migrateMessageIdAutoincrement(db) {
     if (result && log) {
         log.info(
             {
-                rowCount,
+                rowCount: result.rowCount,
                 sequence: result.sequence,
                 metaOrphans: result.metaOrphans,
                 durationMs: Date.now() - startedAt,
