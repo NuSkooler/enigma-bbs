@@ -664,8 +664,11 @@ function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
         newerThanTimestamp = getISOTimestampString(newerThanTimestamp);
     }
 
+    //  answered outside the try, here and below: an exception thrown by the
+    //  caller's callback would otherwise call it a second time, with an error
+    let row;
     try {
-        const row = msgDb
+        row = msgDb
             .prepare(
                 'SELECT MIN(message_id) AS message_id ' +
                     'FROM message ' +
@@ -673,24 +676,25 @@ function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
                     "AND DATETIME(modified_timestamp) > DATETIME(?, '+1 seconds');"
             )
             .get(areaTag, newerThanTimestamp);
-        return cb(null, row && row.message_id ? row.message_id : null);
     } catch (err) {
         return cb(err);
     }
+    return cb(null, row && row.message_id ? row.message_id : null);
 }
 
 //  the highest message ID in |areaTag|, or 0 for an empty area
 function getHighestMessageIdByArea(areaTag, cb) {
+    let row;
     try {
-        const row = msgDb
+        row = msgDb
             .prepare(
                 'SELECT MAX(message_id) AS message_id FROM message WHERE area_tag = ?;'
             )
             .get(areaTag);
-        return cb(null, (row && row.message_id) || 0);
     } catch (err) {
         return cb(err);
     }
+    return cb(null, (row && row.message_id) || 0);
 }
 
 //
@@ -714,18 +718,19 @@ function getLastReadIdForTimestampByArea(areaTag, timestamp, cb) {
 }
 
 function getMessageAreaLastReadId(userId, areaTag, cb) {
+    let row;
     try {
-        const row = msgDb
+        row = msgDb
             .prepare(
                 'SELECT message_id ' +
                     'FROM user_message_area_last_read ' +
                     'WHERE user_id = ? AND area_tag = ?;'
             )
             .get(userId, areaTag.toLowerCase());
-        return cb(null, row ? row.message_id : 0);
     } catch (err) {
         return cb(err);
     }
+    return cb(null, row ? row.message_id : 0);
 }
 
 function getEffectiveNewScanLastReadId(user, areaTag, cb) {
@@ -780,10 +785,10 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
                             //  lower case, as getMessageAreaLastReadId() reads
                             //  it: a row stored any other way is never found
                             .run(userId, areaTag.toLowerCase(), messageId);
-                        return callback(null, true); //  true=didUpdate
                     } catch (err) {
                         return callback(err);
                     }
+                    return callback(null, true); //  true=didUpdate
                 } else {
                     callback(null);
                 }

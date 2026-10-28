@@ -920,6 +920,50 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
     });
+    //
+    //  These answered from inside their try, so a callback that threw was
+    //  called again with the error -- which, in a test, turned a failed
+    //  assertion into a second, passing call.
+    //
+    describe('answering a callback that throws', () => {
+        const callsOf = fn => {
+            const calls = [];
+            assert.throws(() =>
+                fn((...args) => {
+                    calls.push(args);
+                    throw new Error('from the callback');
+                })
+            );
+            return calls.length;
+        };
+
+        it('calls back once', () => {
+            addMessage(1, 'general', '2026-09-20');
+            setLastRead('general', 1);
+
+            assert.equal(
+                callsOf(cb =>
+                    MessageArea.getMessageAreaLastReadId(UserId, 'general', cb)
+                ),
+                1
+            );
+            assert.equal(
+                callsOf(cb => MessageArea.getHighestMessageIdByArea('general', cb)),
+                1
+            );
+            assert.equal(
+                callsOf(cb =>
+                    MessageArea.getMessageIdNewerThanTimestampByArea(
+                        'general',
+                        '2026-09-01T00:00:00.000Z',
+                        cb
+                    )
+                ),
+                1
+            );
+        });
+    });
+
     //  the read lower-cased the tag and the write did not, so a mixed-case
     //  tag's pointer was written where it was never read back
     describe('lastread area tags', () => {
