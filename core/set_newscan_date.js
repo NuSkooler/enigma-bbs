@@ -49,6 +49,13 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         this.menuMethods = {
             scanDateSubmit: (formData, extraArgs, cb) => {
                 let scanDate = _.get(formData, 'value.scanDate');
+
+                //  an empty mask field submits '' (no digits at all); a blank
+                //  floor date removes the floor
+                if ('floor' === this.target && this.allowClear && !/\d/.test(scanDate)) {
+                    return this.clearNewScanFloor(() => this.prevMenu(cb));
+                }
+
                 if (!scanDate) {
                     return cb(Errors.MissingParam('"scanDate" missing from form data'));
                 }
@@ -163,6 +170,18 @@ exports.getModule = class SetNewScanDate extends MenuModule {
     setNewScanDateForFloorBase(targetSelection, scanDate, cb) {
         const value = scanDate.toISOString();
         return this.client.user.persistProperty(UserProps.NewScanMinTimestamp, value, cb);
+    }
+
+    //  no floor: callers fall back to the per-area pointers alone
+    clearNewScanFloor(cb) {
+        this.client.user.removeProperty(UserProps.NewScanMinTimestamp, err => {
+            if (err) {
+                return cb(err);
+            }
+
+            this.client.log.info('Cleared new scan floor');
+            return cb(null);
+        });
     }
 
     loadAvailMessageBaseSelections(cb) {

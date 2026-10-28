@@ -1023,6 +1023,104 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
     });
+
+    describe("set_newscan_date's floor target", () => {
+        const Floor = '2026-09-10T00:00:00.000Z';
+
+        //  the form method, as the menu calls it, with a fake user that
+        //  also removes properties
+        const submit = (scanDate, { target = 'floor', config = {} } = {}, cb) => {
+            const client = makeClient({ newscan_min_timestamp: Floor });
+            const removed = [];
+            client.user.removeProperty = (name, removeCb) => {
+                removed.push(name);
+                delete client.user.properties[name];
+                delete userDb[name];
+                return removeCb(null);
+            };
+            client.user.properties = client.properties;
+            userDb.newscan_min_timestamp = Floor;
+
+            client.user.persistProperty = (name, value, persistCb) => {
+                client.persisted.push({ name, value });
+                return persistCb(null);
+            };
+
+            const mod = new SetNewScanDate({
+                client,
+                menuConfig: { config: Object.assign({ target }, config) },
+            });
+            mod.client = client;
+            let prevMenus = 0;
+            mod.prevMenu = prevCb => {
+                ++prevMenus;
+                return prevCb(null);
+            };
+
+            mod.menuMethods.scanDateSubmit({ value: { scanDate } }, {}, err =>
+                cb(err, { client, removed, prevMenus })
+            );
+        };
+
+        //  an empty mask field submits '', and a field that is only the mask
+        for (const blank of ['', undefined, null, '//', '  /  /  ']) {
+            it(`clears the floor for a blank date (${JSON.stringify(blank)})`, done => {
+                submit(blank, {}, (err, res) => {
+                    assert.ifError(err);
+                    assert.deepEqual(res.removed, ['newscan_min_timestamp']);
+                    assert.strictEqual(userDb.newscan_min_timestamp, undefined);
+                    assert.strictEqual(res.prevMenus, 1);
+                    done();
+                });
+            });
+        }
+
+        it('leaves the floor when allowClear is false', done => {
+            submit('', { config: { allowClear: false } }, (err, res) => {
+                assert(err, 'a blank date is an error');
+                assert.deepEqual(res.removed, []);
+                assert.equal(userDb.newscan_min_timestamp, Floor);
+                assert.strictEqual(res.prevMenus, 0);
+                done();
+            });
+        });
+
+        it('still sets the floor for a valid date', done => {
+            submit(
+                '2026/10/01',
+                { config: { scanDateFormat: 'YYYY/MM/DD' } },
+                (err, res) => {
+                    assert.ifError(err);
+                    assert.deepEqual(res.removed, []);
+                    assert.equal(res.client.persisted.length, 1);
+                    assert.equal(res.client.persisted[0].name, 'newscan_min_timestamp');
+                    assert.strictEqual(res.prevMenus, 1);
+                    done();
+                }
+            );
+        });
+
+        it('still rejects an invalid date', done => {
+            submit(
+                '2026/13/45',
+                { config: { scanDateFormat: 'YYYY/MM/DD' } },
+                (err, res) => {
+                    assert(err);
+                    assert.deepEqual(res.removed, []);
+                    done();
+                }
+            );
+        });
+
+        it('keeps a blank date an error for the message target', done => {
+            submit('', { target: 'message' }, (err, res) => {
+                assert(err);
+                assert.deepEqual(res.removed, []);
+                assert.equal(userDb.newscan_min_timestamp, Floor);
+                done();
+            });
+        });
+    });
     //
     //  These answered from inside their try, so a callback that threw was
     //  called again with the error -- which, in a test, turned a failed
