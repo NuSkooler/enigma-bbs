@@ -41,7 +41,7 @@ The floor is stored as an ISO 8601 timestamp in the `newscan_min_timestamp` user
 
 > **New accounts** have `newscan_min_timestamp` automatically set to their account creation timestamp. Users joining a BBS with years of message history will only see posts from their join date onward — no configuration required.
 
-To change or clear the floor, press `G` from the configure newscan screen. This navigates to the floor-date entry form (see [Set Newscan Date — `target: floor`](set-newscan-date.md)).
+To change or clear the floor, press `G` from the configure newscan screen. This navigates to the floor-date entry form (see [Set Newscan Date — `target: floor`](set-newscan-date.md)). To clear it, empty the date field and submit it blank; the screen then shows `Floor: not set`.
 
 ---
 

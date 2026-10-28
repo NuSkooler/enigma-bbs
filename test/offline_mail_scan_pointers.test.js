@@ -1023,6 +1023,218 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
     });
+
+    describe("set_newscan_date's floor target", () => {
+        const Floor = '2026-09-10T00:00:00.000Z';
+
+        //  the form method, as the menu calls it, with a fake user that
+        //  also removes properties
+        const submit = (
+            scanDate,
+            { target = 'floor', config = {}, removeError, selections } = {},
+            cb
+        ) => {
+            const client = makeClient({ newscan_min_timestamp: Floor });
+            const removed = [];
+            client.user.removeProperty = (name, removeCb) => {
+                removed.push(name);
+                if (removeError) {
+                    return removeCb(removeError);
+                }
+                delete client.user.properties[name];
+                delete userDb[name];
+                return removeCb(null);
+            };
+            client.user.properties = client.properties;
+            userDb.newscan_min_timestamp = Floor;
+
+            client.user.persistProperty = (name, value, persistCb) => {
+                client.persisted.push({ name, value });
+                return persistCb(null);
+            };
+
+            const mod = new SetNewScanDate({
+                client,
+                menuConfig: { config: Object.assign({ target }, config) },
+            });
+            mod.client = client;
+            if (selections) {
+                mod.targetSelections = [
+                    { area: { areaTag: '' } },
+                    { area: { areaTag: 'general' } },
+                ];
+            }
+            let prevMenus = 0;
+            mod.prevMenu = prevCb => {
+                ++prevMenus;
+                return prevCb(null);
+            };
+
+            mod.menuMethods.scanDateSubmit(
+                { value: { scanDate, targetSelection: selections ? 0 : undefined } },
+                {},
+                err => cb(err, { client, removed, prevMenus })
+            );
+        };
+
+        //  an empty mask field submits '', and a field that is only the mask
+        for (const blank of ['', undefined, null, '//', '  /  /  ']) {
+            it(`clears the floor for a blank date (${JSON.stringify(blank)})`, done => {
+                submit(blank, {}, (err, res) => {
+                    assert.ifError(err);
+                    assert.deepEqual(res.removed, ['newscan_min_timestamp']);
+                    assert.strictEqual(userDb.newscan_min_timestamp, undefined);
+                    assert.strictEqual(res.prevMenus, 1);
+                    done();
+                });
+            });
+        }
+
+        it('leaves the floor when allowClear is false', done => {
+            submit('', { config: { allowClear: false } }, (err, res) => {
+                assert(err, 'a blank date is an error');
+                assert.deepEqual(res.removed, []);
+                assert.equal(userDb.newscan_min_timestamp, Floor);
+                assert.strictEqual(res.prevMenus, 0);
+                done();
+            });
+        });
+
+        it('still sets the floor for a valid date', done => {
+            submit(
+                '2026/10/01',
+                { config: { scanDateFormat: 'YYYY/MM/DD' } },
+                (err, res) => {
+                    assert.ifError(err);
+                    assert.deepEqual(res.removed, []);
+                    assert.equal(res.client.persisted.length, 1);
+                    assert.equal(res.client.persisted[0].name, 'newscan_min_timestamp');
+                    assert.strictEqual(res.prevMenus, 1);
+                    done();
+                }
+            );
+        });
+
+        it('still rejects an invalid date', done => {
+            submit(
+                '2026/13/45',
+                { config: { scanDateFormat: 'YYYY/MM/DD' } },
+                (err, res) => {
+                    assert(err);
+                    assert.deepEqual(res.removed, []);
+                    done();
+                }
+            );
+        });
+
+        for (const partial of ['1//', '2026//', '2026/09/']) {
+            it(`rejects a partly entered date (${partial}) for the floor`, done => {
+                submit(partial, {}, (err, res) => {
+                    assert(err);
+                    assert.equal(res.client.persisted.length, 0);
+                    assert.deepEqual(res.removed, []);
+                    assert.equal(userDb.newscan_min_timestamp, Floor);
+                    assert.strictEqual(res.prevMenus, 0);
+                    done();
+                });
+            });
+        }
+
+        it('rejects a partly entered date for the message target', done => {
+            addMessage(1, 'general', '2026-09-20');
+            setLastRead('general', 1);
+            submit('1//', { target: 'message' }, (err, res) => {
+                assert(err);
+                assert.equal(lastRead('general'), 1, 'pointer not moved');
+                assert.strictEqual(res.prevMenus, 0);
+                done();
+            });
+        });
+
+        it('accepts a full date for the message target', done => {
+            addMessage(1, 'general', '2026-09-01');
+            addMessage(2, 'general', '2026-09-20');
+            setLastRead('general', 2);
+            submit('2026/09/10', { target: 'message', selections: true }, (err, res) => {
+                assert.ifError(err);
+                assert.equal(lastRead('general'), 1);
+                assert.strictEqual(res.prevMenus, 1);
+                done();
+            });
+        });
+
+        it('does not claim success when the clear fails', done => {
+            submit('', { removeError: new Error('db is gone') }, (err, res) => {
+                assert(err);
+                assert.equal(err.message, 'db is gone');
+                assert.strictEqual(res.prevMenus, 0);
+                done();
+            });
+        });
+
+        //  the real removeProperty, against a real user_property table
+        it('removes the stored property with the real User#removeProperty', () => {
+            const dbModule = require('../core/database.js');
+            const prevUserDb = dbModule.dbs.user;
+            const userPath = require.resolve('../core/user.js');
+            const prevUser = require.cache[userPath];
+            const db = new Database(':memory:');
+            try {
+                db.exec(
+                    `CREATE TABLE user_property (user_id INTEGER, prop_name VARCHAR NOT NULL,
+                        prop_value VARCHAR, UNIQUE (user_id, prop_name));`
+                );
+                db.prepare('INSERT INTO user_property VALUES (?, ?, ?);').run(
+                    UserId,
+                    'newscan_min_timestamp',
+                    Floor
+                );
+                db.prepare('INSERT INTO user_property VALUES (?, ?, ?);').run(
+                    UserId,
+                    'other',
+                    'x'
+                );
+
+                dbModule.dbs.user = db;
+                delete require.cache[userPath];
+                const RealUser = require('../core/user.js');
+
+                const user = Object.create(RealUser.prototype);
+                user.userId = UserId;
+                user.properties = { newscan_min_timestamp: Floor, other: 'x' };
+
+                const mod = Object.create(SetNewScanDate.prototype);
+                mod.client = { user, log: { info: () => {} } };
+                let result = 'not called';
+                mod.clearNewScanFloor(err => (result = err));
+
+                assert.strictEqual(result, null);
+                assert.strictEqual(user.properties.newscan_min_timestamp, undefined);
+                const rows = db.prepare('SELECT prop_name FROM user_property;').all();
+                assert.deepEqual(
+                    rows.map(r => r.prop_name),
+                    ['other']
+                );
+            } finally {
+                dbModule.dbs.user = prevUserDb;
+                if (prevUser) {
+                    require.cache[userPath] = prevUser;
+                } else {
+                    delete require.cache[userPath];
+                }
+                db.close();
+            }
+        });
+
+        it('keeps a blank date an error for the message target', done => {
+            submit('', { target: 'message' }, (err, res) => {
+                assert(err);
+                assert.deepEqual(res.removed, []);
+                assert.equal(userDb.newscan_min_timestamp, Floor);
+                done();
+            });
+        });
+    });
     //
     //  These answered from inside their try, so a callback that threw was
     //  called again with the error -- which, in a test, turned a failed

@@ -17,6 +17,7 @@ The `set_newscan_date` module allows setting newscan dates for message conferenc
 Available `config` block entries:
 * `target`: `message`, `file`, or `floor`. Defaults to `message`.
 * `scanDateFormat`: Format for the date entered by the user. Must match the **output** of the `%ME1` MaskEditView. Defaults to `YYYYMMDD` (matches mask `####/##/##`).
+* `allowClear`: `floor` target only. When `true` (the default), submitting a blank date removes the user's `newscan_min_timestamp` property, so there is no floor, and returns to the previous menu. When `false`, a blank date is an error as it is for the other targets. Has no effect on `message` and `file`, where a blank date is always an error. A partly entered date is invalid either way.
 
 ### Theming
 #### Message Conference & Areas (`target: message`)
@@ -33,7 +34,7 @@ The following `itemFormat` fields are available on MCI 2 (`%SM2`) for selecting 
 #### File Base (`target: file`) and Floor (`target: floor`)
 No `%SM2` is used — only the `%ME1` date input field is required.
 
-When `target` is `floor`, the date field is pre-populated with the user's current floor date (if one is set), making it easy to review and adjust.
+When `target` is `floor`, the date field is pre-populated with the user's current floor date (if one is set), making it easy to review and adjust. To clear the floor, the user empties the field (Ctrl-Y or backspace) and submits it blank.
 
 ### Submit Actions
 The submit action must map to `@method:scanDateSubmit` and include `scanDate` in the form data. For `target: message`, `targetSelection` (an index into the conf/area list) must also be provided.
