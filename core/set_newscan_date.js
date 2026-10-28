@@ -53,14 +53,22 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                 //  an empty mask field submits '' (no digits at all); a blank
                 //  floor date removes the floor
                 if ('floor' === this.target && this.allowClear && !/\d/.test(scanDate)) {
-                    return this.clearNewScanFloor(() => this.prevMenu(cb));
+                    return this.clearNewScanFloor(err =>
+                        err ? cb(err) : this.prevMenu(cb)
+                    );
                 }
 
                 if (!scanDate) {
                     return cb(Errors.MissingParam('"scanDate" missing from form data'));
                 }
 
-                scanDate = moment(scanDate, this.scanDateFormat);
+                //  The mask hands over its literals ("2026//"), which a lenient
+                //  parse fills in ("2026-01-01"). Parse the digits against the
+                //  format without its separators, as populateForm sets them,
+                //  and strictly so a partial date is not a date.
+                const digits = String(scanDate).replace(/\D/g, '');
+                const digitsFormat = this.scanDateFormat.replace(/[/\-. ]/g, '');
+                scanDate = moment(digits, digitsFormat, true);
                 if (!scanDate.isValid()) {
                     return cb(
                         Errors.Invalid(
