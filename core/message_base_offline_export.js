@@ -43,6 +43,104 @@ const MciViewIds = {
 };
 
 //
+//  Packets waiting to be downloaded, by the session that queued them: session
+//  uniqueId -> [ { userId, fileId, highestIds, log, packetFormatName } ].
+//  One UserDownload and one ClientDisconnected listener serve them all, and
+//  only while any are waiting; a pair per packet ran into the emitter's cap
+//  on a busy board.
+//
+//  A packet is matched by user and file ID. File IDs are reused once a
+//  temporary download is removed, but that happens when its session ends,
+//  and so does the wait for it.
+//
+const pendingPackets = new Map();
+
+const advancePointers = ({ userId, fileId, highestIds, log, packetFormatName }) => {
+    async.eachSeries(
+        Object.keys(highestIds),
+        (areaTag, nextArea) => {
+            updateMessageAreaLastReadId(
+                userId,
+                areaTag,
+                highestIds[areaTag],
+                false, //  never backwards
+                err => {
+                    if (err) {
+                        log.warn(
+                            { areaTag, error: err.message },
+                            `Could not advance the scan pointer after a ${packetFormatName} download`
+                        );
+                    }
+                    return nextArea(null);
+                }
+            );
+        },
+        () => {
+            log.debug(
+                { fileId, areas: Object.keys(highestIds).length },
+                `${packetFormatName} packet downloaded; scan pointers advanced`
+            );
+        }
+    );
+};
+
+const stopListeningIfIdle = () => {
+    if (0 === pendingPackets.size) {
+        Events.removeListener(Events.getSystemEvents().UserDownload, onUserDownload);
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            onClientDisconnected
+        );
+    }
+};
+
+function onUserDownload(evt) {
+    const files = _.get(evt, 'files');
+    if (!Array.isArray(files)) {
+        return;
+    }
+
+    const userId = _.get(evt, 'user.userId');
+    const fileIds = new Set(files.map(file => file && file.fileId));
+    pendingPackets.forEach((packets, sessionId) => {
+        const [downloaded, waiting] = _.partition(
+            packets,
+            packet => userId === packet.userId && fileIds.has(packet.fileId)
+        );
+        if (!downloaded.length) {
+            return;
+        }
+
+        if (waiting.length) {
+            pendingPackets.set(sessionId, waiting);
+        } else {
+            pendingPackets.delete(sessionId);
+        }
+        downloaded.forEach(advancePointers);
+    });
+
+    stopListeningIfIdle();
+}
+
+//  what this session left undownloaded went with it
+function onClientDisconnected(evt) {
+    if (pendingPackets.delete(_.get(evt, 'client.session.uniqueId'))) {
+        stopListeningIfIdle();
+    }
+}
+
+const waitForDownload = (sessionId, packet) => {
+    if (0 === pendingPackets.size) {
+        Events.on(Events.getSystemEvents().UserDownload, onUserDownload);
+        Events.on(Events.getSystemEvents().ClientDisconnected, onClientDisconnected);
+    }
+    if (!pendingPackets.has(sessionId)) {
+        pendingPackets.set(sessionId, []);
+    }
+    pendingPackets.get(sessionId).push(packet);
+};
+
+//
 //  The flow every offline mail packet export shares: gather the areas the
 //  caller asked for, walk the new messages in each into a packet writer,
 //  then hand the finished packet to their download queue.
@@ -369,64 +467,13 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
     //  can be downloaded in either order.
     //
     _advancePointersOnDownload(fileId, highestIds) {
-        const client = this.client;
-        const userId = client.user.userId;
-        const sessionId = _.get(client, 'session.uniqueId');
-        const SystemEvents = Events.getSystemEvents();
-
-        const stopListening = () => {
-            Events.removeListener(SystemEvents.UserDownload, onDownload);
-            Events.removeListener(SystemEvents.ClientDisconnected, onDisconnect);
-        };
-
-        const onDownload = evt => {
-            const files = _.get(evt, 'files');
-            if (
-                userId !== _.get(evt, 'user.userId') ||
-                !Array.isArray(files) ||
-                !files.some(file => file && fileId === file.fileId)
-            ) {
-                return;
-            }
-
-            stopListening();
-
-            async.eachSeries(
-                Object.keys(highestIds),
-                (areaTag, nextArea) => {
-                    updateMessageAreaLastReadId(
-                        userId,
-                        areaTag,
-                        highestIds[areaTag],
-                        false, //  never backwards
-                        err => {
-                            if (err) {
-                                client.log.warn(
-                                    { areaTag, error: err.message },
-                                    `Could not advance the scan pointer after a ${this.packetFormatName} download`
-                                );
-                            }
-                            return nextArea(null);
-                        }
-                    );
-                },
-                () => {
-                    client.log.debug(
-                        { fileId, areas: Object.keys(highestIds).length },
-                        `${this.packetFormatName} packet downloaded; scan pointers advanced`
-                    );
-                }
-            );
-        };
-
-        const onDisconnect = evt => {
-            if (sessionId === _.get(evt, 'client.session.uniqueId')) {
-                stopListening();
-            }
-        };
-
-        Events.on(SystemEvents.UserDownload, onDownload);
-        Events.on(SystemEvents.ClientDisconnected, onDisconnect);
+        waitForDownload(_.get(this.client, 'session.uniqueId'), {
+            userId: this.client.user.userId,
+            fileId,
+            highestIds,
+            log: this.client.log,
+            packetFormatName: this.packetFormatName,
+        });
     }
 
     _performExport(sysTempDownloadDir, cb) {

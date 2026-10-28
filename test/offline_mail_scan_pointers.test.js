@@ -617,6 +617,56 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
 
+        //
+        //  However many packets are waiting, in however many sessions, one
+        //  listener of each kind serves them, and each session's packets are
+        //  its own: one session's download or hang-up leaves the other's.
+        //
+        it('waits on one pair of listeners, keeping each session apart', done => {
+            addMessage(10, 'general', '2026-09-01');
+            addMessage(20, 'fido_tech', '2026-09-01');
+
+            const first = makeClient({ offline_mail_msg_areas: selection(['general']) });
+            //  the same caller on a second node
+            const second = makeClient({
+                offline_mail_msg_areas: selection(['fido_tech']),
+            });
+            second.session = { uniqueId: 'session-2' };
+
+            const a = makeExport(QWKExport, first);
+            const b = makeExport(BlueWaveExport, second);
+            runExport(a, err => {
+                assert.ifError(err);
+                runExport(b, err => {
+                    assert.ifError(err);
+                    assert.deepEqual(b.writer.messageIds, [20]);
+                    assert.deepEqual(listeners(), {
+                        download: baseline.download + 1,
+                        disconnect: baseline.disconnect + 1,
+                    });
+
+                    download(first, a.fileId);
+                    settle(() => {
+                        assert.equal(lastRead('general'), 10);
+                        assert.equal(lastRead('fido_tech'), 0);
+                        assert.notDeepEqual(listeners(), baseline, 'still waiting');
+
+                        disconnect(second);
+                        download(second, b.fileId);
+                        settle(() => {
+                            assert.equal(
+                                lastRead('fido_tech'),
+                                0,
+                                'went with its session'
+                            );
+                            assert.deepEqual(listeners(), baseline);
+                            done();
+                        });
+                    });
+                });
+            });
+        });
+
         //  set_newscan_date's floor applies to packets as it does online
         it('starts no earlier than the caller new scan floor', done => {
             addMessage(10, 'general', '2026-08-01');
