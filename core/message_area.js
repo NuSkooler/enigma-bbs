@@ -774,9 +774,10 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
     async.waterfall(
         [
             function getCurrent(callback) {
+                //  a pointer that could not be read is not 0: writing over it
+                //  could move it backwards
                 getMessageAreaLastReadId(userId, areaTag, function result(err, lastId) {
-                    lastId = lastId || 0;
-                    callback(null, lastId); //  ignore errors as we default to 0
+                    return callback(err, lastId || 0);
                 });
             },
             function update(lastId, callback) {

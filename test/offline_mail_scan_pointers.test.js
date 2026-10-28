@@ -1091,6 +1091,23 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
 
+        //
+        //  A read that failed was taken as 0 and the write went ahead, which
+        //  could move the pointer backwards. Here the read's tag cannot be
+        //  bound and the write's can: contrived, but it fails only the read.
+        //
+        it('does not write when the current pointer cannot be read', done => {
+            setLastRead('general', 5);
+            let calls = 0;
+            const areaTag = { toLowerCase: () => (1 === ++calls ? {} : 'general') };
+
+            MessageArea.updateMessageAreaLastReadId(UserId, areaTag, 3, false, err => {
+                assert.ok(err, 'the read error is returned');
+                assert.equal(lastRead('general'), 5);
+                done();
+            });
+        });
+
         it('never moves a mixed-case pointer backwards', done => {
             update('MixedCase', 5, err => {
                 assert.ifError(err);
