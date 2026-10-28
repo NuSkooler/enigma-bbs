@@ -77,51 +77,24 @@ exports.getModule = class TransferFileModule extends MenuModule {
         this.config = this.menuConfig.config || {};
 
         //
-        //  Most options can be set via extraArgs or config block
+        //  Most options can be set via extraArgs or the config block. Each key
+        //  is resolved on its own: extraArgs wins when it defines that key,
+        //  otherwise the config block applies. (extraArgs are routinely
+        //  unrelated -- e.g. { command: 'D' } from a menu prompt -- or partial.)
         //
         const config = Config();
-        if (options.extraArgs) {
-            if (options.extraArgs.protocol) {
-                this.protocolConfig =
-                    config.fileTransferProtocols[options.extraArgs.protocol];
-            }
+        const extraArgs = options.extraArgs || {};
+        const pick = key => (_.isNil(extraArgs[key]) ? this.config[key] : extraArgs[key]);
 
-            if (options.extraArgs.direction) {
-                this.direction = options.extraArgs.direction;
-            }
-
-            if (options.extraArgs.sendQueue) {
-                this.sendQueue = options.extraArgs.sendQueue;
-            }
-
-            if (options.extraArgs.recvFileName) {
-                this.recvFileName = options.extraArgs.recvFileName;
-            }
-
-            if (options.extraArgs.recvDirectory) {
-                this.recvDirectory = options.extraArgs.recvDirectory;
-            }
-        } else {
-            if (this.config.protocol) {
-                this.protocolConfig = config.fileTransferProtocols[this.config.protocol];
-            }
-
-            if (this.config.direction) {
-                this.direction = this.config.direction;
-            }
-
-            if (this.config.sendQueue) {
-                this.sendQueue = this.config.sendQueue;
-            }
-
-            if (this.config.recvFileName) {
-                this.recvFileName = this.config.recvFileName;
-            }
-
-            if (this.config.recvDirectory) {
-                this.recvDirectory = this.config.recvDirectory;
-            }
+        const protocol = pick('protocol');
+        if (protocol) {
+            this.protocolConfig = config.fileTransferProtocols[protocol];
         }
+
+        this.direction = pick('direction');
+        this.sendQueue = pick('sendQueue');
+        this.recvFileName = pick('recvFileName');
+        this.recvDirectory = pick('recvDirectory');
 
         this.protocolConfig =
             this.protocolConfig || config.fileTransferProtocols.zmodem8kSz; //  try for *something*
