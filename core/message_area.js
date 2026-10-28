@@ -856,7 +856,9 @@ function trimMessageAreasScheduledEvent(args, cb) {
                         LIMIT -1 OFFSET ${areaInfo.maxMessages}
                     );`
                 )
-                .run(areaInfo.areaTag.toLowerCase());
+                //  as stored, which is as configured: the age trim below
+                //  matches it the same way
+                .run(areaInfo.areaTag);
             Log.debug(
                 { areaInfo: areaInfo, type: 'maxMessages', count: info.changes },
                 'Area trimmed successfully'

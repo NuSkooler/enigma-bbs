@@ -1102,4 +1102,29 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
     });
+    //  message.area_tag is stored as configured, so a lower-cased tag never
+    //  matched a mixed-case area and it was never trimmed by count
+    describe('trimming a mixed-case area by count', () => {
+        it('trims it', done => {
+            ['2026-09-01', '2026-09-02', '2026-09-03'].forEach((date, i) =>
+                addMessage(i + 1, 'MixedArea', date)
+            );
+
+            const previous = configModule._pushTestConfig(
+                Object.assign({}, TestConfig, {
+                    messageAreaDefaults: { maxMessages: 2, maxAgeDays: 0 },
+                })
+            );
+            MessageArea.trimMessageAreasScheduledEvent([], err => {
+                configModule._popTestConfig(previous);
+                assert.ifError(err);
+                const ids = testDb
+                    .prepare('SELECT message_id FROM message ORDER BY message_id')
+                    .all()
+                    .map(row => row.message_id);
+                assert.deepEqual(ids, [2, 3]);
+                done();
+            });
+        });
+    });
 });
