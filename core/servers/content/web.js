@@ -69,25 +69,29 @@ class Route {
         try {
             this.pathRegExp = new RegExp(this.path);
         } catch (e) {
-            this.log.error({ route: route }, 'Invalid regular expression for route path');
+            //  leave pathRegExp unset: isValid() then rejects the route
+            SysLogger.error(
+                { route: route, error: e.message },
+                'Invalid regular expression for route path'
+            );
         }
     }
 
     isValid() {
         return (
-            (this.pathRegExp instanceof RegExp &&
-                -1 !==
-                    [
-                        'GET',
-                        'HEAD',
-                        'POST',
-                        'PUT',
-                        'DELETE',
-                        'CONNECT',
-                        'OPTIONS',
-                        'TRACE',
-                    ].indexOf(this.method)) ||
-            !_.isFunction(this.handler)
+            this.pathRegExp instanceof RegExp &&
+            -1 !==
+                [
+                    'GET',
+                    'HEAD',
+                    'POST',
+                    'PUT',
+                    'DELETE',
+                    'CONNECT',
+                    'OPTIONS',
+                    'TRACE',
+                ].indexOf(this.method) &&
+            _.isFunction(this.handler)
         );
     }
 
@@ -99,6 +103,8 @@ class Route {
         return `${this.method}:${this.path}`;
     }
 }
+
+exports.Route = Route;
 
 exports.getModule = class WebServerModule extends ServerModule {
     constructor() {

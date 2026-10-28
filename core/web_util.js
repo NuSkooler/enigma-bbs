@@ -9,8 +9,7 @@ exports.getFullUrl = getFullUrl;
 exports.buildUrl = buildUrl;
 exports.getUrlPath = getUrlPath;
 
-function getWebDomain() {
-    const config = Config();
+function getWebDomain(config = Config()) {
     const overridePrefix = get(config, 'contentServers.web.overrideUrlPrefix');
     if (isString(overridePrefix)) {
         const url = new URL(overridePrefix);

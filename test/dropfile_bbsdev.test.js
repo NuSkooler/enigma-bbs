@@ -430,6 +430,23 @@ describe('abracadabra and BBSDEV.DRP', () => {
 });
 
 describe('CTerm revision', () => {
+    it('finds CTerm by name, not by its position in the client table', () => {
+        const { NamedDeviceAttrClients } = require('../core/client.js');
+        const original = NamedDeviceAttrClients.slice();
+        try {
+            NamedDeviceAttrClients.reverse();
+            assert.notEqual(NamedDeviceAttrClients[0].termClient, 'cterm');
+            assert.equal(getCtermVersion('67;84;101;114;109;1;332'), '1.332');
+            //  the enig-term prefix is not CTerm
+            assert.equal(
+                getCtermVersion('101;110;105;103;45;116;101;114;109;0;1;0'),
+                null
+            );
+        } finally {
+            NamedDeviceAttrClients.splice(0, NamedDeviceAttrClients.length, ...original);
+        }
+    });
+
     it('reads the revision out of a Device Attributes reply', () => {
         assert.equal(getCtermVersion('67;84;101;114;109;1;332'), '1.332');
     });
