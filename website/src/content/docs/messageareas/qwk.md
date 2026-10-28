@@ -10,7 +10,7 @@ As like all other networks such as FidoNet-Style (FTN) networks, ENiGMA½ consid
 
 ### Supported Standards
 QWK must be considered a semi-standard as there are many implementations. What follows is a short & incomplete list of such standards ENiGMA½ supports:
-* The basic [QWK packet format](http://fileformats.archiveteam.org/wiki/QWK).
+* The basic [QWK packet format](https://web.archive.org/web/20241218182857/http://fileformats.archiveteam.org/wiki/QWK).
 * [QWKE extensions](https://github.com/wwivbbs/wwiv/blob/master/specs/qwk/qwke.txt).
 * [Synchronet BBS style extensions](http://wiki.synchro.net/ref:qwk) such as `HEADERS.DAT`, `@` kludges, and UTF-8 handling.
 

@@ -579,7 +579,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 
 ### Licensing
 
-- **AROS** is distributed under the AROS Public License (APL 1.1). The ROM in `enigma-vamiga` is unchanged AROS, and its source is available from [aros.org](https://aros.org).
+- **AROS** is distributed under the AROS Public License (APL 1.1). The ROM in `enigma-vamiga` is unchanged AROS, and its source is available from [aros.org](http://www.aros.org).
 - **Kickstart** and Workbench belong to their owners. ENiGMA½ does not ship them, and you do not need them. If you use `rom`, it is your own copy.
 - **vAmiga** is under the Mozilla Public License 2.0. The patches ENiGMA½ makes to it are published in the `enigma-vamiga` package.
 - **axshim** and the image tools are BSD-2-Clause. `AEDoor.library` is NilBBS's MIT-licensed library, with a small patch. Doors are their authors' own, under whatever terms they chose.

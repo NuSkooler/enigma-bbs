@@ -161,7 +161,7 @@ exports.PacketHeader = PacketHeader;
 //
 //  Additional resources:
 //  *   Writeup on differences between type 2, 2.2, and 2+:
-//      http://walon.org/pub/fidonet/FTSC-nodelists-etc./pkt-types.txt
+//      https://web.archive.org/web/20100522092126/http://walon.org/pub/fidonet/FTSC-nodelists-etc./pkt-types.txt
 //
 const PacketHeaderParser = new Parser()
     .uint16le('origNode')
