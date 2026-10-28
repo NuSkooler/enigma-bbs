@@ -918,6 +918,31 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
 
+        //  SQLite reads a date it cannot parse as NULL, and nothing is
+        //  "after" NULL, so every area counted as read
+        it('ignores a floor that is not a date', done => {
+            addMessage(1, 'general', '2026-09-01');
+            addMessage(2, 'general', '2026-09-20');
+
+            effective({ newscan_min_timestamp: 'not a date' }, 'general', (err, id) => {
+                assert.ifError(err);
+                assert.equal(id, 0);
+                done();
+            });
+        });
+
+        //  ISO 8601 without separators, which SQLite cannot read but is a date
+        it('reads a floor SQLite could not', done => {
+            addMessage(1, 'general', '2026-09-01');
+            addMessage(2, 'general', '2026-09-20');
+
+            effective({ newscan_min_timestamp: '20260910' }, 'general', (err, id) => {
+                assert.ifError(err);
+                assert.equal(id, 1);
+                done();
+            });
+        });
+
         it('keeps a pointer that is already past the floor', done => {
             addMessage(1, 'general', '2026-09-01');
             addMessage(2, 'general', '2026-09-20');

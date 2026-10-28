@@ -741,10 +741,15 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
 
         //  mail addressed to the caller is never backlog, and the %NP count
         //  reads the raw pointer too
-        const floor = Message.isPrivateAreaTag(areaTag)
+        const floorValue = Message.isPrivateAreaTag(areaTag)
             ? null
             : user.getProperty(UserProps.NewScanMinTimestamp);
-        if (!floor) {
+
+        //  parsed here rather than by SQLite, which answers NULL for a date
+        //  it cannot read -- and an area with "nothing after" a NULL floor
+        //  would count as read
+        const floor = floorValue ? moment(floorValue, moment.ISO_8601) : null;
+        if (!floor || !floor.isValid()) {
             return cb(null, rawLastRead || 0);
         }
 
