@@ -196,7 +196,8 @@ const PacketFormats = [
 //  never read, online or in a packet, starts from now: a year of backlog
 //  arriving unasked in the next packet is a worse surprise than missing what
 //  was posted before the caller wanted it. One they have read before resumes
-//  from their pointer, as Synchronet does.
+//  from their pointer, as Synchronet does. Private mail never starts from
+//  now: it was sent to the caller, so it is not backlog.
 //
 //  A list that would leave the caller with no area at all is not applied. An
 //  export with nothing in it delivers no packet, and nothing online edits
@@ -672,6 +673,7 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     //  An area turned on that the caller has never read, online or in a
     //  packet, starts from now rather than its whole history. One with a
     //  lastread pointer resumes from it: they have been here before.
+    //  Private mail is left alone (see below).
     //
     _startAddedAreas(areaTags, cb) {
         const userId = this.client.user.userId;
@@ -688,7 +690,9 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         };
 
         async.eachSeries(
-            areaTags,
+            //  mail addressed to the caller is not backlog, and moving its
+            //  pointer would mark their unread personal mail read online too
+            areaTags.filter(areaTag => areaTag !== Message.WellKnownAreaTags.Private),
             (areaTag, nextArea) => {
                 getMessageAreaLastReadId(userId, areaTag, (err, lastReadId) => {
                     if (err || lastReadId) {

@@ -662,6 +662,22 @@ describe('offline mail scan pointers (#928)', function () {
             addMessage(20, 'fido_quiet', '2026-09-01');
             addMessage(21, 'fido_quiet', '2026-09-02');
             addMessage(30, 'general', '2026-09-01');
+            addMessage(40, Private, '2026-09-01', { toUserId: UserId });
+            addMessage(41, Private, '2026-09-02', { toUserId: UserId });
+        });
+
+        //  mail sent to the caller is not backlog: none of it is marked read
+        it('never starts private mail from now', done => {
+            const client = makeClient({
+                offline_mail_msg_areas: JSON.stringify([{ areaTag: 'general' }]),
+            });
+            applyOlc(client, ['GENERAL', 'PRIVATE_MAIL'], (err, context) => {
+                assert.ifError(err);
+                assert.deepEqual(context.summary.areaChanges.added, ['PRIVATE_MAIL']);
+                assert.deepEqual(tagsOf(client.persisted[0].value), ['general', Private]);
+                assert.equal(lastRead(Private), 0);
+                done();
+            });
         });
 
         it('starts from now if the caller has never read it, and resumes if they have', done => {
