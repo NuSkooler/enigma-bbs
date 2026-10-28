@@ -115,6 +115,9 @@ describe('offline mail scan pointers (#928)', function () {
     let BlueWaveExport;
     let ImportModule;
     let MessageArea;
+    let User;
+    let realLoadProperties;
+    let userDb = {};
     let SetNewScanDate;
 
     before(() => {
@@ -136,9 +139,17 @@ describe('offline mail scan pointers (#928)', function () {
         ImportModule = require('../core/message_base_offline_import.js');
         MessageArea = require('../core/message_area.js');
         SetNewScanDate = require('../core/set_newscan_date.js').getModule;
+
+        //  the user database, as far as a fresh read of a property goes: what
+        //  any session of the caller has stored
+        User = require('../core/user.js');
+        realLoadProperties = User.loadProperties;
+        User.loadProperties = (userId, options, cb) =>
+            cb(null, Object.assign({}, userDb));
     });
 
     after(() => {
+        User.loadProperties = realLoadProperties;
         savedModules.forEach(([path, cached]) => {
             if (cached) {
                 require.cache[path] = cached;
@@ -153,6 +164,7 @@ describe('offline mail scan pointers (#928)', function () {
     });
 
     beforeEach(() => {
+        userDb = {};
         testDb.exec('DELETE FROM message_meta;');
         testDb.exec('DELETE FROM message;');
         testDb.exec('DELETE FROM user_message_area_last_read;');
@@ -226,6 +238,7 @@ describe('offline mail scan pointers (#928)', function () {
                 persistProperty: (name, value, cb) => {
                     persisted.push({ name, value: JSON.parse(value) });
                     properties[name] = value;
+                    userDb[name] = value;
                     return cb(null);
                 },
             },
@@ -338,6 +351,35 @@ describe('offline mail scan pointers (#928)', function () {
                     assert.equal(lastRead('general'), 3, 'not migrated again');
                     done();
                 });
+            });
+        });
+
+        //
+        //  Two sessions of the same caller, each with the User it loaded at
+        //  logon. The first migrates and then stores a reader's selection;
+        //  the second, migrating late, must not store the legacy list over it.
+        //
+        it('does not store over a selection another session stored first', done => {
+            const first = makeClient(bothLegacy());
+            const second = makeClient(bothLegacy());
+
+            getUserExportAreas(first, err => {
+                assert.ifError(err);
+                first.user.persistProperty(
+                    'offline_mail_msg_areas',
+                    JSON.stringify([{ areaTag: 'fido_tech' }]),
+                    () => {
+                        getUserExportAreas(second, (err, exportAreas) => {
+                            assert.ifError(err);
+                            assert.deepEqual(second.persisted, [], 'stored nothing');
+                            assert.deepEqual(exportAreas, [{ areaTag: 'fido_tech' }]);
+                            assert.deepEqual(JSON.parse(userDb.offline_mail_msg_areas), [
+                                { areaTag: 'fido_tech' },
+                            ]);
+                            done();
+                        });
+                    }
+                );
             });
         });
 

@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const Message = require('./message.js');
+const User = require('./user.js');
 const {
     getAllAvailableMessageAreaTags,
     getLastReadIdForTimestampByArea,
@@ -12,6 +13,7 @@ const {
 //  deps
 const async = require('async');
 const moment = require('moment');
+const _ = require('lodash');
 
 //
 //  The areas a caller has selected for an offline mail packet. The export
@@ -137,24 +139,51 @@ const getUserExportAreas = (client, cb) => {
             return cb(err);
         }
 
-        //  the pointers have moved, so this export can go ahead regardless;
-        //  the next read migrates again, and a pointer only moves forward
-        user.persistProperty(
-            OfflineMailAreasProperty,
-            JSON.stringify(exportAreas),
-            err => {
-                if (err) {
-                    client.log.warn(
-                        { error: err.message },
-                        'Could not store the migrated offline mail areas'
-                    );
-                } else {
-                    client.log.info(
-                        { areas: exportAreas.length },
-                        'Migrated offline mail areas and scan pointers'
+        //
+        //  The same caller on another node may have migrated since this
+        //  session loaded its User, and stored a selection of their own from
+        //  a reader since. The legacy list must not be stored over that.
+        //
+        User.loadProperties(
+            user.userId,
+            { names: [OfflineMailAreasProperty] },
+            (err, properties) => {
+                const stored =
+                    !err && parseAreaList(_.get(properties, OfflineMailAreasProperty));
+                if (stored) {
+                    if (_.isFunction(user.setProperty)) {
+                        user.setProperty(
+                            OfflineMailAreasProperty,
+                            properties[OfflineMailAreasProperty]
+                        );
+                    }
+                    return cb(
+                        null,
+                        stored.map(({ areaTag }) => ({ areaTag }))
                     );
                 }
-                return cb(null, exportAreas);
+
+                //  the pointers have moved, so this export can go ahead
+                //  regardless; the next read migrates again, and a pointer
+                //  only moves forward
+                user.persistProperty(
+                    OfflineMailAreasProperty,
+                    JSON.stringify(exportAreas),
+                    err => {
+                        if (err) {
+                            client.log.warn(
+                                { error: err.message },
+                                'Could not store the migrated offline mail areas'
+                            );
+                        } else {
+                            client.log.info(
+                                { areas: exportAreas.length },
+                                'Migrated offline mail areas and scan pointers'
+                            );
+                        }
+                        return cb(null, exportAreas);
+                    }
+                );
             }
         );
     });
