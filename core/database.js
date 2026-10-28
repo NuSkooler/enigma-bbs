@@ -362,7 +362,13 @@ function highestMessageIdSeen(db) {
         if (!tableExists.get(table)) {
             continue;
         }
-        const { id } = db.prepare(`SELECT MAX("${column}") AS id FROM "${table}";`).get();
+        //  integers only: SQLite sorts text above every integer, so one stray
+        //  text value would win MAX() and hide the real highest ID
+        const { id } = db
+            .prepare(
+                `SELECT MAX("${column}") AS id FROM "${table}" WHERE typeof("${column}") = 'integer';`
+            )
+            .get();
         //  a pointer is only ever written from a real message ID; anything
         //  else is ignored rather than allowed to push the sequence to its end
         if (Number.isSafeInteger(id) && id > highest) {
@@ -401,12 +407,22 @@ function migrateMessageIdAutoincrement(db) {
     }
 
     const log = Logger.log;
-    if (db.inTransaction) {
+
+    //  Startup carries on with the old table, so a sysop who never reads the
+    //  log would not know message IDs can still be reused: say it on the
+    //  console too.
+    const reportFailure = (fields, message) => {
         if (log) {
-            log.error(
-                'Not upgrading the message table inside an open transaction, where foreign keys cannot be turned off; it is unchanged, and the upgrade will be tried again at the next start'
-            );
+            log.error(fields, message);
         }
+        console.error(`${message}${fields.error ? ` (${fields.error})` : ''}`); //  eslint-disable-line no-console
+    };
+
+    if (db.inTransaction) {
+        reportFailure(
+            {},
+            'Not upgrading the message table inside an open transaction, where foreign keys cannot be turned off; it is unchanged, and the upgrade will be tried again at the next start'
+        );
         return;
     }
 
@@ -503,12 +519,10 @@ function migrateMessageIdAutoincrement(db) {
             })
             .immediate();
     } catch (err) {
-        if (log) {
-            log.error(
-                { error: err.message, rowCount },
-                'Upgrading the message table failed; it is unchanged, and the upgrade will be tried again at the next start'
-            );
-        }
+        reportFailure(
+            { error: err.message, rowCount },
+            'Upgrading the message table failed; it is unchanged, and the upgrade will be tried again at the next start'
+        );
         return;
     } finally {
         if (fkWasOn) {

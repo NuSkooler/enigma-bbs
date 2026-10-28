@@ -198,10 +198,18 @@ function schemaObjectsOn(db, type) {
 describe('message ID AUTOINCREMENT migration (#958)', function () {
     let savedLog;
     let logged;
+    let savedConsoleError;
+    let consoleErrors;
 
     beforeEach(function () {
         savedLog = Logger.log;
         logged = [];
+
+        //  a failed upgrade is also said on the console
+        savedConsoleError = console.error; //  eslint-disable-line no-console
+        consoleErrors = [];
+        console.error = msg => consoleErrors.push(msg); //  eslint-disable-line no-console
+
         const record = level => (obj, msg) => logged.push({ level, obj, msg });
         Logger.log = {
             info: record('info'),
@@ -217,6 +225,7 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
 
     afterEach(function () {
         Logger.log = savedLog;
+        console.error = savedConsoleError; //  eslint-disable-line no-console
     });
 
     it('keeps every message ID, UUID, column and meta row', function () {
@@ -344,6 +353,17 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
         assert.equal(insertMessage(db, { subject: 'New', body: 'body' }), 51);
     });
 
+    it('a stray text value in a pointer column does not hide the highest ID', function () {
+        const db = buildPre958Db();
+        db.prepare(
+            `INSERT INTO message_area_last_scan (scan_toss, area_tag, message_id)
+            VALUES ('ftn_bso', 'general', 60), ('ftn_bso', 'other', 'not-an-id');`
+        ).run();
+        initMessageDatabase(db);
+        assert.equal(sequenceOf(db), 60);
+        assert.equal(insertMessage(db, { subject: 'New', body: 'body' }), 61);
+    });
+
     it('migrates an empty message table', function () {
         const db = openMemoryDb();
         db.exec(PRE_958_SCHEMA);
@@ -423,6 +443,8 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
         assert.equal(schemaObjectsOn(db, 'trigger').length, 4);
         assert.deepEqual(ftsSearch(db, 'kept'), [5]);
         assert.ok(logged.some(l => l.level === 'error'));
+        assert.equal(consoleErrors.length, 1);
+        assert.match(consoleErrors[0], /Upgrading the message table failed/);
     });
 
     it('does not migrate inside a transaction the caller opened', function () {
@@ -439,7 +461,9 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
         assert.equal(db.pragma('user_version', { simple: true }), 0);
         const errors = logged.filter(l => l.level === 'error');
         assert.equal(errors.length, 1);
-        assert.match(errors[0].obj, /inside an open transaction/);
+        assert.match(errors[0].msg, /inside an open transaction/);
+        assert.equal(consoleErrors.length, 1);
+        assert.match(consoleErrors[0], /inside an open transaction/);
 
         //  and outside one, it goes ahead
         initMessageDatabase(db);
