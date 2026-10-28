@@ -209,20 +209,26 @@ module.exports = class Door {
 
                     //
                     //  PID is launched. Make sure it's killed off if the user disconnects.
+                    //  Every node's disconnect is seen here, so this listens until the
+                    //  door exits rather than once -- another caller hanging up first
+                    //  would otherwise use it up and leave this door running.
                     //
-                    Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
+                    const disconnectEvent = Events.getSystemEvents().ClientDisconnected;
+                    const disconnectHandler = evt => {
                         if (
                             this.doorPty &&
                             this.client.session.uniqueId ===
                                 _.get(evt, 'client.session.uniqueId')
                         ) {
+                            Events.removeListener(disconnectEvent, disconnectHandler);
                             this.client.log.info(
                                 { pid: this.doorPty.pid },
                                 'User has disconnected; Killing door process.'
                             );
                             this.doorPty.kill();
                         }
-                    });
+                    };
+                    Events.on(disconnectEvent, disconnectHandler);
 
                     this.client.log.debug(
                         { processId: this.doorPty.pid },
@@ -230,6 +236,7 @@ module.exports = class Door {
                     );
 
                     const exitHandler = () => {
+                        Events.removeListener(disconnectEvent, disconnectHandler);
                         this.stopOutputBackpressure();
 
                         if (this.sockServer) {
