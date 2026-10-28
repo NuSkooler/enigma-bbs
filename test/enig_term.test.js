@@ -256,6 +256,46 @@ describe('enig-term', function () {
             );
         });
 
+        it('derives the host from overrideUrlPrefix when it is set', () => {
+            const config = base({}, { enabled: true, port: 8811 });
+            config.contentServers.web.overrideUrlPrefix =
+                'https://public.example.org:4443/bbs/';
+            assert.equal(WsTerm.resolveEndpoint(config), 'wss://public.example.org:8811');
+        });
+
+        it('derives the host from domain when overrideUrlPrefix is unset', () => {
+            const config = base({}, { enabled: true, port: 8811 });
+            assert.equal(WsTerm.resolveEndpoint(config), 'wss://bbs.example.com:8811');
+        });
+
+        it('falls back to domain when overrideUrlPrefix is not a URL', () => {
+            const config = base({}, { enabled: true, port: 8811 });
+            config.contentServers.web.overrideUrlPrefix = 'not a url';
+            assert.equal(WsTerm.resolveEndpoint(config), 'wss://bbs.example.com:8811');
+        });
+
+        it('warns once about an unparsable overrideUrlPrefix', () => {
+            const loggerModule = require('../core/logger.js');
+            const previousLog = loggerModule.log;
+            const warnings = [];
+            loggerModule.log = Object.assign({}, previousLog, {
+                warn: (...args) => warnings.push(args),
+            });
+            try {
+                WsTerm._resetWarnings();
+                const config = base({}, { enabled: true, port: 8811 });
+                config.contentServers.web.overrideUrlPrefix = 'not a url';
+                WsTerm.resolveEndpoint(config);
+                WsTerm.resolveEndpoint(config);
+                assert.equal(warnings.length, 1);
+                assert.equal(warnings[0][0].overrideUrlPrefix, 'not a url');
+                assert.match(warnings[0][1], /overrideUrlPrefix/);
+            } finally {
+                loggerModule.log = previousLog;
+                WsTerm._resetWarnings();
+            }
+        });
+
         it('is null when wss is off: plain ws is never derived', () => {
             assert.equal(
                 WsTerm.resolveEndpoint(
