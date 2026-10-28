@@ -65,6 +65,21 @@ Message Areas are topic specific containers for messages that live within a part
 
 The default values for `maxMessages` and `maxAgeDays` can be changed globally in `core/config_default.js`, they're located in the section `messageAreaDefaults`. The same file also defines several default events to be scheduled, which are located under `eventScheduler`. For example, the `trimMessageAreas` event is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed.
 
+### Sent Private Mail
+Private mail a caller sends off the board, such as FTN netmail or email, stays in the built-in `private_mail` area as their "outbox" after it has been exported. The same trim event deletes it once it is older than `maxExternalSentAgeDays`, which defaults to `30`. Set it to `0` to keep sent mail. Mail between callers on this board is not affected.
+
+```hjson
+messageConferences: {
+  system_internal: {
+    areas: {
+      private_mail: {
+        maxExternalSentAgeDays: 90 // keep exported mail for 90 days
+      }
+    }
+  }
+}
+```
+
 ### ACS
 An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
 * `read`: ACS required to read (see) this area. Defaults to `GM[users]`.

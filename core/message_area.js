@@ -1028,8 +1028,14 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 //  - Marked exported (state_flags0 exported bit set)
                 //  - Marked with any external flavor (we don't mark local)
                 //
-                const maxExternalSentAgeDays = _.get(
-                    Config,
+                //  Config is a function here (see the top of this file), so the
+                //  setting has to be read from what it returns; reading the
+                //  function itself always fell back to the default. 0 keeps
+                //  sent mail, as 0 means unlimited for the other trim settings.
+                //
+                const DefaultMaxExternalSentAgeDays = 30;
+                const configured = _.get(
+                    Config(),
                     [
                         'messageConferences',
                         WellKnownConfTags.SystemInternal,
@@ -1037,8 +1043,24 @@ function trimMessageAreasScheduledEvent(args, cb) {
                         WellKnownAreaTags.Private,
                         'maxExternalSentAgeDays',
                     ],
-                    30
+                    DefaultMaxExternalSentAgeDays
                 );
+
+                let maxExternalSentAgeDays = configured;
+                if (
+                    !Number.isFinite(maxExternalSentAgeDays) ||
+                    maxExternalSentAgeDays < 0
+                ) {
+                    Log.warn(
+                        { maxExternalSentAgeDays: configured },
+                        `Invalid maxExternalSentAgeDays; using ${DefaultMaxExternalSentAgeDays}`
+                    );
+                    maxExternalSentAgeDays = DefaultMaxExternalSentAgeDays;
+                }
+
+                if (0 === maxExternalSentAgeDays) {
+                    return callback(null);
+                }
 
                 try {
                     const info = msgDb
@@ -1053,10 +1075,10 @@ function trimMessageAreasScheduledEvent(args, cb) {
                                 JOIN message_meta mmf
                                     ON m.message_id = mmf.message_id AND
                                     (mmf.meta_category='System' AND mmf.meta_name='${Message.SystemMetaNames.ExternalFlavor}')
-                                WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND DATETIME('now') > DATETIME(m.modified_timestamp, '+${maxExternalSentAgeDays} days')
+                                WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND DATETIME('now') > DATETIME(m.modified_timestamp, ?)
                             );`
                         )
-                        .run();
+                        .run(`+${maxExternalSentAgeDays} days`);
                     Log.debug(
                         { count: info.changes },
                         'Private externally sent messages trimmed successfully'
