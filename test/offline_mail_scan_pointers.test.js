@@ -94,6 +94,7 @@ const FreshModules = [
     '../core/message_base_qwk_export.js',
     '../core/message_base_bluewave_export.js',
     '../core/message_base_offline_import.js',
+    '../core/set_newscan_date.js',
 ].map(m => require.resolve(m));
 
 const UserId = 1;
@@ -112,6 +113,8 @@ describe('offline mail scan pointers (#928)', function () {
     let QWKExport;
     let BlueWaveExport;
     let ImportModule;
+    let MessageArea;
+    let SetNewScanDate;
 
     before(() => {
         prevConfig = configModule._pushTestConfig(TestConfig);
@@ -130,6 +133,8 @@ describe('offline mail scan pointers (#928)', function () {
         QWKExport = require('../core/message_base_qwk_export.js').getModule;
         BlueWaveExport = require('../core/message_base_bluewave_export.js').getModule;
         ImportModule = require('../core/message_base_offline_import.js');
+        MessageArea = require('../core/message_area.js');
+        SetNewScanDate = require('../core/set_newscan_date.js').getModule;
     });
 
     after(() => {
@@ -703,6 +708,98 @@ describe('offline mail scan pointers (#928)', function () {
                 assert.equal(lastRead('fido_quiet'), 20, 'read before: resumes');
                 assert.equal(lastRead('general'), 5, 'stayed on: untouched');
                 done();
+            });
+        });
+    });
+    //
+    //  The new scan floor (set_newscan_date's "floor" target, and the one a
+    //  new user starts with) and its "message" target turn a date into a
+    //  pointer. Both used the earliest-*dated* message after the date, which
+    //  can have arrived last.
+    //
+    describe('turning a new scan date into a pointer', () => {
+        const Floor = '2026-09-10T00:00:00.000Z';
+
+        const effective = (properties, areaTag, cb) =>
+            MessageArea.getEffectiveNewScanLastReadId(
+                makeClient(properties).user,
+                areaTag,
+                cb
+            );
+
+        it('starts the floor at the lowest ID dated after it, not the earliest dated', done => {
+            addMessage(1, 'general', '2026-09-01');
+            addMessage(2, 'general', '2026-09-20');
+            //  arrived last, dated between the floor and 2
+            addMessage(3, 'general', '2026-09-12');
+
+            effective({ newscan_min_timestamp: Floor }, 'general', (err, lastReadId) => {
+                assert.ifError(err);
+                //  2 and 3 are both after the floor, so both are new
+                assert.equal(lastReadId, 1);
+                done();
+            });
+        });
+
+        it('treats an area with nothing after the floor as caught up', done => {
+            addMessage(1, 'general', '2026-09-01');
+            addMessage(2, 'general', '2026-09-05');
+
+            effective({ newscan_min_timestamp: Floor }, 'general', (err, lastReadId) => {
+                assert.ifError(err);
+                assert.equal(lastReadId, 2);
+                done();
+            });
+        });
+
+        it('keeps a pointer that is already past the floor', done => {
+            addMessage(1, 'general', '2026-09-01');
+            addMessage(2, 'general', '2026-09-20');
+            addMessage(3, 'general', '2026-09-25');
+            setLastRead('general', 3);
+
+            effective({ newscan_min_timestamp: Floor }, 'general', (err, lastReadId) => {
+                assert.ifError(err);
+                assert.equal(lastReadId, 3);
+                done();
+            });
+        });
+
+        describe("set_newscan_date's message target", () => {
+            const setScanDate = (scanDate, cb) => {
+                const mod = Object.create(SetNewScanDate.prototype);
+                mod.client = makeClient();
+                mod.targetSelections = [
+                    { area: { areaTag: '' } },
+                    { area: { areaTag: 'general' } },
+                    { area: { areaTag: 'tech' } },
+                ];
+                mod.setNewScanDateForMessageBase(0, moment(scanDate), cb);
+            };
+
+            it('marks new everything dated after the date, late arrivals included', done => {
+                addMessage(1, 'general', '2026-09-01');
+                addMessage(2, 'general', '2026-09-20');
+                addMessage(3, 'general', '2026-09-12');
+                setLastRead('general', 3);
+
+                setScanDate(Floor, err => {
+                    assert.ifError(err);
+                    assert.equal(lastRead('general'), 1, 'moved back, as asked');
+                    done();
+                });
+            });
+
+            it('marks an area with nothing after the date as read', done => {
+                addMessage(1, 'tech', '2026-09-01');
+                addMessage(2, 'tech', '2026-09-05');
+
+                setScanDate(Floor, err => {
+                    assert.ifError(err);
+                    assert.equal(lastRead('tech'), 2);
+                    assert.equal(lastRead('general'), 0, 'an empty area is left alone');
+                    done();
+                });
             });
         });
     });

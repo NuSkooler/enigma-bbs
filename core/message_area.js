@@ -58,9 +58,8 @@ exports.getNewMessageCountInAreaForUser = getNewMessageCountInAreaForUser;
 exports.getNewMessageCountAddressedToUser = getNewMessageCountAddressedToUser;
 exports.getNewMessagesInAreaForUser = getNewMessagesInAreaForUser;
 exports.getMessageIdNewerThanTimestampByArea = getMessageIdNewerThanTimestampByArea;
-exports.getLowestMessageIdNewerThanTimestampByArea =
-    getLowestMessageIdNewerThanTimestampByArea;
 exports.getHighestMessageIdByArea = getHighestMessageIdByArea;
+exports.getLastReadIdForTimestampByArea = getLastReadIdForTimestampByArea;
 exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
 exports.getEffectiveNewScanLastReadId = getEffectiveNewScanLastReadId;
 exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
@@ -651,34 +650,16 @@ function getMessageListForArea(client, areaTag, filter, cb) {
     return Message.findMessages(filter, cb);
 }
 
-function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
-    Message.findMessages(
-        {
-            areaTag,
-            newerThanTimestamp,
-            sort: 'modTimestamp',
-            order: 'ascending',
-            limit: 1,
-        },
-        (err, id) => {
-            if (err) {
-                return cb(err);
-            }
-            return cb(null, id ? id[0] : null);
-        }
-    );
-}
-
 //
 //  The lowest message ID in |areaTag| newer than |newerThanTimestamp|, or null
-//  if there is none. getMessageIdNewerThanTimestampByArea() above answers a
-//  different question -- the earliest *dated* message, which need not be the
-//  lowest ID, since an import keeps its author's date -- so a scan pointer
-//  built from it can skip a late arrival. The comparison matches
-//  findMessages()' newerThanTimestamp. Not limited to one user's private mail,
-//  so for private_mail the answer is conservative.
+//  if there is none. Not the earliest *dated* one, which is what this used to
+//  answer: an import keeps its author's date, so the earliest-dated message
+//  can have arrived last, and a scan pointer built from it skipped every
+//  message that arrived before it. The comparison matches findMessages()'
+//  newerThanTimestamp. It covers the whole area, so for private_mail it is
+//  not limited to one user's mail -- conservative, as a pointer goes.
 //
-function getLowestMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
+function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
     if (moment.isMoment(newerThanTimestamp)) {
         newerThanTimestamp = getISOTimestampString(newerThanTimestamp);
     }
@@ -712,6 +693,26 @@ function getHighestMessageIdByArea(areaTag, cb) {
     }
 }
 
+//
+//  A timestamp as a lastread ID for |areaTag|: everything dated after it is
+//  new, so one short of the lowest ID newer than it. With nothing newer the
+//  area is caught up, at its highest ID. null for an empty area, which has no
+//  pointer to give.
+//
+function getLastReadIdForTimestampByArea(areaTag, timestamp, cb) {
+    getMessageIdNewerThanTimestampByArea(areaTag, timestamp, (err, lowestId) => {
+        if (err) {
+            return cb(err);
+        }
+        if (lowestId) {
+            return cb(null, lowestId - 1);
+        }
+        return getHighestMessageIdByArea(areaTag, (err, highestId) => {
+            return cb(err, highestId || null);
+        });
+    });
+}
+
 function getMessageAreaLastReadId(userId, areaTag, cb) {
     try {
         const row = msgDb
@@ -738,14 +739,13 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
             return cb(null, rawLastRead || 0);
         }
 
-        getMessageIdNewerThanTimestampByArea(areaTag, floor, (err, floorMsgId) => {
-            if (err || !floorMsgId) {
+        //  nothing dated before the floor is new; an area with nothing after
+        //  it is caught up, not scanned from the pointer alone
+        getLastReadIdForTimestampByArea(areaTag, floor, (err, floorLastReadId) => {
+            if (err || !floorLastReadId) {
                 return cb(null, rawLastRead || 0);
             }
-            //  floorMsgId is the first message AT-OR-AFTER the floor timestamp;
-            //  step back one so messages exactly at the floor are included
-            const effectiveFloorId = Math.max(floorMsgId - 1, 0);
-            return cb(null, Math.max(rawLastRead || 0, effectiveFloorId));
+            return cb(null, Math.max(rawLastRead || 0, floorLastReadId));
         });
     });
 }

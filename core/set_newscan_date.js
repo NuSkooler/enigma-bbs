@@ -12,7 +12,7 @@ const {
     getSortedAvailMessageConferences,
     getSortedAvailMessageAreasByConfTag,
     updateMessageAreaLastReadId,
-    getMessageIdNewerThanTimestampByArea,
+    getLastReadIdForTimestampByArea,
 } = require('./message_area.js');
 const UserProps = require('./user_property.js');
 
@@ -94,29 +94,25 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         async.each(
             updateAreaTags,
             (areaTag, nextAreaTag) => {
-                getMessageIdNewerThanTimestampByArea(
-                    areaTag,
-                    scanDate,
-                    (err, messageId) => {
-                        if (err) {
-                            return nextAreaTag(err);
-                        }
-
-                        if (!messageId) {
-                            return nextAreaTag(null); //  nothing to do
-                        }
-
-                        messageId = Math.max(messageId - 1, 0);
-
-                        return updateMessageAreaLastReadId(
-                            this.client.user.userId,
-                            areaTag,
-                            messageId,
-                            true, //  allowOlder
-                            nextAreaTag
-                        );
+                //  everything dated after |scanDate| is new again; an area
+                //  with nothing after it is caught up
+                getLastReadIdForTimestampByArea(areaTag, scanDate, (err, messageId) => {
+                    if (err) {
+                        return nextAreaTag(err);
                     }
-                );
+
+                    if (!messageId) {
+                        return nextAreaTag(null); //  an empty area
+                    }
+
+                    return updateMessageAreaLastReadId(
+                        this.client.user.userId,
+                        areaTag,
+                        messageId,
+                        true, //  allowOlder
+                        nextAreaTag
+                    );
+                });
             },
             err => {
                 return cb(err);

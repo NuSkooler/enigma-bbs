@@ -5,8 +5,7 @@
 const Message = require('./message.js');
 const {
     getAllAvailableMessageAreaTags,
-    getLowestMessageIdNewerThanTimestampByArea,
-    getHighestMessageIdByArea,
+    getLastReadIdForTimestampByArea,
     updateMessageAreaLastReadId,
 } = require('./message_area.js');
 
@@ -54,28 +53,11 @@ const defaultExportAreas = client =>
         .map(areaTag => ({ areaTag }));
 
 //
-//  A legacy timestamp as a lastread ID: one short of the lowest ID newer than
-//  it. Not "the highest ID at or before it" -- an import keeps its author's
-//  date, so late echomail can carry an older date than messages already
-//  exported, and the lowest ID after the stamp is the pointer that loses
-//  nothing the timestamp would still have sent. With nothing newer, the area
-//  is caught up; an empty area has no pointer to give.
-//
-const lastReadIdForTimestamp = (areaTag, timestamp, cb) => {
-    getLowestMessageIdNewerThanTimestampByArea(areaTag, timestamp, (err, lowestId) => {
-        if (err) {
-            return cb(err);
-        }
-        if (lowestId) {
-            return cb(null, lowestId - 1);
-        }
-        return getHighestMessageIdByArea(areaTag, cb);
-    });
-};
-
-//
 //  Moves each legacy timestamp onto the caller's lastread, taking the later
-//  of the two formats' for an area. A pointer only ever moves forward, so a
+//  of the two formats' for an area. One short of the lowest ID after it, not
+//  the highest at or before it: late echomail carries its author's older
+//  date, and this is the pointer that loses nothing the timestamp would still
+//  have sent. A pointer only ever moves forward, so a
 //  caller who has read further online keeps their place.
 //
 const migrateLegacyPointers = (user, legacyLists, cb) => {
@@ -96,18 +78,22 @@ const migrateLegacyPointers = (user, legacyLists, cb) => {
     async.eachSeries(
         [...latest.keys()],
         (areaTag, nextArea) => {
-            lastReadIdForTimestamp(areaTag, latest.get(areaTag), (err, lastReadId) => {
-                if (err || !lastReadId) {
-                    return nextArea(err);
+            getLastReadIdForTimestampByArea(
+                areaTag,
+                latest.get(areaTag),
+                (err, lastReadId) => {
+                    if (err || !lastReadId) {
+                        return nextArea(err);
+                    }
+                    return updateMessageAreaLastReadId(
+                        user.userId,
+                        areaTag,
+                        lastReadId,
+                        false, //  never backwards
+                        nextArea
+                    );
                 }
-                return updateMessageAreaLastReadId(
-                    user.userId,
-                    areaTag,
-                    lastReadId,
-                    false, //  never backwards
-                    nextArea
-                );
-            });
+            );
         },
         cb
     );
