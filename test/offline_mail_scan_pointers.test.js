@@ -853,15 +853,18 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
 
-        //  findMessages() finds private mail only by user, so the floor
-        //  never found anything there and did not apply
-        it('applies the floor to private mail', done => {
+        //
+        //  Mail addressed to the caller is not backlog: an unread message
+        //  dated before the floor is still new, as the %NP count, which reads
+        //  the raw pointer, already says.
+        //
+        it('never applies the floor to private mail', done => {
             addMessage(1, Private, '2026-09-01', { toUserId: UserId });
             addMessage(2, Private, '2026-09-20', { toUserId: UserId });
 
             effective({ newscan_min_timestamp: Floor }, Private, (err, lastReadId) => {
                 assert.ifError(err);
-                assert.equal(lastReadId, 1);
+                assert.equal(lastReadId, 0);
                 done();
             });
         });

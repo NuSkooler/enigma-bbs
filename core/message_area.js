@@ -734,7 +734,11 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
             return cb(null, 0); //  don't let a read error break the scan
         }
 
-        const floor = user.getProperty(UserProps.NewScanMinTimestamp);
+        //  mail addressed to the caller is never backlog, and the %NP count
+        //  reads the raw pointer too
+        const floor = Message.isPrivateAreaTag(areaTag)
+            ? null
+            : user.getProperty(UserProps.NewScanMinTimestamp);
         if (!floor) {
             return cb(null, rawLastRead || 0);
         }
