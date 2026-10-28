@@ -117,7 +117,7 @@ const QWKNetworkTagIndicator = {
 };
 
 //  See the following:
-//  -   http://fileformats.archiveteam.org/wiki/QWK
+//  -   https://web.archive.org/web/20241218182857/http://fileformats.archiveteam.org/wiki/QWK
 //  -   http://wiki.synchro.net/ref:qwk
 //
 const MessageHeaderParser = new Parser()
@@ -467,7 +467,7 @@ class QWKPacketReader extends EventEmitter {
         //  the originating BBS, conf number <> name mapping, etc.
         //
         //  References:
-        //  -   http://fileformats.archiveteam.org/wiki/QWK
+        //  -   https://web.archive.org/web/20241218182857/http://fileformats.archiveteam.org/wiki/QWK
         //
         //
         //  A reply packet carries no CONTROL.DAT: it is written by the

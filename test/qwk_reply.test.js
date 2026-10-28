@@ -14,7 +14,7 @@ const { QWKPacketReader, buildConferenceMap } = require('../core/qwk_mail_packet
 //  holding 128 byte blocks -- one packet ID block, then a header block and
 //  its text blocks per message.
 //
-//  Reference: http://fileformats.archiveteam.org/wiki/QWK
+//  Reference: https://web.archive.org/web/20241218182857/http://fileformats.archiveteam.org/wiki/QWK
 //
 const BlockSize = 128;
 const QWKLF = 0xe3; //  what a line ending becomes inside a block
