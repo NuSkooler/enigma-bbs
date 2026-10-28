@@ -16,17 +16,30 @@ describe('temporary session downloads', () => {
     let realRemoveEntry;
     let removed;
 
-    //  required here, not at load: file_area_download_acs.test.js drops these
-    //  modules from the cache, and the stub has to land on the FileEntry the
-    //  queue actually holds
+    //
+    //  Other suites drop file_entry.js from the require cache, so the queue
+    //  loaded earlier may hold a FileEntry that is no longer the cached one.
+    //  It is loaded afresh here, against the cached FileEntry the stub goes
+    //  on, and the earlier copy put back afterwards.
+    //
+    const queuePath = require.resolve('../core/download_queue.js');
+    let cachedQueue;
+
     before(() => {
-        DownloadQueue = require('../core/download_queue.js');
+        cachedQueue = require.cache[queuePath];
+        delete require.cache[queuePath];
         FileEntry = require('../core/file_entry.js');
+        DownloadQueue = require('../core/download_queue.js');
         realRemoveEntry = FileEntry.removeEntry;
     });
 
     after(() => {
         FileEntry.removeEntry = realRemoveEntry;
+        if (cachedQueue) {
+            require.cache[queuePath] = cachedQueue;
+        } else {
+            delete require.cache[queuePath];
+        }
     });
 
     beforeEach(() => {
