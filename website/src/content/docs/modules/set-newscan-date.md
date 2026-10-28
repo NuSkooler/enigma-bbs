@@ -10,7 +10,7 @@ The `set_newscan_date` module allows setting newscan dates for message conferenc
 |--------|-------------|
 | `message` | Finds the message ID at the given date and **writes it** to `user_message_area_last_read` for the selected area(s). This is a direct pointer move — it can go backwards or forwards. |
 | `file` | Moves the file base last-viewed pointer to the file ID at the given date. |
-| `floor` | Stores the date as the user's `newscan_min_timestamp` property — a non-destructive floor. Per-area read pointers are untouched; the newscan engine uses `MAX(per-area pointer, id@floor)` as the effective starting point for each area. See [Configure Newscan](configure-newscan.md) for the full floor date concept. |
+| `floor` | Stores the date as the user's `newscan_min_timestamp` property — a non-destructive floor. Per-area read pointers are untouched; the newscan engine uses `MAX(per-area pointer, id@floor)` as the effective starting point for each area, except private mail, which the floor never affects. See [Configure Newscan](configure-newscan.md) for the full floor date concept. |
 
 ## Configuration
 ### Configuration Block

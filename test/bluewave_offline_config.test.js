@@ -5,7 +5,6 @@ const fs = require('fs');
 const os = require('os');
 const paths = require('path');
 const iconv = require('iconv-lite');
-const moment = require('moment');
 
 const configModule = require('../core/config.js');
 const StatLog = require('../core/stat_log.js');
@@ -108,14 +107,11 @@ const TestConfig = {
     },
 };
 
-const Then = '2026-09-01T00:00:00.000Z';
-const Now = '2026-10-01T12:00:00.000Z';
-
 const makeClient = ({ stored, loginName = 'anne' } = {}) => {
     const persisted = [];
     const properties = {};
     if (stored) {
-        properties.bluewave_export_msg_areas = JSON.stringify(stored);
+        properties.offline_mail_msg_areas = JSON.stringify(stored);
     }
 
     const log = {};
@@ -131,6 +127,7 @@ const makeClient = ({ stored, loginName = 'anne' } = {}) => {
             hasMessageAreaRead: area => !area.secret,
         },
         user: {
+            userId: 1,
             username: loginName,
             realName: () => 'Anne Onymous',
             getProperty: name => properties[name],
@@ -143,7 +140,12 @@ const makeClient = ({ stored, loginName = 'anne' } = {}) => {
     };
 };
 
-//  the importer's own read-and-apply path, over a real unpacked packet
+//
+//  The importer's own read-and-apply path, over a real unpacked packet. Where
+//  an added area starts is a lastread pointer in the message base, which
+//  offline_mail_scan_pointers.test.js covers against a real one; here the
+//  areas handed to it are recorded.
+//
 const importPacket = (client, members, cb) => {
     const context = Object.create(importer);
     Object.assign(context, {
@@ -151,6 +153,11 @@ const importPacket = (client, members, cb) => {
         limits: { maxMessages: 500, maxMessageLength: 64 * 1024 },
         summary: { imported: 0, rejected: 0, byArea: {}, areaChanges: null },
         _updateStatus: () => {},
+        startedAreas: null,
+        _startAddedAreas: (areaTags, cb) => {
+            context.startedAreas = areaTags;
+            return cb(null);
+        },
     });
 
     const packetDir = makePacketDir(members);
@@ -345,9 +352,9 @@ describe('Blue Wave offline configuration', () => {
     //
     describe('applying it', () => {
         const stored = [
-            { areaTag: 'general', newerThanTimestamp: Then },
-            { areaTag: 'fido_general', newerThanTimestamp: Then },
-            { areaTag: 'private_mail', newerThanTimestamp: Then },
+            { areaTag: 'general' },
+            { areaTag: 'fido_general' },
+            { areaTag: 'private_mail' },
         ];
 
         it('turns off what the list leaves out and on what it adds', done => {
@@ -363,7 +370,8 @@ describe('Blue Wave offline configuration', () => {
                 (err, context) => {
                     assert.ifError(err);
                     assert.equal(client.persisted.length, 1);
-                    assert.equal(client.persisted[0].name, 'bluewave_export_msg_areas');
+                    //  one list for QWK and Blue Wave alike
+                    assert.equal(client.persisted[0].name, 'offline_mail_msg_areas');
                     assert.deepEqual(tagsOf(client.persisted[0].value).sort(), [
                         'fido_tech',
                         'general',
@@ -380,37 +388,43 @@ describe('Blue Wave offline configuration', () => {
         });
 
         //
-        //  An area that stays on must not have its starting point reset, or
-        //  every area the caller kept would re-send what they already have
-        //  -- or skip what they have not yet had.
+        //  Where an area's next packet starts is the caller's lastread
+        //  pointer, not the list, so the list stores areas alone. An area
+        //  that stays on is left where it is; only the ones turned on are
+        //  handed on to be started.
         //
-        it('keeps where a kept area starts and starts an added one from now', done => {
+        it('stores areas alone, and starts only the ones turned on', done => {
             const client = makeClient({ stored });
-            //  whole seconds: the stored timestamp may not carry milliseconds
-            const startedAt = moment().startOf('second');
             importPacket(
                 client,
                 {
                     'ENIGMA.UPL': uplHeader('anne'),
                     'ENIGMA.OLC': olc({ areas: ['GENERAL', 'FIDO_TECH'] }),
                 },
-                err => {
+                (err, context) => {
                     assert.ifError(err);
-                    const byTag = {};
-                    client.persisted[0].value.forEach(a => (byTag[a.areaTag] = a));
+                    assert.deepEqual(client.persisted[0].value, [
+                        { areaTag: 'general' },
+                        { areaTag: 'fido_tech' },
+                    ]);
+                    assert.deepEqual(context.startedAreas, ['fido_tech']);
+                    done();
+                }
+            );
+        });
 
-                    assert.ok(moment(byTag.general.newerThanTimestamp).isSame(Then));
-
-                    //  checked as stored: moment(undefined) is also "now", and
-                    //  no timestamp at all means the whole history
-                    const stamp = byTag.fido_tech.newerThanTimestamp;
-                    assert.ok(
-                        stamp,
-                        'an added area starts from the upload, not the beginning'
-                    );
-                    const added = moment(stamp);
-                    assert.ok(added.isValid());
-                    assert.ok(!added.isBefore(startedAt) && !added.isAfter(moment()));
+        //  a list that was not applied turns nothing on
+        it('starts nothing when the list is not applied', done => {
+            const client = makeClient({ stored });
+            importPacket(
+                client,
+                {
+                    'ENIGMA.UPL': uplHeader('anne'),
+                    'ENIGMA.OLC': olc({ areas: [] }),
+                },
+                (err, context) => {
+                    assert.ifError(err);
+                    assert.equal(context.startedAreas, null);
                     done();
                 }
             );
@@ -612,10 +626,27 @@ describe('Blue Wave offline configuration', () => {
                 current: [{ areaTag: 'general' }, { areaTag: 'gone_now' }],
                 requested: [{ echoTag: 'GENERAL', scan: 'ALL' }],
                 echoTagMap,
-                now: Now,
             });
             assert.deepEqual(tagsOf(plan.exportAreas), ['general']);
             assert.deepEqual(plan.removed, []);
+        });
+
+        //  the pointer, not the list, says where an area starts
+        it('names the areas it turns on, and stores no starting point', () => {
+            const plan = planAreaChanges({
+                current: [{ areaTag: 'general', newerThanTimestamp: '2026-09-01' }],
+                requested: [
+                    { echoTag: 'GENERAL', scan: 'ALL' },
+                    { echoTag: 'FIDO_TECH', scan: 'ALL' },
+                ],
+                echoTagMap,
+            });
+            assert.deepEqual(plan.exportAreas, [
+                { areaTag: 'general' },
+                { areaTag: 'fido_tech' },
+            ]);
+            assert.deepEqual(plan.addedAreaTags, ['fido_tech']);
+            assert.deepEqual(plan.added, ['FIDO_TECH']);
         });
 
         it('matches an echotag in any case', () => {
@@ -623,7 +654,6 @@ describe('Blue Wave offline configuration', () => {
                 current: [],
                 requested: [{ echoTag: 'fido_tech', scan: 'ALL' }],
                 echoTagMap,
-                now: Now,
             });
             assert.deepEqual(tagsOf(plan.exportAreas), ['fido_tech']);
             assert.deepEqual(plan.refused, []);
@@ -634,7 +664,6 @@ describe('Blue Wave offline configuration', () => {
                 current: [],
                 requested: [{ echoTag: 'FIDO_TECH', scan: 'PERSONLY' }],
                 echoTagMap,
-                now: Now,
             });
             assert.deepEqual(tagsOf(plan.exportAreas), ['fido_tech']);
             assert.equal(plan.notes.length, 1);

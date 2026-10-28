@@ -9,12 +9,15 @@ const {
     getMessageAreaByTag,
     getMessageConferenceByTag,
     hasMessageConfAndAreaRead,
+    getEffectiveNewScanLastReadId,
+    updateMessageAreaLastReadId,
 } = require('./message_area.js');
 const FileArea = require('./file_base_area.js');
 const { renderSubstr } = require('./string_util.js');
 const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
-const { getISOTimestampString } = require('./database.js');
+const Events = require('./events.js');
+const { isClientConnected } = require('./client_connections.js');
 const { safeMoveFile } = require('./file_util.js');
 const { getUserExportAreas } = require('./offline_mail_areas.js');
 const { offlineMailBulletins } = require('./offline_mail_bulletins.js');
@@ -38,6 +41,104 @@ const MciViewIds = {
 
         customRangeStart: 10,
     },
+};
+
+//
+//  Packets waiting to be downloaded, by the session that queued them: session
+//  uniqueId -> [ { userId, fileId, highestIds, log, packetFormatName } ].
+//  One UserDownload and one ClientDisconnected listener serve them all, and
+//  only while any are waiting; a pair per packet ran into the emitter's cap
+//  on a busy board.
+//
+//  A packet is matched by user and file ID. File IDs are reused once a
+//  temporary download is removed, but that happens when its session ends,
+//  and so does the wait for it.
+//
+const pendingPackets = new Map();
+
+const advancePointers = ({ userId, fileId, highestIds, log, packetFormatName }) => {
+    async.eachSeries(
+        Object.keys(highestIds),
+        (areaTag, nextArea) => {
+            updateMessageAreaLastReadId(
+                userId,
+                areaTag,
+                highestIds[areaTag],
+                false, //  never backwards
+                err => {
+                    if (err) {
+                        log.warn(
+                            { areaTag, error: err.message },
+                            `Could not advance the scan pointer after a ${packetFormatName} download`
+                        );
+                    }
+                    return nextArea(null);
+                }
+            );
+        },
+        () => {
+            log.debug(
+                { fileId, areas: Object.keys(highestIds).length },
+                `${packetFormatName} packet downloaded; scan pointers advanced`
+            );
+        }
+    );
+};
+
+const stopListeningIfIdle = () => {
+    if (0 === pendingPackets.size) {
+        Events.removeListener(Events.getSystemEvents().UserDownload, onUserDownload);
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            onClientDisconnected
+        );
+    }
+};
+
+function onUserDownload(evt) {
+    const files = _.get(evt, 'files');
+    if (!Array.isArray(files)) {
+        return;
+    }
+
+    const userId = _.get(evt, 'user.userId');
+    const fileIds = new Set(files.map(file => file && file.fileId));
+    pendingPackets.forEach((packets, sessionId) => {
+        const [downloaded, waiting] = _.partition(
+            packets,
+            packet => userId === packet.userId && fileIds.has(packet.fileId)
+        );
+        if (!downloaded.length) {
+            return;
+        }
+
+        if (waiting.length) {
+            pendingPackets.set(sessionId, waiting);
+        } else {
+            pendingPackets.delete(sessionId);
+        }
+        downloaded.forEach(advancePointers);
+    });
+
+    stopListeningIfIdle();
+}
+
+//  what this session left undownloaded went with it
+function onClientDisconnected(evt) {
+    if (pendingPackets.delete(_.get(evt, 'client.session.uniqueId'))) {
+        stopListeningIfIdle();
+    }
+}
+
+const waitForDownload = (sessionId, packet) => {
+    if (0 === pendingPackets.size) {
+        Events.on(Events.getSystemEvents().UserDownload, onUserDownload);
+        Events.on(Events.getSystemEvents().ClientDisconnected, onClientDisconnected);
+    }
+    if (!pendingPackets.has(sessionId)) {
+        pendingPackets.set(sessionId, []);
+    }
+    pendingPackets.get(sessionId).push(packet);
 };
 
 //
@@ -69,12 +170,17 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
     //  Hooks. Those with no default here are required; _missingHook()
     //  checks for them before an export touches the session.
 
+    //  A writer's appendMessage() returns true for a message it took, and
+    //  anything else for one it refused; only the ones it took move the
+    //  caller's pointers.
+
     //  'QWK', 'Blue Wave', ... -- names the format in status text and logs
     get packetFormatName() {
         throw Errors.MissingParam('packetFormatName is required');
     }
 
-    //  where this format keeps the caller's export settings
+    //  where this format keeps the caller's export options; the areas are
+    //  shared by every format (see offline_mail_areas.js)
     get userProperties() {
         throw Errors.MissingParam('userProperties is required');
     }
@@ -269,8 +375,8 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         return options;
     }
 
-    _getUserExportAreas() {
-        return getUserExportAreas(this.client, this.userProperties.ExportAreas);
+    _getUserExportAreas(cb) {
+        return getUserExportAreas(this.client, cb);
     }
 
     //  a writer that fails here must end the wait, not leave the caller on
@@ -314,7 +420,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
 
     //
     //  The finished packet into the caller's download queue, valid until
-    //  their session ends.
+    //  their session ends. Answers with the queued FileEntry.
     //
     _deliverPacket(packetInfo, sysTempDownloadDir, cb) {
         const sysDownloadPath = paths.join(
@@ -350,8 +456,34 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     //  queue it!
                     DownloadQueue.get(this.client).addTemporaryDownload(newEntry);
                 }
-                return cb(err);
+                return cb(err, newEntry);
             });
+        });
+    }
+
+    //
+    //  The caller's lastread pointers move past what a packet carried only
+    //  once they have downloaded it. A packet left in the queue is deleted
+    //  when the session ends, and its messages must still be new next time.
+    //
+    //  |highestIds| is areaTag -> the highest message ID packed there. A
+    //  pointer never moves backwards, so a second packet built before the
+    //  first was downloaded -- which carries everything the first did --
+    //  can be downloaded in either order.
+    //
+    _advancePointersOnDownload(fileId, highestIds) {
+        //  a session that ended while the packet was built has had its
+        //  ClientDisconnected; its packet is already gone
+        if (!isClientConnected(this.client)) {
+            return;
+        }
+
+        waitForDownload(_.get(this.client, 'session.uniqueId'), {
+            userId: this.client.user.userId,
+            fileId,
+            highestIds,
+            log: this.client.log,
+            packetFormatName: this.packetFormatName,
         });
     }
 
@@ -433,11 +565,22 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         };
 
         let totalExported = 0;
-        const processMessagesWithFilter = (filter, cb) => {
+
+        //  areaTag -> the highest message ID packed there; what the caller's
+        //  lastread pointers move to once the packet is downloaded
+        const highestIds = {};
+
+        //  |pointerAreaTag| is the area whose lastread covers what |filter|
+        //  finds: private mail is found by user rather than by area
+        const processMessagesWithFilter = (filter, pointerAreaTag, cb) => {
             Message.findMessages(filter, (err, messageIds) => {
                 if (err) {
                     return cb(err);
                 }
+
+                //  the writer refused a message: the area is full, and nothing
+                //  after it is loaded
+                const AreaFull = {};
 
                 let current = 1;
                 async.eachSeries(
@@ -452,7 +595,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             const progress = {
                                 message,
                                 step: 'message',
-                                total: ++totalExported,
+                                total: totalExported + 1,
                                 areaCurrent: current,
                                 areaCount: messageIds.length,
                                 status: `${_.truncate(message.subject, {
@@ -465,15 +608,27 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                                     return nextMessageId(err);
                                 }
 
-                                packetWriter.appendMessage(message);
+                                //  only what the writer took counts as packed:
+                                //  a format with a per-area limit leaves the
+                                //  rest for the next packet, which resumes
+                                //  right after the last message taken
+                                if (true !== packetWriter.appendMessage(message)) {
+                                    return nextMessageId(AreaFull);
+                                }
                                 current += 1;
+                                totalExported += 1;
+
+                                highestIds[pointerAreaTag] = Math.max(
+                                    highestIds[pointerAreaTag] || 0,
+                                    messageId
+                                );
 
                                 return nextMessageId(null);
                             });
                         });
                     },
                     err => {
-                        return cb(err);
+                        return cb(AreaFull === err ? null : err);
                     }
                 );
             });
@@ -520,8 +675,10 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     packetWriter.init();
                 },
                 callback => {
+                    return this._getUserExportAreas(callback);
+                },
+                (userExportAreas, callback) => {
                     //  For each public area -> for each message
-                    const userExportAreas = this._getUserExportAreas();
                     this.prepareExport(packetWriter, { exportAreas: userExportAreas });
 
                     const publicExportAreas = userExportAreas.filter(exportArea => {
@@ -570,15 +727,25 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                                     return nextExportArea(err);
                                 }
 
-                                const filter = {
-                                    resultType: 'id',
-                                    areaTag: exportArea.areaTag,
-                                    newerThanTimestamp: exportArea.newerThanTimestamp,
-                                };
+                                getEffectiveNewScanLastReadId(
+                                    this.client.user,
+                                    exportArea.areaTag,
+                                    (err, lastReadId) => {
+                                        const filter = {
+                                            resultType: 'id',
+                                            areaTag: exportArea.areaTag,
+                                            newerThanMessageId: lastReadId,
+                                            sort: 'messageId',
+                                            order: 'ascending',
+                                        };
 
-                                processMessagesWithFilter(filter, err => {
-                                    return nextExportArea(err);
-                                });
+                                        processMessagesWithFilter(
+                                            filter,
+                                            exportArea.areaTag,
+                                            nextExportArea
+                                        );
+                                    }
+                                );
                             });
                         },
                         err => {
@@ -610,12 +777,26 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             privateArea && getMessageConferenceByTag(privateArea.confTag),
                     });
 
-                    const filter = {
-                        resultType: 'id',
-                        privateTagUserId: this.client.user.userId,
-                        newerThanTimestamp: privateExportArea.newerThanTimestamp,
-                    };
-                    return processMessagesWithFilter(filter, callback);
+                    //  the same pointer reading private mail online keeps
+                    const privateAreaTag = Message.WellKnownAreaTags.Private;
+                    getEffectiveNewScanLastReadId(
+                        this.client.user,
+                        privateAreaTag,
+                        (err, lastReadId) => {
+                            const filter = {
+                                resultType: 'id',
+                                privateTagUserId: this.client.user.userId,
+                                newerThanMessageId: lastReadId,
+                                sort: 'messageId',
+                                order: 'ascending',
+                            };
+                            return processMessagesWithFilter(
+                                filter,
+                                privateAreaTag,
+                                callback
+                            );
+                        }
+                    );
                 },
                 callback => {
                     return this._finishPacket(packetWriter, callback);
@@ -627,21 +808,10 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
 
                     return this._deliverPacket(packetInfo, sysTempDownloadDir, callback);
                 },
-                callback => {
-                    //  update user's export area dates; they can always change/reset them again
-                    const updatedUserExportAreas = this._getUserExportAreas().map(
-                        exportArea => {
-                            return Object.assign(exportArea, {
-                                newerThanTimestamp: getISOTimestampString(),
-                            });
-                        }
-                    );
-
-                    return this.client.user.persistProperty(
-                        this.userProperties.ExportAreas,
-                        JSON.stringify(updatedUserExportAreas),
-                        callback
-                    );
+                (fileEntry, callback) => {
+                    //  not now: only once the caller has the packet
+                    this._advancePointersOnDownload(fileEntry.fileId, highestIds);
+                    return callback(null);
                 },
             ],
             err => {

@@ -34,6 +34,8 @@ This means:
 * **Areas already read past the floor** are unaffected — the actual pointer wins.
 * **Areas never visited** (pointer = 0) or whose pointer falls before the floor start from the floor date instead of the beginning of time.
 * Marking an area as read advances its pointer past the floor naturally, after which the floor no longer has any effect on that area.
+* An area with nothing dated after the floor counts as read.
+* **Private mail is never affected:** mail addressed to the user is new until they read it, whatever its date.
 
 The floor is stored as an ISO 8601 timestamp in the `newscan_min_timestamp` user property.
 
