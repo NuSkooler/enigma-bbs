@@ -891,6 +891,19 @@ describe('offline mail scan pointers (#928)', function () {
                 });
             });
 
+            //  one short of message 1 is 0, which is not "an empty area"
+            it('moves back to 0 when the first message is dated after the date', done => {
+                addMessage(1, 'general', '2026-09-20');
+                addMessage(2, 'general', '2026-09-21');
+                setLastRead('general', 2);
+
+                setScanDate(Floor, err => {
+                    assert.ifError(err);
+                    assert.equal(lastRead('general'), 0);
+                    done();
+                });
+            });
+
             it('marks an area with nothing after the date as read', done => {
                 addMessage(1, 'tech', '2026-09-01');
                 addMessage(2, 'tech', '2026-09-05');

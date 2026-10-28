@@ -101,7 +101,8 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                         return nextAreaTag(err);
                     }
 
-                    if (!messageId) {
+                    //  0 is a pointer like any other: message 1 is new
+                    if (null === messageId) {
                         return nextAreaTag(null); //  an empty area
                     }
 
