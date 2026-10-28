@@ -681,6 +681,29 @@ class ViewController extends events.EventEmitter {
                                 }
                             };
 
+                            //
+                            //  A menu's own prompt has no submitNotify to dispose of it, so
+                            //  input matching no action would otherwise stay in the field
+                            //  (re-submitting it, or prefixing the next command). Empty the
+                            //  field and put the cursor back at its start. Other callers
+                            //  (promptForInput, forms) own that decision via submitNotify.
+                            //
+                            const doNoMatch = () => {
+                                if (options.submitNotify) {
+                                    return doSubmitNotify();
+                                }
+
+                                if (options.callingMenu) {
+                                    const view = this.getView(formData.submitId);
+                                    if (view && _.isFunction(view.clearText)) {
+                                        view.clearText();
+                                        if (view.hasFocus) {
+                                            view.setFocus(true);
+                                        }
+                                    }
+                                }
+                            };
+
                             const handleIt = (fd, conf) => {
                                 this.handleActionWrapper(fd, conf, () => {
                                     doSubmitNotify();
@@ -729,7 +752,7 @@ class ViewController extends events.EventEmitter {
                                 }
 
                                 if (!Array.isArray(submitConf)) {
-                                    doSubmitNotify();
+                                    doNoMatch();
                                     return this.client.log.debug(
                                         'No configuration to handle submit'
                                     );
@@ -746,7 +769,7 @@ class ViewController extends events.EventEmitter {
                                 if (actionBlock) {
                                     handleIt(formData, actionBlock);
                                 } else {
-                                    doSubmitNotify();
+                                    doNoMatch();
                                 }
                             }
                         });
