@@ -6,9 +6,9 @@ const Config = require('./config.js').get;
 //  deps
 const _ = require('lodash');
 
+//  the areas are shared with Blue Wave; see offline_mail_areas.js
 const UserProperties = {
     ExportOptions: 'qwk_export_options',
-    ExportAreas: 'qwk_export_msg_areas',
 };
 
 exports.moduleInfo = {

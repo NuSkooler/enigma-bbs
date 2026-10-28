@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const msgDb = require('./database.js').dbs.message;
+const { getISOTimestampString } = require('./database.js');
 const configModule = require('./config.js');
 //  Look up the current Config.get function on each call rather than capturing
 //  it at module-load time. configModule.get is replaced at runtime by the
@@ -57,6 +58,9 @@ exports.getNewMessageCountInAreaForUser = getNewMessageCountInAreaForUser;
 exports.getNewMessageCountAddressedToUser = getNewMessageCountAddressedToUser;
 exports.getNewMessagesInAreaForUser = getNewMessagesInAreaForUser;
 exports.getMessageIdNewerThanTimestampByArea = getMessageIdNewerThanTimestampByArea;
+exports.getLowestMessageIdNewerThanTimestampByArea =
+    getLowestMessageIdNewerThanTimestampByArea;
+exports.getHighestMessageIdByArea = getHighestMessageIdByArea;
 exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
 exports.getEffectiveNewScanLastReadId = getEffectiveNewScanLastReadId;
 exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
@@ -663,6 +667,49 @@ function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
             return cb(null, id ? id[0] : null);
         }
     );
+}
+
+//
+//  The lowest message ID in |areaTag| newer than |newerThanTimestamp|, or null
+//  if there is none. getMessageIdNewerThanTimestampByArea() above answers a
+//  different question -- the earliest *dated* message, which need not be the
+//  lowest ID, since an import keeps its author's date -- so a scan pointer
+//  built from it can skip a late arrival. The comparison matches
+//  findMessages()' newerThanTimestamp. Not limited to one user's private mail,
+//  so for private_mail the answer is conservative.
+//
+function getLowestMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
+    if (moment.isMoment(newerThanTimestamp)) {
+        newerThanTimestamp = getISOTimestampString(newerThanTimestamp);
+    }
+
+    try {
+        const row = msgDb
+            .prepare(
+                'SELECT MIN(message_id) AS message_id ' +
+                    'FROM message ' +
+                    'WHERE area_tag = ? ' +
+                    "AND DATETIME(modified_timestamp) > DATETIME(?, '+1 seconds');"
+            )
+            .get(areaTag, newerThanTimestamp);
+        return cb(null, row && row.message_id ? row.message_id : null);
+    } catch (err) {
+        return cb(err);
+    }
+}
+
+//  the highest message ID in |areaTag|, or 0 for an empty area
+function getHighestMessageIdByArea(areaTag, cb) {
+    try {
+        const row = msgDb
+            .prepare(
+                'SELECT MAX(message_id) AS message_id FROM message WHERE area_tag = ?;'
+            )
+            .get(areaTag);
+        return cb(null, (row && row.message_id) || 0);
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 function getMessageAreaLastReadId(userId, areaTag, cb) {

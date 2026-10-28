@@ -37,6 +37,9 @@ Example:
 }
 ```
 
+### Areas and Scan Pointers
+A QWK packet carries the same areas as a Blue Wave packet, from one list per caller, and each area starts from the caller's ordinary new scan pointer. A message read online, or downloaded in a packet of either format, is not packed again, and the pointers move only once the packet has actually been downloaded. Setting a new scan date moves where the next packet starts too. A caller's earlier per-format area lists are moved over once, the first time they export after upgrading. See [Areas and Scan Pointers](./bluewave.md#areas-and-scan-pointers).
+
 ### Bulletins
 A welcome screen, news, a logoff screen and further bulletins can be packed into every packet a caller downloads, as `HELLO`, `BBSNEWS`, `GOODBYE` and `BLT-0.1`, `BLT-0.2`, .... They are configured in `messageNetworks.offlineMail`, shared with Blue Wave; see [Bulletins](./bluewave.md#bulletins).
 

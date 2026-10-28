@@ -110,19 +110,19 @@ describe('offline packet export', () => {
         });
     });
 
-    it('reads the areas the caller has stored', () => {
+    //  one list for every format; where each area starts is its lastread
+    it('reads the areas the caller has stored', done => {
         const mod = makeModule(QWKExport, {
             properties: {
-                qwk_export_msg_areas: JSON.stringify([
-                    { areaTag: 'general', newerThanTimestamp: '2026-09-09T00:00:00Z' },
-                ]),
+                offline_mail_msg_areas: JSON.stringify([{ areaTag: 'general' }]),
             },
         });
 
-        const areas = mod._getUserExportAreas();
-        assert.equal(areas.length, 1);
-        assert.equal(areas[0].areaTag, 'general');
-        assert.ok(areas[0].newerThanTimestamp.isValid(), 'parsed as a moment');
+        mod._getUserExportAreas((err, areas) => {
+            assert.ifError(err);
+            assert.deepEqual(areas, [{ areaTag: 'general' }]);
+            done();
+        });
     });
 
     //  a format that supplies none of them cannot export, and says so
@@ -184,7 +184,6 @@ describe('offline packet export', () => {
         assert.equal(mod.packetFormatName, 'QWK');
         assert.deepEqual(mod.userProperties, {
             ExportOptions: 'qwk_export_options',
-            ExportAreas: 'qwk_export_msg_areas',
         });
     });
 });
@@ -280,11 +279,18 @@ describe('offline packet export flow', () => {
         mod.warnings = [];
         mod.idle = [];
         mod.persisted = {};
+        mod.advanced = null;
 
         //  the delivery tail wants the file base; the flow above it does not
         mod._deliverPacket = (packetInfo, dir, cb) => {
             mod.delivered = { packetInfo, dir };
-            return cb(null);
+            return cb(null, { fileId: 99 });
+        };
+
+        //  what would wait for the download; offline_mail_scan_pointers.test.js
+        //  covers the wait itself, against a real message base
+        mod._advancePointersOnDownload = (fileId, highestIds) => {
+            mod.advanced = { fileId, highestIds };
         };
 
         //  a view that records what it is told, so the progress path runs
@@ -308,7 +314,7 @@ describe('offline packet export flow', () => {
                 userId: 1,
                 username: 'testuser',
                 getProperty: name =>
-                    'test_areas' === name
+                    'offline_mail_msg_areas' === name
                         ? JSON.stringify([{ areaTag: Message.WellKnownAreaTags.Private }])
                         : undefined,
                 persistProperty: (name, value, cb) => {
@@ -409,16 +415,40 @@ describe('offline packet export flow', () => {
         });
     });
 
-    it('records how far each area was exported, so the next packet carries only what is new', done => {
+    //
+    //  Nothing is recorded when the packet is queued: the caller may never
+    //  download it. What each area's pointer moves to once they do is handed
+    //  to the wait, keyed to the queued file.
+    //
+    it('holds where each area got to until the packet is downloaded', done => {
+        const mod = makeExport([10, 12, 11]);
+        mod._performExport('/tmp/downloads', () => {
+            assert.deepEqual(mod.persisted, {}, 'nothing stored at export');
+            assert.deepEqual(mod.advanced, {
+                fileId: 99,
+                highestIds: { [Message.WellKnownAreaTags.Private]: 12 },
+            });
+            done();
+        });
+    });
+
+    //  private mail is found by user, from the pointer reading it online keeps
+    it('finds private mail newer than the caller lastread, oldest first', done => {
         const mod = makeExport([10]);
         mod._performExport('/tmp/downloads', () => {
-            const areas = JSON.parse(mod.persisted.test_areas);
-            assert.equal(areas.length, 1);
-            assert.equal(areas[0].areaTag, Message.WellKnownAreaTags.Private);
-            assert.ok(
-                new Date(areas[0].newerThanTimestamp).getTime() > 0,
-                'a usable timestamp was written'
-            );
+            assert.equal(mod.lastFilter.privateTagUserId, 1);
+            assert.equal(typeof mod.lastFilter.newerThanMessageId, 'number');
+            assert.equal(mod.lastFilter.sort, 'messageId');
+            assert.equal(mod.lastFilter.order, 'ascending');
+            assert.equal(mod.lastFilter.newerThanTimestamp, undefined);
+            done();
+        });
+    });
+
+    it('waits for no download when there was nothing to pack', done => {
+        const mod = makeExport([]);
+        mod._performExport('/tmp/downloads', () => {
+            assert.equal(mod.advanced, null);
             done();
         });
     });
@@ -523,7 +553,6 @@ describe('Blue Wave export format', () => {
         assert.equal(mod.packetFormatName, 'Blue Wave');
         assert.deepEqual(mod.userProperties, {
             ExportOptions: 'bluewave_export_options',
-            ExportAreas: 'bluewave_export_msg_areas',
         });
     });
 

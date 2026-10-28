@@ -96,7 +96,19 @@ The caller fetches it with <kbd>E</kbd> from the message base menu, listed in th
 * Every message area they can read is listed in the packet. The areas they have selected are flagged as active (`INF_SCANNING`), whether or not they had new mail; the rest are listed without the flag, so a reader can offer to turn them on.
 * Their private mail is included as its own area, and can be turned off and on like any other.
 * Message text is CP437, which is what a Blue Wave reader expects.
-* An area is exported from the point it was last exported, so a second packet carries only what is new since the first.
+* Each area starts from where the caller left off, online or in a packet, so a second packet carries only what is new since the first. See [Areas and Scan Pointers](#areas-and-scan-pointers).
+
+### Areas and Scan Pointers
+A caller has one list of areas for offline mail, and Blue Wave and QWK packets both use it. A Blue Wave reader's offline configuration (see [Choosing Areas Offline](#choosing-areas-offline)) therefore changes what a QWK packet carries too. A caller who has never chosen gets every area they can read, plus their private mail.
+
+Where each area starts is the caller's ordinary new scan pointer, the same one reading online moves. So:
+
+* A message read online is not packed, and a message that arrived in a downloaded packet, of either format, is no longer new online.
+* The pointers move only once the packet has been **downloaded**. A packet left in the download queue is deleted when the session ends, and its messages are still new next time.
+* Setting a new scan date (`set_newscan_date`) moves where the next packet starts, as it does for online reading.
+* Mail tossed in late with an older date, as echomail often is, is still packed: an area is scanned by the order messages arrived, not by their dates.
+
+Before 0.6.0-beta each format kept its own list, with a date per area. The first time a caller exports or uploads after upgrading, those lists are moved over once. The Blue Wave list becomes the shared one, or the QWK list for a caller who had only that one. Each area's new scan pointer is moved forward to the later of the two formats' dates, and never moved back. The old lists are left in place in case you downgrade.
 
 ### Uploading Replies
 A new installation reaches the upload with <kbd>U</kbd> from the message base menu, listed in the stock theme as `u upload replies`. The caller picks a transfer protocol and sends the reply packet their reader wrote.
@@ -145,10 +157,10 @@ The same menu entry takes a QWK `*.REP` packet; see [QWK Support](./qwk.md).
 ### Choosing Areas Offline
 A Blue Wave reader lets the caller turn areas on and off without going online, and sends the result back in the reply packet as a `*.OLC` file (or a `*.PDQ` from an older reader). ENiGMA½ applies it when the packet is uploaded. Nothing needs configuring.
 
-The file is the caller's complete list of areas, not a set of changes. As the Blue Wave door did, every area the caller had is turned off and the ones named are turned on. So an area they left off the list is removed from their packet, even if their reader never showed it as "dropped".
+The file is the caller's complete list of areas, not a set of changes, and it is the same list QWK packets use (see [Areas and Scan Pointers](#areas-and-scan-pointers)). As the Blue Wave door did, every area the caller had is turned off and the ones named are turned on. So an area they left off the list is removed from their packet, even if their reader never showed it as "dropped".
 
 * An area that stays on keeps its place, so the next packet carries only what is new.
-* An area that is turned on starts from the upload: the next packet carries what is posted from then on, not the area's whole history.
+* An area that is turned on, and that the caller has never read online or in a packet, starts from the upload: the next packet carries what is posted from then on, not the area's whole history. An area they have read before picks up from where they left off.
 * An area is accepted by the same rule as a reply: only areas the caller can see are listed in their packet, so only those can be turned on. Any other name is refused and reported as `Not available here`.
 * A list that would leave the caller with no areas at all is not applied. A packet with no messages in it is never delivered, so a caller who turned everything off could never get another packet to turn something back on. This also covers a list in a form ENiGMA½ does not read: Wolverine names areas by number rather than echotag, so none of them would match.
 * If the reader leaves `AreaChanges` off, the file carries only door settings, such as hot keys and expert menus. None of these apply here, so nothing changes.
