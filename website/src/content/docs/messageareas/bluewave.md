@@ -97,6 +97,7 @@ The caller fetches it with <kbd>E</kbd> from the message base menu, listed in th
 * Their private mail is included as its own area, and can be turned off and on like any other.
 * Message text is CP437, which is what a Blue Wave reader expects.
 * Each area starts from where the caller left off, online or in a packet, so a second packet carries only what is new since the first. See [Areas and Scan Pointers](#areas-and-scan-pointers).
+* A packet holds at most 65,535 messages per area. If an area has more new mail than that, the rest comes in the next packet.
 
 ### Areas and Scan Pointers
 A caller has one list of areas for offline mail, and Blue Wave and QWK packets both use it. A Blue Wave reader's offline configuration (see [Choosing Areas Offline](#choosing-areas-offline)) therefore changes what a QWK packet carries too. A caller who has never chosen gets every area they can read, plus their private mail.
@@ -108,7 +109,7 @@ Where each area starts is the caller's ordinary new scan pointer, the same one r
 * Setting a new scan date (`set_newscan_date`) moves where the next packet starts, as it does for online reading.
 * Mail tossed in late with an older date, as echomail often is, is still packed: an area is scanned by the order messages arrived, not by their dates.
 
-Before 0.6.0-beta each format kept its own list, with a date per area. The first time a caller exports or uploads after upgrading, those lists are moved over once. The Blue Wave list becomes the shared one, or the QWK list for a caller who had only that one. Each area's new scan pointer is moved forward to the later of the two formats' dates, and never moved back. The old lists are left in place in case you downgrade.
+Before 0.6.0-beta each format kept its own list, with a date per area. They are moved over once, the first time after upgrading that a caller exports a packet, or uploads a Blue Wave reply packet that changes their areas. The Blue Wave list becomes the shared one, or the QWK list for a caller who had only that one. Each area's new scan pointer is moved forward to the later of the two formats' dates, and never moved back. The old lists are left in place in case you downgrade.
 
 ### Uploading Replies
 A new installation reaches the upload with <kbd>U</kbd> from the message base menu, listed in the stock theme as `u upload replies`. The caller picks a transfer protocol and sends the reply packet their reader wrote.
