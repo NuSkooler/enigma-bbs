@@ -456,6 +456,29 @@ module.exports = () => {
                     tokenTtlMinutes: 60,
                 },
 
+                //
+                //  enig-term, the browser terminal, at /_enig/ws-term/. Off until
+                //  the operator copies enig-term's dist/ into |root|: the route
+                //  answers only while |root| holds an index.html. See the
+                //  enig-term page in the docs.
+                //
+                wsTerm: {
+                    //  where enig-term's files are installed; must not be under
+                    //  staticRoot, or they are served twice
+                    root: paths.join(__dirname, './../ws-term'),
+
+                    //  public wss:// URL the page connects to, e.g.
+                    //  'wss://bbs.example.com:44512'. Needed when a TLS proxy
+                    //  publishes a different port than ENiGMA½ listens on. When
+                    //  empty, it is built from |domain| and
+                    //  loginServers.webSocket.wss
+                    endpoint: '',
+
+                    //  merged into the generated config.json as-is; see the
+                    //  enig-term docs for its options
+                    client: {},
+                },
+
                 //  per-IP rate limits for sensitive web endpoints
                 rateLimits: {
                     pwResetGet: { windowMs: 10 * 60 * 1000, maxRequests: 10 },

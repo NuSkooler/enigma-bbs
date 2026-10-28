@@ -587,6 +587,21 @@ module.exports = {
         type: 'string',
         description: 'Replaces the derived scheme://host prefix in generated URLs.',
     },
+    'contentServers.web.wsTerm.root': {
+        type: 'string',
+        description:
+            'Directory enig-term is installed in. /_enig/ws-term/ answers only while it holds an index.html. Must not be under staticRoot.',
+    },
+    'contentServers.web.wsTerm.endpoint': {
+        type: 'string',
+        description:
+            'Public wss:// URL enig-term connects to. Empty builds it from domain and loginServers.webSocket.wss.',
+    },
+    //  enig-term's own options, passed through into config.json untouched
+    'contentServers.web.wsTerm.client': {
+        openMap: true,
+        description: 'Options merged into the generated enig-term config.json.',
+    },
     //  The handler toggle lives under handlers.restApi; its settings live here
     'contentServers.web.restApi': { type: 'object' },
 

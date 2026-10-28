@@ -32,6 +32,7 @@ The following is a table of all configuration keys available under `contentServe
 | `https` | No | Sub configuration for HTTPS (secure) connections. See **HTTPS Configuration** below. |
 | `staticRoot` | No | Path serving as the static/public root. Defaults to `enigma-bbs/www`. See **Static Root** below. |
 | `overrideUrlPrefix` | No | Instructs the system to be explicit when handing out URLs. Useful if your server is behind a transparent proxy. |
+| `wsTerm` | No | The [enig-term](../loginservers/enig-term.md) browser terminal at `/_enig/ws-term/`, served once its files are installed. |
 
 ### HTTP Configuration
 

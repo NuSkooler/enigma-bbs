@@ -20,7 +20,7 @@ exports.ansiQueryCtermCapabilities = ansiQueryCtermCapabilities;
 //  font selection (CSI Ps1;Ps2 SP D). Only these are sent the CTerm queries;
 //  an unknown terminal could show them as text.
 //
-const CtermCompatibleClients = new Set(['cterm']);
+const CtermCompatibleClients = new Set(['cterm', 'enig_term']);
 
 const isCtermCompatible = client => CtermCompatibleClients.has(client.term.termClient);
 

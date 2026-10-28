@@ -59,6 +59,10 @@ function ClientTerminal(output) {
     //  terminal identifies itself as CTerm
     this.ctermVersion = null;
 
+    //  Version of whichever client the DA response identified, e.g. '1.332'
+    //  for CTerm or '0.1.0' for enig-term; null when the reply carries none
+    this.termClientVersion = null;
+
     //  Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
     this.env = {};
 
@@ -140,7 +144,10 @@ function ClientTerminal(output) {
         set: function (tc) {
             termClient = tc;
 
-            Log.debug({ termClient: this.termClient }, 'Set known terminal client');
+            Log.debug(
+                { termClient: this.termClient, version: this.termClientVersion },
+                'Set known terminal client'
+            );
         },
     });
 }

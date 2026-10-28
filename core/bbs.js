@@ -702,6 +702,9 @@ function initialize(cb) {
                 const User2FA_OTPWebRegister = require('./user_2fa_otp_web_register.js');
                 return User2FA_OTPWebRegister.startup(callback);
             },
+            function readyWsTerm(callback) {
+                return require('./web_ws_term.js').startup(callback);
+            },
             function readyEventScheduler(callback) {
                 const EventSchedulerModule =
                     require('./event_scheduler.js').EventSchedulerModule;
