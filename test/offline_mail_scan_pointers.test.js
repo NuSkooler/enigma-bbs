@@ -816,4 +816,39 @@ describe('offline mail scan pointers (#928)', function () {
             });
         });
     });
+    //  the read lower-cased the tag and the write did not, so a mixed-case
+    //  tag's pointer was written where it was never read back
+    describe('lastread area tags', () => {
+        const update = (areaTag, messageId, cb) =>
+            MessageArea.updateMessageAreaLastReadId(
+                UserId,
+                areaTag,
+                messageId,
+                false,
+                cb
+            );
+
+        it('reads back what it writes, whatever the case', done => {
+            update('MixedCase', 5, err => {
+                assert.ifError(err);
+                MessageArea.getMessageAreaLastReadId(UserId, 'MixedCase', (err, id) => {
+                    assert.ifError(err);
+                    assert.equal(id, 5);
+                    assert.equal(lastRead('mixedcase'), 5);
+                    done();
+                });
+            });
+        });
+
+        it('never moves a mixed-case pointer backwards', done => {
+            update('MixedCase', 5, err => {
+                assert.ifError(err);
+                update('mixedcase', 3, err => {
+                    assert.ifError(err);
+                    assert.equal(lastRead('mixedcase'), 5);
+                    done();
+                });
+            });
+        });
+    });
 });

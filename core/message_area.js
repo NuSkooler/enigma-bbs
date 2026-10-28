@@ -773,7 +773,9 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
                                 'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) ' +
                                     'VALUES (?, ?, ?);'
                             )
-                            .run(userId, areaTag, messageId);
+                            //  lower case, as getMessageAreaLastReadId() reads
+                            //  it: a row stored any other way is never found
+                            .run(userId, areaTag.toLowerCase(), messageId);
                         return callback(null, true); //  true=didUpdate
                     } catch (err) {
                         return callback(err);
