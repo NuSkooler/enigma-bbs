@@ -42,6 +42,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** look for `enabled: false` directly inside `loginServers.telnet` in your `config.hjson`. If it is there and you want Telnet, remove it or set it to `true`, or Telnet stops after the upgrade. The same goes for an `enabled: false` placed directly inside `contentServers.web`, `contentServers.nntp` or `scannerTossers.ftn_bso`: these were ignored too and now turn that module off (the configuration check reports them as unknown keys). The `enabled` flags one level down, such as `contentServers.web.http.enabled` or `loginServers.webSocket.ws.enabled`, work as they always did.
 
+* **The message table is rebuilt once, at the first start** ([#958](https://github.com/NuSkooler/enigma-bbs/issues/958)). Message IDs are no longer reused after the newest message is deleted, which SQLite can only do by recreating the `message` table. ENiGMA½ does this by itself the first time it starts after the upgrade: every message ID, all message meta and the full-text index are kept, and the whole rebuild is one transaction, so if it fails the old table is left as it was and the log says so at `error`; it is tried again at the next start. The log shows `Upgrading the message table` with the message count before it begins and `Upgraded the message table` with the time it took. A board with 36,000 messages took about a third of a second; a much larger one may take a little while to come up.
+
+  **Action:** none. As always, back up `db/message.sqlite3` first, and make sure there is free disk space for a second copy of the message table while the rebuild runs.
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
