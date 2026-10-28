@@ -17,6 +17,7 @@ const { renderSubstr } = require('./string_util.js');
 const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
 const Events = require('./events.js');
+const { isClientConnected } = require('./client_connections.js');
 const { safeMoveFile } = require('./file_util.js');
 const { getUserExportAreas } = require('./offline_mail_areas.js');
 const { offlineMailBulletins } = require('./offline_mail_bulletins.js');
@@ -471,6 +472,12 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
     //  can be downloaded in either order.
     //
     _advancePointersOnDownload(fileId, highestIds) {
+        //  a session that ended while the packet was built has had its
+        //  ClientDisconnected; its packet is already gone
+        if (!isClientConnected(this.client)) {
+            return;
+        }
+
         waitForDownload(_.get(this.client, 'session.uniqueId'), {
             userId: this.client.user.userId,
             fileId,

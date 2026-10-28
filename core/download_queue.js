@@ -4,6 +4,7 @@
 const FileEntry = require('./file_entry');
 const UserProps = require('./user_property');
 const Events = require('./events');
+const { isClientConnected } = require('./client_connections.js');
 const { hasFileAreaDownloadAccess } = require('./file_base_area.js');
 
 //  deps
@@ -34,23 +35,25 @@ const removeSessionTempDownloads = evt => {
         );
     }
 
-    const Log = require('./logger').log;
-    entries.forEach(entry => {
-        FileEntry.removeEntry(entry, { removePhysFile: true }, err => {
-            if (err) {
-                Log.warn(
-                    { fileId: entry.fileId, path: entry.filePath },
-                    'Failed removing temporary session download'
-                );
-            } else {
-                Log.debug(
-                    { fileId: entry.fileId, path: entry.filePath },
-                    'Removed temporary session download item'
-                );
-            }
-        });
-    });
+    entries.forEach(removeTempDownload);
 };
+
+function removeTempDownload(entry) {
+    const Log = require('./logger').log;
+    FileEntry.removeEntry(entry, { removePhysFile: true }, err => {
+        if (err) {
+            Log.warn(
+                { fileId: entry.fileId, path: entry.filePath },
+                'Failed removing temporary session download'
+            );
+        } else {
+            Log.debug(
+                { fileId: entry.fileId, path: entry.filePath },
+                'Removed temporary session download item'
+            );
+        }
+    });
+}
 
 module.exports = class DownloadQueue {
     constructor(client) {
@@ -175,6 +178,12 @@ module.exports = class DownloadQueue {
     }
 
     addTemporaryDownload(entry) {
+        //  a caller who hung up while it was built has already had their
+        //  ClientDisconnected, so nothing would ever remove it
+        if (!isClientConnected(this.client)) {
+            return removeTempDownload(entry);
+        }
+
         this.add(entry, true); //  true=systemFile
 
         //  clean up after ourselves when the session ends

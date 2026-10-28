@@ -22,6 +22,7 @@ const moment = require('moment');
 
 const configModule = require('../core/config.js');
 const Events = require('../core/events.js');
+const { clientConnections } = require('../core/client_connections.js');
 const { WellKnownConfTags } = require('../core/message_const.js');
 
 //  only what these paths touch; see core/database.js for the real thing
@@ -435,6 +436,9 @@ describe('offline mail scan pointers (#928)', function () {
                 mod.fileId = nextFileId++;
                 return cb(null, { fileId: mod.fileId });
             };
+            if (!clientConnections.includes(client)) {
+                clientConnections.push(client);
+            }
             return mod;
         }
 
@@ -446,8 +450,14 @@ describe('offline mail scan pointers (#928)', function () {
                 files: [{ fileId }],
             });
 
-        const disconnect = client =>
+        //  as removeClient() does it: gone from the list, then the event
+        const disconnect = client => {
+            const i = clientConnections.indexOf(client);
+            if (i > -1) {
+                clientConnections.splice(i, 1);
+            }
             Events.emit(Events.getSystemEvents().ClientDisconnected, { client });
+        };
 
         //  the pointer update is callback-shaped; let it land
         const settle = cb => setImmediate(cb);
@@ -464,6 +474,9 @@ describe('offline mail scan pointers (#928)', function () {
 
         //  every test ends its session, so nothing waits past it
         afterEach(() => {
+            clientConnections
+                .filter(client => client.session && client.persisted)
+                .forEach(disconnect);
             disconnect({ session: { uniqueId: 'session-1' } });
             assert.deepEqual(listeners(), baseline, 'no listener outlives the session');
         });
@@ -621,6 +634,29 @@ describe('offline mail scan pointers (#928)', function () {
                     });
                 });
             });
+        });
+
+        //
+        //  A caller who hangs up while the packet is built has had their
+        //  ClientDisconnected before it is queued: nothing may wait for it.
+        //
+        it('waits for nothing when the session ended during the export', done => {
+            addMessage(10, 'general', '2026-09-01');
+
+            const client = makeClient({ offline_mail_msg_areas: selection(['general']) });
+            const mod = makeExport(QWKExport, client);
+            runExport(mod, err => {
+                assert.ifError(err);
+                assert.deepEqual(mod.writer.messageIds, [10]);
+                assert.deepEqual(listeners(), baseline);
+
+                download(client, mod.fileId);
+                settle(() => {
+                    assert.equal(lastRead('general'), 0);
+                    done();
+                });
+            });
+            disconnect(client);
         });
 
         //

@@ -3,6 +3,7 @@
 const { strict: assert } = require('assert');
 
 const Events = require('../core/events.js');
+const { clientConnections } = require('../core/client_connections.js');
 
 //
 //  A temporary download (an offline mail packet, say) is removed when the
@@ -53,11 +54,16 @@ describe('temporary session downloads', () => {
     const disconnectListeners = () =>
         Events.listenerCount(Events.getSystemEvents().ClientDisconnected);
 
-    const makeClient = uniqueId => ({
-        session: { uniqueId },
-        log: { info: () => {}, error: () => {} },
-        user: { downloadQueue: [], properties: {} },
-    });
+    //  connected, as removeClient() will find it
+    const makeClient = uniqueId => {
+        const client = {
+            session: { uniqueId },
+            log: { info: () => {}, error: () => {} },
+            user: { downloadQueue: [], properties: {} },
+        };
+        clientConnections.push(client);
+        return client;
+    };
 
     const entry = fileId => ({
         fileId,
@@ -67,8 +73,30 @@ describe('temporary session downloads', () => {
         meta: { byte_size: 1 },
     });
 
-    const disconnect = client =>
+    //  as removeClient() does it: gone from the list, then the event
+    const disconnect = client => {
+        const i = clientConnections.indexOf(client);
+        if (i > -1) {
+            clientConnections.splice(i, 1);
+        }
         Events.emit(Events.getSystemEvents().ClientDisconnected, { client });
+    };
+
+    //
+    //  A caller who hangs up while their packet is built has had their
+    //  ClientDisconnected before the packet is queued, so nothing would ever
+    //  remove it.
+    //
+    it('removes at once a download queued after its session ended', () => {
+        const baseline = disconnectListeners();
+        const client = makeClient('session-gone');
+        disconnect(client);
+
+        DownloadQueue.get(client).addTemporaryDownload(entry(99));
+        assert.deepEqual(removed, [99]);
+        assert.equal(disconnectListeners(), baseline, 'nothing waits for it');
+        assert.deepEqual(client.user.downloadQueue, [], 'and it is not queued');
+    });
 
     it('keeps a download until its own session ends', () => {
         const mine = makeClient('session-a');
