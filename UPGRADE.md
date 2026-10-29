@@ -46,6 +46,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none. As always, back up `db/message.sqlite3` first, and make sure there is free disk space for a second copy of the message table while the rebuild runs.
 
+* **The message search index is rebuilt once, at the first start** ([#964](https://github.com/NuSkooler/enigma-bbs/issues/964)). Editing an ActivityPub post used to leave its old text in the full-text index, and `PRAGMA integrity_check` on `message.sqlite3` reports such an index as malformed. Right after the message table rebuild above, ENiGMA½ rebuilds the index from the messages themselves, once, in one transaction; if it fails the index is left as it was and the log says so at `error`, and it is tried again at the next start. The log shows `Rebuilding the message search index` before it begins and `Rebuilt the message search index` with the time it took. A board with 36,000 messages took about one and a half seconds.
+
+  **Action:** none.
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
