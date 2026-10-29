@@ -460,6 +460,29 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //  The Create activities in one collection that hold |objectId|
+    static createsOfObject(collectionName, collectionId, objectId, cb) {
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT object_json
+                    FROM collection
+                    WHERE name = ? AND collection_id = ?
+                      AND json_extract(object_json, '$.type') = 'Create'
+                      AND json_extract(object_json, '$.object.id') = ?;`
+                )
+                .all(collectionName, collectionId, objectId);
+            return cb(
+                null,
+                rows
+                    .map(r => ActivityPubObject.fromJsonString(r.object_json))
+                    .filter(Boolean)
+            );
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static objectByEmbeddedId(objectId, cb) {
         try {
             const row = apDb

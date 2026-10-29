@@ -1872,6 +1872,138 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
         });
     });
 
+    describe('a forwarded Create', function () {
+        const N2 = `${GOOD}/users/alice/statuses/2`;
+        const objectIds = () =>
+            _apDb
+                .prepare(
+                    `SELECT object_id FROM collection WHERE name = 'sharedInbox' ORDER BY rowid;`
+                )
+                .all()
+                .map(r => r.object_id);
+        const deleteNote = () => ({
+            id: `${GOOD}/activities/delete-${Math.random()}`,
+            type: 'Delete',
+            actor: VICTIM,
+            object: { id: NOTE, type: 'Tombstone' },
+        });
+
+        it("cannot plant a row under another Note's id (T2)", async () => {
+            served.set(N2, { doc: note({ id: N2, content: '<p>genuine #2</p>' }) });
+            //  the activity id is the victim's Note #1, with extra fields
+            const plant = Object.assign(
+                create(VICTIM, note({ id: N2, content: '<p>whatever</p>' }), NOTE),
+                { attributedTo: ATTACKER }
+            );
+            assert.equal(await post(plant, ATTACKER), 'accepted');
+
+            //  stored as the origin has it, under an id of its own
+            const rows = storedRows();
+            assert.equal(rows.length, 1);
+            assert.deepEqual(Object.keys(rows[0]).sort(), [
+                '@context',
+                'actor',
+                'id',
+                'object',
+                'published',
+                'to',
+                'type',
+            ]);
+            assert.equal(rows[0].id, `${N2}#create-from-origin`);
+            assert.equal(rows[0].actor, VICTIM);
+            assert.equal(rows[0].object.content, '<p>genuine #2</p>');
+            assert.ok(!objectIds().includes(NOTE));
+
+            //  the victim's Note #1, then its Update and Delete, all work
+            served.set(NOTE, { doc: note() });
+            assert.equal(await post(create(VICTIM, note()), VICTIM), 'accepted');
+            const edit = {
+                id: `${GOOD}/activities/update-t2`,
+                type: 'Update',
+                actor: VICTIM,
+                object: note({ content: '<p>edited</p>' }),
+            };
+            assert.equal(await post(edit, VICTIM), 'accepted');
+            assert.equal(await post(deleteNote(), VICTIM), 'accepted');
+            assert.deepEqual(
+                messages().map(m => m.message),
+                ['genuine #2']
+            );
+        });
+
+        it("cannot squat on the author's own activity id (T2b)", async () => {
+            served.set(N2, { doc: note({ id: N2 }) });
+            const id = `${NOTE}/activity`;
+            assert.equal(
+                await post(create(VICTIM, note({ id: N2 }), id), ATTACKER),
+                'accepted'
+            );
+
+            //  the author's real Create under that id is still stored
+            assert.equal(await post(create(VICTIM, note(), id), VICTIM), 'accepted');
+            assert.ok(objectIds().includes(id));
+            assert.equal(messages().length, 2);
+
+            assert.equal(await post(deleteNote(), VICTIM), 'accepted');
+            assert.equal(messages().length, 1, "Note #1's message is gone");
+            assert.ok(!objectIds().includes(id));
+        });
+
+        for (const forwardedFirst of [true, false]) {
+            it(`stores a Note once when it comes ${
+                forwardedFirst ? 'forwarded, then direct' : 'direct, then forwarded'
+            }`, async () => {
+                served.set(NOTE, { doc: note() });
+                const direct = () =>
+                    post(create(VICTIM, note(), `${NOTE}/activity`), VICTIM);
+                const forwarded = () => post(create(VICTIM, note()), FORWARDER);
+
+                if (forwardedFirst) {
+                    assert.equal(await forwarded(), 'accepted');
+                    assert.equal(await direct(), 'accepted');
+                } else {
+                    assert.equal(await direct(), 'accepted');
+                    assert.equal(await forwarded(), 'accepted');
+                }
+
+                assert.equal(storedRows().length, 1);
+                assert.equal(messages().length, 1);
+                assert.equal(await post(deleteNote(), VICTIM), 'accepted');
+                assert.deepEqual(storedRows(), []);
+                assert.deepEqual(messages(), []);
+            });
+        }
+
+        it('Update and Delete check the same stored rows', async () => {
+            served.set(NOTE, { doc: note() });
+            assert.equal(await post(create(VICTIM, note()), VICTIM), 'accepted');
+            //  a row stored under the Note id naming another owner (as a
+            //  forwarded Create could plant before this fix)
+            await new Promise((resolve, reject) =>
+                Collection.addSharedInboxItem(
+                    {
+                        id: NOTE,
+                        type: 'Create',
+                        actor: VICTIM,
+                        attributedTo: ATTACKER,
+                        object: note({ id: N2 }),
+                    },
+                    true,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+
+            const edit = {
+                id: `${GOOD}/activities/update-agree`,
+                type: 'Update',
+                actor: VICTIM,
+                object: note({ content: '<p>edited</p>' }),
+            };
+            assert.equal(await post(edit, VICTIM), 'accessDenied');
+            assert.equal(await post(deleteNote(), VICTIM), 'accessDenied');
+        });
+    });
+
     describe('Announce', function () {
         const fetchAnnounced = (objectOrId, announcer) =>
             new Promise(resolve =>

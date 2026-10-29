@@ -26,6 +26,7 @@ const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
 const Collection = require('../../../activitypub/collection');
+const Endpoints = require('../../../activitypub/endpoint');
 const Note = require('../../../activitypub/note');
 const ActivityPubObject = require('../../../activitypub/object');
 const EnigAssert = require('../../../enigma_assert');
@@ -58,6 +59,34 @@ const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
+
+//  collections whose rows are actors (the cache, follow lists), not Notes
+const ActorKeyedCollections = [
+    Collections.Actors,
+    Collections.Following,
+    Collections.Followers,
+];
+
+//
+//  The Create stored for a Note taken from its origin (a forwarded reply):
+//  built only from the origin's copy, nothing the forwarder sent. Its id is
+//  derived from the Note id, which is verified to be on the author's host:
+//  an activity id the forwarder chose could be another activity's (so a
+//  Delete of it is checked against the wrong row) or the author's own, still
+//  to come (so the real Create is dropped as a duplicate).
+//
+function createFromOrigin(note, authorId) {
+    return {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${note.id}#create-from-origin`,
+        type: WellKnownActivity.Create,
+        actor: authorId,
+        published: note.published,
+        to: note.to,
+        cc: note.cc,
+        object: note,
+    };
+}
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -654,7 +683,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     );
                 }
                 //  store the origin's copy, not the one received
-                return cb(null, note, Object.assign({}, activity, { object: note }));
+                return cb(null, note, createFromOrigin(note, authorId));
             });
         };
 
@@ -911,12 +940,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             //  Rows other than an actor's own (the cache, follow lists) hold a
             //  Note: all of them must name the signer as its owner, or none
             //  is deleted.
-            const actorKeyed = [
-                Collections.Actors,
-                Collections.Following,
-                Collections.Followers,
-            ];
-            const noteRows = objectsInfo.filter(o => !actorKeyed.includes(o.info.name));
+            const noteRows = objectsInfo.filter(
+                o => !ActorKeyedCollections.includes(o.info.name)
+            );
             if (noteRows.length > 0) {
                 const owners = storedObjectsOwnerIds(
                     noteRows.map(o => o.object),
@@ -1470,11 +1496,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const targetObjectId = _.get(activity, 'object.id');
         const objectType = _.get(activity, 'object.type');
 
-        //  every stored row holding the Note, not one picked at random
-        Collection.objectsByEmbeddedId(targetObjectId, (err, rows) => {
+        //  every stored row holding the Note, the same rows a Delete checks
+        this._getMatchingObjectsForDeleteRequest(targetObjectId, (err, objectsInfo) => {
             if (err) {
                 return this.webServer.internalServerError(resp, err);
             }
+
+            const rows = objectsInfo.filter(
+                o => !ActorKeyedCollections.includes(o.info.name)
+            );
 
             if (rows.length === 0) {
                 this.log.warn(
@@ -1552,18 +1582,44 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             "Delivering 'Note' to Public/Shared inbox"
         );
 
-        Collection.addSharedInboxItem(activity, true, err => {
+        this._addCreateItemOnce(
+            Collections.SharedInbox,
+            PublicCollectionId,
+            activity,
+            note,
+            next => Collection.addSharedInboxItem(activity, true, next),
+            err => {
+                if (err) {
+                    return cb(err);
+                }
+
+                return this._storeNoteAsMessage(
+                    activity.id,
+                    'All',
+                    Message.WellKnownAreaTags.ActivityPubShared,
+                    note,
+                    cb
+                );
+            }
+        );
+    }
+
+    //
+    //  The same Note can arrive in more than one Create: forwarded (stored
+    //  under an id derived from the Note) and sent by its author, in either
+    //  order. It is stored once per collection; a Create of a Note already
+    //  stored there from the same author is a duplicate.
+    //
+    _addCreateItemOnce(collectionName, collectionId, activity, note, add, cb) {
+        Collection.createsOfObject(collectionName, collectionId, note.id, (err, rows) => {
             if (err) {
                 return cb(err);
             }
-
-            return this._storeNoteAsMessage(
-                activity.id,
-                'All',
-                Message.WellKnownAreaTags.ActivityPubShared,
-                note,
-                cb
+            const authors = actorIdsOf(note.attributedTo);
+            const stored = rows.some(row =>
+                _.isEqual(actorIdsOf(_.get(row, 'object.attributedTo')), authors)
             );
+            return stored ? cb(null) : add(cb);
         });
     }
 
@@ -1588,19 +1644,26 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 `AP: Delivering private 'Note' to user "${localUser.username}"`
             );
 
-            Collection.addInboxItem(activity, localUser, false, err => {
-                if (err) {
-                    return cb(err);
-                }
+            this._addCreateItemOnce(
+                Collections.Inbox,
+                Endpoints.inbox(localUser),
+                activity,
+                note,
+                next => Collection.addInboxItem(activity, localUser, false, next),
+                err => {
+                    if (err) {
+                        return cb(err);
+                    }
 
-                return this._storeNoteAsMessage(
-                    activity.id,
-                    localUser,
-                    Message.WellKnownAreaTags.Private,
-                    note,
-                    cb
-                );
-            });
+                    return this._storeNoteAsMessage(
+                        activity.id,
+                        localUser,
+                        Message.WellKnownAreaTags.Private,
+                        note,
+                        cb
+                    );
+                }
+            );
         });
     }
 
