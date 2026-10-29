@@ -384,3 +384,64 @@ function verifyObjectOwner(httpSigValidated, domainVerifiedOnly, objectType) {
     return 'HTTP signature required to verify object ownership';
 }
 exports.verifyObjectOwner = verifyObjectOwner;
+
+//
+//  The actor ids an ActivityPub value names. attributedTo (and actor) may be
+//  a string id, an object with an id, or an array of either; anything else
+//  names no one.
+//
+function actorIdsOf(value) {
+    const values = Array.isArray(value) ? value : [value];
+    return values
+        .map(v => (typeof v === 'string' ? v : v && v.id))
+        .filter(id => typeof id === 'string' && id.length > 0);
+}
+exports.actorIdsOf = actorIdsOf;
+
+//
+//  The owners of a stored collection entry for |objectId|: the attributedTo
+//  of the object itself, or, for a stored activity (the Create a Note came
+//  in with, an Announce that embeds it), of the embedded object with that id.
+//  An empty array means the owner cannot be told, and nothing may change it.
+//
+function storedObjectOwnerIds(stored, objectId) {
+    if (!stored || !objectId) {
+        return [];
+    }
+    if (stored.id === objectId) {
+        return actorIdsOf(stored.attributedTo);
+    }
+    if (stored.object && stored.object.id === objectId) {
+        return actorIdsOf(stored.object.attributedTo);
+    }
+    return [];
+}
+exports.storedObjectOwnerIds = storedObjectOwnerIds;
+
+//
+//  An Update or Delete of an existing object is accepted only from its owner
+//  (#964 review): a valid HTTP signature proves who signed, not that the
+//  signer may change this object.
+//
+//  signerId        — id of the actor whose key verified the HTTP signature
+//  ownerIds        — the stored object's owners (see storedObjectOwnerIds)
+//  activityActorId — the activity's actor; must be the signer as well
+//
+//  Returns null when permitted, or a reason string.
+//
+function verifySignerOwnsObject(signerId, ownerIds, activityActorId) {
+    if (!signerId) {
+        return 'No verified signing actor';
+    }
+    if (!ownerIds || ownerIds.length === 0) {
+        return 'The object has no owner to check the signer against';
+    }
+    if (!ownerIds.includes(signerId)) {
+        return 'The signing actor is not the object owner';
+    }
+    if (activityActorId !== signerId) {
+        return 'The activity actor is not the signing actor';
+    }
+    return null;
+}
+exports.verifySignerOwnsObject = verifySignerOwnsObject;

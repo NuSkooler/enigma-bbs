@@ -1155,6 +1155,21 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     //
+    //  As removeReactionByActivityId(), but only the reaction |actorId| made:
+    //  an inbound Undo may take back only the signer's own reaction.
+    //
+    static removeActorReactionByActivityId(activityId, actorId, cb) {
+        try {
+            apDb.prepare(
+                'DELETE FROM note_reactions WHERE activity_id = ? AND actor_id = ?'
+            ).run(activityId, actorId);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
     //  Return an array of actor IDs that have reacted to a Note with a given type.
     //
     //  reactionType : 'Like' or 'Announce'

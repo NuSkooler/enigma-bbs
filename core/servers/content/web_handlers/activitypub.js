@@ -40,6 +40,9 @@ const {
     hostsMatch,
     verifyObjectOwner,
     actorDomainMatchesKeyId,
+    actorIdsOf,
+    storedObjectOwnerIds,
+    verifySignerOwnsObject,
     readInboxBody,
 } = require('../../../activitypub/security');
 
@@ -425,8 +428,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                     inboxType,
                                     resp,
                                     activity,
-                                    false, // httpSigValidated
-                                    true // domainVerifiedOnly
+                                    {
+                                        httpSigValidated: false,
+                                        domainVerifiedOnly: true,
+                                        signerId: null,
+                                    }
                                 );
                             }
                         }
@@ -449,6 +455,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return this.webServer.accessDenied(resp);
                     }
 
+                    //  Who signed: the actor whose key verified the signature.
+                    //  Its id must be on the keyId's host, which
+                    //  _getAssociatedActors checks only when it differs from
+                    //  activity.actor.
+                    const signerId =
+                        signatureActor &&
+                        actorDomainMatchesKeyId(signatureActor.id, signature.keyId)
+                            ? signatureActor.id
+                            : null;
+                    const auth = {
+                        httpSigValidated,
+                        domainVerifiedOnly: false,
+                        signerId,
+                    };
+
                     switch (activity.type) {
                         case WellKnownActivity.Accept:
                             return this._inboxAcceptActivity(resp, activity);
@@ -467,7 +488,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 inboxType,
                                 resp,
                                 activity,
-                                httpSigValidated
+                                auth
                             );
 
                         case WellKnownActivity.Update:
@@ -479,7 +500,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                         inboxType,
                                         resp,
                                         activity,
-                                        httpSigValidated
+                                        auth
                                     );
                                 } else if ('Person' === type || 'Service' === type) {
                                     //  Remote actor profile updates — silently accept;
@@ -501,7 +522,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             return this._inboxLikeActivity(resp, activity);
 
                         case WellKnownActivity.Reject:
-                            return this._inboxRejectActivity(resp, activity);
+                            return this._inboxRejectActivity(resp, activity, auth);
 
                         case WellKnownActivity.Undo: {
                             const undoType = _.get(activity, 'object.type');
@@ -509,10 +530,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 return this._inboxUndoActivity(
                                     resp,
                                     remoteActor,
-                                    activity
+                                    activity,
+                                    auth
                                 );
                             } else if (WellKnownActivity.Like === undoType) {
-                                return this._inboxUndoLikeActivity(resp, activity);
+                                return this._inboxUndoLikeActivity(resp, activity, auth);
                             } else {
                                 this.log.warn(
                                     { undoType, inboxType },
@@ -700,7 +722,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _inboxUndoLikeActivity(resp, activity) {
+    _inboxUndoLikeActivity(resp, activity, auth) {
         //  activity.object is the original Like activity; its .id is the activity_id
         //  we stored in note_reactions when the Like arrived.
         const likeActivityId = _.get(activity, 'object.id');
@@ -714,7 +736,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return this.webServer.badRequest(resp);
         }
 
-        Collection.removeReactionByActivityId(likeActivityId, err => {
+        //  only the actor who liked may take it back
+        Collection.removeActorReactionByActivityId(likeActivityId, auth.signerId, err => {
             if (err) {
                 this.log.warn(
                     { likeActivityId, error: err.message },
@@ -726,14 +749,23 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _inboxRejectFollowActivity(resp, activity) {
+    _inboxRejectFollowActivity(resp, activity, auth) {
         // A user Rejected our local Actor/user's Follow request;
         // Update the local Collection to reflect this fact.
-        const remoteActorId = activity.actor;
+        const remoteActorId = getActorId(activity);
         const localActorId = _.get(activity, 'object.actor');
 
         if (!remoteActorId || !localActorId) {
             return this.webServer.badRequest(resp);
+        }
+
+        //  only the followed actor may reject the follow
+        if (remoteActorId !== auth.signerId) {
+            this.log.warn(
+                { remoteActorId, signerId: auth.signerId, localActorId },
+                'Will not Reject Follow: not signed by the rejecting actor'
+            );
+            return this.webServer.accessDenied(resp);
         }
 
         userFromActorId(localActorId, (err, localUser) => {
@@ -784,13 +816,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
-    _inboxDeleteActivity(
-        inboxType,
-        resp,
-        activity,
-        httpSigValidated,
-        domainVerifiedOnly = false
-    ) {
+    _inboxDeleteActivity(inboxType, resp, activity, auth) {
         const objectId = _.get(activity, 'object.id', activity.object);
 
         this.log.info({ inboxType, objectId }, 'Incoming Delete request');
@@ -816,6 +842,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             const stats = {
                 deleted: [],
                 failed: [],
+                refused: [],
             };
             async.forEachSeries(
                 objectsInfo,
@@ -838,9 +865,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 }
 
                                 return this._verifyObjectOwner(
-                                    httpSigValidated,
-                                    false, // Notes always require a proper sig
+                                    //  Notes always require a proper sig
+                                    Object.assign({}, auth, {
+                                        domainVerifiedOnly: false,
+                                    }),
                                     objInfo.object,
+                                    storedObjectOwnerIds(objInfo.object, objectId),
+                                    activity,
                                     err => {
                                         if (err) {
                                             this.log.warn(
@@ -849,9 +880,18 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                                     inboxType,
                                                     collectionName,
                                                     objectId,
+                                                    ownerIds: storedObjectOwnerIds(
+                                                        objInfo.object,
+                                                        objectId
+                                                    ),
+                                                    signerId: auth.signerId,
                                                 },
-                                                'Will not Delete object: Signature mismatch'
+                                                'Will not Delete object: not from its owner'
                                             );
+                                            stats.refused.push({
+                                                collectionName,
+                                                objectId,
+                                            });
                                             return nextObjInfo(null);
                                         }
 
@@ -891,19 +931,26 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 );
 
                             case Collections.Actors:
+                                //  an Actor is owned by itself alone
                                 return this._verifyObjectOwner(
-                                    httpSigValidated,
-                                    domainVerifiedOnly,
+                                    auth,
                                     objInfo.object,
+                                    actorIdsOf(objInfo.object.id),
+                                    activity,
                                     err => {
                                         if (err) {
                                             this.log.warn(
                                                 {
                                                     error: err.message,
                                                     objectId,
+                                                    signerId: auth.signerId,
                                                 },
-                                                'Will not Delete Actor: signature mismatch'
+                                                'Will not Delete Actor: not from the actor itself'
                                             );
+                                            stats.refused.push({
+                                                collectionName,
+                                                objectId,
+                                            });
                                             return nextObjInfo(null);
                                         }
 
@@ -991,6 +1038,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             stats.deleted.length
                         })`
                     );
+
+                    if (stats.refused.length > 0 && stats.deleted.length === 0) {
+                        return this.webServer.accessDenied(resp);
+                    }
                     return this.webServer.accepted(resp);
                 }
             );
@@ -1067,12 +1118,26 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _verifyObjectOwner(httpSigValidated, domainVerifiedOnly, object, cb) {
-        const reason = verifyObjectOwner(
-            httpSigValidated,
-            domainVerifiedOnly,
+    //
+    //  An Update or Delete of an existing object must come from its owner:
+    //  |ownerIds| (see storedObjectOwnerIds) must include the signing actor,
+    //  who must also be the activity's actor. Domain binding alone (an Actor
+    //  that can no longer be fetched) has no signer to compare, and
+    //  verifyObjectOwner limits it to Actor objects.
+    //
+    _verifyObjectOwner(auth, object, ownerIds, activity, cb) {
+        let reason = verifyObjectOwner(
+            auth.httpSigValidated,
+            auth.domainVerifiedOnly,
             object && object.type
         );
+        if (!reason && auth.httpSigValidated) {
+            reason = verifySignerOwnsObject(
+                auth.signerId,
+                ownerIds,
+                getActorId(activity)
+            );
+        }
         return reason ? cb(Errors.ValidationFailed(reason)) : cb(null);
     }
 
@@ -1120,7 +1185,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _inboxRejectActivity(resp, activity) {
+    _inboxRejectActivity(resp, activity, auth) {
         //  The spec allows activity.object to be a full object or just an ID string.
         //  When it's a string, we cannot inspect .type, but Follow is the only Reject
         //  we handle, so treat a bare string as an implicit Follow rejection.
@@ -1130,7 +1195,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         switch (rejectWhat) {
             case WellKnownActivity.Follow:
-                return this._inboxRejectFollowActivity(resp, activity);
+                return this._inboxRejectFollowActivity(resp, activity, auth);
 
             default:
                 this.log.warn(
@@ -1141,13 +1206,22 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
     }
 
-    _inboxUndoActivity(resp, remoteActor, activity) {
+    _inboxUndoActivity(resp, remoteActor, activity, auth) {
         const localActorId = _.get(activity, 'object.object');
 
         this.log.info(
             { remoteActorId: remoteActor.id, localActorId },
             'Incoming Undo Activity'
         );
+
+        //  only the follower may undo its follow
+        if (remoteActor.id !== auth.signerId) {
+            this.log.warn(
+                { remoteActorId: remoteActor.id, signerId: auth.signerId, localActorId },
+                'Will not Undo Follow: not signed by the following actor'
+            );
+            return this.webServer.accessDenied(resp);
+        }
 
         userFromActorId(localActorId, (err, localUser) => {
             if (err) {
@@ -1227,7 +1301,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return true;
     }
 
-    _inboxUpdateExistingObject(inboxType, resp, activity, httpSigValidated) {
+    _inboxUpdateExistingObject(inboxType, resp, activity, auth) {
         const targetObjectId = _.get(activity, 'object.id');
         const objectType = _.get(activity, 'object.type');
 
@@ -1244,7 +1318,18 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            this._verifyObjectOwner(httpSigValidated, false, obj, err => {
+            const ownerIds = storedObjectOwnerIds(obj, targetObjectId);
+            const updateAuth = Object.assign({}, auth, { domainVerifiedOnly: false });
+            this._verifyObjectOwner(updateAuth, obj, ownerIds, activity, err => {
+                //  and an edit may not hand the object to someone else
+                const newOwnerIds = actorIdsOf(_.get(activity, 'object.attributedTo'));
+                if (
+                    !err &&
+                    !_.isEqual(_.sortBy(_.uniq(newOwnerIds)), _.sortBy(_.uniq(ownerIds)))
+                ) {
+                    err = Errors.ValidationFailed('The Update changes the object owner');
+                }
+
                 if (err) {
                     this.log.warn(
                         {
@@ -1252,8 +1337,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             inboxType,
                             objectId: targetObjectId,
                             objectType,
+                            ownerIds,
+                            signerId: auth.signerId,
                         },
-                        'Will not Update object: Signature mismatch'
+                        'Will not Update object: not from its owner'
                     );
                     return this.webServer.accessDenied(resp);
                 }

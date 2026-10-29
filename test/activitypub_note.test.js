@@ -55,10 +55,19 @@ delete require.cache[require.resolve('../core/activitypub/object.js')];
 delete require.cache[require.resolve('../core/activitypub/collection.js')];
 delete require.cache[require.resolve('../core/message.js')];
 delete require.cache[require.resolve('../core/activitypub/note.js')];
+delete require.cache[
+    require.resolve('../core/servers/content/web_handlers/activitypub.js')
+];
 
 const Message = require('../core/message.js');
 const Note = require('../core/activitypub/note.js');
 const Actor = require('../core/activitypub/actor.js');
+const Collection = require('../core/activitypub/collection.js');
+const ActivityPubWebHandler =
+    require('../core/servers/content/web_handlers/activitypub.js').getModule;
+
+//  the real one; beforeEach below stubs it
+const realFindMessages = Message.findMessages;
 
 // ─── schema ───────────────────────────────────────────────────────────────────
 
@@ -479,6 +488,444 @@ describe('Note.toUpdatedMessage() + Message.update() — an edited Note (#964)',
             ),
             ['2']
         );
+    });
+});
+
+// ─── Inbox Update / Delete: only the object's owner (#964 review) ─────────────
+//
+//  The signature itself is checked earlier, in _inboxPostHandler; these call
+//  the handlers it dispatches to with the verified signer it passes along.
+
+describe('ActivityPub inbox: Update and Delete only from the object owner', function () {
+    const OWNER = REMOTE_ACTOR_ID;
+    const OTHER = 'https://remote.example.com/users/mallory';
+    const NOTE_ID = 'https://remote.example.com/notes/owned-1';
+    const CREATE_ID = 'https://remote.example.com/activities/owned-create-1';
+    const SHARED = 'sharedInbox';
+
+    before(() => {
+        _apDb.exec(`
+            CREATE TABLE IF NOT EXISTS note_reactions (
+                note_id         VARCHAR NOT NULL,
+                actor_id        VARCHAR NOT NULL,
+                reaction_type   VARCHAR NOT NULL,
+                activity_id     VARCHAR NOT NULL,
+                timestamp       DATETIME NOT NULL,
+                UNIQUE(note_id, actor_id, reaction_type)
+            );
+        `);
+    });
+
+    beforeEach(() => {
+        Message.findMessages = realFindMessages;
+        _apDb.exec('DELETE FROM note_reactions;');
+    });
+
+    const signedBy = signerId => ({
+        httpSigValidated: true,
+        domainVerifiedOnly: false,
+        signerId,
+    });
+
+    function makeHandler() {
+        const handler = new ActivityPubWebHandler();
+        const responses = [];
+        const warnings = [];
+        const respond = name => () => responses.push(name);
+        handler.webServer = {
+            accepted: respond('accepted'),
+            accessDenied: respond('accessDenied'),
+            resourceNotFound: respond('resourceNotFound'),
+            badRequest: respond('badRequest'),
+            notImplemented: respond('notImplemented'),
+            internalServerError: respond('internalServerError'),
+        };
+        const noop = () => {};
+        handler.log = {
+            trace: noop,
+            debug: noop,
+            info: noop,
+            warn: (obj, msg) => warnings.push({ obj, msg }),
+            error: noop,
+        };
+        handler.sysLog = handler.log;
+        return { handler, responses, warnings };
+    }
+
+    function noteJson(overrides = {}) {
+        return Object.assign(
+            {
+                id: NOTE_ID,
+                type: 'Note',
+                attributedTo: OWNER,
+                content: '<p>Original walrus post</p>',
+                summary: 'Owned',
+                published: '2026-04-12T12:00:00Z',
+                to: ['https://www.w3.org/ns/activitystreams#Public'],
+            },
+            overrides
+        );
+    }
+
+    //  what Create{Note} to the shared inbox leaves behind: the stored
+    //  activity and its message
+    async function storeOwnedNote() {
+        const create = {
+            id: CREATE_ID,
+            type: 'Create',
+            actor: OWNER,
+            object: noteJson(),
+        };
+        await new Promise((resolve, reject) =>
+            Collection.addSharedInboxItem(create, true, err =>
+                err ? reject(err) : resolve()
+            )
+        );
+        const msg = await toMessage(new Note(noteJson()), { activityId: CREATE_ID });
+        const messageId = await new Promise((resolve, reject) =>
+            msg.persist((err, id) => (err ? reject(err) : resolve(id)))
+        );
+        return { messageId, uuid: msg.messageUuid };
+    }
+
+    function storedMessage(uuid) {
+        return _msgDb
+            .prepare('SELECT message_id, message FROM message WHERE message_uuid = ?;')
+            .get(uuid);
+    }
+
+    function storedCreateJson() {
+        const row = _apDb
+            .prepare('SELECT object_json FROM collection WHERE object_id = ?;')
+            .get(CREATE_ID);
+        return row && row.object_json;
+    }
+
+    function updateActivity({ actor = OWNER, object = {} } = {}) {
+        return {
+            id: 'https://remote.example.com/activities/update-1',
+            type: 'Update',
+            actor,
+            object: noteJson(
+                Object.assign({ content: '<p>Edited zebra post</p>' }, object)
+            ),
+        };
+    }
+
+    function deleteActivity({ actor = OWNER, object } = {}) {
+        return {
+            id: 'https://remote.example.com/activities/delete-1',
+            type: 'Delete',
+            actor,
+            object: object || { id: NOTE_ID, type: 'Tombstone' },
+        };
+    }
+
+    //  the message rewrite runs after the response; give it time to land
+    async function settle(check) {
+        for (let i = 0; i < 50; ++i) {
+            if (check && check()) {
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 5));
+        }
+    }
+
+    it('refuses an Update signed by someone other than the owner', async () => {
+        const { uuid, messageId } = await storeOwnedNote();
+        const before = storedCreateJson();
+        const { handler, responses, warnings } = makeHandler();
+
+        handler._inboxUpdateExistingObject(
+            SHARED,
+            {},
+            updateActivity({ actor: OTHER }),
+            signedBy(OTHER)
+        );
+        await settle();
+
+        assert.deepEqual(responses, ['accessDenied']);
+        assert.deepEqual(storedMessage(uuid), {
+            message_id: messageId,
+            message: storedMessage(uuid).message,
+        });
+        assert.match(storedMessage(uuid).message, /Original walrus post/);
+        assert.equal(storedCreateJson(), before);
+        const warning = warnings.find(w => /not from its owner/.test(w.msg));
+        assert.ok(warning, 'a warning is logged');
+        assert.equal(warning.obj.objectId, NOTE_ID);
+        assert.deepEqual(warning.obj.ownerIds, [OWNER]);
+        assert.equal(warning.obj.signerId, OTHER);
+    });
+
+    it('refuses an Update whose actor is not the signer', async () => {
+        const { uuid } = await storeOwnedNote();
+        const { handler, responses } = makeHandler();
+
+        handler._inboxUpdateExistingObject(
+            SHARED,
+            {},
+            updateActivity({ actor: OTHER }),
+            signedBy(OWNER)
+        );
+        await settle();
+
+        assert.deepEqual(responses, ['accessDenied']);
+        assert.match(storedMessage(uuid).message, /Original walrus post/);
+    });
+
+    it('refuses an Update that hands the Note to someone else', async () => {
+        const { uuid } = await storeOwnedNote();
+        const before = storedCreateJson();
+        const { handler, responses } = makeHandler();
+
+        handler._inboxUpdateExistingObject(
+            SHARED,
+            {},
+            updateActivity({ object: { attributedTo: OTHER } }),
+            signedBy(OWNER)
+        );
+        await settle();
+
+        assert.deepEqual(responses, ['accessDenied']);
+        assert.match(storedMessage(uuid).message, /Original walrus post/);
+        assert.equal(storedCreateJson(), before);
+    });
+
+    it('accepts an Update from the owner, keeping the message ID', async () => {
+        const { uuid, messageId } = await storeOwnedNote();
+        const { handler, responses } = makeHandler();
+
+        handler._inboxUpdateExistingObject(SHARED, {}, updateActivity(), signedBy(OWNER));
+        await settle(() => /zebra/.test(storedMessage(uuid).message));
+
+        assert.deepEqual(responses, ['accepted']);
+        const row = storedMessage(uuid);
+        assert.equal(row.message_id, messageId);
+        assert.match(row.message, /Edited zebra post/);
+    });
+
+    it('refuses a Delete of a Note by someone other than the owner', async () => {
+        const { uuid, messageId } = await storeOwnedNote();
+        const { handler, responses, warnings } = makeHandler();
+
+        await new Promise(resolve => {
+            handler.webServer.accessDenied = () =>
+                resolve(responses.push('accessDenied'));
+            handler.webServer.accepted = () => resolve(responses.push('accepted'));
+            handler._inboxDeleteActivity(
+                SHARED,
+                {},
+                deleteActivity({ actor: OTHER }),
+                signedBy(OTHER)
+            );
+        });
+
+        assert.deepEqual(responses, ['accessDenied']);
+        assert.equal(storedMessage(uuid).message_id, messageId);
+        assert.ok(storedCreateJson(), 'the stored Create is still there');
+        const warning = warnings.find(w => /not from its owner/.test(w.msg));
+        assert.ok(warning);
+        assert.deepEqual(warning.obj.ownerIds, [OWNER]);
+        assert.equal(warning.obj.signerId, OTHER);
+    });
+
+    it('accepts a Delete of a Note by its owner', async () => {
+        const { uuid } = await storeOwnedNote();
+        const { handler, responses } = makeHandler();
+
+        await new Promise(resolve => {
+            handler.webServer.accessDenied = () =>
+                resolve(responses.push('accessDenied'));
+            handler.webServer.accepted = () => resolve(responses.push('accepted'));
+            handler._inboxDeleteActivity(SHARED, {}, deleteActivity(), signedBy(OWNER));
+        });
+
+        assert.deepEqual(responses, ['accepted']);
+        assert.equal(storedMessage(uuid), undefined, 'the message is gone');
+        assert.equal(storedCreateJson(), undefined, 'the stored Create is gone');
+    });
+
+    describe('the inbox dispatcher', function () {
+        const { Readable } = require('stream');
+
+        //  Runs _inboxPostHandler for |activity| signed with |keyId|, with the
+        //  actor fetches and the signature check stubbed, and returns the
+        //  auth the Update handler was given.
+        function dispatch(activity, keyId, signatureActorId) {
+            const { handler } = makeHandler();
+            handler._getAssociatedActors = (objectActorId, sigActorId, cb) =>
+                cb(null, { id: objectActorId }, { id: signatureActorId });
+            handler._validateActorSignature = () => true;
+            return new Promise(resolve => {
+                handler._inboxUpdateExistingObject = (inboxType, resp, act, auth) =>
+                    resolve(auth);
+                const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
+                req.headers = {};
+                req.url = '/_enig/ap/sharedInbox';
+                req.method = 'POST';
+                handler._inboxPostHandler(req, {}, { keyId }, SHARED);
+            });
+        }
+
+        it('passes the signing actor on, not activity.actor', async () => {
+            const auth = await dispatch(
+                updateActivity({ actor: OWNER }),
+                `${OTHER}#main-key`,
+                OTHER
+            );
+            assert.equal(auth.httpSigValidated, true);
+            assert.equal(auth.signerId, OTHER);
+        });
+
+        it("passes no signer when the signing actor's id is off the keyId's host", async () => {
+            const auth = await dispatch(
+                updateActivity({ actor: OWNER }),
+                `${OWNER}#main-key`,
+                'https://elsewhere.example/users/alice'
+            );
+            assert.equal(auth.signerId, null);
+        });
+    });
+
+    describe('Delete of an Actor', function () {
+        const VICTIM = 'https://remote.example.com/users/victim';
+
+        function storeActor(type = 'Person') {
+            return new Promise((resolve, reject) =>
+                Collection.addActor(
+                    { id: VICTIM, type, inbox: `${VICTIM}/inbox` },
+                    '@victim@remote.example.com',
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+        }
+
+        const actorRow = () =>
+            _apDb
+                .prepare(
+                    'SELECT object_id FROM collection WHERE name = ? AND object_id = ?;'
+                )
+                .get('actors', VICTIM);
+
+        function deleteActor(auth, actor) {
+            const { handler, responses } = makeHandler();
+            return new Promise(resolve => {
+                handler.webServer.accessDenied = () =>
+                    resolve(responses.push('accessDenied'));
+                handler.webServer.accepted = () => resolve(responses.push('accepted'));
+                handler._inboxDeleteActivity(
+                    SHARED,
+                    {},
+                    deleteActivity({ actor, object: VICTIM }),
+                    auth
+                );
+            }).then(() => responses);
+        }
+
+        it('refuses one signed by a different actor', async () => {
+            await storeActor();
+            assert.deepEqual(await deleteActor(signedBy(OTHER), OTHER), ['accessDenied']);
+            assert.ok(actorRow(), 'the actor is still cached');
+        });
+
+        it('accepts one signed by the actor itself', async () => {
+            await storeActor();
+            assert.deepEqual(await deleteActor(signedBy(VICTIM), VICTIM), ['accepted']);
+            assert.equal(actorRow(), undefined);
+        });
+
+        it('still accepts the domain-bound path for an actor that cannot be fetched', async () => {
+            //  verifyObjectOwner permits this path for objects of type
+            //  'Actor' only, and has no signer to compare
+            await storeActor('Actor');
+            const responses = await deleteActor(
+                { httpSigValidated: false, domainVerifiedOnly: true, signerId: null },
+                VICTIM
+            );
+            assert.deepEqual(responses, ['accepted']);
+            assert.equal(actorRow(), undefined);
+        });
+    });
+
+    describe('other activities on existing state', function () {
+        const LIKE_ID = 'https://remote.example.com/activities/like-1';
+
+        function addLike() {
+            return new Promise((resolve, reject) =>
+                Collection.addReaction(NOTE_ID, OWNER, 'Like', LIKE_ID, err =>
+                    err ? reject(err) : resolve()
+                )
+            );
+        }
+        const likeCount = () =>
+            _apDb.prepare('SELECT COUNT(*) AS n FROM note_reactions;').get().n;
+
+        function undoLike(signerId) {
+            const { handler, responses } = makeHandler();
+            handler._inboxUndoLikeActivity(
+                {},
+                {
+                    id: 'https://remote.example.com/activities/undo-like-1',
+                    type: 'Undo',
+                    actor: signerId,
+                    object: { id: LIKE_ID, type: 'Like', actor: OWNER, object: NOTE_ID },
+                },
+                signedBy(signerId)
+            );
+            return responses;
+        }
+
+        it("Undo{Like} cannot take back another actor's Like", async () => {
+            await addLike();
+            undoLike(OTHER);
+            assert.equal(likeCount(), 1);
+        });
+
+        it('Undo{Like} by the actor who liked removes it', async () => {
+            await addLike();
+            undoLike(OWNER);
+            assert.equal(likeCount(), 0);
+        });
+
+        it('Undo{Follow} is refused unless signed by the follower', () => {
+            const { handler, responses } = makeHandler();
+            handler._inboxUndoActivity(
+                {},
+                { id: OWNER },
+                {
+                    id: 'https://remote.example.com/activities/undo-follow-1',
+                    type: 'Undo',
+                    actor: OWNER,
+                    object: {
+                        type: 'Follow',
+                        actor: OWNER,
+                        object: 'https://test.example.com/_enig/ap/users/bob',
+                    },
+                },
+                signedBy(OTHER)
+            );
+            assert.deepEqual(responses, ['accessDenied']);
+        });
+
+        it('Reject{Follow} is refused unless signed by the rejecting actor', () => {
+            const { handler, responses } = makeHandler();
+            handler._inboxRejectActivity(
+                {},
+                {
+                    id: 'https://remote.example.com/activities/reject-1',
+                    type: 'Reject',
+                    actor: OWNER,
+                    object: {
+                        type: 'Follow',
+                        actor: 'https://test.example.com/_enig/ap/users/bob',
+                        object: OWNER,
+                    },
+                },
+                signedBy(OTHER)
+            );
+            assert.deepEqual(responses, ['accessDenied']);
+        });
     });
 });
 

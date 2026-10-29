@@ -67,6 +67,9 @@ const {
     hostsMatch,
     verifyObjectOwner,
     actorDomainMatchesKeyId,
+    actorIdsOf,
+    storedObjectOwnerIds,
+    verifySignerOwnsObject,
     isSafeOutboundUrl,
     readInboxBody,
     MaxRequestAgeSecs,
@@ -490,6 +493,92 @@ describe('verifyObjectOwner()', function () {
     it('returns a reason string when objectType is undefined/null with domainVerifiedOnly', () => {
         const reason = verifyObjectOwner(false, true, undefined);
         assert.ok(typeof reason === 'string' && reason.length > 0);
+    });
+});
+
+// ─── object ownership (#964 review) ───────────────────────────────────────────
+
+describe('actorIdsOf()', function () {
+    const A = 'https://a.example/users/alice';
+    const B = 'https://b.example/users/bob';
+
+    it('takes a string, an object with an id, or an array of either', () => {
+        assert.deepEqual(actorIdsOf(A), [A]);
+        assert.deepEqual(actorIdsOf({ id: A, type: 'Person' }), [A]);
+        assert.deepEqual(actorIdsOf([A, { id: B, type: 'Group' }]), [A, B]);
+    });
+
+    it('names no one for anything else', () => {
+        assert.deepEqual(actorIdsOf(undefined), []);
+        assert.deepEqual(actorIdsOf(null), []);
+        assert.deepEqual(actorIdsOf(''), []);
+        assert.deepEqual(actorIdsOf({ type: 'Person' }), []);
+        assert.deepEqual(actorIdsOf([42, { id: 7 }]), []);
+    });
+});
+
+describe('storedObjectOwnerIds()', function () {
+    const A = 'https://a.example/users/alice';
+    const NOTE = 'https://a.example/notes/1';
+
+    it('reads attributedTo of the object embedded in a stored activity', () => {
+        const create = {
+            id: 'https://a.example/activities/1',
+            type: 'Create',
+            actor: A,
+            object: { id: NOTE, type: 'Note', attributedTo: A },
+        };
+        assert.deepEqual(storedObjectOwnerIds(create, NOTE), [A]);
+    });
+
+    it('reads attributedTo of a stored object itself', () => {
+        const note = { id: NOTE, type: 'Note', attributedTo: { id: A } };
+        assert.deepEqual(storedObjectOwnerIds(note, NOTE), [A]);
+    });
+
+    it("never takes an activity's actor as the owner", () => {
+        //  an Announce's actor is the booster, not the author
+        const announce = {
+            id: 'https://b.example/activities/2',
+            type: 'Announce',
+            actor: 'https://b.example/users/bob',
+            object: { id: NOTE, type: 'Note' },
+        };
+        assert.deepEqual(storedObjectOwnerIds(announce, NOTE), []);
+    });
+
+    it('is empty for an object with another id', () => {
+        const create = { id: 'x', object: { id: 'other', attributedTo: A } };
+        assert.deepEqual(storedObjectOwnerIds(create, NOTE), []);
+        assert.deepEqual(storedObjectOwnerIds(null, NOTE), []);
+    });
+});
+
+describe('verifySignerOwnsObject()', function () {
+    const A = 'https://a.example/users/alice';
+    const M = 'https://a.example/users/mallory';
+
+    it('permits the owner, signing as the activity actor', () => {
+        assert.equal(verifySignerOwnsObject(A, [A], A), null);
+        assert.equal(verifySignerOwnsObject(A, [M, A], A), null);
+    });
+
+    it('refuses a signer who is not the owner', () => {
+        assert.match(verifySignerOwnsObject(M, [A], M), /not the object owner/);
+    });
+
+    it('refuses an activity whose actor is not the signer', () => {
+        assert.match(verifySignerOwnsObject(A, [A], M), /activity actor/);
+    });
+
+    it('refuses with no signer, or no owner to check against', () => {
+        assert.match(verifySignerOwnsObject(null, [A], A), /No verified signing actor/);
+        assert.match(verifySignerOwnsObject(A, [], A), /no owner/);
+    });
+
+    it('compares ids exactly', () => {
+        assert.ok(verifySignerOwnsObject(`${A}/`, [A], `${A}/`));
+        assert.ok(verifySignerOwnsObject(A.toUpperCase(), [A], A.toUpperCase()));
     });
 });
 
