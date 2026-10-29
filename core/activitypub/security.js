@@ -554,3 +554,24 @@ function storedObjectsOwnerIds(storedObjects, objectId) {
     return { ownerIds, reason: null };
 }
 exports.storedObjectsOwnerIds = storedObjectsOwnerIds;
+
+//  The forms the public collection is addressed by
+const PublicAddresses = [
+    'https://www.w3.org/ns/activitystreams#Public',
+    'as:Public',
+    'Public',
+];
+
+//
+//  True when |obj| (a Note) is addressed to the public in to or cc.
+//
+function isPublicAddressed(obj) {
+    return addressedIds(obj).some(id => PublicAddresses.includes(id));
+}
+exports.isPublicAddressed = isPublicAddressed;
+
+//  The ids |obj| is addressed to, in to and cc
+function addressedIds(obj) {
+    return ['to', 'cc'].flatMap(field => actorIdsOf(obj && obj[field]));
+}
+exports.addressedIds = addressedIds;

@@ -53,6 +53,8 @@ const {
     verifyNoteAuthor,
     sameHost,
     readInboxBody,
+    isPublicAddressed,
+    addressedIds,
 } = require('../../../activitypub/security');
 
 // deps
@@ -1405,11 +1407,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     //
     //  A Delete of a Note not signed by its actor: a forwarded one, as for a
-    //  forwarded Create. The Note's own URL is asked (signed as a local user
-    //  who may, see _fetchAsUser); the Delete is taken only when it answers
-    //  410 Gone, or with a Tombstone of that id, from the Note's own host.
-    //  Then it is processed as the actor's own, so our copy is removed only
-    //  when stored as the actor's.
+    //  forwarded Create. The Note's own URL is asked, and the Delete is taken
+    //  only when the Note's own host says it is gone: 410 Gone, a Tombstone
+    //  of that id, or a 404 that cannot mean "not permitted". Mastodon
+    //  answers 404 for a deleted status, but also for a live one the
+    //  requester may not see, so a 404 counts only when our copy of the Note
+    //  is public, or the request was signed as a local user who could see
+    //  it (see _forwardedDeleteViewer). Then the Delete is processed as the
+    //  actor's own, so our copy is removed only when stored as the actor's.
     //
     _inboxForwardedDelete(inboxType, resp, activity, auth) {
         const objectId = _.get(activity, 'object.id', activity.object);
@@ -1426,40 +1431,102 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return refuse("The object is not on the actor's host");
         }
 
-        auth.fetchAs(actorId, (err, fetchUser) => {
-            const opts = {
-                headers: { Accept: ActivityStreamMediaType },
-                timeout: 3000,
-                validContentTypes: [
-                    ActivityStreamMediaType,
-                    'application/json',
-                    'application/ld+json',
-                ],
-            };
-            const sign = signedFetchOptions(fetchUser);
-            if (sign) {
-                opts.sign = sign;
+        this._getMatchingObjectsForDeleteRequest(objectId, (err, objectsInfo) => {
+            if (err) {
+                return refuse('The stored copies cannot be read');
             }
-            HttpUtil.getJson(objectId, opts, (err, doc, res) => {
-                const answeredBy = err
-                    ? err.responseUrl || objectId
-                    : (res && res.responseUrl) || objectId;
-                const gone = err
-                    ? err.statusCode === 410
-                    : _.get(doc, 'type') === 'Tombstone' && _.get(doc, 'id') === objectId;
-                if (!gone || !sameHost(answeredBy, objectId)) {
-                    return refuse('The origin does not say the object is gone');
-                }
+            const notes = objectsInfo
+                .filter(o => !ActorKeyedCollections.includes(o.info.name) && o.object)
+                .map(o => (o.object.id === objectId ? o.object : o.object.object))
+                .filter(n => n && n.id === objectId);
+            if (notes.length === 0) {
+                return this.webServer.resourceNotFound(resp);
+            }
+            const isPublic = notes.every(isPublicAddressed);
 
-                //  gone at its origin: the actor's Delete, for our copy
-                return this._inboxDeleteActivity(
-                    inboxType,
-                    resp,
-                    activity,
-                    Object.assign({}, auth, { signerId: actorId })
-                );
+            this._forwardedDeleteViewer(actorId, notes, isPublic, (err, viewer) => {
+                const opts = {
+                    headers: { Accept: ActivityStreamMediaType },
+                    timeout: 3000,
+                    validContentTypes: [
+                        ActivityStreamMediaType,
+                        'application/json',
+                        'application/ld+json',
+                    ],
+                };
+                const sign = signedFetchOptions(viewer);
+                if (sign) {
+                    opts.sign = sign;
+                }
+                HttpUtil.getJson(objectId, opts, (err, doc, res) => {
+                    const answeredBy = err
+                        ? err.responseUrl || objectId
+                        : (res && res.responseUrl) || objectId;
+                    let gone;
+                    if (err) {
+                        gone =
+                            err.statusCode === 410 ||
+                            (err.statusCode === 404 && (isPublic || !!sign));
+                    } else {
+                        gone =
+                            _.get(doc, 'type') === 'Tombstone' &&
+                            _.get(doc, 'id') === objectId;
+                    }
+                    if (!gone || !sameHost(answeredBy, objectId)) {
+                        return refuse('The origin does not say the object is gone');
+                    }
+
+                    //  gone at its origin: the actor's Delete, for our copy
+                    return this._inboxDeleteActivity(
+                        inboxType,
+                        resp,
+                        activity,
+                        Object.assign({}, auth, { signerId: actorId })
+                    );
+                });
             });
         });
+    }
+
+    //
+    //  A local user, with a key, who could see the Note: one it is addressed
+    //  to, or, for a Note addressed to its author's followers (or public), a
+    //  local follower of the author. The origin delivered the Note to that
+    //  user, so a request signed as them tells it nothing new. cb(null, user)
+    //  or cb(null, null).
+    //
+    _forwardedDeleteViewer(authorId, notes, isPublic, cb) {
+        const withKey = user => (signedFetchOptions(user) ? user : null);
+        const local = Endpoints.sharedInbox();
+        const named = _.uniq(notes.flatMap(addressedIds)).filter(id =>
+            sameHost(id, local)
+        );
+
+        async.detectSeries(
+            named,
+            (id, next) =>
+                this._localUserByActorId(id, (err, user) => next(null, withKey(user))),
+            (err, namedId) => {
+                if (namedId) {
+                    return this._localUserByActorId(namedId, cb);
+                }
+                const follower = () =>
+                    this._fetchAsUser(null, authorId, (err, user) =>
+                        cb(null, withKey(user))
+                    );
+                if (isPublic) {
+                    return follower();
+                }
+                Actor.fromId(authorId, (err, author) => {
+                    const followers = _.get(author, 'followers');
+                    const toFollowers =
+                        !err &&
+                        _.isString(followers) &&
+                        notes.every(n => addressedIds(n).includes(followers));
+                    return toFollowers ? follower() : cb(null, null);
+                });
+            }
+        );
     }
 
     _deleteObjectWithStats(collectionName, object, stats, cb) {

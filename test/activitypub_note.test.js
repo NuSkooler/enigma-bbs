@@ -2501,6 +2501,173 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.equal(messages().length, 1);
         });
 
+        describe('answered 404', function () {
+            const UserProps = require('../core/user_property.js');
+            const BOB = 'https://test.example.com/_enig/ap/users/bob';
+            const FOLLOWERS = `${VICTIM}/followers`;
+            const bobKey = require('crypto')
+                .generateKeyPairSync('rsa', { modulusLength: 2048 })
+                .privateKey.export({ type: 'pkcs8', format: 'pem' });
+            const bob = {
+                userId: 2,
+                username: 'bob',
+                getProperty: name =>
+                    ({
+                        [UserProps.ActivityPubActorId]: BOB,
+                        [UserProps.PrivateActivityPubSigningKey]: bobKey,
+                    })[name] || null,
+            };
+            const users = { [BOB]: bob };
+            let savedFromId;
+
+            beforeEach(() => {
+                savedFromId = Actor.fromId;
+                //  the author, with its followers collection
+                Actor.fromId = (id, fromUser, cb) => {
+                    cb = typeof fromUser === 'function' ? fromUser : cb;
+                    return cb(
+                        null,
+                        { id, followers: `${id}/followers` },
+                        '@alice@good.example'
+                    );
+                };
+            });
+            afterEach(() => {
+                Actor.fromId = savedFromId;
+            });
+
+            //  a stored copy of the Note, as delivered, and its message
+            async function storeNote(overrides) {
+                const stored = note(overrides);
+                await new Promise((resolve, reject) =>
+                    Collection.addSharedInboxItem(
+                        {
+                            id: `${stored.id}/activity`,
+                            type: 'Create',
+                            actor: VICTIM,
+                            object: stored,
+                        },
+                        true,
+                        err => (err ? reject(err) : resolve())
+                    )
+                );
+                const msg = await toMessage(new Note(stored));
+                await new Promise((resolve, reject) =>
+                    msg.persist(err => (err ? reject(err) : resolve()))
+                );
+                assert.equal(messages().length, 1);
+                return stored;
+            }
+            const bobFollowsVictim = () =>
+                new Promise((resolve, reject) =>
+                    Collection.addFollowing(
+                        bob,
+                        { id: VICTIM, type: 'Person' },
+                        true,
+                        err => (err ? reject(err) : resolve())
+                    )
+                );
+            const deleteOf = id => ({
+                id: `${GOOD}/activities/delete-${Math.random()}`,
+                type: 'Delete',
+                actor: VICTIM,
+                object: { id, type: 'Tombstone' },
+            });
+            const signedAs = url => {
+                const req = requests.find(r => r.url === url);
+                return req && req.opts.sign ? req.opts.sign.keyId : null;
+            };
+
+            it('removes a public Note', async () => {
+                await storeNote();
+                served.set(NOTE, { status: 404 });
+                assert.equal(
+                    await post(deleteOf(NOTE), FORWARDER, { users }),
+                    'accepted'
+                );
+                assert.deepEqual(messages(), []);
+            });
+
+            it('removes a followers-only Note, asked as a local follower', async () => {
+                await storeNote({ to: [FOLLOWERS] });
+                await bobFollowsVictim();
+                served.set(NOTE, { status: 404 });
+                assert.equal(
+                    await post(deleteOf(NOTE), FORWARDER, { users }),
+                    'accepted'
+                );
+                assert.equal(signedAs(NOTE), `${BOB}#main-key`);
+                assert.deepEqual(messages(), []);
+            });
+
+            it('refuses for a followers-only Note with no local follower to ask as', async () => {
+                await storeNote({ to: [FOLLOWERS] });
+                served.set(NOTE, { status: 404 });
+                assert.equal(
+                    await post(deleteOf(NOTE), FORWARDER, { users }),
+                    'accessDenied'
+                );
+                assert.equal(signedAs(NOTE), null, 'asked unsigned');
+                assert.equal(messages().length, 1, 'the message stays');
+            });
+
+            it('refuses for a Note addressed to others, though a local user follows its author', async () => {
+                //  bob follows alice, but this Note went to carol alone
+                await storeNote({ to: [`${GOOD}/users/carol`] });
+                await bobFollowsVictim();
+                served.set(NOTE, { status: 404 });
+                assert.equal(
+                    await post(deleteOf(NOTE), FORWARDER, { users }),
+                    'accessDenied'
+                );
+                assert.equal(messages().length, 1);
+            });
+
+            it('removes a direct Note, asked as the local user it is addressed to', async () => {
+                await storeNote({ to: [BOB] });
+                served.set(NOTE, { status: 404 });
+                assert.equal(
+                    await post(deleteOf(NOTE), FORWARDER, { users }),
+                    'accepted'
+                );
+                assert.equal(signedAs(NOTE), `${BOB}#main-key`);
+                assert.deepEqual(messages(), []);
+            });
+
+            for (const status of [400, 401, 403, 451, 500]) {
+                it(`refuses on ${status}`, async () => {
+                    await storeNote();
+                    served.set(NOTE, { status });
+                    assert.equal(
+                        await post(deleteOf(NOTE), FORWARDER, { users }),
+                        'accessDenied'
+                    );
+                    assert.equal(messages().length, 1);
+                });
+            }
+
+            it("refuses for a Note off the actor's host", async () => {
+                const offHost = 'https://third.example/notes/1';
+                await storeNote({ id: offHost });
+                served.set(offHost, { status: 404 });
+                assert.equal(
+                    await post(deleteOf(offHost), FORWARDER, { users }),
+                    'accessDenied'
+                );
+                assert.equal(messages().length, 1);
+            });
+
+            it('refuses a 404 reached by a redirect to another host', async () => {
+                await storeNote();
+                served.set(NOTE, { status: 404, responseUrl: 'https://evil.example/n' });
+                assert.equal(
+                    await post(deleteOf(NOTE), FORWARDER, { users }),
+                    'accessDenied'
+                );
+                assert.equal(messages().length, 1);
+            });
+        });
+
         it('is refused for a Tombstone of another id', async () => {
             await storeReply();
             served.set(NOTE, { doc: { id: `${NOTE}/x`, type: 'Tombstone' } });
