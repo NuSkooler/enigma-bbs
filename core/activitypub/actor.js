@@ -216,6 +216,14 @@ module.exports = class Actor extends ActivityPubObject {
         return Actor._fromIdOrKeyId(id, null, fromUser, cb);
     }
 
+    //  For a search a user typed: a URL may be a profile page (say
+    //  https://host/@alice) rather than the actor id, so the actor found for
+    //  it need only be on the URL's host. Everything else uses fromId(),
+    //  where an actor looked up by URL must be the actor at that URL.
+    static fromSearch(query, fromUser, cb) {
+        return Actor._fromIdOrKeyId(query, null, fromUser, cb, { alias: true });
+    }
+
     //  The actor that owns an HTTP signature's |keyId|. Fetches the actor id
     //  derived from the keyId; a server that answers with an actor of another
     //  id only points at it (see _fromRemoteQuery).
@@ -227,7 +235,7 @@ module.exports = class Actor extends ActivityPubObject {
         return Actor._fromIdOrKeyId(id, keyId, null, cb);
     }
 
-    static _fromIdOrKeyId(id, keyId, fromUser, cb) {
+    static _fromIdOrKeyId(id, keyId, fromUser, cb, options = {}) {
         let delivered = false;
         const callback = (e, a, s) => {
             if (!delivered) {
@@ -240,7 +248,20 @@ module.exports = class Actor extends ActivityPubObject {
             return cb(Errors.Invalid('Invalid Actor ID'));
         }
 
+        //  An actor looked up by URL is the actor at that URL: another one
+        //  would be cached and shown in its place. For a keyId, the actor a
+        //  key URL points at lists that keyId as its key (_fromRemoteQuery).
+        const byUrl = /^https?:\/\//i.test(id);
+        const isActorFor = actor =>
+            !byUrl ||
+            actor.id === id ||
+            (keyId && _.get(actor, 'publicKey.id') === keyId) ||
+            (options.alias && sameHost(actor.id, id));
+
         Actor._fromCache(id, (err, actor, subject, needsRefresh) => {
+            if (!err && !isActorFor(actor)) {
+                err = Errors.DoesNotExist(`No cached Actor at ${id}`);
+            }
             if (!err) {
                 // cache hit
                 callback(null, actor, subject);
@@ -254,6 +275,18 @@ module.exports = class Actor extends ActivityPubObject {
             Actor._fromWebFinger(id, fromUser, keyId, (err, actor, webFingerRes) => {
                 if (err) {
                     return callback(err);
+                }
+
+                if (!isActorFor(actor)) {
+                    warnLog(
+                        { requested: id, actorId: actor.id },
+                        'Refusing an actor found for another URL'
+                    );
+                    return callback(
+                        Errors.ValidationFailed(
+                            `The actor found for ${id} is ${actor.id}`
+                        )
+                    );
                 }
 
                 //  a handle only once confirmed; otherwise the actor's id,
@@ -496,10 +529,16 @@ module.exports = class Actor extends ActivityPubObject {
             //  A handle's domain owns its namespace, so it may point at an
             //  actor on another host (a split domain with a static WebFinger
             //  document); the actor fetched must still be the one at that
-            //  URL. A lookup by actor URL is answered by that URL's host (or
-            //  the host it redirected the query to), for its own actors only.
+            //  URL. A lookup by actor URL is answered by that URL's own host,
+            //  for its own actors only: a redirect to another host would let
+            //  the queried host pick who answers.
             const byUrl = /^https?:\/\//i.test(actorQuery);
-            if (byUrl && (!answeredBy || !sameHost(href, answeredBy))) {
+            if (
+                byUrl &&
+                (!answeredBy ||
+                    !sameHost(answeredBy, actorQuery) ||
+                    !sameHost(href, actorQuery))
+            ) {
                 warnLog(
                     { actorQuery, href, answeredBy },
                     'Refusing WebFinger link to an actor on another host'

@@ -818,6 +818,20 @@ describe('ActivityPub inbox: Update and Delete only from the object owner', func
             assert.deepEqual(result, { response: 'accessDenied' });
         });
 
+        it("takes no signer off the keyId's host, even one the activity names", async () => {
+            //  the actor resolved for the keyId claims an id on another host,
+            //  and the activity names that id as its actor
+            const elsewhere = 'https://elsewhere.example/users/alice';
+            const result = await dispatch(
+                Object.assign(activityBy('Like', elsewhere, NOTE_ID), {
+                    id: 'https://elsewhere.example/activities/like-x',
+                }),
+                `${OWNER}#main-key`,
+                elsewhere
+            );
+            assert.deepEqual(result, { response: 'accessDenied' });
+        });
+
         for (const [type, object] of [
             ['Like', NOTE_ID],
             ['Follow', 'https://test.example.com/_enig/ap/users/bob'],
@@ -1628,44 +1642,164 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             });
         });
 
-        it("does not take the signer from an actor off the keyId's host", async () => {
-            //  evil.example's WebFinger sends the lookup of its actor to
-            //  other.example, whose actor lists evil.example's keyId
-            const actor = 'https://evil.example/users/m';
-            const other = 'https://other.example/users/m';
-            served.set(`webfinger:${actor}`, {
+        it('refuses an actor whose WebFinger lookup by URL is sent to another host', async () => {
+            //  evil.example's WebFinger for its actor X is redirected to
+            //  good.example's answer for the victim; an attacker actor Y
+            //  forwards a Note by X
+            const X = 'https://evil.example/users/x';
+            const Y = 'https://evil.example/users/y';
+            const evilNote = 'https://evil.example/notes/1';
+            served.set(VICTIM, {
+                doc: actorDoc(VICTIM, {}, { preferredUsername: 'alice' }),
+            });
+            served.set(`webfinger:${X}`, {
                 json: {
-                    subject: actor,
+                    subject: 'acct:alice@good.example',
                     links: [
-                        { rel: 'self', type: 'application/activity+json', href: other },
+                        { rel: 'self', type: 'application/activity+json', href: VICTIM },
                     ],
                 },
-                answeredBy: `https://other.example/.well-known/webfinger?resource=${encodeURIComponent(actor)}`,
+                answeredBy: `${GOOD}/.well-known/webfinger?resource=${encodeURIComponent(VICTIM)}`,
             });
-            served.set(other, {
-                doc: actorDoc(other, {
-                    id: `${actor}#main-key`,
+            served.set(Y, {
+                doc: actorDoc(Y, { publicKeyPem: pem(attackerKey.publicKey) }),
+            });
+            const xNote = {
+                id: evilNote,
+                type: 'Note',
+                attributedTo: X,
+                content: '<p>i am alice</p>',
+                published: '2026-04-12T12:00:00Z',
+                to: ['https://www.w3.org/ns/activitystreams#Public'],
+            };
+            served.set(evilNote, { doc: xNote });
+
+            const { err, actor } = await fromId(X);
+            assert.ok(err, 'no actor for X');
+            assert.equal(actor, undefined);
+            assert.equal(cachedJson(VICTIM), undefined, 'the victim is not cached for X');
+
+            await post(
+                {
+                    id: 'https://evil.example/activities/c-1',
+                    type: 'Create',
+                    actor: X,
+                    to: ['https://www.w3.org/ns/activitystreams#Public'],
+                    object: xNote,
+                },
+                `${Y}#main-key`,
+                attackerKey.privateKey
+            );
+            const names = _msgDb
+                .prepare('SELECT from_user_name FROM message;')
+                .all()
+                .map(r => r.from_user_name);
+            assert.ok(!names.includes('@alice@good.example'), 'not shown as alice');
+        });
+
+        it('refuses another actor than the one at the URL, even on its host', async () => {
+            const x = `${GOOD}/users/x`;
+            served.set(VICTIM, { doc: actorDoc(VICTIM) });
+            served.set(`webfinger:${x}`, {
+                json: {
+                    subject: 'acct:alice@good.example',
+                    links: [
+                        { rel: 'self', type: 'application/activity+json', href: VICTIM },
+                    ],
+                },
+                answeredBy: `${GOOD}/.well-known/webfinger?resource=${encodeURIComponent(x)}`,
+            });
+            const { err } = await fromId(x);
+            assert.ok(err);
+            assert.equal(cachedJson(VICTIM), undefined);
+        });
+
+        it('refuses a WebFinger answer for an actor URL from another host', async () => {
+            const X = 'https://evil.example/users/x';
+            served.set(X, { doc: actorDoc(X) });
+            served.set(`webfinger:${X}`, {
+                json: {
+                    subject: X,
+                    links: [{ rel: 'self', type: 'application/activity+json', href: X }],
+                },
+                answeredBy: `${GOOD}/.well-known/webfinger?resource=${encodeURIComponent(X)}`,
+            });
+            assert.ok((await fromId(X)).err);
+            assert.ok(!fetched.includes(X), 'not fetched on that answer');
+        });
+
+        it('does not fetch a WebFinger link for an actor URL to another host', async () => {
+            const X = 'https://evil.example/users/x';
+            served.set(VICTIM, { doc: actorDoc(VICTIM) });
+            served.set(`webfinger:${X}`, {
+                json: {
+                    subject: X,
+                    links: [
+                        { rel: 'self', type: 'application/activity+json', href: VICTIM },
+                    ],
+                },
+                answeredBy: `https://evil.example/.well-known/webfinger?resource=${encodeURIComponent(X)}`,
+            });
+            assert.ok((await fromId(X)).err);
+            assert.ok(!fetched.includes(VICTIM), 'the other host is not asked');
+        });
+
+        it("refuses a signature whose keyId is not the signing actor's key (M20)", async () => {
+            //  the actor's document is fetched for the keyId, but lists
+            //  another key id, with the key that made the signature
+            const keyId = `${VICTIM}#other-key`;
+            served.set(VICTIM, {
+                doc: actorDoc(VICTIM, {
+                    id: `${VICTIM}#main-key`,
                     publicKeyPem: pem(attackerKey.publicKey),
                 }),
             });
-
-            const warnings = [];
             const result = await post(
                 {
-                    id: 'https://evil.example/activities/like-1',
+                    id: `${GOOD}/activities/like-m20`,
                     type: 'Like',
-                    actor,
+                    actor: VICTIM,
                     object: NOTE,
                 },
-                `${actor}#main-key`,
-                attackerKey.privateKey,
-                warnings
+                keyId,
+                attackerKey.privateKey
             );
-
             assert.equal(result, 'accessDenied');
-            const refusal = warnings.find(w => /not the signing actor/.test(w.msg));
-            assert.ok(refusal, 'refused as not signed by its actor');
-            assert.equal(refusal.obj.signerId, null, 'no signer off the keyId host');
+        });
+
+        it("finds a searched profile URL's actor on the same host, not by fromId", async () => {
+            const profile = `${GOOD}/@alice`;
+            served.set(VICTIM, { doc: actorDoc(VICTIM) });
+            served.set(`webfinger:${profile}`, {
+                json: {
+                    subject: 'acct:alice@good.example',
+                    links: [
+                        { rel: 'self', type: 'application/activity+json', href: VICTIM },
+                    ],
+                },
+                answeredBy: `${GOOD}/.well-known/webfinger?resource=${encodeURIComponent(profile)}`,
+            });
+            const found = await new Promise(resolve =>
+                Actor.fromSearch(profile, null, (err, actor) => resolve({ err, actor }))
+            );
+            assert.ifError(found.err);
+            assert.equal(found.actor.id, VICTIM);
+            assert.ok(
+                (await fromId(profile)).err,
+                'fromId takes only the actor at the URL'
+            );
+        });
+
+        it('fetches a genuine actor by URL, and caches it under that URL', async () => {
+            const bob = `${GOOD}/users/bob`;
+            served.set(bob, { doc: actorDoc(bob) });
+            const { err, actor } = await fromId(bob);
+            assert.ifError(err);
+            assert.equal(actor.id, bob);
+            assert.equal(cachedJson(bob).id, bob);
+            fetched.length = 0;
+            assert.equal((await fromId(bob)).actor.id, bob);
+            assert.deepEqual(fetched, [], 'from the cache');
         });
 
         it('a planted actor document cannot take over a cached actor', async () => {
