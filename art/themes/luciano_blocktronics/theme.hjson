@@ -430,13 +430,12 @@
 						}
 					}
 				}
-				// message viewer (wfcmessages). Placeholder sizes mirroring the
-				// full log (form 2) until the art exists; adjust to the art.
+				// message viewer (wfcmessages)
 				4: {
 					mci: {
 						// message list
 						VM1: {
-							height: 9
+							height: 8
 							width: 73
 							itemFormat:      "|00|14{unreadIndicator:<1} |02{userName:<12.12} |08{nodeId:>2} |02{timestamp} |07{text}"
 							focusItemFormat: "|00|14{unreadIndicator:<1}|10>|15{userName:<12.12} |08{nodeId:>2} |15{timestamp} |15{text}"
@@ -445,7 +444,7 @@
 						MT2: {
 							mode: preview
 							autoScroll: false
-							height: 12
+							height: 9
 							width: 73
 						}
 					}
