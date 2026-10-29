@@ -2357,6 +2357,65 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
         });
     });
 
+    describe('a forwarded Delete', function () {
+        const forwardedDelete = (actor = VICTIM) => ({
+            id: `${NOTE}#delete`,
+            type: 'Delete',
+            actor,
+            object: { id: NOTE, type: 'Tombstone' },
+        });
+
+        async function storeReply() {
+            served.set(NOTE, { doc: note() });
+            assert.equal(await post(create(VICTIM, note()), FORWARDER), 'accepted');
+            assert.equal(messages().length, 1);
+        }
+
+        it('removes a Note its origin answers 410 for', async () => {
+            await storeReply();
+            served.set(NOTE, { status: 410 });
+            assert.equal(await post(forwardedDelete(), FORWARDER), 'accepted');
+            assert.deepEqual(messages(), []);
+            assert.deepEqual(storedRows(), []);
+        });
+
+        it('removes a Note its origin answers with a Tombstone for', async () => {
+            await storeReply();
+            served.set(NOTE, { doc: { id: NOTE, type: 'Tombstone' } });
+            assert.equal(await post(forwardedDelete(), FORWARDER), 'accepted');
+            assert.deepEqual(messages(), []);
+        });
+
+        it('is refused while the origin still serves the Note', async () => {
+            await storeReply();
+            assert.equal(await post(forwardedDelete(), FORWARDER), 'accessDenied');
+            assert.equal(messages().length, 1);
+        });
+
+        it("is refused when the actor is not the Note's owner", async () => {
+            await storeReply();
+            served.set(NOTE, { status: 410 });
+            //  another actor on the same host
+            const carol = `${GOOD}/users/carol`;
+            assert.equal(await post(forwardedDelete(carol), FORWARDER), 'accessDenied');
+            assert.equal(messages().length, 1);
+        });
+
+        it('is refused when the 410 comes from another host after a redirect', async () => {
+            await storeReply();
+            served.set(NOTE, { status: 410, responseUrl: 'https://evil.example/gone' });
+            assert.equal(await post(forwardedDelete(), FORWARDER), 'accessDenied');
+            assert.equal(messages().length, 1);
+        });
+
+        it('is refused for a Tombstone of another id', async () => {
+            await storeReply();
+            served.set(NOTE, { doc: { id: `${NOTE}/x`, type: 'Tombstone' } });
+            assert.equal(await post(forwardedDelete(), FORWARDER), 'accessDenied');
+            assert.equal(messages().length, 1);
+        });
+    });
+
     describe('Announce', function () {
         const fetchAnnounced = (objectOrId, announcer) =>
             new Promise(resolve =>

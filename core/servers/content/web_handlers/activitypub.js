@@ -524,6 +524,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         activity.type !== WellKnownActivity.Create &&
                         getActorId(activity) !== signerId
                     ) {
+                        //  Mastodon forwards a reply's Delete as it forwards
+                        //  its Create, signed by the forwarder; it is checked
+                        //  with the object's origin instead
+                        const deletedId = _.get(activity, 'object.id', activity.object);
+                        if (
+                            WellKnownActivity.Delete === activity.type &&
+                            deletedId !== getActorId(activity)
+                        ) {
+                            return this._inboxForwardedDelete(
+                                inboxType,
+                                resp,
+                                activity,
+                                auth
+                            );
+                        }
                         this.log.warn(
                             {
                                 activityType: activity.type,
@@ -1386,6 +1401,65 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         fetchAs(actorId, (err, fetchUser) =>
             fetchNoteFromOrigin(noteId, undefined, fetchUser, cb)
         );
+    }
+
+    //
+    //  A Delete of a Note not signed by its actor: a forwarded one, as for a
+    //  forwarded Create. The Note's own URL is asked (signed as a local user
+    //  who may, see _fetchAsUser); the Delete is taken only when it answers
+    //  410 Gone, or with a Tombstone of that id, from the Note's own host.
+    //  Then it is processed as the actor's own, so our copy is removed only
+    //  when stored as the actor's.
+    //
+    _inboxForwardedDelete(inboxType, resp, activity, auth) {
+        const objectId = _.get(activity, 'object.id', activity.object);
+        const actorId = getActorId(activity);
+        const refuse = reason => {
+            this.log.warn(
+                { objectId, actorId, signerId: auth.signerId, inboxType, reason },
+                'Will not accept a forwarded Delete'
+            );
+            return this.webServer.accessDenied(resp);
+        };
+
+        if (!_.isString(objectId) || !sameHost(objectId, actorId)) {
+            return refuse("The object is not on the actor's host");
+        }
+
+        auth.fetchAs(actorId, (err, fetchUser) => {
+            const opts = {
+                headers: { Accept: ActivityStreamMediaType },
+                timeout: 3000,
+                validContentTypes: [
+                    ActivityStreamMediaType,
+                    'application/json',
+                    'application/ld+json',
+                ],
+            };
+            const sign = signedFetchOptions(fetchUser);
+            if (sign) {
+                opts.sign = sign;
+            }
+            HttpUtil.getJson(objectId, opts, (err, doc, res) => {
+                const answeredBy = err
+                    ? err.responseUrl || objectId
+                    : (res && res.responseUrl) || objectId;
+                const gone = err
+                    ? err.statusCode === 410
+                    : _.get(doc, 'type') === 'Tombstone' && _.get(doc, 'id') === objectId;
+                if (!gone || !sameHost(answeredBy, objectId)) {
+                    return refuse('The origin does not say the object is gone');
+                }
+
+                //  gone at its origin: the actor's Delete, for our copy
+                return this._inboxDeleteActivity(
+                    inboxType,
+                    resp,
+                    activity,
+                    Object.assign({}, auth, { signerId: actorId })
+                );
+            });
+        });
     }
 
     _deleteObjectWithStats(collectionName, object, stats, cb) {
