@@ -1699,7 +1699,7 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             if (hit.status) {
                 const err = new Error(`URL ${url} HTTP error ${hit.status}`);
                 err.statusCode = hit.status;
-                err.responseUrl = url;
+                err.responseUrl = hit.responseUrl || url;
                 return cb(err);
             }
             return cb(null, JSON.parse(JSON.stringify(hit.doc)), {
@@ -2257,16 +2257,28 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
                 .all(id)
                 .map(r => r.name);
 
-        for (const status of [404, 410]) {
-            it(`is accepted when the origin answers ${status}, removing only that actor's state`, async () => {
-                await storeGoneActor();
-                served.set(GONE, { status });
+        it("is accepted when the origin answers 410, removing only that actor's state", async () => {
+            await storeGoneActor();
+            served.set(GONE, { status: 410 });
 
-                assert.equal(await postUnfetchable(selfDelete()), 'accepted');
-                assert.deepEqual(rowsFor(GONE), []);
-                assert.equal(storedRows().length, 1, "others' rows are untouched");
-            });
-        }
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
+            assert.deepEqual(rowsFor(GONE), []);
+            assert.equal(storedRows().length, 1, "others' rows are untouched");
+        });
+
+        it('is refused when the origin answers 404, which may be transient', async () => {
+            await storeGoneActor();
+            served.set(GONE, { status: 404 });
+            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
+        });
+
+        it('is refused when the 410 comes from another host after a redirect', async () => {
+            await storeGoneActor();
+            served.set(GONE, { status: 410, responseUrl: 'https://evil.example/gone' });
+            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
+        });
 
         it('is refused when the origin still serves the actor', async () => {
             await storeGoneActor();

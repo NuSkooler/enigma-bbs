@@ -1247,9 +1247,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     //
     //  A Delete of an actor whose key could not be fetched (#964 review):
     //  nothing signed it that we can check, so ask the actor's own origin.
-    //  Only a 404 or 410 from the actor's host, for the actor's own id, says
-    //  the actor is gone; then its local state alone is removed: the cached
-    //  actor and its entries in local follow lists.
+    //  Only a 410 Gone from the actor's host, for the actor's own id, says
+    //  the actor is gone, as in Mastodon; a 404 can be transient. Then its
+    //  local state alone is removed: the cached actor and its entries in
+    //  local follow lists.
     //
     _inboxDeleteGoneActor(inboxType, resp, actorId) {
         HttpUtil.getJson(
@@ -1258,7 +1259,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             err => {
                 const gone =
                     err &&
-                    [404, 410].includes(err.statusCode) &&
+                    err.statusCode === 410 &&
                     sameHost(err.responseUrl || actorId, actorId);
                 if (!gone) {
                     this.log.warn(
