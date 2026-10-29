@@ -1524,6 +1524,122 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             assert.equal(cachedJson(VICTIM).id, VICTIM, 'and cached again');
         });
 
+        describe('a new public post', function () {
+            const Activity = require('../core/activitypub/activity.js');
+            let savedSendTo;
+            let savedFromLocal;
+            let sent;
+
+            beforeEach(() => {
+                sent = [];
+                savedSendTo = Activity.prototype.sendTo;
+                Activity.prototype.sendTo = function (inbox, fromUser, cb) {
+                    sent.push({ inbox, type: this.type });
+                    return cb(null, '', { statusCode: 202 });
+                };
+                savedFromLocal = Note.fromLocalMessage;
+                Note.fromLocalMessage = (message, webServer, cb) =>
+                    cb(null, {
+                        note: new Note({
+                            id: 'https://test.example.com/_enig/ap/n1/note',
+                            type: 'Note',
+                            attributedTo: 'https://test.example.com/_enig/ap/users/bob',
+                            content: 'hi',
+                        }),
+                        fromUser: bob,
+                        context: 'https://test.example.com/_enig/ap/c1',
+                    });
+            });
+            afterEach(() => {
+                Activity.prototype.sendTo = savedSendTo;
+                Note.fromLocalMessage = savedFromLocal;
+            });
+
+            function exportPost(toUserName = 'All') {
+                const Scanner =
+                    require('../core/scanner_tossers/activitypub.js').getModule;
+                const scanner = Object.create(Scanner.prototype);
+                const noop = () => {};
+                scanner.log = {
+                    trace: noop,
+                    debug: noop,
+                    info: noop,
+                    warn: noop,
+                    error: noop,
+                };
+                scanner._webServer = () => ({});
+                scanner.record({
+                    areaTag: Message.WellKnownAreaTags.ActivityPubShared,
+                    toUserName,
+                    uuid: 'a2a3c3a6-0000-4000-8000-000000000965',
+                    isPrivate: () => false,
+                    getAddressFlavor: () => null,
+                    persistMetaValue: (category, name, value, cb) => cb(null),
+                });
+            }
+
+            it('does not send twice to an addressed actor who is also a late follower', async () => {
+                const late = 'https://late.example/users/lee';
+                await addFollower(late);
+                served.set(late, { doc: actorDoc(late) });
+                served.set('webfinger:@lee@late.example', {
+                    json: {
+                        subject: 'acct:lee@late.example',
+                        links: [
+                            {
+                                rel: 'self',
+                                type: 'application/activity+json',
+                                href: late,
+                            },
+                        ],
+                    },
+                    answeredBy: 'https://late.example/.well-known/webfinger',
+                });
+
+                exportPost('@lee@late.example');
+                await settle();
+                await settle();
+
+                const creates = sent.filter(s => s.type === 'Create').map(s => s.inbox);
+                assert.deepEqual(creates, [`${late}/inbox`]);
+            });
+
+            it('reaches a follower resolved late exactly once, and a cached one once', async () => {
+                const late = 'https://late.example/users/lee';
+                const lou = 'https://late.example/users/lou';
+                const lateShared = {
+                    endpoints: { sharedInbox: 'https://late.example/inbox' },
+                };
+                await addFollower(VICTIM);
+                await addCached(VICTIM, `${GOOD}/inbox`);
+                //  two late followers on one server
+                await addFollower(late);
+                served.set(late, { doc: actorDoc(late, {}, lateShared) });
+                await addFollower(lou);
+                served.set(lou, { doc: actorDoc(lou, {}, lateShared) });
+                //  a second late follower whose shared inbox is a cached one's
+                const sibling = `${GOOD}/users/sib`;
+                await addFollower(sibling);
+                served.set(sibling, {
+                    doc: actorDoc(
+                        sibling,
+                        {},
+                        { endpoints: { sharedInbox: `${GOOD}/inbox` } }
+                    ),
+                });
+
+                exportPost();
+                await settle();
+                await settle();
+
+                const creates = sent.filter(s => s.type === 'Create').map(s => s.inbox);
+                assert.deepEqual(
+                    creates.sort(),
+                    [`${GOOD}/inbox`, 'https://late.example/inbox'].sort()
+                );
+            });
+        });
+
         it("uses a follower's own inbox when it has no sharedInbox", async () => {
             const solo = 'https://solo.example/users/sam';
             await addFollower(solo);
