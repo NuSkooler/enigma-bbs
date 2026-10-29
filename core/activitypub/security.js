@@ -445,3 +445,57 @@ function verifySignerOwnsObject(signerId, ownerIds, activityActorId) {
     return null;
 }
 exports.verifySignerOwnsObject = verifySignerOwnsObject;
+
+//
+//  True when both URLs have the same host (hostname and port). Unlike
+//  hostsMatch(), a different port is a different host.
+//
+function sameHost(urlA, urlB) {
+    try {
+        return new URL(urlA).host === new URL(urlB).host;
+    } catch {
+        return false;
+    }
+}
+exports.sameHost = sameHost;
+
+//
+//  May |doc|, fetched for |requestedUrl|, be taken (and cached) as that actor?
+//  An actor is cached under the id inside the document, so a document must
+//  not be able to name an actor it was not fetched from: otherwise a server
+//  could serve another server's actor id with its own key, and later
+//  signatures "from" that actor would verify with it.
+//
+//  requestedUrl — the URL asked for
+//  fetchedUrl   — the URL that answered, after any redirects
+//  keyId        — when resolving a signature's keyId: the keyId itself
+//
+//  The id must equal the URL asked for, from the same host that answered. The
+//  one exception is a keyId fetch, where some servers answer the key URL with
+//  the owning actor: a different id is accepted when it is on the host that
+//  answered and the document's publicKey.id is that keyId.
+//
+//  Returns null when acceptable, or a reason string.
+//
+function verifyFetchedActorId(doc, requestedUrl, fetchedUrl, keyId) {
+    const docId = doc && doc.id;
+    if (typeof docId !== 'string' || docId.length === 0) {
+        return 'The fetched actor has no id';
+    }
+    if (!sameHost(fetchedUrl || requestedUrl, requestedUrl)) {
+        return `The actor fetch for ${requestedUrl} was redirected to another host`;
+    }
+    if (docId === requestedUrl) {
+        return null;
+    }
+    if (
+        keyId &&
+        sameHost(docId, fetchedUrl || requestedUrl) &&
+        doc.publicKey &&
+        doc.publicKey.id === keyId
+    ) {
+        return null;
+    }
+    return `The fetched actor id ${docId} does not match ${requestedUrl}`;
+}
+exports.verifyFetchedActorId = verifyFetchedActorId;

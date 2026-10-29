@@ -7,7 +7,12 @@ const UserProps = require('../user_property');
 const Endpoints = require('./endpoint');
 const { userNameFromSubject, isValidLink } = require('./util');
 const Log = require('../logger').log;
-const { queryWebFinger } = require('../webfinger');
+const Logger = require('../logger');
+
+//  Logger.log is set at startup; read it when logging, not at require time
+const warnLog = (obj, msg) => Logger.log && Logger.log.warn(obj, msg);
+//  called through the module objects, so tests can stand in for the network
+const WebFinger = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
 const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
@@ -19,10 +24,11 @@ const { stripAllControlCodes } = require('../string_util');
 const _ = require('lodash');
 const { encode } = require('html-entities');
 const mimeTypes = require('mime-types');
-const { getJson } = require('../http_util.js');
+const HttpUtil = require('../http_util.js');
 const moment = require('moment');
 const paths = require('path');
 const Collection = require('./collection.js');
+const { actorIdFromKeyId, sameHost, verifyFetchedActorId } = require('./security.js');
 
 const ActorCacheExpiration = moment.duration(15, 'days');
 const ActorCacheMaxAgeDays = 125; // hasn't been used in >= 125 days, nuke it.
@@ -207,6 +213,21 @@ module.exports = class Actor extends ActivityPubObject {
             fromUser = null;
         }
 
+        return Actor._fromIdOrKeyId(id, null, fromUser, cb);
+    }
+
+    //  The actor that owns an HTTP signature's |keyId|. Fetches the actor id
+    //  derived from the keyId; a server that answers with an actor of another
+    //  id is accepted only under verifyFetchedActorId()'s keyId rule.
+    static fromKeyId(keyId, cb) {
+        const id = actorIdFromKeyId(keyId);
+        if (!id) {
+            return cb(Errors.Invalid(`Invalid keyId "${keyId}"`));
+        }
+        return Actor._fromIdOrKeyId(id, keyId, null, cb);
+    }
+
+    static _fromIdOrKeyId(id, keyId, fromUser, cb) {
         let delivered = false;
         const callback = (e, a, s) => {
             if (!delivered) {
@@ -230,7 +251,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             //  Cache miss or needs refreshed; Try to do so now
-            Actor._fromWebFinger(id, fromUser, (err, actor, subject) => {
+            Actor._fromWebFinger(id, fromUser, keyId, (err, actor, subject) => {
                 if (err) {
                     return callback(err);
                 }
@@ -274,7 +295,7 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
-    static _fromRemoteQuery(id, fromUser, cb) {
+    static _fromRemoteQuery(id, fromUser, keyId, cb) {
         const reqOpts = {
             headers: {
                 Accept: ActivityStreamMediaType,
@@ -298,7 +319,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
         }
 
-        getJson(
+        HttpUtil.getJson(
             id,
             {
                 ...reqOpts,
@@ -309,9 +330,21 @@ module.exports = class Actor extends ActivityPubObject {
                     'application/ld+json',
                 ],
             },
-            (err, actor) => {
+            (err, actor, res) => {
                 if (err) {
                     return cb(err);
+                }
+
+                //  signed GETs do not follow redirects; follow-redirects sets
+                //  responseUrl to where an unsigned one ended up
+                const fetchedUrl = (res && res.responseUrl) || id;
+                const reason = verifyFetchedActorId(actor, id, fetchedUrl, keyId);
+                if (reason) {
+                    warnLog(
+                        { requestedUrl: id, fetchedUrl, actorId: actor && actor.id },
+                        `Refusing fetched Actor: ${reason}`
+                    );
+                    return cb(Errors.ValidationFailed(reason));
                 }
 
                 actor = new Actor(actor);
@@ -344,8 +377,8 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
-    static _fromWebFinger(actorQuery, fromUser, cb) {
-        queryWebFinger(actorQuery, (err, res) => {
+    static _fromWebFinger(actorQuery, fromUser, keyId, cb) {
+        WebFinger.queryWebFinger(actorQuery, (err, res, answeredBy) => {
             if (err) {
                 return cb(err);
             }
@@ -366,10 +399,30 @@ module.exports = class Actor extends ActivityPubObject {
                 );
             }
 
+            //  The host that answered speaks for its own actors only. A
+            //  query redirected by the queried host (split domain setups)
+            //  answers for the host it was sent to.
+            if (!answeredBy || !sameHost(activityLink.href, answeredBy)) {
+                warnLog(
+                    { actorQuery, href: activityLink.href, answeredBy },
+                    'Refusing WebFinger link to an actor on another host'
+                );
+                return cb(
+                    Errors.ValidationFailed(
+                        `WebFinger for "${actorQuery}" links to an actor on another host`
+                    )
+                );
+            }
+
             // we can now query the href value for an Actor
-            return Actor._fromRemoteQuery(activityLink.href, fromUser, (err, actor) => {
-                return cb(err, actor, res.subject);
-            });
+            return Actor._fromRemoteQuery(
+                activityLink.href,
+                fromUser,
+                keyId,
+                (err, actor) => {
+                    return cb(err, actor, res.subject);
+                }
+            );
         });
     }
 };

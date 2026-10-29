@@ -50,6 +50,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none. The old index is kept until the new one is committed, so make sure there is free disk space for a new search index while it runs. The free space for a second copy of the message table, above, is for the #958 table rebuild only.
 
+* **The ActivityPub actor cache is emptied once, at the first start.** Cached remote actors could have been planted by another server, and such an entry cannot be told from a genuine one, so the `actors` collection in `db/activitypub.sqlite3` is cleared once and actors are fetched again as they are needed. Follower and following lists, posts and reactions are not touched. The log shows `Purging the ActivityPub actor cache` and `Purged the ActivityPub actor cache`; 50,000 cached actors took under a second.
+
+  **Action:** none. Expect a little more outbound fetching for a while after the upgrade.
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.

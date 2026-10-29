@@ -289,7 +289,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _getAssociatedActors(objectActorId, signatureActorId, cb) {
+    _getAssociatedActors(objectActorId, keyId, cb) {
+        const signatureActorId = actorIdFromKeyId(keyId);
         async.waterfall(
             [
                 callback => {
@@ -303,7 +304,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return callback(null, objectActor, objectActor);
                     }
 
-                    Actor.fromId(signatureActorId, (err, signatureActor) => {
+                    //  by keyId, so a key URL answered with its owning actor
+                    //  is checked against that keyId
+                    Actor.fromKeyId(keyId, (err, signatureActor) => {
                         if (err) {
                             return callback(err);
                         }
@@ -400,7 +403,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             //  Fetch and validate the signature of the remote Actor
             this._getAssociatedActors(
                 getActorId(activity),
-                sigActorId,
+                signature.keyId,
                 (err, remoteActor, signatureActor) => {
                     if (err) {
                         //  For Delete activities the remote actor may have already been
@@ -469,6 +472,26 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         domainVerifiedOnly: false,
                         signerId,
                     };
+
+                    //  An activity speaks for its actor, so the actor must be
+                    //  the signer: a Like, Follow or Announce is recorded for
+                    //  activity.actor. Create is not bound here; a forwarded
+                    //  reply arrives signed by the server forwarding it.
+                    if (
+                        activity.type !== WellKnownActivity.Create &&
+                        getActorId(activity) !== signerId
+                    ) {
+                        this.log.warn(
+                            {
+                                activityType: activity.type,
+                                actorId: getActorId(activity),
+                                signerId,
+                                inboxType,
+                            },
+                            'Activity actor is not the signing actor — access denied'
+                        );
+                        return this.webServer.accessDenied(resp);
+                    }
 
                     switch (activity.type) {
                         case WellKnownActivity.Accept:

@@ -26,6 +26,7 @@ exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
 exports.initMessageDatabase = initMessageDatabase;
 exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
 exports.migrateMessageFtsRebuild = migrateMessageFtsRebuild;
+exports.migrateActivityPubActorCachePurge = migrateActivityPubActorCachePurge;
 
 exports.dbs = dbs;
 
@@ -350,6 +351,7 @@ function initMessageDatabase(db) {
 
 //  A failed or refused migration leaves startup going on the old schema, so a
 //  sysop who never reads the log would not know: say it on the console too.
+//  (Used for the activitypub database's migrations as well.)
 function reportMessageDbFailure(fields, message) {
     if (Logger.log) {
         Logger.log.error(fields, message);
@@ -628,6 +630,95 @@ function migrateMessageFtsRebuild(db) {
         log.info(
             { rowCount: result.rowCount, durationMs: Date.now() - startedAt },
             'Rebuilt the message search index'
+        );
+    }
+}
+
+//
+//  activitypub.sqlite3 schema versions, kept in PRAGMA user_version:
+//    1: collection_fts reads sharedInbox/outbox text from $.object (above)
+//    2: the actor cache was purged once
+//
+const AP_DB_VERSION_ACTOR_CACHE_PURGED = 2;
+
+//
+//  One-time migration: empty the cache of remote actors (the 'actors'
+//  collection). Until #964's review, a fetched actor was cached under the id
+//  inside the fetched document, whatever URL it came from, so a cached
+//  actor's key may have been planted by another server. Such an entry cannot
+//  be told apart from a genuine one, so all of them go; Actor.fromId()
+//  fetches each again when it is next needed, and the cache maintenance task
+//  already drops entries by age.
+//
+//  Only the cache is removed. Followers and Following keep their own copy of
+//  each actor, and note_reactions holds actor ids only.
+//
+function migrateActivityPubActorCachePurge(db) {
+    if (db.pragma('user_version', { simple: true }) !== 1) {
+        return;
+    }
+
+    const count = () =>
+        db.prepare(`SELECT COUNT(*) AS n FROM collection WHERE name = 'actors';`).get().n;
+
+    //  nothing cached (a new database): only record the version
+    if (count() === 0) {
+        db.pragma(`user_version = ${AP_DB_VERSION_ACTOR_CACHE_PURGED}`);
+        return;
+    }
+
+    if (db.inTransaction) {
+        reportMessageDbFailure(
+            {},
+            'Not purging the ActivityPub actor cache inside an open transaction; it will be tried again at the next start'
+        );
+        return;
+    }
+
+    const log = Logger.log;
+    const rowCount = count();
+    if (log) {
+        log.info(
+            { rowCount },
+            'Purging the ActivityPub actor cache once; remote actors are fetched again when next needed'
+        );
+    }
+
+    const startedAt = Date.now();
+    let result;
+    try {
+        result = db
+            .transaction(() => {
+                //  another process may have got here first
+                if (db.pragma('user_version', { simple: true }) !== 1) {
+                    return null;
+                }
+                const meta = db
+                    .prepare(`DELETE FROM collection_object_meta WHERE name = 'actors';`)
+                    .run().changes;
+                const actors = db
+                    .prepare(`DELETE FROM collection WHERE name = 'actors';`)
+                    .run().changes;
+                db.pragma(`user_version = ${AP_DB_VERSION_ACTOR_CACHE_PURGED}`);
+                return { actors, meta };
+            })
+            .immediate();
+    } catch (err) {
+        reportMessageDbFailure(
+            { error: err.message, rowCount },
+            'Purging the ActivityPub actor cache failed; it is unchanged, and the purge will be tried again at the next start'
+        );
+        return;
+    }
+
+    if (result && log) {
+        log.info(
+            {
+                actors: result.actors,
+                meta: result.meta,
+                durationMs: Date.now() - startedAt,
+            },
+            'Purged the ActivityPub actor cache'
         );
     }
 }
@@ -1222,6 +1313,8 @@ const DB_INIT_TABLE = {
             `);
             dbs.activitypub.pragma('user_version = 1');
         }
+
+        migrateActivityPubActorCachePurge(dbs.activitypub);
 
         //
         //  One-time migration: backfill note_reactions from legacy meta-based storage.

@@ -65,16 +65,18 @@ function queryWebFinger(query, cb) {
                     )
                 );
             }
-            return next(null, json);
+            //  the URL that answered, after any redirects (follow-redirects
+            //  sets responseUrl): callers check links against its host
+            return next(null, json, res.responseUrl || url);
         });
     };
 
     //  Try HTTPS first (required by the WebFinger spec). If the connection is
     //  refused fall back to HTTP — useful for local dev servers (e.g. GoToSocial
     //  running without TLS) and instances behind a plain-HTTP proxy.
-    tryFetch('https', (err, json) => {
+    tryFetch('https', (err, json, answeredBy) => {
         if (!err) {
-            return cb(null, json);
+            return cb(null, json, answeredBy);
         }
         if (!['ECONNREFUSED', 'ECONNRESET', 'EPROTO'].includes(err.code)) {
             return cb(err);

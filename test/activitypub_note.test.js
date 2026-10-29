@@ -54,6 +54,7 @@ delete require.cache[require.resolve('../core/activitypub/endpoint.js')];
 delete require.cache[require.resolve('../core/activitypub/object.js')];
 delete require.cache[require.resolve('../core/activitypub/collection.js')];
 delete require.cache[require.resolve('../core/message.js')];
+delete require.cache[require.resolve('../core/activitypub/actor.js')];
 delete require.cache[require.resolve('../core/activitypub/note.js')];
 delete require.cache[
     require.resolve('../core/servers/content/web_handlers/activitypub.js')
@@ -66,8 +67,9 @@ const Collection = require('../core/activitypub/collection.js');
 const ActivityPubWebHandler =
     require('../core/servers/content/web_handlers/activitypub.js').getModule;
 
-//  the real one; beforeEach below stubs it
+//  the real ones; beforeEach below stubs them
 const realFindMessages = Message.findMessages;
+const realActorFromId = Actor.fromId;
 
 // ─── schema ───────────────────────────────────────────────────────────────────
 
@@ -750,16 +752,23 @@ describe('ActivityPub inbox: Update and Delete only from the object owner', func
         const { Readable } = require('stream');
 
         //  Runs _inboxPostHandler for |activity| signed with |keyId|, with the
-        //  actor fetches and the signature check stubbed, and returns the
-        //  auth the Update handler was given.
+        //  actor fetches and the signature check stubbed. Resolves with the
+        //  handler it dispatched to and the auth it passed, or the response.
         function dispatch(activity, keyId, signatureActorId) {
             const { handler } = makeHandler();
-            handler._getAssociatedActors = (objectActorId, sigActorId, cb) =>
+            handler._getAssociatedActors = (objectActorId, sigKeyId, cb) =>
                 cb(null, { id: objectActorId }, { id: signatureActorId });
             handler._validateActorSignature = () => true;
             return new Promise(resolve => {
+                for (const name of Object.keys(handler.webServer)) {
+                    handler.webServer[name] = () => resolve({ response: name });
+                }
                 handler._inboxUpdateExistingObject = (inboxType, resp, act, auth) =>
-                    resolve(auth);
+                    resolve({ handled: 'Update', auth });
+                handler._inboxLikeActivity = () => resolve({ handled: 'Like' });
+                handler._inboxFollowActivity = () => resolve({ handled: 'Follow' });
+                handler._inboxAnnounceActivity = () => resolve({ handled: 'Announce' });
+                handler._inboxCreateActivity = () => resolve({ handled: 'Create' });
                 const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
                 req.headers = {};
                 req.url = '/_enig/ap/sharedInbox';
@@ -768,23 +777,73 @@ describe('ActivityPub inbox: Update and Delete only from the object owner', func
             });
         }
 
-        it('passes the signing actor on, not activity.actor', async () => {
-            const auth = await dispatch(
+        const activityBy = (type, actor, object) => ({
+            id: `https://remote.example.com/activities/${type.toLowerCase()}-x`,
+            type,
+            actor,
+            object,
+        });
+
+        it('passes the signing actor on to the handler', async () => {
+            const result = await dispatch(
+                updateActivity({ actor: OTHER }),
+                `${OTHER}#main-key`,
+                OTHER
+            );
+            assert.equal(result.handled, 'Update');
+            assert.equal(result.auth.httpSigValidated, true);
+            assert.equal(result.auth.signerId, OTHER);
+        });
+
+        it('refuses an activity whose actor is not the signer', async () => {
+            const result = await dispatch(
                 updateActivity({ actor: OWNER }),
                 `${OTHER}#main-key`,
                 OTHER
             );
-            assert.equal(auth.httpSigValidated, true);
-            assert.equal(auth.signerId, OTHER);
+            assert.deepEqual(result, { response: 'accessDenied' });
         });
 
-        it("passes no signer when the signing actor's id is off the keyId's host", async () => {
-            const auth = await dispatch(
+        it("refuses when the signing actor's id is off the keyId's host", async () => {
+            const result = await dispatch(
                 updateActivity({ actor: OWNER }),
                 `${OWNER}#main-key`,
                 'https://elsewhere.example/users/alice'
             );
-            assert.equal(auth.signerId, null);
+            assert.deepEqual(result, { response: 'accessDenied' });
+        });
+
+        for (const [type, object] of [
+            ['Like', NOTE_ID],
+            ['Follow', 'https://test.example.com/_enig/ap/users/bob'],
+            ['Announce', NOTE_ID],
+        ]) {
+            it(`refuses a ${type} whose actor is not the signer`, async () => {
+                const result = await dispatch(
+                    activityBy(type, OWNER, object),
+                    `${OTHER}#main-key`,
+                    OTHER
+                );
+                assert.deepEqual(result, { response: 'accessDenied' });
+            });
+
+            it(`passes a ${type} signed by its actor`, async () => {
+                const result = await dispatch(
+                    activityBy(type, OWNER, object),
+                    `${OWNER}#main-key`,
+                    OWNER
+                );
+                assert.deepEqual(result, { handled: type });
+            });
+        }
+
+        it('still passes a Create whose actor is not the signer (a forwarded reply)', async () => {
+            const result = await dispatch(
+                activityBy('Create', OWNER, noteJson()),
+                `${OTHER}#main-key`,
+                OTHER
+            );
+            assert.deepEqual(result, { handled: 'Create' });
         });
     });
 
@@ -926,6 +985,404 @@ describe('ActivityPub inbox: Update and Delete only from the object owner', func
             );
             assert.deepEqual(responses, ['accessDenied']);
         });
+    });
+});
+
+// ─── Fetched actors must be the actor at the URL fetched (#964 review) ────────
+//
+//  An actor is cached under the id inside the fetched document. A document
+//  that names an actor it was not fetched from must be refused, or its key
+//  replaces the real actor's in the cache.
+
+describe('Actor fetch: the id must belong to the URL fetched', function () {
+    const crypto = require('crypto');
+    const { Readable } = require('stream');
+    const HttpUtil = require('../core/http_util.js');
+    const WebFinger = require('../core/webfinger.js');
+
+    const GOOD = 'https://good.example';
+    const VICTIM = `${GOOD}/users/alice`;
+    const EVIL = 'https://evil.example/actor';
+    const NOTE = `${GOOD}/notes/1`;
+    const CREATE = `${GOOD}/activities/create-1`;
+
+    const pem = key => key.export({ type: 'spki', format: 'pem' });
+    const realKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const attackerKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+
+    const actorDoc = (id, publicKey, overrides = {}) =>
+        Object.assign(
+            {
+                '@context': 'https://www.w3.org/ns/activitystreams',
+                id,
+                type: 'Person',
+                inbox: `${id}/inbox`,
+                publicKey: Object.assign(
+                    {
+                        id: `${id}#main-key`,
+                        owner: id,
+                        publicKeyPem: pem(realKey.publicKey),
+                    },
+                    publicKey
+                ),
+            },
+            overrides
+        );
+
+    //  url -> { doc, responseUrl } served by the stand-in network
+    let served;
+    let fetched;
+    let savedGetJson;
+    let savedWebFinger;
+
+    beforeEach(() => {
+        Actor.fromId = realActorFromId;
+        Message.findMessages = realFindMessages;
+        served = new Map();
+        fetched = [];
+
+        savedGetJson = HttpUtil.getJson;
+        HttpUtil.getJson = (url, opts, cb) => {
+            fetched.push(url);
+            const hit = served.get(url);
+            if (!hit) {
+                return cb(new Error(`not found: ${url}`));
+            }
+            return cb(null, JSON.parse(JSON.stringify(hit.doc)), {
+                statusCode: 200,
+                headers: { 'content-type': 'application/activity+json' },
+                responseUrl: hit.responseUrl || url,
+            });
+        };
+
+        //  WebFinger on a URL answers with that URL, from the URL's host,
+        //  unless a test sets its own answer
+        savedWebFinger = WebFinger.queryWebFinger;
+        WebFinger.queryWebFinger = (query, cb) => {
+            const answer = served.get(`webfinger:${query}`);
+            if (answer) {
+                return cb(null, answer.json, answer.answeredBy);
+            }
+            let host;
+            try {
+                host = new URL(query).origin;
+            } catch {
+                return cb(new Error(`no WebFinger for ${query}`));
+            }
+            return cb(
+                null,
+                {
+                    subject: query,
+                    links: [
+                        { rel: 'self', type: 'application/activity+json', href: query },
+                    ],
+                },
+                `${host}/.well-known/webfinger?resource=${encodeURIComponent(query)}`
+            );
+        };
+    });
+
+    afterEach(() => {
+        HttpUtil.getJson = savedGetJson;
+        WebFinger.queryWebFinger = savedWebFinger;
+    });
+
+    const fromId = id =>
+        new Promise(resolve => Actor.fromId(id, (err, actor) => resolve({ err, actor })));
+    const fromKeyId = keyId =>
+        new Promise(resolve =>
+            Actor.fromKeyId(keyId, (err, actor) => resolve({ err, actor }))
+        );
+    const cachedJson = id => {
+        const row = _apDb
+            .prepare(
+                `SELECT object_json FROM collection WHERE name = 'actors' AND object_id = ?;`
+            )
+            .get(id);
+        return row && JSON.parse(row.object_json);
+    };
+
+    it('refuses a document whose id is not the URL fetched, and does not cache it', async () => {
+        served.set(EVIL, {
+            doc: actorDoc(VICTIM, { publicKeyPem: pem(attackerKey.publicKey) }),
+        });
+
+        const { err } = await fromId(EVIL);
+
+        assert.ok(err, 'refused');
+        assert.equal(cachedJson(VICTIM), undefined);
+    });
+
+    it('fetches and caches a genuine actor', async () => {
+        const bob = `${GOOD}/users/bob`;
+        served.set(bob, { doc: actorDoc(bob) });
+
+        const { err, actor } = await fromId(bob);
+
+        assert.ifError(err);
+        assert.equal(actor.id, bob);
+        assert.equal(cachedJson(bob).id, bob);
+    });
+
+    it('resolves a #main-key keyId', async () => {
+        const carol = `${GOOD}/users/carol`;
+        served.set(carol, { doc: actorDoc(carol) });
+        const { err, actor } = await fromKeyId(`${carol}#main-key`);
+        assert.ifError(err);
+        assert.equal(actor.id, carol);
+    });
+
+    it('resolves a /main-key keyId', async () => {
+        const dave = `${GOOD}/users/dave`;
+        served.set(dave, { doc: actorDoc(dave, { id: `${dave}/main-key` }) });
+        const { err, actor } = await fromKeyId(`${dave}/main-key`);
+        assert.ifError(err);
+        assert.equal(actor.id, dave);
+    });
+
+    it('accepts a key URL answered with its owning actor on the same host', async () => {
+        const erin = `${GOOD}/users/erin`;
+        const keyId = `${GOOD}/ap/key/erin`;
+        served.set(keyId, { doc: actorDoc(erin, { id: keyId }) });
+
+        const { err, actor } = await fromKeyId(keyId);
+
+        assert.ifError(err);
+        assert.equal(actor.id, erin);
+        assert.equal(cachedJson(erin).publicKey.id, keyId, 'cached under its own id');
+    });
+
+    it('refuses a key URL answered with an actor whose key is another key', async () => {
+        const keyId = `${GOOD}/ap/key/frank`;
+        served.set(keyId, { doc: actorDoc(`${GOOD}/users/frank`) });
+        const { err } = await fromKeyId(keyId);
+        assert.ok(err);
+        assert.equal(cachedJson(`${GOOD}/users/frank`), undefined);
+    });
+
+    it('refuses a key URL answered with an actor on another host', async () => {
+        const keyId = 'https://evil.example/ap/key/x';
+        served.set(keyId, { doc: actorDoc(VICTIM, { id: keyId }) });
+        const { err } = await fromKeyId(keyId);
+        assert.ok(err);
+        assert.equal(cachedJson(VICTIM), undefined);
+    });
+
+    it('refuses an actor fetch redirected to another host', async () => {
+        const gina = `${GOOD}/users/gina`;
+        served.set(gina, {
+            doc: actorDoc(gina),
+            responseUrl: 'https://evil.example/gina',
+        });
+        const { err } = await fromId(gina);
+        assert.ok(err);
+        assert.equal(cachedJson(gina), undefined);
+    });
+
+    it('refuses a WebFinger link to an actor on another host', async () => {
+        served.set('webfinger:@alice@good.example', {
+            json: {
+                subject: 'acct:alice@good.example',
+                links: [{ rel: 'self', type: 'application/activity+json', href: EVIL }],
+            },
+            answeredBy: `${GOOD}/.well-known/webfinger?resource=acct%3Aalice%40good.example`,
+        });
+        served.set(EVIL, { doc: actorDoc(EVIL) });
+
+        const { err } = await fromId('@alice@good.example');
+
+        assert.ok(err);
+        assert.ok(!fetched.includes(EVIL), 'the off-host actor is never fetched');
+    });
+
+    it('follows a WebFinger link on the host the query was redirected to', async () => {
+        const social = 'https://social.good.example/users/hana';
+        served.set('webfinger:@hana@good.example', {
+            json: {
+                subject: 'acct:hana@good.example',
+                links: [{ rel: 'self', type: 'application/activity+json', href: social }],
+            },
+            answeredBy:
+                'https://social.good.example/.well-known/webfinger?resource=acct%3Ahana%40good.example',
+        });
+        served.set(social, { doc: actorDoc(social) });
+
+        const { err, actor } = await fromId('@hana@good.example');
+
+        assert.ifError(err);
+        assert.equal(actor.id, social);
+    });
+
+    describe('the inbox, end to end', function () {
+        const noteJson = content => ({
+            id: NOTE,
+            type: 'Note',
+            attributedTo: VICTIM,
+            content,
+            published: '2026-04-12T12:00:00Z',
+            to: ['https://www.w3.org/ns/activitystreams#Public'],
+        });
+
+        function signedRequest(activity, keyId, privateKey) {
+            const body = Buffer.from(JSON.stringify(activity));
+            const date = new Date().toUTCString();
+            const digest =
+                'SHA-256=' + crypto.createHash('sha256').update(body).digest('base64');
+            const host = 'test.example.com';
+            const path = '/_enig/ap/sharedInbox';
+            const signingString = `(request-target): post ${path}\nhost: ${host}\ndate: ${date}\ndigest: ${digest}`;
+            const sig = crypto
+                .sign('sha256', Buffer.from(signingString), privateKey)
+                .toString('base64');
+            const req = Readable.from([body]);
+            req.headers = {
+                host,
+                date,
+                digest,
+                authorization: `Signature keyId="${keyId}",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${sig}"`,
+            };
+            req.url = path;
+            req.method = 'POST';
+            return req;
+        }
+
+        function post(activity, keyId, privateKey) {
+            const handler = new ActivityPubWebHandler();
+            const noop = () => {};
+            handler.log = {
+                trace: noop,
+                debug: noop,
+                info: noop,
+                warn: noop,
+                error: noop,
+            };
+            handler.sysLog = handler.log;
+            return new Promise(resolve => {
+                const respond = name => () => resolve(name);
+                handler.webServer = {
+                    accepted: respond('accepted'),
+                    accessDenied: respond('accessDenied'),
+                    resourceNotFound: respond('resourceNotFound'),
+                    badRequest: respond('badRequest'),
+                    notImplemented: respond('notImplemented'),
+                    internalServerError: respond('internalServerError'),
+                };
+                const req = signedRequest(activity, keyId, privateKey);
+                const signature = handler._parseAndValidateSignature(req);
+                assert.ok(signature, 'the test request parses');
+                handler._inboxPostHandler(req, {}, signature, 'sharedInbox');
+            });
+        }
+
+        it('a planted actor document cannot take over a cached actor', async () => {
+            //  Alice's post, and Alice cached with her real key
+            await new Promise((resolve, reject) =>
+                Collection.addSharedInboxItem(
+                    {
+                        id: CREATE,
+                        type: 'Create',
+                        actor: VICTIM,
+                        object: noteJson('<p>victim original</p>'),
+                    },
+                    true,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+            await new Promise((resolve, reject) =>
+                Collection.addActor(actorDoc(VICTIM), '@alice@good.example', err =>
+                    err ? reject(err) : resolve()
+                )
+            );
+            const msg = await toMessage(new Note(noteJson('<p>victim original</p>')), {
+                activityId: CREATE,
+            });
+            await new Promise((resolve, reject) =>
+                msg.persist(err => (err ? reject(err) : resolve()))
+            );
+
+            //  a document served from another host claims to be Alice
+            served.set(EVIL, {
+                doc: actorDoc(VICTIM, { publicKeyPem: pem(attackerKey.publicKey) }),
+            });
+            await post(
+                {
+                    id: 'https://evil.example/activities/1',
+                    type: 'Update',
+                    actor: EVIL,
+                    object: noteJson('<p>x</p>'),
+                },
+                `${EVIL}#main-key`,
+                attackerKey.privateKey
+            );
+            assert.equal(
+                cachedJson(VICTIM).publicKey.publicKeyPem,
+                pem(realKey.publicKey),
+                'the cache keeps the real key'
+            );
+
+            //  so requests signed with the planted key do not pass as Alice's
+            const update = await post(
+                {
+                    id: `${GOOD}/activities/u1`,
+                    type: 'Update',
+                    actor: VICTIM,
+                    object: noteJson('<p>HIJACKED</p>'),
+                },
+                `${VICTIM}#main-key`,
+                attackerKey.privateKey
+            );
+            const del = await post(
+                {
+                    id: `${GOOD}/activities/d1`,
+                    type: 'Delete',
+                    actor: VICTIM,
+                    object: { id: NOTE, type: 'Tombstone' },
+                },
+                `${VICTIM}#main-key`,
+                attackerKey.privateKey
+            );
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            assert.equal(update, 'accessDenied');
+            assert.equal(del, 'accessDenied');
+            const rows = _msgDb.prepare('SELECT message FROM message;').all();
+            assert.equal(rows.length, 1, 'the message survives');
+            assert.match(rows[0].message, /victim original/);
+        });
+    });
+});
+
+// ─── Collection.actor(): an exact match (#964 review) ─────────────────────────
+
+describe('Collection.actor() matches an id exactly', function () {
+    const ID = 'https://good.example/users/a_b';
+
+    beforeEach(
+        () =>
+            new Promise((resolve, reject) =>
+                Collection.addActor(
+                    { id: ID, type: 'Person', inbox: `${ID}/inbox` },
+                    '@a_b@good.example',
+                    err => (err ? reject(err) : resolve())
+                )
+            )
+    );
+
+    const lookup = q =>
+        new Promise(resolve =>
+            Collection.actor(q, (err, actor) => resolve({ err, actor }))
+        );
+
+    it('finds the actor by its id and by its subject, in any case', async () => {
+        assert.equal((await lookup(ID)).actor.id, ID);
+        assert.equal((await lookup('@a_b@good.example')).actor.id, ID);
+        assert.equal((await lookup('@A_B@Good.Example')).actor.id, ID);
+    });
+
+    it('does not treat _ or % as wildcards', async () => {
+        assert.ok((await lookup('https://good.example/users/aXb')).err);
+        assert.ok((await lookup('https://good.example/users/%')).err);
+        assert.ok((await lookup('@aXb@good.example')).err);
     });
 });
 
