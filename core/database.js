@@ -25,6 +25,8 @@ exports.initializeDatabases = initializeDatabases;
 exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
 exports.initMessageDatabase = initMessageDatabase;
 exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
+exports.migrateMessageFtsRebuild = migrateMessageFtsRebuild;
+exports.migrateActivityPubActorCachePurge = migrateActivityPubActorCachePurge;
 
 exports.dbs = dbs;
 
@@ -227,8 +229,11 @@ function repairNumberTextValuesV1() {
 //  message.sqlite3 schema versions, kept in PRAGMA user_version:
 //    0: message.message_id INTEGER PRIMARY KEY (an ID could be handed out again)
 //    1: message.message_id INTEGER PRIMARY KEY AUTOINCREMENT (#958)
+//    2: message_fts rebuilt once, dropping stale rows left by edits (#964)
 //
 const MESSAGE_DB_VERSION_AUTOINCREMENT = 1;
+const MESSAGE_DB_VERSION_FTS_REBUILD = 2;
+const MESSAGE_DB_VERSION_LATEST = MESSAGE_DB_VERSION_FTS_REBUILD;
 
 //  Columns in declaration order; the rebuild copies them by name.
 const MESSAGE_TABLE_COLUMNS = [
@@ -294,6 +299,11 @@ const MESSAGE_INDEX_AND_TRIGGERS_SQL = `
 `;
 
 function initMessageDatabase(db) {
+    //  a new database has nothing to migrate
+    const isNew = !db
+        .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'message';`)
+        .get();
+
     db.exec(`
             ${messageTableSql('message')}
 
@@ -329,7 +339,24 @@ function initMessageDatabase(db) {
             );
         `);
 
+    if (isNew) {
+        db.pragma(`user_version = ${MESSAGE_DB_VERSION_LATEST}`);
+        return;
+    }
+
+    //  in order: each one runs only from the version before it
     migrateMessageIdAutoincrement(db);
+    migrateMessageFtsRebuild(db);
+}
+
+//  A failed or refused migration leaves startup going on the old schema, so a
+//  sysop who never reads the log would not know: say it on the console too.
+//  (Used for the activitypub database's migrations as well.)
+function reportMessageDbFailure(fields, message) {
+    if (Logger.log) {
+        Logger.log.error(fields, message);
+    }
+    console.error(`${message}${fields.error ? ` (${fields.error})` : ''}`); //  eslint-disable-line no-console
 }
 
 function isAutoincrementTable(db, tableName) {
@@ -408,18 +435,8 @@ function migrateMessageIdAutoincrement(db) {
 
     const log = Logger.log;
 
-    //  Startup carries on with the old table, so a sysop who never reads the
-    //  log would not know message IDs can still be reused: say it on the
-    //  console too.
-    const reportFailure = (fields, message) => {
-        if (log) {
-            log.error(fields, message);
-        }
-        console.error(`${message}${fields.error ? ` (${fields.error})` : ''}`); //  eslint-disable-line no-console
-    };
-
     if (db.inTransaction) {
-        reportFailure(
+        reportMessageDbFailure(
             {},
             'Not upgrading the message table inside an open transaction, where foreign keys cannot be turned off; it is unchanged, and the upgrade will be tried again at the next start'
         );
@@ -519,7 +536,7 @@ function migrateMessageIdAutoincrement(db) {
             })
             .immediate();
     } catch (err) {
-        reportFailure(
+        reportMessageDbFailure(
             { error: err.message, rowCount },
             'Upgrading the message table failed; it is unchanged, and the upgrade will be tried again at the next start'
         );
@@ -539,6 +556,169 @@ function migrateMessageIdAutoincrement(db) {
                 durationMs: Date.now() - startedAt,
             },
             'Upgraded the message table: message IDs are no longer reused'
+        );
+    }
+}
+
+//
+//  One-time migration (#964): rebuild the message_fts index from the message
+//  table. Message#update() used to REPLACE an edited message, which deletes
+//  the row without firing message_before_delete (recursive_triggers is off),
+//  so every edited ActivityPub post left a stale docid behind and the FTS4
+//  index fails PRAGMA integrity_check. 'rebuild' throws the index away and
+//  builds it again from the external content table.
+//
+//  It runs only from version 1, after the #958 rebuild: at 0 that one has not
+//  run yet (or failed), and jumping past it would skip it for good. Like the
+//  #958 one it will not run inside a transaction someone else opened, who
+//  could still roll it back after user_version says it is done.
+//
+function migrateMessageFtsRebuild(db) {
+    if (
+        db.pragma('user_version', { simple: true }) !== MESSAGE_DB_VERSION_AUTOINCREMENT
+    ) {
+        return;
+    }
+
+    const log = Logger.log;
+
+    if (db.inTransaction) {
+        reportMessageDbFailure(
+            {},
+            'Not rebuilding the message search index inside an open transaction; it is unchanged, and the rebuild will be tried again at the next start'
+        );
+        return;
+    }
+
+    const rowCount = db.prepare('SELECT COUNT(*) AS n FROM message;').get().n;
+    if (log) {
+        log.info(
+            { rowCount },
+            'Rebuilding the message search index to drop entries left by edited messages (#964); this runs once and may take a while on a large message base'
+        );
+    }
+
+    const startedAt = Date.now();
+    let result;
+    try {
+        result = db
+            .transaction(() => {
+                //  another process (oputil, say) may have got here first
+                if (
+                    db.pragma('user_version', { simple: true }) !==
+                    MESSAGE_DB_VERSION_AUTOINCREMENT
+                ) {
+                    return null;
+                }
+
+                db.exec(`INSERT INTO message_fts(message_fts) VALUES('rebuild');`);
+                db.pragma(`user_version = ${MESSAGE_DB_VERSION_FTS_REBUILD}`);
+                return {
+                    rowCount: db.prepare('SELECT COUNT(*) AS n FROM message;').get().n,
+                };
+            })
+            .immediate();
+    } catch (err) {
+        reportMessageDbFailure(
+            { error: err.message, rowCount },
+            'Rebuilding the message search index failed; it is unchanged, and the rebuild will be tried again at the next start'
+        );
+        return;
+    }
+
+    if (result && log) {
+        log.info(
+            { rowCount: result.rowCount, durationMs: Date.now() - startedAt },
+            'Rebuilt the message search index'
+        );
+    }
+}
+
+//
+//  activitypub.sqlite3 schema versions, kept in PRAGMA user_version:
+//    1: collection_fts reads sharedInbox/outbox text from $.object (above)
+//    2: the actor cache was purged once
+//
+const AP_DB_VERSION_ACTOR_CACHE_PURGED = 2;
+
+//
+//  One-time migration: empty the cache of remote actors (the 'actors'
+//  collection). Until #964's review, a fetched actor was cached under the id
+//  inside the fetched document, whatever URL it came from, so a cached
+//  actor's key may have been planted by another server. Such an entry cannot
+//  be told apart from a genuine one, so all of them go; Actor.fromId()
+//  fetches each again when it is next needed, and the cache maintenance task
+//  already drops entries by age.
+//
+//  Only the cache is removed. Followers and Following keep their own copy of
+//  each actor, and note_reactions holds actor ids only.
+//
+function migrateActivityPubActorCachePurge(db) {
+    if (db.pragma('user_version', { simple: true }) !== 1) {
+        return;
+    }
+
+    const count = () =>
+        db.prepare(`SELECT COUNT(*) AS n FROM collection WHERE name = 'actors';`).get().n;
+
+    //  nothing cached (a new database): only record the version
+    if (count() === 0) {
+        db.pragma(`user_version = ${AP_DB_VERSION_ACTOR_CACHE_PURGED}`);
+        return;
+    }
+
+    if (db.inTransaction) {
+        reportMessageDbFailure(
+            {},
+            'Not purging the ActivityPub actor cache inside an open transaction; it will be tried again at the next start'
+        );
+        return;
+    }
+
+    const log = Logger.log;
+    const rowCount = count();
+    if (log) {
+        log.info(
+            { rowCount },
+            'Purging the ActivityPub actor cache once; remote actors are fetched again when next needed'
+        );
+    }
+
+    const startedAt = Date.now();
+    let result;
+    try {
+        result = db
+            .transaction(() => {
+                //  another process may have got here first
+                if (db.pragma('user_version', { simple: true }) !== 1) {
+                    return null;
+                }
+                const meta = db
+                    .prepare(`DELETE FROM collection_object_meta WHERE name = 'actors';`)
+                    .run().changes;
+                const actors = db
+                    .prepare(`DELETE FROM collection WHERE name = 'actors';`)
+                    .run().changes;
+                db.pragma(`user_version = ${AP_DB_VERSION_ACTOR_CACHE_PURGED}`);
+                return { actors, meta };
+            })
+            .immediate();
+    } catch (err) {
+        reportMessageDbFailure(
+            { error: err.message, rowCount },
+            'Purging the ActivityPub actor cache failed; it is unchanged, and the purge will be tried again at the next start'
+        );
+        return;
+    }
+
+    if (result && log) {
+        log.info(
+            {
+                actors: result.actors,
+                meta: result.meta,
+                durationMs: Date.now() - startedAt,
+            },
+            'Purged the ActivityPub actor cache'
         );
     }
 }
@@ -1133,6 +1313,8 @@ const DB_INIT_TABLE = {
             `);
             dbs.activitypub.pragma('user_version = 1');
         }
+
+        migrateActivityPubActorCachePurge(dbs.activitypub);
 
         //
         //  One-time migration: backfill note_reactions from legacy meta-based storage.

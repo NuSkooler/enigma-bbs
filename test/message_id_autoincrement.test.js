@@ -13,7 +13,12 @@ const paths = require('path');
 const Database = require('better-sqlite3');
 
 const Logger = require('../core/logger.js');
-const { initMessageDatabase, openDatabase } = require('../core/database.js');
+const {
+    initMessageDatabase,
+    openDatabase,
+    migrateMessageIdAutoincrement,
+    migrateMessageFtsRebuild,
+} = require('../core/database.js');
 
 //  The message database exactly as core/database.js created it before #958.
 const PRE_958_SCHEMA = `
@@ -195,6 +200,38 @@ function schemaObjectsOn(db, type) {
         .map(r => r[0]);
 }
 
+//  What Message#update() did before #964: REPLACE deletes the row without
+//  firing message_before_delete (recursive_triggers is off), so the old docid
+//  stays in message_fts. Returns the new message ID.
+function replaceLikeOldUpdate(db, messageId, body) {
+    const { message_uuid: uuid } = db
+        .prepare('SELECT message_uuid FROM message WHERE message_id = ?;')
+        .get(messageId);
+    const info = db
+        .prepare(
+            `REPLACE INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name,
+                from_user_name, subject, message, modified_timestamp)
+            VALUES ('general', ?, 0, 'All', 'Tester', 'Edited', ?, '2026-10-28T12:00:00.000-06:00');`
+        )
+        .run(uuid, body);
+    return Number(info.lastInsertRowid);
+}
+
+function staleFtsDocids(db) {
+    return db
+        .prepare(
+            `SELECT docid FROM message_fts_docsize
+            WHERE docid NOT IN (SELECT message_id FROM message) ORDER BY docid;`
+        )
+        .raw()
+        .all()
+        .map(r => r[0]);
+}
+
+function ftsIntegrityCheck(db) {
+    db.exec(`INSERT INTO message_fts(message_fts) VALUES('integrity-check');`);
+}
+
 describe('message ID AUTOINCREMENT migration (#958)', function () {
     let savedLog;
     let logged;
@@ -239,7 +276,7 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
             /message_id\s+INTEGER PRIMARY KEY AUTOINCREMENT/
         );
         assert.deepEqual(snapshot(db), before);
-        assert.equal(db.pragma('user_version', { simple: true }), 1);
+        assert.equal(db.pragma('user_version', { simple: true }), 2);
         assert.equal(
             db.pragma('foreign_keys', { simple: true }),
             1,
@@ -274,8 +311,9 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
         const db = buildPre958Db();
         initMessageDatabase(db);
 
+        //  the first two; the #964 search index rebuild follows
         const infos = logged.filter(l => l.level === 'info');
-        assert.equal(infos.length, 2);
+        assert.equal(infos.length, 4);
         assert.equal(infos[0].obj.rowCount, 5);
         assert.match(infos[0].msg, /may take a while/);
         assert.equal(infos[1].obj.rowCount, 5);
@@ -387,7 +425,7 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
         assert.equal(messageTableSql(db), sql);
         assert.deepEqual(snapshot(db), after);
         assert.equal(sequenceOf(db), seq);
-        assert.equal(db.pragma('user_version', { simple: true }), 1);
+        assert.equal(db.pragma('user_version', { simple: true }), 2);
         assert.deepEqual(logged, [], 'nothing logged: the migration did not run');
     });
 
@@ -399,7 +437,7 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
             messageTableSql(db),
             /message_id\s+INTEGER PRIMARY KEY AUTOINCREMENT/
         );
-        assert.equal(db.pragma('user_version', { simple: true }), 1);
+        assert.equal(db.pragma('user_version', { simple: true }), 2);
         assert.deepEqual(logged, []);
 
         const first = insertMessage(db, { subject: 'One', body: 'one' });
@@ -527,7 +565,7 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
 
             assert.equal(postedId, 43);
             assert.match(messageTableSql(db), /AUTOINCREMENT/);
-            assert.equal(db.pragma('user_version', { simple: true }), 1);
+            assert.equal(db.pragma('user_version', { simple: true }), 2);
             assert.deepEqual(
                 db
                     .prepare('SELECT message_id FROM message ORDER BY message_id;')
@@ -545,6 +583,147 @@ describe('message ID AUTOINCREMENT migration (#958)', function () {
             const infos = logged.filter(l => l.level === 'info');
             assert.equal(infos[0].obj.rowCount, 5, 'counted before the post');
             assert.equal(infos[1].obj.rowCount, 6, 'copied the post as well');
+        });
+    });
+
+    describe('then the search index rebuild (#964)', function () {
+        //  a pre-#958 board where message 7 was edited the old way
+        function buildDamagedDb() {
+            const db = buildPre958Db();
+            const edited = replaceLikeOldUpdate(db, 7, 'an edited post about gopher');
+            assert.equal(edited, 43);
+            assert.deepEqual(staleFtsDocids(db), [7]);
+            assert.throws(() => ftsIntegrityCheck(db), /malformed|corrupt/i);
+            return db;
+        }
+
+        it('runs after the #958 one from version 0, and drops the stale rows', function () {
+            const db = buildDamagedDb();
+            //  the stale docid still matches the text the edit replaced
+            assert.equal(
+                db
+                    .prepare(
+                        `SELECT COUNT(*) AS n FROM message_fts WHERE message_fts MATCH 'hub';`
+                    )
+                    .get().n,
+                1
+            );
+
+            initMessageDatabase(db);
+
+            assert.match(messageTableSql(db), /AUTOINCREMENT/);
+            assert.equal(db.pragma('user_version', { simple: true }), 2);
+            assert.deepEqual(staleFtsDocids(db), []);
+            assert.equal(db.pragma('integrity_check', { simple: true }), 'ok');
+            ftsIntegrityCheck(db);
+            assert.equal(
+                db
+                    .prepare(
+                        `SELECT COUNT(*) AS n FROM message_fts WHERE message_fts MATCH 'hub';`
+                    )
+                    .get().n,
+                0,
+                'the text the edit replaced is gone from the index'
+            );
+            assert.deepEqual(ftsSearch(db, 'binkp'), [8]);
+            assert.deepEqual(ftsSearch(db, 'gopher'), [43]);
+            assert.deepEqual(ftsSearch(db, 'amiga'), [3, 15]);
+
+            const infos = logged.filter(l => l.level === 'info');
+            assert.equal(infos.length, 4);
+            assert.match(infos[0].msg, /#958/);
+            assert.match(infos[1].msg, /Upgraded the message table/);
+            assert.match(infos[2].msg, /#964/);
+            assert.equal(infos[2].obj.rowCount, 5);
+            assert.match(infos[3].msg, /Rebuilt the message search index/);
+            assert.equal(infos[3].obj.rowCount, 5);
+            assert.equal(typeof infos[3].obj.durationMs, 'number');
+            assert.deepEqual(consoleErrors, []);
+        });
+
+        it('runs from version 1 by itself', function () {
+            const db = buildPre958Db();
+            migrateMessageIdAutoincrement(db);
+            assert.equal(db.pragma('user_version', { simple: true }), 1);
+            replaceLikeOldUpdate(db, 15, 'edited amiga post, now on gopher');
+            assert.deepEqual(staleFtsDocids(db), [15]);
+
+            migrateMessageFtsRebuild(db);
+
+            assert.equal(db.pragma('user_version', { simple: true }), 2);
+            assert.deepEqual(staleFtsDocids(db), []);
+            assert.equal(db.pragma('integrity_check', { simple: true }), 'ok');
+            ftsIntegrityCheck(db);
+        });
+
+        it('runs once, and is skipped at version 2', function () {
+            const db = buildDamagedDb();
+            initMessageDatabase(db);
+            logged.length = 0;
+
+            //  damage done after the rebuild is not its business
+            replaceLikeOldUpdate(db, 3, 'edited again');
+            initMessageDatabase(db);
+            migrateMessageFtsRebuild(db);
+
+            assert.deepEqual(staleFtsDocids(db), [3]);
+            assert.equal(db.pragma('user_version', { simple: true }), 2);
+            assert.deepEqual(logged, [], 'nothing logged: neither migration ran');
+        });
+
+        it('does not run before the #958 one, so that one is not skipped', function () {
+            const db = buildDamagedDb();
+
+            migrateMessageFtsRebuild(db);
+
+            assert.equal(db.pragma('user_version', { simple: true }), 0);
+            assert.deepEqual(staleFtsDocids(db), [7]);
+            assert.deepEqual(logged, []);
+        });
+
+        it('does not run inside a transaction the caller opened', function () {
+            const db = buildDamagedDb();
+            migrateMessageIdAutoincrement(db);
+            logged.length = 0;
+
+            db.transaction(() => migrateMessageFtsRebuild(db))();
+
+            assert.equal(db.pragma('user_version', { simple: true }), 1);
+            assert.deepEqual(staleFtsDocids(db), [7]);
+            const errors = logged.filter(l => l.level === 'error');
+            assert.equal(errors.length, 1);
+            assert.match(errors[0].msg, /search index inside an open transaction/);
+            assert.equal(consoleErrors.length, 1);
+            assert.match(consoleErrors[0], /search index inside an open transaction/);
+
+            //  and outside one, it goes ahead
+            migrateMessageFtsRebuild(db);
+            assert.equal(db.pragma('user_version', { simple: true }), 2);
+            assert.deepEqual(staleFtsDocids(db), []);
+        });
+
+        it('a failure leaves version 1 and is said on the console', function () {
+            const db = buildDamagedDb();
+            migrateMessageIdAutoincrement(db);
+            logged.length = 0;
+
+            const exec = db.exec.bind(db);
+            db.exec = sql => {
+                if (/'rebuild'/.test(sql)) {
+                    throw new Error('disk I/O error');
+                }
+                return exec(sql);
+            };
+
+            migrateMessageFtsRebuild(db);
+
+            assert.equal(db.pragma('user_version', { simple: true }), 1);
+            assert.deepEqual(staleFtsDocids(db), [7]);
+            assert.equal(consoleErrors.length, 1);
+            assert.match(
+                consoleErrors[0],
+                /Rebuilding the message search index failed.*disk I\/O error/
+            );
         });
     });
 });

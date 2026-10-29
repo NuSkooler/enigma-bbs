@@ -164,13 +164,15 @@ function _makeRequest(url, options, cb) {
             body = Buffer.concat(body).toString();
 
             if (res.statusCode < 200 || res.statusCode > 299) {
-                return cbWrapper(
-                    Errors.HttpError(
-                        `URL ${url} HTTP error ${res.statusCode}: ${truncate(body, {
-                            length: 128,
-                        })}`
-                    )
+                const err = Errors.HttpError(
+                    `URL ${url} HTTP error ${res.statusCode}: ${truncate(body, {
+                        length: 128,
+                    })}`
                 );
+                //  callers may need to know why, and who answered
+                err.statusCode = res.statusCode;
+                err.responseUrl = res.responseUrl || url;
+                return cbWrapper(err);
             }
 
             return cbWrapper(null, body, res);

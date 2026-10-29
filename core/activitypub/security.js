@@ -363,24 +363,215 @@ exports.isSafeOutboundUrl = isSafeOutboundUrl;
 //
 //  httpSigValidated  — true when the HTTP signature was cryptographically
 //                      verified against the remote actor's public key
-//  domainVerifiedOnly — true when the remote actor could not be fetched
-//                       (e.g. self-deleted) but domain binding was confirmed
-//                       by the caller; only Actor-type objects are allowed
-//                       without a full signature in this case
-//  objectType        — the `type` field of the object being modified/deleted
+//  domainVerifiedOnly, objectType — no longer used: domain binding alone
+//                      never permits a change. A Delete of an actor that can
+//                      no longer be fetched is verified with its origin
+//                      instead (see the inbox handler).
 //
 //  Returns null when the operation is permitted, or a human-readable reason
-//  string when it should be refused.
+//  string when it should be refused. Who may change the object is checked
+//  separately (verifySignerOwnsObject).
 //
-function verifyObjectOwner(httpSigValidated, domainVerifiedOnly, objectType) {
+function verifyObjectOwner(httpSigValidated) {
     if (httpSigValidated) {
         return null; // cryptographic proof — permit
-    }
-    if (domainVerifiedOnly && objectType === 'Actor') {
-        // Actor self-deletion: fetch failed (actor already removed from remote),
-        // but domain binding was confirmed.  Permit cleanup of local state.
-        return null;
     }
     return 'HTTP signature required to verify object ownership';
 }
 exports.verifyObjectOwner = verifyObjectOwner;
+
+//
+//  The actor ids an ActivityPub value names. attributedTo (and actor) may be
+//  a string id, an object with an id, or an array of either; anything else
+//  names no one.
+//
+function actorIdsOf(value) {
+    const values = Array.isArray(value) ? value : [value];
+    return values
+        .map(v => (typeof v === 'string' ? v : v && v.id))
+        .filter(id => typeof id === 'string' && id.length > 0);
+}
+exports.actorIdsOf = actorIdsOf;
+
+//
+//  The owners of a stored collection entry for |objectId|: the attributedTo
+//  of the object itself, or, for a stored activity (the Create a Note came
+//  in with, an Announce that embeds it), of the embedded object with that id.
+//  An empty array means the owner cannot be told, and nothing may change it.
+//
+function storedObjectOwnerIds(stored, objectId) {
+    if (!stored || !objectId) {
+        return [];
+    }
+    if (stored.id === objectId) {
+        return actorIdsOf(stored.attributedTo);
+    }
+    if (stored.object && stored.object.id === objectId) {
+        return actorIdsOf(stored.object.attributedTo);
+    }
+    return [];
+}
+exports.storedObjectOwnerIds = storedObjectOwnerIds;
+
+//
+//  An Update or Delete of an existing object is accepted only from its owner
+//  (#964 review): a valid HTTP signature proves who signed, not that the
+//  signer may change this object.
+//
+//  signerId        — id of the actor whose key verified the HTTP signature
+//  ownerIds        — the stored object's owners (see storedObjectOwnerIds)
+//  activityActorId — the activity's actor; must be the signer as well
+//
+//  Returns null when permitted, or a reason string.
+//
+function verifySignerOwnsObject(signerId, ownerIds, activityActorId) {
+    if (!signerId) {
+        return 'No verified signing actor';
+    }
+    if (!ownerIds || ownerIds.length === 0) {
+        return 'The object has no owner to check the signer against';
+    }
+    if (!ownerIds.includes(signerId)) {
+        return 'The signing actor is not the object owner';
+    }
+    if (activityActorId !== signerId) {
+        return 'The activity actor is not the signing actor';
+    }
+    return null;
+}
+exports.verifySignerOwnsObject = verifySignerOwnsObject;
+
+//
+//  True when both URLs have the same host (hostname and port). Unlike
+//  hostsMatch(), a different port is a different host.
+//
+function sameHost(urlA, urlB) {
+    try {
+        return new URL(urlA).host === new URL(urlB).host;
+    } catch {
+        return false;
+    }
+}
+exports.sameHost = sameHost;
+
+//
+//  May |doc|, fetched for |requestedUrl|, be taken (and cached) as that actor?
+//  An actor is cached under the id inside the document, so a document must
+//  not be able to name an actor it was not fetched from: otherwise a server
+//  could serve another server's actor id with its own key, and later
+//  signatures "from" that actor would verify with it.
+//
+//  requestedUrl — the URL asked for
+//  fetchedUrl   — the URL that answered, after any redirects
+//
+//  The id must equal the URL asked for, from the same host that answered.
+//  (A key URL answered with its owning actor is only a pointer to that
+//  actor, which is fetched from its own URL: see Actor.fromKeyId().)
+//
+//  Returns null when acceptable, or a reason string.
+//
+function verifyFetchedActorId(doc, requestedUrl, fetchedUrl) {
+    const docId = doc && doc.id;
+    if (typeof docId !== 'string' || docId.length === 0) {
+        return 'The fetched actor has no id';
+    }
+    if (!sameHost(fetchedUrl || requestedUrl, requestedUrl)) {
+        return `The actor fetch for ${requestedUrl} was redirected to another host`;
+    }
+    if (docId !== requestedUrl) {
+        return `The fetched actor id ${docId} does not match ${requestedUrl}`;
+    }
+    return null;
+}
+exports.verifyFetchedActorId = verifyFetchedActorId;
+
+//
+//  A Note (or Article) delivered directly by its author: attributed to that
+//  one actor, with an id on the author's host. Returns null or a reason.
+//
+function verifyNoteAuthor(note, authorId) {
+    const authors = actorIdsOf(note && note.attributedTo);
+    if (authors.length !== 1 || authors[0] !== authorId) {
+        return 'The Note is not attributed to the signing actor';
+    }
+    if (!sameHost(note.id, authorId)) {
+        return "The Note id is not on its author's host";
+    }
+    return null;
+}
+exports.verifyNoteAuthor = verifyNoteAuthor;
+
+//
+//  May |doc|, fetched for |requestedUrl|, be taken as the Note at that URL?
+//  The fetch must not have left the URL's host, the id must be that URL, and
+//  it must be attributed to one actor on the same host. Returns null or a
+//  reason.
+//
+function verifyFetchedNote(doc, requestedUrl, fetchedUrl) {
+    if (!doc || !['Note', 'Article'].includes(doc.type)) {
+        return `The object at ${requestedUrl} is not a Note or Article`;
+    }
+    if (!sameHost(fetchedUrl || requestedUrl, requestedUrl)) {
+        return `The fetch of ${requestedUrl} was redirected to another host`;
+    }
+    if (doc.id !== requestedUrl) {
+        return `The object fetched from ${requestedUrl} has another id`;
+    }
+    const authors = actorIdsOf(doc.attributedTo);
+    if (authors.length !== 1 || !sameHost(authors[0], requestedUrl)) {
+        return `The Note at ${requestedUrl} is not attributed to an actor on its host`;
+    }
+    return null;
+}
+exports.verifyFetchedNote = verifyFetchedNote;
+
+//
+//  The owner of |objectId| across every stored row that holds it (the
+//  Create it came in with, an Announce that embeds it, ...). Each row that
+//  names an owner must name the same one, so a planted row cannot decide or
+//  share ownership; a row that does not parse cannot be checked at all.
+//  Returns { ownerIds, reason }: ownerIds is empty when no row names one.
+//
+function storedObjectsOwnerIds(storedObjects, objectId) {
+    let ownerIds = [];
+    for (const stored of storedObjects || []) {
+        if (!stored) {
+            return { ownerIds: [], reason: 'A stored copy of the object cannot be read' };
+        }
+        const ids = [...new Set(storedObjectOwnerIds(stored, objectId))].sort();
+        if (ids.length === 0) {
+            continue;
+        }
+        if (ownerIds.length === 0) {
+            ownerIds = ids;
+        } else if (ids.join('\n') !== ownerIds.join('\n')) {
+            return {
+                ownerIds: [],
+                reason: 'Stored copies of the object name different owners',
+            };
+        }
+    }
+    return { ownerIds, reason: null };
+}
+exports.storedObjectsOwnerIds = storedObjectsOwnerIds;
+
+//  The forms the public collection is addressed by
+const PublicAddresses = [
+    'https://www.w3.org/ns/activitystreams#Public',
+    'as:Public',
+    'Public',
+];
+
+//
+//  True when |obj| (a Note) is addressed to the public in to or cc.
+//
+function isPublicAddressed(obj) {
+    return addressedIds(obj).some(id => PublicAddresses.includes(id));
+}
+exports.isPublicAddressed = isPublicAddressed;
+
+//  The ids |obj| is addressed to, in to and cc
+function addressedIds(obj) {
+    return ['to', 'cc'].flatMap(field => actorIdsOf(obj && obj[field]));
+}
+exports.addressedIds = addressedIds;

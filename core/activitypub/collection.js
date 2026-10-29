@@ -190,18 +190,27 @@ module.exports = class Collection extends ActivityPubObject {
         }
 
         try {
+            //  an actor's own id wins over a handle; of several actors with
+            //  the same handle (one that moved), the latest confirmed
             const row = apDb
                 .prepare(
                     `SELECT c.name, c.timestamp, c.owner_actor_id, c.is_private, c.object_json, m.meta_value
-                    FROM collection c, collection_object_meta m
-                    WHERE c.collection_id = ? AND c.name = ? AND m.object_id = c.object_id AND (c.object_id LIKE ? OR (m.meta_name = ? AND m.meta_value LIKE ?))
+                    FROM collection c
+                    LEFT JOIN collection_object_meta m
+                        ON  m.collection_id = c.collection_id
+                        AND m.name          = c.name
+                        AND m.object_id     = c.object_id
+                        AND m.meta_name     = 'actor_subject'
+                    WHERE c.collection_id = ? AND c.name = ?
+                      AND (c.object_id = ? OR m.meta_value = ? COLLATE NOCASE)
+                    ORDER BY (c.object_id = ?) DESC, c.timestamp DESC, c.rowid DESC
                     LIMIT 1;`
                 )
                 .get(
                     ActorCollectionId,
                     Collections.Actors,
                     actorIdOrSubject,
-                    'actor_subject',
+                    actorIdOrSubject,
                     actorIdOrSubject
                 );
 
@@ -255,6 +264,21 @@ module.exports = class Collection extends ActivityPubObject {
                     'actor_subject',
                     subject
                 );
+
+                //  a handle belongs to one actor: the one just confirmed for it
+                if (subject !== actor.id) {
+                    apDb.prepare(
+                        `UPDATE collection_object_meta SET meta_value = object_id
+                            WHERE collection_id = ? AND name = ? AND meta_name = ?
+                              AND meta_value = ? COLLATE NOCASE AND object_id != ?;`
+                    ).run(
+                        ActorCollectionId,
+                        Collections.Actors,
+                        'actor_subject',
+                        subject,
+                        actor.id
+                    );
+                }
             })();
 
             return cb(null);
@@ -271,11 +295,18 @@ module.exports = class Collection extends ActivityPubObject {
             return cb(null, new Map());
         }
 
-        const placeholders = ids.map(() => '?').join(', ');
+        //  a chunk's ids stay well under SQLite's bound-variable limit
+        const ChunkSize = 500;
+        const result = new Map();
         try {
-            const rows = apDb
-                .prepare(
-                    `SELECT c.object_id, c.object_json, m.meta_value AS subject
+            const rows = [];
+            for (let i = 0; i < ids.length; i += ChunkSize) {
+                const chunk = ids.slice(i, i + ChunkSize);
+                const placeholders = chunk.map(() => '?').join(', ');
+                rows.push(
+                    ...apDb
+                        .prepare(
+                            `SELECT c.object_id, c.object_json, m.meta_value AS subject
                     FROM collection c
                     LEFT JOIN collection_object_meta m
                         ON  m.object_id      = c.object_id
@@ -283,10 +314,11 @@ module.exports = class Collection extends ActivityPubObject {
                         AND m.name           = c.name
                         AND m.meta_name      = 'actor_subject'
                     WHERE c.collection_id = ? AND c.name = ? AND c.object_id IN (${placeholders});`
-                )
-                .all(ActorCollectionId, Collections.Actors, ...ids);
+                        )
+                        .all(ActorCollectionId, Collections.Actors, ...chunk)
+                );
+            }
 
-            const result = new Map();
             for (const row of rows) {
                 const obj = ActivityPubObject.fromJsonString(row.object_json);
                 if (obj) {
@@ -296,50 +328,12 @@ module.exports = class Collection extends ActivityPubObject {
                     });
                 }
             }
-
-            return cb(null, result);
         } catch (err) {
             return cb(err);
         }
-    }
 
-    //  Return the unique set of sharedInbox URLs for all followers in a given
-    //  followers collection, using a single SQL query against the actor cache.
-    //
-    //  Followers whose actors are not yet cached are silently skipped — this is
-    //  the same behaviour as the previous Actor.fromId() fan-out loop, but in
-    //  O(1) DB round-trips instead of O(n).
-    //
-    //  followersEndpoint — the collection name (URL) for the followers list
-    //  cb(err, sharedInboxes: string[])
-    //
-    static getFollowerSharedInboxes(followersEndpoint, cb) {
-        try {
-            const rows = apDb
-                .prepare(
-                    `SELECT DISTINCT json_extract(a.object_json, '$.endpoints.sharedInbox') AS shared_inbox
-                    FROM collection f
-                    JOIN collection a
-                        ON  a.collection_id = ?
-                        AND a.name          = ?
-                        AND a.object_id     = f.object_id
-                    WHERE f.collection_id = ? AND f.name = ?
-                      AND json_extract(a.object_json, '$.endpoints.sharedInbox') IS NOT NULL`
-                )
-                .all(
-                    ActorCollectionId,
-                    Collections.Actors,
-                    followersEndpoint,
-                    Collections.Followers
-                );
-
-            return cb(
-                null,
-                rows.map(r => r.shared_inbox)
-            );
-        } catch (err) {
-            return cb(err);
-        }
+        //  outside the try: an exception in the caller is not a query error
+        return cb(null, result);
     }
 
     static removeExpiredActors(maxAgeDays, cb) {
@@ -442,6 +436,57 @@ module.exports = class Collection extends ActivityPubObject {
             }
 
             return cb(null, obj, Collection._rowToObjectInfo(row));
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Every stored row whose embedded object has |objectId|, in storage
+    //  order: [{ info, object }] (object is null for JSON that does not
+    //  parse). Ownership checks look at all of them, not one picked at
+    //  random as objectByEmbeddedId() does.
+    //
+    static objectsByEmbeddedId(objectId, cb) {
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT name, timestamp, owner_actor_id, object_json, is_private
+                    FROM collection
+                    WHERE json_extract(object_json, '$.object.id') = ?
+                    ORDER BY rowid;`
+                )
+                .all(objectId);
+            return cb(
+                null,
+                rows.map(r => ({
+                    info: Collection._rowToObjectInfo(r),
+                    object: ActivityPubObject.fromJsonString(r.object_json),
+                }))
+            );
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //  The Create activities in one collection that hold |objectId|
+    static createsOfObject(collectionName, collectionId, objectId, cb) {
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT object_json
+                    FROM collection
+                    WHERE name = ? AND collection_id = ?
+                      AND json_extract(object_json, '$.type') = 'Create'
+                      AND json_extract(object_json, '$.object.id') = ?;`
+                )
+                .all(collectionName, collectionId, objectId);
+            return cb(
+                null,
+                rows
+                    .map(r => ActivityPubObject.fromJsonString(r.object_json))
+                    .filter(Boolean)
+            );
         } catch (err) {
             return cb(err);
         }
@@ -865,6 +910,23 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //  Is |objectId| (still) in the collection |collectionId|?
+    static hasObject(collectionName, collectionId, objectId, cb) {
+        let row;
+        try {
+            row = apDb
+                .prepare(
+                    `SELECT 1 FROM collection
+                    WHERE name = ? AND collection_id = ? AND object_id = ?
+                    LIMIT 1;`
+                )
+                .get(collectionName, collectionId, objectId);
+        } catch (err) {
+            return cb(err);
+        }
+        return cb(null, !!row);
+    }
+
     static removeById(collectionName, objectId, cb) {
         try {
             apDb.prepare(
@@ -1148,6 +1210,21 @@ module.exports = class Collection extends ActivityPubObject {
             apDb.prepare('DELETE FROM note_reactions WHERE activity_id = ?').run(
                 activityId
             );
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  As removeReactionByActivityId(), but only the reaction |actorId| made:
+    //  an inbound Undo may take back only the signer's own reaction.
+    //
+    static removeActorReactionByActivityId(activityId, actorId, cb) {
+        try {
+            apDb.prepare(
+                'DELETE FROM note_reactions WHERE activity_id = ? AND actor_id = ?'
+            ).run(activityId, actorId);
             return cb(null);
         } catch (err) {
             return cb(err);

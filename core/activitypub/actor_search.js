@@ -97,7 +97,7 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
     _search(values, cb) {
         const searchString = values.searchQuery.trim();
         //TODO: Handle empty searchString
-        Actor.fromId(searchString, (err, remoteActor) => {
+        Actor.fromSearch(searchString, null, (err, remoteActor) => {
             if (err) {
                 this.client.log.warn(
                     { remoteActor: remoteActor, err: err },

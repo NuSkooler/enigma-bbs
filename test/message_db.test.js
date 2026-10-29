@@ -258,6 +258,241 @@ describe('Message meta round-trip', function () {
     });
 });
 
+// ─── update() (#964) ─────────────────────────────────────────────────────────
+
+describe('Message#update() (#964)', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM message;');
+        done();
+    });
+
+    function persist(msg) {
+        return new Promise((resolve, reject) =>
+            msg.persist((err, id) => (err ? reject(err) : resolve(id)))
+        );
+    }
+
+    function update(msg) {
+        return new Promise((resolve, reject) =>
+            msg.update((err, id) => (err ? reject(err) : resolve(id)))
+        );
+    }
+
+    function metaValues(messageId, category, name) {
+        return _testDb
+            .prepare(
+                `SELECT meta_value FROM message_meta
+                WHERE message_id = ? AND meta_category = ? AND meta_name = ?
+                ORDER BY meta_value;`
+            )
+            .raw()
+            .all(messageId, category, name)
+            .map(r => r[0]);
+    }
+
+    function ftsIds(term) {
+        return _testDb
+            .prepare(
+                `SELECT m.message_id FROM message m
+                WHERE m.message_id IN (SELECT rowid FROM message_fts WHERE message_fts MATCH ?)
+                ORDER BY m.message_id;`
+            )
+            .raw()
+            .all(term)
+            .map(r => r[0]);
+    }
+
+    //  an edit of |original|: same UUID, new text
+    function editOf(original, overrides = {}) {
+        return makeMessage(
+            Object.assign(
+                {
+                    uuid: original.messageUuid,
+                    areaTag: original.areaTag,
+                    subject: 'Edited subject',
+                    message: 'The edited body mentions zebra.',
+                },
+                overrides
+            )
+        );
+    }
+
+    let seq = 0;
+    async function persistOriginal(overrides = {}) {
+        //  vary the body: the UUID is named over area, time, subject and body
+        const msg = makeMessage(
+            Object.assign({ message: `Original body about walrus ${++seq}.` }, overrides)
+        );
+        await persist(msg);
+        //  a later message, so a re-insert would get a different ID
+        await persist(makeMessage({ message: `A later post ${seq}.` }));
+        return msg;
+    }
+
+    it('keeps the message ID and updates the columns', async () => {
+        const original = await persistOriginal();
+        _testDb
+            .prepare('UPDATE message SET view_count = 5 WHERE message_id = ?;')
+            .run(original.messageId);
+        const countBefore = _testDb.prepare('SELECT COUNT(*) AS n FROM message;').get().n;
+
+        const edit = editOf(original, {
+            toUserName: 'NewTo',
+            fromUserName: 'NewFrom',
+            modTimestamp: '2026-10-29T08:30:00.000Z',
+        });
+        const id = await update(edit);
+
+        assert.equal(id, original.messageId);
+        assert.equal(edit.messageId, original.messageId);
+        const row = _testDb
+            .prepare('SELECT * FROM message WHERE message_uuid = ?;')
+            .get(original.messageUuid);
+        assert.equal(row.message_id, original.messageId);
+        assert.equal(row.subject, 'Edited subject');
+        assert.equal(row.message, 'The edited body mentions zebra.');
+        assert.equal(row.to_user_name, 'NewTo');
+        assert.equal(row.from_user_name, 'NewFrom');
+        assert.equal(
+            Date.parse(row.modified_timestamp),
+            Date.parse('2026-10-29T08:30:00Z')
+        );
+        assert.equal(row.view_count, 5, 'view_count is not reset');
+        assert.equal(
+            _testDb.prepare('SELECT COUNT(*) AS n FROM message;').get().n,
+            countBefore
+        );
+    });
+
+    it('replaces every stored value of a meta name the edit supplies', async () => {
+        const original = await persistOriginal({
+            meta: {
+                System: { remote_from_user: 'old@remote' },
+                FtnProperty: { ftn_seen_by: ['1/100', '1/200', '1/300'] },
+            },
+        });
+
+        await update(
+            editOf(original, {
+                meta: {
+                    System: { remote_from_user: 'new@remote' },
+                    FtnProperty: { ftn_seen_by: ['2/10', '2/20'] },
+                },
+            })
+        );
+
+        const id = original.messageId;
+        assert.deepEqual(metaValues(id, 'System', 'remote_from_user'), ['new@remote']);
+        assert.deepEqual(metaValues(id, 'FtnProperty', 'ftn_seen_by'), ['2/10', '2/20']);
+
+        //  and from several values down to one
+        await update(
+            editOf(original, { meta: { FtnProperty: { ftn_seen_by: '3/30' } } })
+        );
+        assert.deepEqual(metaValues(id, 'FtnProperty', 'ftn_seen_by'), ['3/30']);
+    });
+
+    it('leaves meta the edit does not supply alone', async () => {
+        const original = await persistOriginal({
+            meta: { System: { remote_from_user: 'someone@remote' } },
+        });
+        const id = original.messageId;
+        await new Promise((resolve, reject) =>
+            original.persistMetaValue('System', 'state_flags0', '2', err =>
+                err ? reject(err) : resolve()
+            )
+        );
+        await new Promise((resolve, reject) =>
+            original.persistMetaValue(
+                'ActivityPub',
+                'activitypub_activity_id',
+                'https://remote.example.com/activities/1',
+                err => (err ? reject(err) : resolve())
+            )
+        );
+
+        await update(
+            editOf(original, { meta: { System: { remote_from_user: 'someone@remote' } } })
+        );
+
+        assert.deepEqual(metaValues(id, 'System', 'state_flags0'), ['2']);
+        assert.deepEqual(metaValues(id, 'ActivityPub', 'activitypub_activity_id'), [
+            'https://remote.example.com/activities/1',
+        ]);
+        assert.deepEqual(metaValues(id, 'System', 'remote_from_user'), [
+            'someone@remote',
+        ]);
+    });
+
+    it('search finds the new text and not the old', async () => {
+        const original = await persistOriginal();
+        assert.deepEqual(ftsIds('walrus'), [original.messageId]);
+
+        await update(editOf(original));
+
+        assert.deepEqual(ftsIds('walrus'), []);
+        assert.deepEqual(ftsIds('zebra'), [original.messageId]);
+        assert.deepEqual(ftsIds('edited'), [original.messageId]);
+        //  nothing left under any docid for the old text
+        assert.equal(
+            _testDb
+                .prepare(
+                    `SELECT COUNT(*) AS n FROM message_fts WHERE message_fts MATCH 'walrus';`
+                )
+                .get().n,
+            0
+        );
+    });
+
+    it('leaves the search index consistent', async () => {
+        const original = await persistOriginal();
+        await update(editOf(original));
+        await update(editOf(original, { message: 'And edited a second time.' }));
+
+        _testDb.exec(`INSERT INTO message_fts(message_fts) VALUES('integrity-check');`);
+        assert.equal(
+            _testDb
+                .prepare(
+                    `SELECT COUNT(*) AS n FROM message_fts_docsize
+                    WHERE docid NOT IN (SELECT message_id FROM message);`
+                )
+                .get().n,
+            0
+        );
+    });
+
+    it('is an error, and inserts nothing, when no message has the UUID', async () => {
+        await persistOriginal();
+        const counts = () =>
+            _testDb
+                .prepare(
+                    `SELECT (SELECT COUNT(*) FROM message) AS messages,
+                        (SELECT COUNT(*) FROM message_meta) AS meta;`
+                )
+                .get();
+        const before = counts();
+
+        const stray = makeMessage({
+            uuid: '6f1c2b8e-0000-4000-8000-000000000964',
+            message: 'Nobody has this UUID.',
+            meta: { System: { remote_from_user: 'ghost@remote' } },
+        });
+        await assert.rejects(
+            () => update(stray),
+            err => {
+                assert.match(err.message, /does not exist/i);
+                assert.match(err.reason, /6f1c2b8e-0000-4000-8000-000000000964/);
+                return true;
+            }
+        );
+
+        assert.deepEqual(counts(), before);
+        assert.equal(stray.messageId, 0, 'no ID assigned');
+    });
+});
+
 // ─── findMessages ────────────────────────────────────────────────────────────
 
 describe('Message.findMessages()', function () {
