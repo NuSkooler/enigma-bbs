@@ -71,6 +71,9 @@ const Actor = require('../core/activitypub/actor.js');
 const Collection = require('../core/activitypub/collection.js');
 const ActivityPubWebHandler =
     require('../core/servers/content/web_handlers/activitypub.js').getModule;
+//  loaded now, with this file's database: later test files reload its
+//  dependencies with theirs
+const ScannerTosser = require('../core/scanner_tossers/activitypub.js').getModule;
 
 //  the real ones; beforeEach below stubs them
 const realFindMessages = Message.findMessages;
@@ -1514,7 +1517,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             served.set(VICTIM, { doc: withShared });
 
             //  the fan-out a new public post uses
-            const scanner = require('../core/scanner_tossers/activitypub.js').getModule;
+            const scanner = ScannerTosser;
             const lateInboxes = [];
             const fanOut = await new Promise((resolve, reject) =>
                 scanner.prototype._collectFollowersSharedInboxEndpoints.call(
@@ -1572,9 +1575,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             });
 
             function exportPost(toUserName = 'All') {
-                const Scanner =
-                    require('../core/scanner_tossers/activitypub.js').getModule;
-                const scanner = Object.create(Scanner.prototype);
+                const scanner = Object.create(ScannerTosser.prototype);
                 const noop = () => {};
                 scanner.log = {
                     trace: noop,
