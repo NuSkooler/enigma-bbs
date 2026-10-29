@@ -1147,12 +1147,34 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
         const erin = `${GOOD}/users/erin`;
         const keyId = `${GOOD}/ap/key/erin`;
         served.set(keyId, { doc: actorDoc(erin, { id: keyId }) });
+        served.set(erin, { doc: actorDoc(erin, { id: keyId }) });
 
         const { err, actor } = await fromKeyId(keyId);
 
         assert.ifError(err);
         assert.equal(actor.id, erin);
         assert.equal(cachedJson(erin).publicKey.id, keyId, 'cached under its own id');
+        assert.ok(fetched.includes(erin), "fetched from the actor's own URL");
+    });
+
+    it('refuses a key URL pointing at an actor whose own document lists another key (T5)', async () => {
+        //  any JSON served from the victim's host, naming the victim
+        const keyUrl = `${GOOD}/media/attacker.json`;
+        const keyId = `${keyUrl}#k`;
+        served.set(keyUrl, {
+            doc: actorDoc(VICTIM, {
+                id: keyId,
+                publicKeyPem: pem(attackerKey.publicKey),
+            }),
+        });
+        served.set(VICTIM, { doc: actorDoc(VICTIM) });
+
+        const { err } = await fromKeyId(keyId);
+
+        assert.ok(err, 'refused');
+        assert.ok(fetched.includes(VICTIM), "the victim's own document was asked");
+        const cached = cachedJson(VICTIM);
+        assert.ok(!cached || cached.publicKey.publicKeyPem === pem(realKey.publicKey));
     });
 
     it('refuses a key URL answered with an actor whose key is another key', async () => {

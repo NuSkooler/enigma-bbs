@@ -463,16 +463,14 @@ exports.sameHost = sameHost;
 //
 //  requestedUrl — the URL asked for
 //  fetchedUrl   — the URL that answered, after any redirects
-//  keyId        — when resolving a signature's keyId: the keyId itself
 //
-//  The id must equal the URL asked for, from the same host that answered. The
-//  one exception is a keyId fetch, where some servers answer the key URL with
-//  the owning actor: a different id is accepted when it is on the host that
-//  answered and the document's publicKey.id is that keyId.
+//  The id must equal the URL asked for, from the same host that answered.
+//  (A key URL answered with its owning actor is only a pointer to that
+//  actor, which is fetched from its own URL: see Actor.fromKeyId().)
 //
 //  Returns null when acceptable, or a reason string.
 //
-function verifyFetchedActorId(doc, requestedUrl, fetchedUrl, keyId) {
+function verifyFetchedActorId(doc, requestedUrl, fetchedUrl) {
     const docId = doc && doc.id;
     if (typeof docId !== 'string' || docId.length === 0) {
         return 'The fetched actor has no id';
@@ -480,18 +478,10 @@ function verifyFetchedActorId(doc, requestedUrl, fetchedUrl, keyId) {
     if (!sameHost(fetchedUrl || requestedUrl, requestedUrl)) {
         return `The actor fetch for ${requestedUrl} was redirected to another host`;
     }
-    if (docId === requestedUrl) {
-        return null;
+    if (docId !== requestedUrl) {
+        return `The fetched actor id ${docId} does not match ${requestedUrl}`;
     }
-    if (
-        keyId &&
-        sameHost(docId, fetchedUrl || requestedUrl) &&
-        doc.publicKey &&
-        doc.publicKey.id === keyId
-    ) {
-        return null;
-    }
-    return `The fetched actor id ${docId} does not match ${requestedUrl}`;
+    return null;
 }
 exports.verifyFetchedActorId = verifyFetchedActorId;
 

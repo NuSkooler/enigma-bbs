@@ -218,7 +218,7 @@ module.exports = class Actor extends ActivityPubObject {
 
     //  The actor that owns an HTTP signature's |keyId|. Fetches the actor id
     //  derived from the keyId; a server that answers with an actor of another
-    //  id is accepted only under verifyFetchedActorId()'s keyId rule.
+    //  id only points at it (see _fromRemoteQuery).
     static fromKeyId(keyId, cb) {
         const id = actorIdFromKeyId(keyId);
         if (!id) {
@@ -407,7 +407,46 @@ module.exports = class Actor extends ActivityPubObject {
                 //  signed GETs do not follow redirects; follow-redirects sets
                 //  responseUrl to where an unsigned one ended up
                 const fetchedUrl = (res && res.responseUrl) || id;
-                const reason = verifyFetchedActorId(actor, id, fetchedUrl, keyId);
+
+                //  Some servers answer a key URL with the actor that owns the
+                //  key. That is only a pointer, as in Mastodon's
+                //  fetch_resource: the actor is fetched from its own URL, and
+                //  its own document must list this keyId as its key.
+                //  Otherwise any JSON on the host could name an actor and
+                //  give it a key.
+                if (
+                    keyId &&
+                    actor &&
+                    _.isString(actor.id) &&
+                    actor.id !== id &&
+                    sameHost(fetchedUrl, id) &&
+                    sameHost(actor.id, id)
+                ) {
+                    return Actor._fromRemoteQuery(
+                        actor.id,
+                        fromUser,
+                        null,
+                        (err, owner) => {
+                            if (err) {
+                                return cb(err);
+                            }
+                            if (_.get(owner, 'publicKey.id') !== keyId) {
+                                warnLog(
+                                    { keyId, actorId: owner.id },
+                                    'Refusing keyId: the actor it points at does not list it'
+                                );
+                                return cb(
+                                    Errors.ValidationFailed(
+                                        `The actor ${owner.id} does not list the key ${keyId}`
+                                    )
+                                );
+                            }
+                            return cb(null, owner);
+                        }
+                    );
+                }
+
+                const reason = verifyFetchedActorId(actor, id, fetchedUrl);
                 if (reason) {
                     warnLog(
                         { requestedUrl: id, fetchedUrl, actorId: actor && actor.id },
