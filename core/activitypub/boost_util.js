@@ -34,6 +34,7 @@ const UserProps = require('../user_property');
 const StatLog = require('../stat_log');
 const Log = require('../logger').log;
 const Message = require('../message');
+const { collectFollowerInboxes } = require('./follow_util');
 
 // deps
 const async = require('async');
@@ -858,9 +859,9 @@ function sendActorDelete(localUser, cb) {
         cc: [followersEndpoint],
     });
 
-    Collection.getFollowerSharedInboxes(followersEndpoint, (err, sharedInboxes) => {
+    collectFollowerInboxes(localUser, (err, sharedInboxes) => {
         if (err || sharedInboxes.length === 0) {
-            //  No followers cached or DB error — nothing to deliver.
+            //  No followers that can be resolved, or a DB error — nothing to deliver.
             return cb(null);
         }
 
@@ -931,41 +932,7 @@ function _collectReactionInboxes(localUser, noteId, cb) {
     );
 }
 
-//  Shared helper: collect unique shared-inbox endpoints for the local user's followers.
-//  Mirrors the logic in scanner_tossers/activitypub.js without duplicating the module.
+//  The inboxes that reach the local user's followers (see collectFollowerInboxes)
 function _collectFollowerSharedInboxes(localUser, cb) {
-    const followersEndpoint = Endpoints.followers(localUser);
-
-    Collection.followers(followersEndpoint, 'all', (err, collection) => {
-        if (err) {
-            return cb(err);
-        }
-
-        const items =
-            collection && collection.orderedItems ? collection.orderedItems : [];
-
-        if (items.length === 0) {
-            return cb(null, []);
-        }
-
-        async.mapLimit(
-            items,
-            4,
-            (actorId, next) => {
-                Actor.fromId(actorId, (err, actor) => {
-                    if (err || !actor) {
-                        return next(null, null);
-                    }
-                    return next(null, actor.endpoints && actor.endpoints.sharedInbox);
-                });
-            },
-            (err, inboxes) => {
-                if (err) {
-                    return cb(err);
-                }
-                const unique = Array.from(new Set(inboxes.filter(Boolean)));
-                return cb(null, unique);
-            }
-        );
-    });
+    return collectFollowerInboxes(localUser, cb);
 }

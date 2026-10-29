@@ -57,6 +57,8 @@ delete require.cache[require.resolve('../core/message.js')];
 delete require.cache[require.resolve('../core/activitypub/actor.js')];
 delete require.cache[require.resolve('../core/activitypub/note.js')];
 delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
+delete require.cache[require.resolve('../core/activitypub/follow_util.js')];
+delete require.cache[require.resolve('../core/scanner_tossers/activitypub.js')];
 delete require.cache[
     require.resolve('../core/servers/content/web_handlers/activitypub.js')
 ];
@@ -1212,6 +1214,93 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
 
         assert.ifError(err);
         assert.equal(actor.id, social);
+    });
+
+    describe('delivery to followers', function () {
+        const { collectFollowerInboxes } = require('../core/activitypub/follow_util.js');
+        const { migrateActivityPubActorCachePurge } = require('../core/database.js');
+        const bob = { userId: 2, username: 'bob', getProperty: () => null };
+        const FOLLOWERS = 'https://test.example.com/_enig/ap/users/bob/followers';
+
+        const addFollower = id =>
+            new Promise((resolve, reject) =>
+                Collection.addToCollection(
+                    'followers',
+                    null,
+                    FOLLOWERS,
+                    id,
+                    //  the follower row's own copy, which is not trusted
+                    {
+                        id,
+                        type: 'Person',
+                        endpoints: { sharedInbox: 'https://stale.example/inbox' },
+                    },
+                    false,
+                    true,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+        const inboxes = () =>
+            new Promise((resolve, reject) =>
+                collectFollowerInboxes(bob, (err, list) =>
+                    err ? reject(err) : resolve(list.sort())
+                )
+            );
+
+        it('reaches a follower purged from the actor cache, and caches it again', async () => {
+            const withShared = actorDoc(
+                VICTIM,
+                {},
+                {
+                    endpoints: { sharedInbox: `${GOOD}/inbox` },
+                }
+            );
+            await addFollower(VICTIM);
+            await new Promise((resolve, reject) =>
+                Collection.addActor(withShared, VICTIM, err =>
+                    err ? reject(err) : resolve()
+                )
+            );
+            _apDb.pragma('user_version = 1');
+            migrateActivityPubActorCachePurge(_apDb);
+            assert.equal(cachedJson(VICTIM), undefined, 'purged');
+            served.set(VICTIM, { doc: withShared });
+
+            //  the fan-out a new public post uses
+            const scanner = require('../core/scanner_tossers/activitypub.js').getModule;
+            const fanOut = await new Promise((resolve, reject) =>
+                scanner.prototype._collectFollowersSharedInboxEndpoints.call(
+                    {},
+                    bob,
+                    (err, list) => (err ? reject(err) : resolve(list))
+                )
+            );
+
+            assert.deepEqual(fanOut, [`${GOOD}/inbox`]);
+            assert.ok(fetched.includes(VICTIM), 'fetched again');
+            assert.equal(cachedJson(VICTIM).id, VICTIM, 'and cached again');
+        });
+
+        it("uses a follower's own inbox when it has no sharedInbox", async () => {
+            const solo = 'https://solo.example/users/sam';
+            await addFollower(solo);
+            served.set(solo, { doc: actorDoc(solo) });
+            assert.deepEqual(await inboxes(), [`${solo}/inbox`]);
+        });
+
+        it('takes a cached follower from the cache, and skips one that cannot be resolved', async () => {
+            await addFollower(VICTIM);
+            await addFollower('https://gone.example/users/zed');
+            await new Promise((resolve, reject) =>
+                Collection.addActor(
+                    actorDoc(VICTIM, {}, { endpoints: { sharedInbox: `${GOOD}/inbox` } }),
+                    VICTIM,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+            assert.deepEqual(await inboxes(), [`${GOOD}/inbox`]);
+            assert.ok(!fetched.includes(VICTIM), 'no fetch for a cached follower');
+        });
     });
 
     describe('the inbox, end to end', function () {

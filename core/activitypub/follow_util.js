@@ -6,13 +6,21 @@ const { Errors } = require('../enig_error');
 const Collection = require('./collection');
 const Actor = require('./actor');
 const Activity = require('./activity');
+const Endpoints = require('./endpoint');
+const Logger = require('../logger');
 
 const async = require('async');
+const { isString } = require('lodash');
+
+//  followers resolved at once when they are not in the actor cache; the
+//  same bound the other actor fan-outs use
+const FollowerFetchConcurrency = 4;
 
 exports.sendFollowRequest = sendFollowRequest;
 exports.sendUnfollowRequest = sendUnfollowRequest;
 exports.acceptFollowRequest = acceptFollowRequest;
 exports.rejectFollowRequest = rejectFollowRequest;
+exports.collectFollowerInboxes = collectFollowerInboxes;
 
 function sendFollowRequest(fromUser, toActor, cb) {
     const fromActorId = fromUser.getProperty(UserProps.ActivityPubActorId);
@@ -192,4 +200,75 @@ function rejectFollowRequest(localUser, requestActor, requestActivity, cb) {
             return cb(err);
         }
     );
+}
+
+//
+//  The inboxes that reach |localUser|'s followers: each follower's sharedInbox,
+//  or its own inbox when it has none. A follower missing from the actor cache
+//  (purged at upgrade, or expired) is fetched again through Actor.fromId(),
+//  which verifies it and caches it again, instead of being skipped. The
+//  follower row's own copy of the actor is not used: it may predate those
+//  checks.
+//
+//  cb(err, inboxes: string[]) -- unique
+//
+function collectFollowerInboxes(localUser, cb) {
+    const followersEndpoint = Endpoints.followers(localUser);
+
+    Collection.followers(followersEndpoint, 'all', (err, collection) => {
+        if (err) {
+            return cb(err);
+        }
+
+        const ids = ((collection && collection.orderedItems) || []).filter(isString);
+        if (ids.length === 0) {
+            return cb(null, []);
+        }
+
+        const inboxOf = actor =>
+            (actor.endpoints && actor.endpoints.sharedInbox) || actor.inbox;
+
+        Collection.actorsFromIds(ids, (err, cached) => {
+            if (err) {
+                return cb(err);
+            }
+
+            const inboxes = [];
+            const misses = [];
+            for (const id of ids) {
+                const hit = cached.get(id);
+                if (hit) {
+                    inboxes.push(inboxOf(hit.actor));
+                } else {
+                    misses.push(id);
+                }
+            }
+
+            async.eachLimit(
+                misses,
+                FollowerFetchConcurrency,
+                (actorId, next) => {
+                    //  signed as the local user, for servers that require it
+                    Actor.fromId(actorId, localUser, (err, actor) => {
+                        if (err || !actor) {
+                            Logger.log &&
+                                Logger.log.warn(
+                                    { actorId, error: err && err.message },
+                                    'Cannot resolve follower; not delivering to it'
+                                );
+                            return next(null);
+                        }
+                        inboxes.push(inboxOf(actor));
+                        return next(null);
+                    });
+                },
+                () => {
+                    return cb(
+                        null,
+                        Array.from(new Set(inboxes.filter(i => isString(i) && i)))
+                    );
+                }
+            );
+        });
+    });
 }
