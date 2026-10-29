@@ -5,7 +5,7 @@
 const { Errors } = require('../enig_error.js');
 const UserProps = require('../user_property');
 const Endpoints = require('./endpoint');
-const { handleFromSubject, isValidLink } = require('./util');
+const { handleFromSubject, isValidLink, signedFetchOptions } = require('./util');
 const Log = require('../logger').log;
 const Logger = require('../logger');
 
@@ -373,19 +373,9 @@ module.exports = class Actor extends ActivityPubObject {
 
         //  Sign the GET if a local user was provided — required by strict servers
         //  such as GoToSocial that reject unsigned actor fetch requests.
-        if (fromUser) {
-            const privateKey = fromUser.getProperty(
-                UserProps.PrivateActivityPubSigningKey
-            );
-            if (privateKey) {
-                reqOpts.sign = {
-                    key: privateKey,
-                    keyId: Endpoints.actorId(fromUser) + '#main-key',
-                    authorizationHeaderName: 'Signature',
-                    //  GET has no body — omit digest and content-type
-                    headers: ['(request-target)', 'host', 'date'],
-                };
-            }
+        const sign = signedFetchOptions(fromUser);
+        if (sign) {
+            reqOpts.sign = sign;
         }
 
         HttpUtil.getJson(

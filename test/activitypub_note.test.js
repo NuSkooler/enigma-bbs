@@ -51,6 +51,8 @@ dbModule.dbs.activitypub = _apDb;
 //
 delete require.cache[require.resolve('../core/web_util.js')];
 delete require.cache[require.resolve('../core/activitypub/endpoint.js')];
+//  util holds Endpoints, which builds URLs from the config mock above
+delete require.cache[require.resolve('../core/activitypub/util.js')];
 delete require.cache[require.resolve('../core/activitypub/object.js')];
 delete require.cache[require.resolve('../core/activitypub/collection.js')];
 delete require.cache[require.resolve('../core/message.js')];
@@ -1798,14 +1800,17 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
     //  url -> { doc } or { status }
     let served;
     let fetched;
+    let requests;
     let savedGetJson;
 
     beforeEach(() => {
         served = new Map();
         fetched = [];
+        requests = [];
         savedGetJson = HttpUtil.getJson;
         HttpUtil.getJson = (url, opts, cb) => {
             fetched.push(url);
+            requests.push({ url, opts });
             const hit = served.get(url) || { status: 404 };
             if (hit.status) {
                 const err = new Error(`URL ${url} HTTP error ${hit.status}`);
@@ -1848,7 +1853,9 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
 
     //  Runs the inbox for |activity|, signed (as far as the handler knows)
     //  by |signerId|; resolves with the response name.
-    function post(activity, signerId) {
+    //  options.inbox: a personal inbox path; options.users: actor id ->
+    //  local user, standing in for the user database
+    function post(activity, signerId, options = {}) {
         const handler = new ActivityPubWebHandler();
         const noop = () => {};
         handler.log = { trace: noop, debug: noop, info: noop, warn: noop, error: noop };
@@ -1856,6 +1863,8 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
         handler._getAssociatedActors = (objectActorId, keyId, cb) =>
             cb(null, { id: objectActorId }, { id: signerId });
         handler._validateActorSignature = () => true;
+        handler._localUserByActorId = (id, cb) =>
+            cb(null, (options.users || {})[id] || null);
         return new Promise(resolve => {
             const respond = name => () => resolve(name);
             handler.webServer = {
@@ -1868,9 +1877,14 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             };
             const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
             req.headers = {};
-            req.url = '/_enig/ap/sharedInbox';
+            req.url = options.inbox || '/_enig/ap/sharedInbox';
             req.method = 'POST';
-            handler._inboxPostHandler(req, {}, { keyId: `${signerId}#main-key` }, SHARED);
+            handler._inboxPostHandler(
+                req,
+                {},
+                { keyId: `${signerId}#main-key` },
+                options.inbox ? 'inbox' : SHARED
+            );
         });
     }
 
@@ -1949,7 +1963,8 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             //  nothing served at the Note id: the origin cannot confirm it
             const result = await post(create(ATTACKER, note()), ATTACKER);
             assert.equal(result, 'accessDenied');
-            assert.ok(fetched.includes(NOTE), 'the origin was asked');
+            //  a Note off the actor's host cannot be the actor's
+            assert.ok(!fetched.includes(NOTE), 'nothing is fetched for it');
             assert.deepEqual(messages(), []);
         });
 
@@ -2296,11 +2311,88 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
         });
     });
 
+    describe("the inbox's own fetches are signed", function () {
+        const UserProps = require('../core/user_property.js');
+        const BOB = 'https://test.example.com/_enig/ap/users/bob';
+        const bobKey = require('crypto')
+            .generateKeyPairSync('rsa', { modulusLength: 2048 })
+            .privateKey.export({ type: 'pkcs8', format: 'pem' });
+        const bob = {
+            userId: 2,
+            username: 'bob',
+            getProperty: name =>
+                ({
+                    [UserProps.ActivityPubActorId]: BOB,
+                    [UserProps.PrivateActivityPubSigningKey]: bobKey,
+                })[name] || null,
+        };
+        const users = { [BOB]: bob };
+        const signedAs = url => {
+            const req = requests.find(r => r.url === url);
+            assert.ok(req, `${url} was fetched`);
+            return req.opts.sign ? req.opts.sign.keyId : null;
+        };
+        const bobFollows = actorId =>
+            new Promise((resolve, reject) =>
+                Collection.addFollowing(
+                    bob,
+                    { id: actorId, type: 'Person' },
+                    true,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+
+        it('signs a forwarded reply refetch as a local follower of its author', async () => {
+            await bobFollows(VICTIM);
+            served.set(NOTE, { doc: note() });
+            const result = await post(create(VICTIM, note()), FORWARDER, { users });
+            assert.equal(result, 'accepted');
+            assert.equal(signedAs(NOTE), `${BOB}#main-key`);
+            assert.equal(requests.find(r => r.url === NOTE).opts.sign.key, bobKey);
+        });
+
+        it('fetches unsigned when no local user follows the author', async () => {
+            served.set(NOTE, { doc: note() });
+            assert.equal(
+                await post(create(VICTIM, note()), FORWARDER, { users }),
+                'accepted'
+            );
+            assert.equal(signedAs(NOTE), null);
+        });
+
+        it('signs as the personal inbox user', async () => {
+            served.set(NOTE, { doc: note() });
+            const result = await post(create(VICTIM, note()), FORWARDER, {
+                users,
+                inbox: '/_enig/ap/users/bob/inbox',
+            });
+            assert.equal(result, 'accepted');
+            assert.equal(signedAs(NOTE), `${BOB}#main-key`);
+        });
+
+        it('signs an Announce fetch as a local follower of the announcer', async () => {
+            await bobFollows(VICTIM);
+            served.set(NOTE, { doc: note() });
+            const announce = {
+                id: `${GOOD}/activities/announce-1`,
+                type: 'Announce',
+                actor: VICTIM,
+                object: NOTE,
+            };
+            //  (recording the boost needs a reactions table this database
+            //  does not have; the fetch comes first)
+            await post(announce, VICTIM, { users });
+            assert.equal(signedAs(NOTE), `${BOB}#main-key`);
+        });
+    });
+
     describe('Delete of an actor that can no longer be fetched', function () {
         const GONE = `${GOOD}/users/gone`;
 
-        function postUnfetchable(activity) {
+        function postUnfetchable(activity, options = {}) {
             const handler = new ActivityPubWebHandler();
+            handler._localUserByActorId = (id, cb) =>
+                cb(null, (options.users || {})[id] || null);
             const noop = () => {};
             handler.log = {
                 trace: noop,
@@ -2326,7 +2418,13 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
                 req.headers = {};
                 req.url = '/_enig/ap/sharedInbox';
                 req.method = 'POST';
-                handler._inboxPostHandler(req, {}, { keyId: `${GONE}#main-key` }, SHARED);
+                req.url = options.inbox || req.url;
+                handler._inboxPostHandler(
+                    req,
+                    {},
+                    { keyId: `${GONE}#main-key` },
+                    options.inbox ? 'inbox' : SHARED
+                );
             });
         }
 
@@ -2385,6 +2483,28 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), []);
             assert.equal(storedRows().length, 1, "others' rows are untouched");
+        });
+
+        it('signs the probe as the personal inbox user', async () => {
+            const UserProps = require('../core/user_property.js');
+            const BOB = 'https://test.example.com/_enig/ap/users/bob';
+            const bob = {
+                userId: 2,
+                username: 'bob',
+                getProperty: name =>
+                    name === UserProps.PrivateActivityPubSigningKey ? 'a key' : null,
+            };
+            await storeGoneActor();
+            served.set(GONE, { status: 410 });
+
+            const result = await postUnfetchable(selfDelete(), {
+                inbox: '/_enig/ap/users/bob/inbox',
+                users: { [BOB]: bob },
+            });
+
+            assert.equal(result, 'accepted');
+            const probe = requests.find(r => r.url === GONE);
+            assert.equal(probe.opts.sign && probe.opts.sign.keyId, `${BOB}#main-key`);
         });
 
         it('is refused when the origin answers 404, which may be transient', async () => {

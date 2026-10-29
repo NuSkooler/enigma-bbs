@@ -35,6 +35,7 @@ const StatLog = require('../stat_log');
 const Log = require('../logger').log;
 const Message = require('../message');
 const { collectFollowerInboxes } = require('./follow_util');
+const { signedFetchOptions } = require('./util');
 
 // deps
 const async = require('async');
@@ -77,12 +78,17 @@ exports.sendActorDelete = sendActorDelete;
 //
 //  fromActorId (optional) — when provided, the fetched URL's hostname must match
 //  the actor's hostname to prevent cross-domain content injection (audit finding #7).
+//  fetchAs (optional) — local user a remote fetch is signed as
 //
-function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
-    //  Support legacy two-arg call: fetchAnnouncedNote(objectOrId, cb)
+function fetchAnnouncedNote(objectOrId, fromActorId, fetchAs, cb) {
+    //  Support legacy calls: (objectOrId, cb) and (objectOrId, fromActorId, cb)
     if (typeof fromActorId === 'function') {
         cb = fromActorId;
         fromActorId = null;
+        fetchAs = null;
+    } else if (typeof fetchAs === 'function') {
+        cb = fetchAs;
+        fetchAs = null;
     }
     const isNoteOrArticle = t => t === 'Note' || t === 'Article';
 
@@ -112,7 +118,7 @@ function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
         if (!isString(objectOrId.id)) {
             return cb(Errors.Invalid('Announce.object has no id'));
         }
-        return fetchAnnouncedNote(objectOrId.id, fromActorId, cb);
+        return fetchAnnouncedNote(objectOrId.id, fromActorId, fetchAs, cb);
     }
 
     const noteId = objectOrId;
@@ -142,7 +148,7 @@ function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
             );
         }
 
-        return fetchNoteFromOrigin(noteId, AnnounceObjectFetchTimeoutMs, cb);
+        return fetchNoteFromOrigin(noteId, AnnounceObjectFetchTimeoutMs, fetchAs, cb);
     });
 }
 
@@ -153,11 +159,19 @@ function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
 //  getJson's limits apply: SSRF checks on the URL and on each redirect, a
 //  response size cap, a timeout, and the content type.
 //
-function fetchNoteFromOrigin(noteId, timeoutMs, cb) {
+//  fetchAs (optional) — local user the GET is signed as, for origins that
+//  refuse unsigned fetches; signed GETs do not follow redirects.
+//
+function fetchNoteFromOrigin(noteId, timeoutMs, fetchAs, cb) {
     if (typeof timeoutMs === 'function') {
         cb = timeoutMs;
         timeoutMs = AnnounceObjectFetchTimeoutMs;
+        fetchAs = null;
+    } else if (typeof fetchAs === 'function') {
+        cb = fetchAs;
+        fetchAs = null;
     }
+    timeoutMs = timeoutMs || AnnounceObjectFetchTimeoutMs;
 
     const fetchOpts = {
         headers: { Accept: ActivityStreamMediaType },
@@ -168,6 +182,10 @@ function fetchNoteFromOrigin(noteId, timeoutMs, cb) {
             'application/ld+json',
         ],
     };
+    const sign = signedFetchOptions(fetchAs);
+    if (sign) {
+        fetchOpts.sign = sign;
+    }
 
     HttpUtil.getJson(noteId, fetchOpts, (err, parsed, res) => {
         if (err) {

@@ -32,6 +32,7 @@ exports.htmlToMessageBody = htmlToMessageBody;
 exports.userNameFromSubject = userNameFromSubject;
 exports.userNameToSubject = userNameToSubject;
 exports.handleFromSubject = handleFromSubject;
+exports.signedFetchOptions = signedFetchOptions;
 exports.stripDisplayControls = stripDisplayControls;
 exports.extractMessageMetadata = extractMessageMetadata;
 exports.recipientIdsFromObject = recipientIdsFromObject;
@@ -553,6 +554,24 @@ function handleFromSubject(subject) {
         return null;
     }
     return handle;
+}
+
+//
+//  HTTP signature options for a GET made as local |user|, for servers that
+//  refuse unsigned fetches (Mastodon secure mode, GoToSocial), or null when
+//  there is no user or it has no key. A GET has no body: no digest.
+//
+function signedFetchOptions(user) {
+    const key = user && user.getProperty(UserProps.PrivateActivityPubSigningKey);
+    if (!key) {
+        return null;
+    }
+    return {
+        key,
+        keyId: Endpoints.actorId(user) + '#main-key',
+        authorizationHeaderName: 'Signature',
+        headers: ['(request-target)', 'host', 'date'],
+    };
 }
 
 function userNameToSubject(userName) {
