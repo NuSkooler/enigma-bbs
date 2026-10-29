@@ -261,3 +261,233 @@ describe('WFC config cleanups', () => {
         );
     });
 });
+
+describe('WFC status bar panels', () => {
+    const { StatusBarView } = require('../core/status_bar_view.js');
+
+    let previousConfig;
+
+    before(() => {
+        previousConfig = configModule._pushTestConfig({
+            menus: { cls: false },
+            general: { boardName: 'Test Board' },
+        });
+    });
+
+    after(() => {
+        configModule._popTestConfig(previousConfig);
+    });
+
+    //  A stand-in for a panel-mode %SB5 that records what it was handed.
+    function fakeStatusBar(names) {
+        const view = { panels: {}, setCalls: 0 };
+        view.getPanelNames = () => names.slice();
+        view.setPanels = updates => {
+            view.setCalls++;
+            Object.assign(view.panels, updates);
+        };
+        return view;
+    }
+
+    function makeWfcWithStatusBar(configPatch, names) {
+        const { instance, client } = makeWfc(configPatch);
+        const view = fakeStatusBar(names);
+        instance.getView = (form, id) => ('main' === form && 5 === id ? view : null);
+        return { instance, client, view };
+    }
+
+    function nodeMsg(text) {
+        return {
+            type: InterruptType.NodeMsg,
+            from: { userName: 'Umbra', nodeId: 2 },
+            text,
+        };
+    }
+
+    it('lists panel names, and none outside panel mode', () => {
+        const panelled = Object.create(StatusBarView.prototype);
+        panelled.refreshInterval = 0;
+        panelled._initPanels([{ name: 'now', width: 10 }, { width: 5 }]);
+        assert.deepEqual(panelled.getPanelNames(), ['now', '1']);
+
+        const single = Object.create(StatusBarView.prototype);
+        assert.deepEqual(single.getPanelNames(), []);
+    });
+
+    it('fills every named panel from statusBar<Name>Format against the stats', () => {
+        const { instance, view } = makeWfcWithStatusBar(
+            {
+                statusBarUserFormat: 'op:{currentUserName}',
+                statusBarMailFormat: 'Prv:{newPrivateMail}',
+            },
+            ['user', 'mail', 'label', 'messages', 'pages']
+        );
+        instance.stats = { currentUserName: 'NuSkooler', newPrivateMail: 3 };
+
+        instance._updateStatusBarPanels();
+
+        assert.equal(view.panels.user, 'op:NuSkooler');
+        assert.equal(view.panels.mail, 'Prv:3');
+        //  messages/pages work with no config at all
+        assert.equal(view.panels.messages, 'MSG 0');
+        assert.equal(view.panels.pages, 'PAGE 0');
+        //  no format: a static `text` label panel must be left alone
+        assert.ok(!('label' in view.panels), 'unconfigured panel was overwritten');
+    });
+
+    it('uses the active format only while the count is non-zero', () => {
+        const { instance, view } = makeWfcWithStatusBar(
+            {
+                statusBarMessagesFormat: 'msg {count}',
+                statusBarMessagesActiveFormat: 'MSG! {count}',
+                statusBarPagesFormat: 'page {count}',
+                statusBarPagesActiveFormat: 'PAGE! {count}',
+            },
+            ['messages', 'pages']
+        );
+
+        instance._updateStatusBarPanels();
+        assert.equal(view.panels.messages, 'msg 0');
+        assert.equal(view.panels.pages, 'page 0');
+
+        instance._inbox().add(nodeMsg('hi'));
+        instance.pendingPages.push({ userName: 'Umbra', nodeId: 2 });
+        instance._updateStatusBarPanels();
+        assert.equal(view.panels.messages, 'MSG! 1');
+        assert.equal(view.panels.pages, 'PAGE! 1');
+    });
+
+    it('falls back to the normal format when no active format is set', () => {
+        const { instance, view } = makeWfcWithStatusBar(
+            { statusBarMessagesFormat: 'msg {count}' },
+            ['messages']
+        );
+        instance._inbox().add(nodeMsg('hi'));
+        instance._updateStatusBarPanels();
+        assert.equal(view.panels.messages, 'msg 1');
+    });
+
+    it('updates the count the moment a node message arrives', () => {
+        const { instance, view } = makeWfcWithStatusBar({}, ['messages']);
+        instance.viewControllers.main = {}; //  dashboard is up
+
+        instance._routeInterruptItem(nodeMsg('ding'));
+        assert.equal(view.panels.messages, 'MSG 1');
+    });
+
+    it('does not paint the status bar while a sub-viewer owns the screen', () => {
+        const { instance, view } = makeWfcWithStatusBar({}, ['messages']);
+        instance.viewControllers.main = {};
+        instance.viewControllers.messages = {};
+
+        instance._routeInterruptItem(nodeMsg('ding'));
+        assert.equal(view.setCalls, 0);
+
+        //  ...nor before the dashboard has been drawn at all
+        delete instance.viewControllers.messages;
+        delete instance.viewControllers.main;
+        instance._routeInterruptItem(nodeMsg('dong'));
+        assert.equal(view.setCalls, 0);
+    });
+
+    it('puts boardName in the stats, for idleText and custom MCI', () => {
+        const StatLog = require('../core/stat_log.js');
+        const saved = {
+            getSystemStat: StatLog.getSystemStat,
+            getSystemStatNum: StatLog.getSystemStatNum,
+            getUserStatNumByClient: StatLog.getUserStatNumByClient,
+        };
+        StatLog.getSystemStat = () => ({});
+        StatLog.getSystemStatNum = () => 7;
+        StatLog.getUserStatNumByClient = () => 0;
+
+        //  wfc.js captures config.get when it is first loaded, which may have
+        //  been under some other file's test config. Load a private copy so it
+        //  sees the boardName pushed above, then put the shared one back.
+        const wfcPath = require.resolve('../core/wfc.js');
+        const sharedWfc = require.cache[wfcPath];
+        delete require.cache[wfcPath];
+
+        try {
+            const WfcModule = require('../core/wfc.js').getModule;
+            const client = makeClient();
+            const instance = new WfcModule({
+                menuName: 'mainMenuWaitingForCaller',
+                menuConfig: {
+                    config: {
+                        acs: 'SCID1',
+                        statusAvailableIndicators: ['N', 'Y'],
+                        statusVisibleIndicators: ['N', 'Y'],
+                        dateFormat: 'YYYY-MM-DD',
+                        timeFormat: 'HH:mm',
+                        ticker: { idleText: '{boardName} - {totalCalls} calls' },
+                    },
+                },
+                client,
+            });
+            client.user = {
+                username: 'NuSkooler',
+                realName: () => 'Bryan',
+                isAvailable: () => true,
+                isVisible: () => true,
+            };
+
+            instance._refreshStats(() => {});
+            assert.equal(instance.stats.boardName, 'Test Board');
+
+            const ticker = { setText: t => (ticker.text = t) };
+            instance.getView = (form, id) => (6 === id ? ticker : null);
+            instance._advanceTicker();
+            assert.equal(ticker.text, 'Test Board - 7 calls');
+        } finally {
+            Object.assign(StatLog, saved);
+            if (sharedWfc) {
+                require.cache[wfcPath] = sharedWfc;
+            } else {
+                delete require.cache[wfcPath];
+            }
+        }
+    });
+});
+
+describe('WFC message format tokens', () => {
+    let previousConfig;
+
+    before(() => {
+        previousConfig = configModule._pushTestConfig({ menus: { cls: false } });
+    });
+
+    after(() => {
+        configModule._popTestConfig(previousConfig);
+    });
+
+    function item(read) {
+        return {
+            id: 1,
+            type: InterruptType.NodeMsg,
+            from: { userName: 'Umbra', nodeId: 2 },
+            text: 'hello',
+            timestamp: new Date(0),
+            read,
+        };
+    }
+
+    function makeFormatter(configPatch) {
+        const { instance } = makeWfc(
+            Object.assign({ dateTimeFormat: 'YYYY-MM-DD' }, configPatch)
+        );
+        return (msg, i) => instance._messageFormatObj(msg, i);
+    }
+
+    it('marks unread messages with unreadIndicator, default *', () => {
+        const fmt = makeFormatter({});
+        assert.equal(fmt(item(false), 0).unreadIndicator, '*');
+        assert.equal(fmt(item(true), 0).unreadIndicator, '');
+    });
+
+    it('honours a configured unreadIndicator', () => {
+        const fmt = makeFormatter({ unreadIndicator: '|14N' });
+        assert.equal(fmt(item(false), 0).unreadIndicator, '|14N');
+        assert.equal(fmt(item(true), 0).unreadIndicator, '');
+    });
+});

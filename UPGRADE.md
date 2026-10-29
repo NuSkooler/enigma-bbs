@@ -350,7 +350,9 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   * `wfcmessages` art with `%VM1` (message list) and `%MT2` (detail). Without it <kbd>M</kbd> shows a plain text list instead, which works — but the fallback has no selection, so <kbd>R</kbd> and <kbd>D</kbd> do nothing until the art exists.
   * `%TK6` in your WFC art turns on the activity ticker. Without it the feed accumulates, bounded by `ticker.maxItems`, and nothing renders.
-  * `%SB5` gives you the message and page count panels.
+  * `%SB5` gives you a status bar. It must be in panel mode: every named panel is filled from `statusBar<Name>Format`, with `statusBar<Name>ActiveFormat` lighting up the `messages` and `pages` counts while they are non-zero. The menu template now ships a minimal `SB5` with just those two panels, so a `menu.hjson` that predates it needs one added to form 0 of `mainMenuWaitingForCaller` — or let your theme supply it.
+
+  `luciano_blocktronics` now ships the `SB5` and `TK6` config, the status bar formats, a `ticker` block and message viewer item formats, replacing the old `mainInfoFormat10` header line. A theme's MCI definitions reach your board without touching `menu.hjson`; the matching art (`%SB5`/`%TK6` in `wfc.ans`, and `wfcmessages.ans`) is still to come, and until it lands the dashboard's top row is blank.
 
   Those view IDs are not interchangeable: the WFC looks the ticker up as ID **6** and the status bar as ID **5**. ID 1 is already `%VM1`, the node status list, and `ViewController` keys views by ID with a plain assignment — so `%TK1` or `%SB1` in WFC art would replace the node list rather than quietly do nothing.
 

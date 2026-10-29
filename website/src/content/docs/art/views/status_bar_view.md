@@ -108,6 +108,10 @@ statusBarView.setPanel('pos', '01,01');
 
 // Update multiple panels with a single redraw:
 statusBarView.setPanels({ mode: 'OVR', pos: '12,40' });
+
+// Names of every panel in config order ([] outside panel mode), for code that
+// fills whatever panels a theme defines -- the WFC's %SB5 works this way:
+statusBarView.getPanelNames(); // [ 'mode', 'pos' ]
 ```
 
 Values passed to `setPanel` / `setPanels` are processed through pipe-code conversion and `textStyle` — plain strings are fine for simple indicators.

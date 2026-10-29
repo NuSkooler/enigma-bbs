@@ -288,7 +288,9 @@
                 //      }
                 //  }
 
-                //  Activity marquee for an optional %TK6 ticker.
+                //  Activity marquee for an optional %TK6 ticker. idleText
+                //  takes the same tokens as custom MCI 10+ ({boardName},
+                //  {totalCalls}, {callsToday}, ...).
                 //  ticker: {
                 //      rotateOn: "cycle"     // or a number of ms
                 //      maxItems: 10
@@ -298,9 +300,18 @@
                 //      }
                 //  }
 
-                //  Panels for an optional %SB5 status bar. Token: {count}
-                //  statusBarMessagesFormat: "|08MSG |15{count}"
-                //  statusBarPagesFormat: "|08PAGE |15{count}"
+                //  Panels for an optional %SB5 status bar (see form 0 below).
+                //  Each named panel is filled from statusBar<Name>Format,
+                //  e.g. a panel named "user" reads statusBarUserFormat.
+                //  Tokens: everything custom MCI 10+ gets, plus {count} --
+                //  unread messages for "messages", pending pages for "pages".
+                //  statusBar<Name>ActiveFormat, when set, is used instead
+                //  while {count} is above zero. A panel with no format is
+                //  left alone, so a static `text` label still works.
+                //  statusBarMessagesFormat: "|08MSG |07{count}"
+                //  statusBarMessagesActiveFormat: "|08MSG |15{count}"
+                //  statusBarPagesFormat: "|08PAGE |07{count}"
+                //  statusBarUserFormat: "|15{currentUserName}"
 
                 //  Menu used by S (send) and R (reply). Defaults to
                 //  wfcNodeMessage, the +op-side copy of nodeMessage.
@@ -310,6 +321,9 @@
                 //  inboxMaxItems: 50
                 //  messageAlert: true          // BEL on arrival
                 //  messagePreviewLength: 40
+                //  Message tokens: {index}, {userName}, {realName}, {nodeId},
+                //  {timestamp}, {text}, {unreadIndicator}
+                //  unreadIndicator: "*"        // shown for unread messages
                 //  messageListFormat: "|08[|07{index}|08] |15{userName}|08/|07{nodeId} |08- |07{text}"
                 //  messageDetailFormat: "{text}"
                 //  noMessagesText: "|08No messages.|07"
@@ -336,6 +350,23 @@
                             acceptsFocus: false
                             acceptsInput: false
 						}
+                        //  Status bar, for art that places %SB5. Panel mode
+                        //  only: panels are filled by name from
+                        //  statusBar<Name>Format above. A theme's panels
+                        //  replace this list wholesale.
+                        SB5: {
+                            separator: " "
+                            panels: [
+                                {
+                                    name: messages
+                                    width: 8
+                                }
+                                {
+                                    name: pages
+                                    width: 8
+                                }
+                            ]
+                        }
 					}
 
 					actionKeys: [

@@ -131,6 +131,12 @@ const DefaultTickerEventFormats = {
 
 const DefaultTickerMaxItems = 10;
 
+//  Status bar panels that have a {count} and so work without any config.
+const DefaultStatusBarPanelFormats = {
+    messages: 'MSG {count}',
+    pages: 'PAGE {count}',
+};
+
 //  Secure + 2FA + root user + 'wfc' group.
 const DefaultACS = 'SCAF2ID1GM[wfc]';
 const MainStatRefreshTimeMs = 5000; // 5s
@@ -352,14 +358,20 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             if (false !== this.config.messageAlert) {
                 this.client.term.rawWrite('\x07'); //  BEL
             }
+
+            //  The BEL is instant; the count should be too, rather than
+            //  waiting up to a full refresh tick to catch up with it.
+            if (this._mainFormOwnsScreen()) {
+                this._updateStatusBarPanels();
+            }
         }
 
         if (sinks.includes(Sinks.Ticker)) {
             this._pushTicker((interruptItem.text || '').replace(/\r?\n/g, ' ').trim());
         }
 
-        //  StatusBar needs no work of its own -- _refreshStats() reads the
-        //  inbox straight through on the next tick. Log is handled at the
+        //  StatusBar needs no work of its own -- the inbox branch above and
+        //  _refreshStats() both read the inbox straight through. Log is handled at the
         //  source (achievements log themselves for every op), so naming it
         //  here means "already in the log; surface nothing further".
 
@@ -931,6 +943,16 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
     }
 
+    //  False before the dashboard is drawn and while a sub-viewer (full log,
+    //  messages) owns the screen: form 0 views must not be painted then.
+    _mainFormOwnsScreen() {
+        return (
+            !!this.viewControllers.main &&
+            !this.viewControllers.fullLog &&
+            !this.viewControllers.messages
+        );
+    }
+
     _refreshAll(cb) {
         //  Don't touch form 0 views while a sub-viewer owns the screen
         if (this.viewControllers.fullLog || this.viewControllers.messages) {
@@ -1008,6 +1030,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         );
 
         this.stats = {
+            boardName: _.get(Config(), 'general.boardName', ''),
+
             //  Date/Time
             nowDate: now.format(this.getDateFormat()),
             nowTime: now.format(this.getTimeFormat()),
@@ -1107,24 +1131,42 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     //
     //  Status bar (%SB) panels are driven from code: a panel's own `text`
     //  template only resolves predefined MCI, so it cannot see these.
-    //  Panels are addressed by name and are all optional.
+    //
+    //  Every named panel is filled from `statusBar<Name>Format` (e.g. a panel
+    //  named `user` reads statusBarUserFormat), formatted against the stats
+    //  plus {count}. `messages` and `pages` carry a count and a default
+    //  format; when the count is non-zero `statusBar<Name>ActiveFormat`, if
+    //  set, is used instead so the panel can light up. A panel with no format
+    //  at all is left alone, so a static `text` label keeps working.
     //
     _updateStatusBarPanels() {
         const view = this.getView('main', MciViewIds.main.statusBar);
-        if (!view || !_.isFunction(view.setPanels)) {
+        if (!view || !_.isFunction(view.setPanels) || !_.isFunction(view.getPanelNames)) {
             return;
         }
 
-        const inbox = this._inbox();
-        const fmt = name => this.config[`statusBar${_.upperFirst(name)}Format`];
+        const counts = {
+            messages: this._inbox().unreadCount(),
+            pages: this.pendingPages.length,
+        };
 
-        const msgFmt = fmt('messages') || 'MSG {count}';
-        const pageFmt = fmt('pages') || 'PAGE {count}';
-
-        view.setPanels({
-            messages: stringFormat(msgFmt, { count: inbox.unreadCount() }),
-            pages: stringFormat(pageFmt, { count: this.pendingPages.length }),
+        const updates = {};
+        view.getPanelNames().forEach(name => {
+            const key = `statusBar${_.upperFirst(name)}`;
+            const count = counts[name] || 0;
+            const fmt =
+                (count > 0 && this.config[`${key}ActiveFormat`]) ||
+                this.config[`${key}Format`] ||
+                DefaultStatusBarPanelFormats[name];
+            if (!_.isString(fmt)) {
+                return;
+            }
+            updates[name] = stringFormat(fmt, { ...(this.stats || {}), count });
         });
+
+        if (!_.isEmpty(updates)) {
+            view.setPanels(updates);
+        }
     }
 
     _getNodeStatusIndexByNodeId(nodeStatusView, nodeId) {
@@ -1362,6 +1404,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             nodeId: item.from.nodeId || '',
             type: item.type,
             read: item.read,
+            unreadIndicator: item.read ? '' : this.config.unreadIndicator || '*',
             timestamp: moment(item.timestamp).format(this.getDateTimeFormat('short')),
             text: (item.text || '').replace(/\r?\n/g, ' ').trim(),
         };

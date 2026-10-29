@@ -251,11 +251,38 @@
 				config: {
 					// formats
 					quickLogTimestampFormat: "|01|03MM|08/|03DD hh:mm:ssa"
-					nowDateTimeFormat: "|00|10ddd|08, |10MMMM Do YYYY|08, |10h|08:|10mm|02a"
+					// {now} fills the 21 column SB5 "now" panel: keep it that short
+					nowDateTimeFormat: "|00|10ddd MMM Do|08, |10h|08:|10mm|02a"
 					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
 
-					// header
-					mainInfoFormat10: "|00|10{now}    |10{currentUserName} |08- |02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo} |08- |02Avail|08:|10{availIndicator} |02Vis|07:|10{visIndicator}"
+					// status bar (SB5): one format per named panel; {count} for
+					// messages/pages, whose Active format is used while it is > 0
+					statusBarNowFormat: "{now}"
+					statusBarUserFormat: "|00|10{currentUserName}"
+					statusBarMailFormat: "|00|02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo}"
+					statusBarStatusFormat: "|00|02Avl|08:|10{availIndicator} |02Vis|08:|10{visIndicator}"
+					statusBarMessagesFormat: "|00|02MSG|08:|02{count}"
+					statusBarMessagesActiveFormat: "|00|14MSG|08:|15{count}"
+					statusBarPagesFormat: "|00|02PAGE|08:|02{count}"
+					statusBarPagesActiveFormat: "|00|13PAGE|08:|15{count}"
+
+					// activity ticker (TK6)
+					ticker: {
+						rotateOn: "cycle"
+						maxItems: 10
+						idleText: "|00|10{boardName} |08- |10{totalCalls} |02calls total|08, |10{callsToday} |02today"
+						events: {
+							userLogin: "|00|10{userName} |02logged in on node |10{nodeId}"
+							userAchievementEarned: "|00|10{userName} |02earned |14{title} |08(|10+{points}|08)"
+							userUpload: "|00|10{userName} |02uploaded |10{fileCount} |02file(s)"
+						}
+					}
+
+					// message viewer (form 4). "{text}" keeps each list item's
+					// text raw so the VM1 item formats below can lay it out.
+					messageListFormat: "{text}"
+					messageDetailFormat: "|00|02From|08: |10{userName} |08(|02node |10{nodeId}|08) |02at |10{timestamp}\n\n|07{text}"
+					noMessagesText: "|00|02No messages|08."
 
 					// today
 					mainInfoFormat11: "|00|15{callsToday:>5}"
@@ -342,6 +369,47 @@
 							height: 5
 							width: 12
 						}
+
+						// status bar: widths + separators = 78, user takes the rest (13)
+						SB5: {
+							width: 78
+							separator: " "
+							panels: [
+								{
+									name: now
+									width: 21
+								}
+								{
+									name: user
+									width: fill
+								}
+								{
+									name: mail
+									width: 14
+								}
+								{
+									name: status
+									width: 11
+								}
+								{
+									name: messages
+									width: 7
+								}
+								{
+									name: pages
+									width: 7
+								}
+							]
+						}
+
+						// activity ticker: bounce holds short text for holdTicks
+						// and scrolls long text end to end, then rotates
+						TK6: {
+							width: 78
+							motion: bounce
+							tickInterval: 100
+							holdTicks: 40
+						}
 					}
 				}
 				2: {
@@ -354,6 +422,26 @@
 							focusItemFormat: "|00|10> |07{nodeId} {levelIndicator} |15{timestamp} |15{message}"
 						}
 						// full entry detail (page up/down scrolls)
+						MT2: {
+							mode: preview
+							autoScroll: false
+							height: 12
+							width: 73
+						}
+					}
+				}
+				// message viewer (wfcmessages). Placeholder sizes mirroring the
+				// full log (form 2) until the art exists; adjust to the art.
+				4: {
+					mci: {
+						// message list
+						VM1: {
+							height: 9
+							width: 73
+							itemFormat:      "|00|14{unreadIndicator:<1} |02{userName:<12.12} |08{nodeId:>2} |02{timestamp} |07{text}"
+							focusItemFormat: "|00|14{unreadIndicator:<1}|10>|15{userName:<12.12} |08{nodeId:>2} |15{timestamp} |15{text}"
+						}
+						// selected message
 						MT2: {
 							mode: preview
 							autoScroll: false
