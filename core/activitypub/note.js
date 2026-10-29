@@ -297,7 +297,7 @@ module.exports = class Note extends ActivityPubObject {
                 // try to handle various implementations
                 // - https://docs.joinmastodon.org/spec/activitypub/#payloads
                 // - https://indieweb.org/post-type-discovery#Algorithm
-                this.content || this.name || this.summary
+                [this.content, this.name, this.summary].find(v => isString(v) && v) || ''
             );
 
             this._setToUserName(message, isPrivate, options.toUser);
@@ -486,12 +486,13 @@ module.exports = class Note extends ActivityPubObject {
     }
 
     _setSubject(message) {
-        if (this.summary) {
+        //  remote fields: only strings are used
+        if (isString(this.summary) && this.summary) {
             message.subject = this.summary.trim();
             return;
         }
 
-        if (this.name) {
+        if (isString(this.name) && this.name) {
             message.subject = this.name.trim();
             return;
         }

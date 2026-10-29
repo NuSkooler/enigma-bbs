@@ -420,6 +420,17 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     : this.webServer.notImplemented(resp);
             }
 
+            //  The actor must be one id (a URL): an array, object or number
+            //  would reach lookups that expect a string
+            const activityActorId = getActorId(activity);
+            if (!_.isString(activityActorId) || !/^https?:\/\//i.test(activityActorId)) {
+                this.log.warn(
+                    { url: req.url, activityId: activity.id, inboxType },
+                    'Activity actor is not an id — rejected'
+                );
+                return this.webServer.badRequest(resp);
+            }
+
             //  Verify activity.id belongs to the same domain as activity.actor.
             //  The id is used for deduplication and logging; a mismatch is a
             //  sign of a forged or misrouted activity.

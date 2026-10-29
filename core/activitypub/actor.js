@@ -244,7 +244,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
         };
 
-        if (!id) {
+        if (!_.isString(id) || !id) {
             return cb(Errors.Invalid('Invalid Actor ID'));
         }
 
@@ -321,7 +321,7 @@ module.exports = class Actor extends ActivityPubObject {
     //                    when it is one of the two above
     //
     static _confirmedHandle(actor, query, queryRes, cb) {
-        const lower = h => (h || '').replace(/^@/, '').toLowerCase();
+        const lower = h => (_.isString(h) ? h.replace(/^@/, '').toLowerCase() : '');
         let actorHost;
         try {
             actorHost = new URL(actor.id).host;

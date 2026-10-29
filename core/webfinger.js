@@ -6,6 +6,10 @@ const { getJson } = require('./http_util');
 exports.queryWebFinger = queryWebFinger;
 
 function queryWebFinger(query, cb) {
+    if (typeof query !== 'string' || !query) {
+        return cb(Errors.Invalid('Cannot WebFinger a non-string query'));
+    }
+
     //
     //  Accept a variety of formats to query via WebFinger
     //  1) @Username@foo.bar -> query with acct:Username resource

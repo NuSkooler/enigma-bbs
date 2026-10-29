@@ -1063,7 +1063,8 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
         savedGetJson = HttpUtil.getJson;
         HttpUtil.getJson = (url, opts, cb) => {
             fetched.push(url);
-            const hit = served.get(url);
+            //  a URL is a string on the wire, whatever it was given as
+            const hit = served.get(String(url));
             if (!hit) {
                 return cb(new Error(`not found: ${url}`));
             }
@@ -1091,9 +1092,13 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             return cb(
                 null,
                 {
-                    subject: query,
+                    subject: String(query),
                     links: [
-                        { rel: 'self', type: 'application/activity+json', href: query },
+                        {
+                            rel: 'self',
+                            type: 'application/activity+json',
+                            href: String(query),
+                        },
                     ],
                 },
                 `${host}/.well-known/webfinger?resource=${encodeURIComponent(query)}`
@@ -1801,6 +1806,72 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             assert.equal((await fromId(bob)).actor.id, bob);
             assert.deepEqual(fetched, [], 'from the cache');
         });
+
+        it('answers activities of malformed shapes, without hanging or throwing', async () => {
+            served.set(VICTIM, {
+                doc: actorDoc(VICTIM, {}, { preferredUsername: 'alice' }),
+            });
+            const noteObject = {
+                id: `${GOOD}/notes/fuzz`,
+                type: 'Note',
+                attributedTo: VICTIM,
+            };
+            const shapes = [
+                { actor: [VICTIM] },
+                { actor: {} },
+                { actor: { id: VICTIM } },
+                { actor: null },
+                { actor: 42 },
+                { object: null },
+                { object: [] },
+                { object: { id: {} } },
+                { object: { id: 42, type: 'Note' } },
+                {
+                    object: {
+                        id: `${GOOD}/notes/fuzz-fields`,
+                        type: 'Note',
+                        attributedTo: VICTIM,
+                        content: 42,
+                        summary: {},
+                        to: ['https://www.w3.org/ns/activitystreams#Public'],
+                    },
+                },
+            ];
+            const types = ['Create', 'Update', 'Delete', 'Like', 'Announce', 'Undo'];
+            const hung = [];
+            for (const type of types) {
+                for (const shape of shapes) {
+                    const activity = Object.assign(
+                        {
+                            id: `${GOOD}/activities/fuzz-${Math.random()}`,
+                            type,
+                            actor: VICTIM,
+                            object: noteObject,
+                        },
+                        shape
+                    );
+                    const result = await Promise.race([
+                        post(activity, `${VICTIM}#main-key`, realKey.privateKey),
+                        new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 500)),
+                    ]);
+                    if (result === 'TIMEOUT') {
+                        hung.push(`${type} ${JSON.stringify(shape)}`);
+                    }
+                }
+            }
+            assert.deepEqual(hung, []);
+        });
+
+        for (const actor of [[VICTIM], { type: 'Person' }, 42]) {
+            it(`refuses an activity whose actor is ${JSON.stringify(actor)} as malformed`, async () => {
+                const result = await post(
+                    { id: `${GOOD}/activities/odd`, type: 'Like', actor, object: NOTE },
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+                assert.equal(result, 'badRequest');
+            });
+        }
 
         it('a planted actor document cannot take over a cached actor', async () => {
             //  Alice's post, and Alice cached with her real key
