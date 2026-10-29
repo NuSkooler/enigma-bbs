@@ -248,8 +248,8 @@ exports.resetFollowerFailures = () => followerFailures.clear();
 //  and re-caches it, four at a time and signed as the local user; one that
 //  fails is not tried again for FollowerFailureTtlMs. late(deliver) hands
 //  each further inbox found that way to deliver(inbox), including those
-//  found before late() was called; without it they are cached for the next
-//  post. The follower row's own copy of the actor is not used: it may
+//  found before late() was called, if they still follow; without it they
+//  are cached for the next post. The follower row's own copy of the actor is not used: it may
 //  predate those checks.
 //
 function collectFollowerInboxes(localUser, cb) {
@@ -312,8 +312,19 @@ function collectFollowerInboxes(localUser, cb) {
                             );
                         return next(null);
                     }
-                    found(inboxOf(actor));
-                    return next(null);
+                    //  the list was read before a lookup that can take a
+                    //  while: skip one who has stopped following since
+                    Collection.hasObject(
+                        Collections.Followers,
+                        followersEndpoint,
+                        actorId,
+                        (err, follows) => {
+                            if (!err && follows) {
+                                found(inboxOf(actor));
+                            }
+                            return next(null);
+                        }
+                    );
                 });
             });
         });

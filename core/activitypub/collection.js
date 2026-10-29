@@ -910,6 +910,23 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //  Is |objectId| (still) in the collection |collectionId|?
+    static hasObject(collectionName, collectionId, objectId, cb) {
+        let row;
+        try {
+            row = apDb
+                .prepare(
+                    `SELECT 1 FROM collection
+                    WHERE name = ? AND collection_id = ? AND object_id = ?
+                    LIMIT 1;`
+                )
+                .get(collectionName, collectionId, objectId);
+        } catch (err) {
+            return cb(err);
+        }
+        return cb(null, !!row);
+    }
+
     static removeById(collectionName, objectId, cb) {
         try {
             apDb.prepare(

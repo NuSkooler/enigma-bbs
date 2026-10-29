@@ -1073,6 +1073,14 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             if (hit.hang) {
                 return; // never answers
             }
+            if (hit.defer && !hit.released) {
+                //  answers when the test calls release()
+                hit.release = () => {
+                    hit.released = true;
+                    HttpUtil.getJson(url, opts, cb);
+                };
+                return;
+            }
             return cb(null, JSON.parse(JSON.stringify(hit.doc)), {
                 statusCode: 200,
                 headers: { 'content-type': 'application/activity+json' },
@@ -1658,6 +1666,24 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             assert.deepEqual(got.now, [`${GOOD}/inbox`]);
             assert.deepEqual(got.late(), []);
             assert.ok(!wasFetched(VICTIM), 'no fetch for a cached follower');
+        });
+
+        it('does not deliver to a follower who unfollows while being looked up', async () => {
+            const late = 'https://late.example/users/lee';
+            await addFollower(late);
+            served.set(late, { doc: actorDoc(late), defer: true });
+
+            const got = await collect();
+            assert.equal(typeof served.get(late).release, 'function', 'lookup in flight');
+            await new Promise((resolve, reject) =>
+                Collection.removeById('followers', late, err =>
+                    err ? reject(err) : resolve()
+                )
+            );
+            served.get(late).release();
+            await settle();
+
+            assert.deepEqual(got.late(), []);
         });
 
         it('gives cached followers at once while the others hang', async () => {
