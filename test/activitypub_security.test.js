@@ -453,46 +453,23 @@ describe('hostsMatch()', function () {
 // ─── verifyObjectOwner ────────────────────────────────────────────────────────
 
 describe('verifyObjectOwner()', function () {
-    it('returns null (permit) when httpSigValidated is true', () => {
-        assert.equal(verifyObjectOwner(true, false, 'Note'), null);
-        assert.equal(verifyObjectOwner(true, false, 'Actor'), null);
+    it('returns null (permit) when the HTTP signature is validated', () => {
+        assert.equal(verifyObjectOwner(true), null);
+        //  the old extra arguments are ignored
         assert.equal(verifyObjectOwner(true, true, 'Note'), null);
     });
 
-    it('returns a reason string when sig is not validated and domainVerifiedOnly is false', () => {
-        const reason = verifyObjectOwner(false, false, 'Note');
-        assert.ok(
-            typeof reason === 'string' && reason.length > 0,
-            `expected reason string, got: ${reason}`
-        );
-    });
-
-    it('returns a reason string when sig is not validated and domainVerifiedOnly is false (Actor)', () => {
-        const reason = verifyObjectOwner(false, false, 'Actor');
+    it('returns a reason string when the signature is not validated', () => {
+        const reason = verifyObjectOwner(false);
         assert.ok(typeof reason === 'string' && reason.length > 0);
     });
 
-    it('returns null (permit) for Actor self-deletion with domainVerifiedOnly', () => {
-        //  Actor deleted themselves; we verified domain binding; allow cache cleanup.
-        assert.equal(verifyObjectOwner(false, true, 'Actor'), null);
-    });
-
-    it('returns a reason string for Note deletion with domainVerifiedOnly (Notes always need sig)', () => {
-        const reason = verifyObjectOwner(false, true, 'Note');
-        assert.ok(
-            typeof reason === 'string' && reason.length > 0,
-            'Note delete without valid sig must be refused even with domain binding'
-        );
-    });
-
-    it('returns a reason string for Article deletion with domainVerifiedOnly', () => {
-        const reason = verifyObjectOwner(false, true, 'Article');
-        assert.ok(typeof reason === 'string' && reason.length > 0);
-    });
-
-    it('returns a reason string when objectType is undefined/null with domainVerifiedOnly', () => {
-        const reason = verifyObjectOwner(false, true, undefined);
-        assert.ok(typeof reason === 'string' && reason.length > 0);
+    it('domain binding alone no longer permits anything, for any type', () => {
+        //  a Delete of an actor that cannot be fetched is verified with its
+        //  origin instead (#964 review)
+        for (const type of ['Actor', 'Person', 'Note', undefined]) {
+            assert.ok(verifyObjectOwner(false, true, type));
+        }
     });
 });
 

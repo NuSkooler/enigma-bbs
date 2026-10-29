@@ -377,6 +377,8 @@ describe('Activity.makeAnnounce()', function () {
 // ─── fetchAnnouncedNote — embedded object cases (no network) ──────────────────
 
 describe('fetchAnnouncedNote() — embedded object (no network)', function () {
+    const ANNOUNCER = 'https://remote.example.com/users/bob';
+
     it('returns a Note when given a valid embedded Note object', done => {
         const embedded = {
             id: 'https://remote.example.com/notes/embedded1',
@@ -385,7 +387,8 @@ describe('fetchAnnouncedNote() — embedded object (no network)', function () {
             attributedTo: 'https://remote.example.com/users/alice',
         };
 
-        fetchAnnouncedNote(embedded, (err, note) => {
+        //  announced by an actor on the Note's own host
+        fetchAnnouncedNote(embedded, ANNOUNCER, (err, note) => {
             assert.ifError(err);
             assert.ok(note, 'should return a note');
             assert.equal(note.type, 'Note');
@@ -403,7 +406,7 @@ describe('fetchAnnouncedNote() — embedded object (no network)', function () {
             attributedTo: 'https://remote.example.com/users/alice',
         };
 
-        fetchAnnouncedNote(embedded, (err, note) => {
+        fetchAnnouncedNote(embedded, ANNOUNCER, (err, note) => {
             assert.ifError(err);
             assert.ok(note, 'should return a note');
             assert.equal(note.type, 'Article');

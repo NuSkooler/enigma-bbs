@@ -447,6 +447,34 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //
+    //  Every stored row whose embedded object has |objectId|, in storage
+    //  order: [{ info, object }] (object is null for JSON that does not
+    //  parse). Ownership checks look at all of them, not one picked at
+    //  random as objectByEmbeddedId() does.
+    //
+    static objectsByEmbeddedId(objectId, cb) {
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT name, timestamp, owner_actor_id, object_json, is_private
+                    FROM collection
+                    WHERE json_extract(object_json, '$.object.id') = ?
+                    ORDER BY rowid;`
+                )
+                .all(objectId);
+            return cb(
+                null,
+                rows.map(r => ({
+                    info: Collection._rowToObjectInfo(r),
+                    object: ActivityPubObject.fromJsonString(r.object_json),
+                }))
+            );
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static objectByEmbeddedId(objectId, cb) {
         try {
             const row = apDb

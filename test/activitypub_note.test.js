@@ -56,6 +56,7 @@ delete require.cache[require.resolve('../core/activitypub/collection.js')];
 delete require.cache[require.resolve('../core/message.js')];
 delete require.cache[require.resolve('../core/activitypub/actor.js')];
 delete require.cache[require.resolve('../core/activitypub/note.js')];
+delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
 delete require.cache[
     require.resolve('../core/servers/content/web_handlers/activitypub.js')
 ];
@@ -894,16 +895,16 @@ describe('ActivityPub inbox: Update and Delete only from the object owner', func
             assert.equal(actorRow(), undefined);
         });
 
-        it('still accepts the domain-bound path for an actor that cannot be fetched', async () => {
-            //  verifyObjectOwner permits this path for objects of type
-            //  'Actor' only, and has no signer to compare
-            await storeActor('Actor');
+        it('refuses one without a verified signature', async () => {
+            //  what the domain-bound path used to accept; an actor that cannot
+            //  be fetched is now checked with its origin (see below)
+            await storeActor();
             const responses = await deleteActor(
                 { httpSigValidated: false, domainVerifiedOnly: true, signerId: null },
                 VICTIM
             );
-            assert.deepEqual(responses, ['accepted']);
-            assert.equal(actorRow(), undefined);
+            assert.deepEqual(responses, ['accessDenied']);
+            assert.ok(actorRow());
         });
     });
 
@@ -1383,6 +1384,501 @@ describe('Collection.actor() matches an id exactly', function () {
         assert.ok((await lookup('https://good.example/users/aXb')).err);
         assert.ok((await lookup('https://good.example/users/%')).err);
         assert.ok((await lookup('@aXb@good.example')).err);
+    });
+});
+
+// ─── Create bound to its author; every stored row checked (#964 review) ──────
+//
+//  The signer is stubbed (the signature path is covered above); the network
+//  is a stand-in, so a refusal cannot come from a failed real fetch.
+
+describe('ActivityPub inbox: Create comes from the Note author', function () {
+    const { Readable } = require('stream');
+    const HttpUtil = require('../core/http_util.js');
+    const { fetchAnnouncedNote } = require('../core/activitypub/boost_util.js');
+
+    const GOOD = 'https://good.example';
+    const VICTIM = `${GOOD}/users/alice`;
+    const ATTACKER = 'https://evil.example/users/mallory';
+    const FORWARDER = 'https://third.example/users/fwd';
+    const NOTE = `${GOOD}/users/alice/statuses/1`;
+    const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+
+    //  url -> { doc } or { status }
+    let served;
+    let fetched;
+    let savedGetJson;
+
+    beforeEach(() => {
+        served = new Map();
+        fetched = [];
+        savedGetJson = HttpUtil.getJson;
+        HttpUtil.getJson = (url, opts, cb) => {
+            fetched.push(url);
+            const hit = served.get(url) || { status: 404 };
+            if (hit.status) {
+                const err = new Error(`URL ${url} HTTP error ${hit.status}`);
+                err.statusCode = hit.status;
+                err.responseUrl = url;
+                return cb(err);
+            }
+            return cb(null, JSON.parse(JSON.stringify(hit.doc)), {
+                statusCode: 200,
+                headers: { 'content-type': 'application/activity+json' },
+                responseUrl: hit.responseUrl || url,
+            });
+        };
+    });
+
+    afterEach(() => {
+        HttpUtil.getJson = savedGetJson;
+    });
+
+    const note = (overrides = {}) =>
+        Object.assign(
+            {
+                id: NOTE,
+                type: 'Note',
+                attributedTo: VICTIM,
+                content: '<p>the genuine post</p>',
+                published: '2026-04-12T12:00:00Z',
+                to: [PUBLIC],
+            },
+            overrides
+        );
+
+    const create = (actor, object, id) => ({
+        id: id || `${new URL(actor).origin}/activities/create-${Math.random()}`,
+        type: 'Create',
+        actor,
+        to: [PUBLIC],
+        object,
+    });
+
+    //  Runs the inbox for |activity|, signed (as far as the handler knows)
+    //  by |signerId|; resolves with the response name.
+    function post(activity, signerId) {
+        const handler = new ActivityPubWebHandler();
+        const noop = () => {};
+        handler.log = { trace: noop, debug: noop, info: noop, warn: noop, error: noop };
+        handler.sysLog = handler.log;
+        handler._getAssociatedActors = (objectActorId, keyId, cb) =>
+            cb(null, { id: objectActorId }, { id: signerId });
+        handler._validateActorSignature = () => true;
+        return new Promise(resolve => {
+            const respond = name => () => resolve(name);
+            handler.webServer = {
+                accepted: respond('accepted'),
+                accessDenied: respond('accessDenied'),
+                resourceNotFound: respond('resourceNotFound'),
+                badRequest: respond('badRequest'),
+                notImplemented: respond('notImplemented'),
+                internalServerError: respond('internalServerError'),
+            };
+            const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
+            req.headers = {};
+            req.url = '/_enig/ap/sharedInbox';
+            req.method = 'POST';
+            handler._inboxPostHandler(req, {}, { keyId: `${signerId}#main-key` }, SHARED);
+        });
+    }
+
+    const SHARED = 'sharedInbox';
+    const messages = () =>
+        _msgDb
+            .prepare(
+                `SELECT m.message_id, m.message, mm.meta_value AS from_actor
+                FROM message m LEFT JOIN message_meta mm
+                    ON mm.message_id = m.message_id AND mm.meta_name = 'remote_from_user'
+                ORDER BY m.message_id;`
+            )
+            .all();
+    const storedRows = () =>
+        _apDb
+            .prepare(`SELECT object_json FROM collection WHERE name = 'sharedInbox';`)
+            .all()
+            .map(r => JSON.parse(r.object_json));
+
+    async function settle(check) {
+        for (let i = 0; i < 50 && !(check && check()); ++i) {
+            await new Promise(resolve => setTimeout(resolve, 5));
+        }
+    }
+
+    describe("squatting on another author's Note id", function () {
+        it('is refused, and the genuine Create, Update and owner checks then work', async () => {
+            served.set(NOTE, { doc: note() });
+
+            //  a Note id on the victim's host, attributed to the attacker
+            const squat = await post(
+                create(
+                    ATTACKER,
+                    note({ attributedTo: ATTACKER, content: '<p>squat</p>' })
+                ),
+                ATTACKER
+            );
+            assert.equal(squat, 'accessDenied');
+            assert.deepEqual(storedRows(), []);
+            assert.deepEqual(messages(), []);
+
+            //  the victim's own Create then goes through
+            assert.equal(await post(create(VICTIM, note()), VICTIM), 'accepted');
+            assert.equal(messages().length, 1);
+            assert.match(messages()[0].message, /the genuine post/);
+            assert.equal(messages()[0].from_actor, VICTIM);
+            const messageId = messages()[0].message_id;
+
+            //  the victim can edit it
+            const edit = {
+                id: `${GOOD}/activities/update-1`,
+                type: 'Update',
+                actor: VICTIM,
+                object: note({ content: '<p>edited by alice</p>' }),
+            };
+            assert.equal(await post(edit, VICTIM), 'accepted');
+            await settle(() => /edited by alice/.test(messages()[0].message));
+            assert.match(messages()[0].message, /edited by alice/);
+            assert.equal(messages()[0].message_id, messageId);
+
+            //  and the attacker cannot
+            const hijack = {
+                id: 'https://evil.example/activities/update-2',
+                type: 'Update',
+                actor: ATTACKER,
+                object: note({ attributedTo: ATTACKER, content: '<p>hijack</p>' }),
+            };
+            assert.equal(await post(hijack, ATTACKER), 'accessDenied');
+            await settle();
+            assert.match(messages()[0].message, /edited by alice/);
+        });
+    });
+
+    describe('Create', function () {
+        it('refuses a Note attributed to someone else when the origin does not confirm it', async () => {
+            //  nothing served at the Note id: the origin cannot confirm it
+            const result = await post(create(ATTACKER, note()), ATTACKER);
+            assert.equal(result, 'accessDenied');
+            assert.ok(fetched.includes(NOTE), 'the origin was asked');
+            assert.deepEqual(messages(), []);
+        });
+
+        it('stores a forwarded reply from the origin copy, not the forwarded one', async () => {
+            served.set(NOTE, { doc: note({ content: '<p>as the origin has it</p>' }) });
+
+            //  signed by a third party, actor and author are the victim
+            const forwarded = create(
+                VICTIM,
+                note({ content: '<p>altered on the way</p>' }),
+                `${GOOD}/activities/create-fwd`
+            );
+            assert.equal(await post(forwarded, FORWARDER), 'accepted');
+
+            assert.equal(messages().length, 1);
+            assert.match(messages()[0].message, /as the origin has it/);
+            assert.equal(messages()[0].from_actor, VICTIM);
+            assert.match(storedRows()[0].object.content, /as the origin has it/);
+        });
+
+        it('refuses a forwarded Create the origin answers with another id', async () => {
+            served.set(NOTE, { doc: note({ id: `${GOOD}/users/alice/statuses/2` }) });
+            assert.equal(await post(create(VICTIM, note()), FORWARDER), 'accessDenied');
+            assert.deepEqual(messages(), []);
+        });
+
+        it('refuses a forwarded Create whose actor is not the origin author', async () => {
+            served.set(NOTE, { doc: note({ attributedTo: `${GOOD}/users/carol` }) });
+            assert.equal(await post(create(VICTIM, note()), FORWARDER), 'accessDenied');
+            assert.deepEqual(messages(), []);
+        });
+
+        it('refuses a Note fetched through a redirect to another host', async () => {
+            served.set(NOTE, { doc: note(), responseUrl: 'https://evil.example/n/1' });
+            assert.equal(await post(create(VICTIM, note()), FORWARDER), 'accessDenied');
+        });
+
+        it("refuses a Note whose id is not on its author's host", async () => {
+            const offHost = 'https://evil.example/notes/1';
+            served.set(offHost, { doc: note({ id: offHost }) });
+            const result = await post(create(VICTIM, note({ id: offHost })), VICTIM);
+            assert.equal(result, 'accessDenied');
+            assert.deepEqual(messages(), []);
+        });
+
+        it('takes a repeated genuine Create as a duplicate, not an error', async () => {
+            const activity = create(VICTIM, note(), `${GOOD}/activities/create-dup`);
+            assert.equal(await post(activity, VICTIM), 'accepted');
+            assert.equal(await post(activity, VICTIM), 'accepted');
+            //  re-sent under a new activity id, too
+            assert.equal(await post(create(VICTIM, note()), VICTIM), 'accepted');
+            assert.equal(messages().length, 1);
+        });
+    });
+
+    describe('Announce', function () {
+        const fetchAnnounced = (objectOrId, announcer) =>
+            new Promise(resolve =>
+                fetchAnnouncedNote(objectOrId, announcer, (err, n) => resolve({ err, n }))
+            );
+
+        it('refuses a fetched Note whose id is not its URL', async () => {
+            served.set(NOTE, { doc: note({ id: `${GOOD}/users/alice/statuses/9` }) });
+            const { err } = await fetchAnnounced(NOTE, `${GOOD}/users/bob`);
+            assert.ok(err);
+        });
+
+        it('refuses a fetched Note not attributed to an actor on its host', async () => {
+            served.set(NOTE, { doc: note({ attributedTo: ATTACKER }) });
+            const { err } = await fetchAnnounced(NOTE, `${GOOD}/users/bob`);
+            assert.ok(err);
+        });
+
+        it('takes an embedded Note naming an author off its host from the origin', async () => {
+            served.set(NOTE, { doc: note({ content: '<p>origin copy</p>' }) });
+            const { err, n } = await fetchAnnounced(
+                note({ attributedTo: ATTACKER, content: '<p>forged copy</p>' }),
+                `${GOOD}/users/bob`
+            );
+            assert.ifError(err);
+            assert.match(n.content, /origin copy/);
+            assert.equal(n.attributedTo, VICTIM);
+        });
+
+        it('refuses an embedded Note from another host than the announcer', async () => {
+            served.set(NOTE, { doc: note() });
+            const { err } = await fetchAnnounced(note(), ATTACKER);
+            //  looked up by its id, which an announcer may only do on its host
+            assert.ok(err);
+        });
+
+        it('takes an embedded Note from the announcer host as sent', async () => {
+            const { err, n } = await fetchAnnounced(note(), `${GOOD}/users/bob`);
+            assert.ifError(err);
+            assert.equal(n.id, NOTE);
+            assert.ok(!fetched.includes(NOTE), 'no fetch needed');
+        });
+    });
+
+    describe('Delete', function () {
+        async function storeVictimNote() {
+            served.set(NOTE, { doc: note() });
+            assert.equal(await post(create(VICTIM, note()), VICTIM), 'accepted');
+        }
+
+        const deleteNote = actor => ({
+            id: `${new URL(actor).origin}/activities/delete-${Math.random()}`,
+            type: 'Delete',
+            actor,
+            object: { id: NOTE, type: 'Tombstone' },
+        });
+
+        it('is refused when stored rows name different owners', async () => {
+            await storeVictimNote();
+            //  a second row holding the same Note id under another author
+            await new Promise((resolve, reject) =>
+                Collection.addSharedInboxItem(
+                    {
+                        id: 'https://evil.example/activities/announce-1',
+                        type: 'Announce',
+                        actor: ATTACKER,
+                        object: note({ attributedTo: ATTACKER }),
+                    },
+                    true,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+
+            assert.equal(await post(deleteNote(VICTIM), VICTIM), 'accessDenied');
+            assert.equal(await post(deleteNote(ATTACKER), ATTACKER), 'accessDenied');
+            assert.equal(messages().length, 1, 'the message survives');
+        });
+
+        it("leaves a message for the Note id that is not the author's", async () => {
+            await storeVictimNote();
+            //  a message stored for the same Note id by someone else (say,
+            //  before this fix)
+            const planted = await toMessage(
+                new Note(note({ attributedTo: ATTACKER, content: '<p>planted</p>' })),
+                {
+                    toUser: { userId: 1, username: 'bob', getProperty: () => null },
+                    areaTag: Message.WellKnownAreaTags.Private,
+                }
+            );
+            await new Promise((resolve, reject) =>
+                planted.persist(err => (err ? reject(err) : resolve()))
+            );
+            assert.equal(messages().length, 2);
+
+            assert.equal(await post(deleteNote(VICTIM), VICTIM), 'accepted');
+            assert.deepEqual(
+                messages().map(m => m.from_actor),
+                [ATTACKER]
+            );
+        });
+
+        it("an Update leaves a message for the Note id that is not the author's", async () => {
+            await storeVictimNote();
+            //  a public message, so updating it needs no local user
+            const planted = await toMessage(
+                new Note(note({ attributedTo: ATTACKER, content: '<p>planted</p>' }))
+            );
+            planted.messageUuid = '00000000-0000-4000-8000-000000000964';
+            await new Promise((resolve, reject) =>
+                planted.persist(err => (err ? reject(err) : resolve()))
+            );
+
+            const edit = {
+                id: `${GOOD}/activities/update-9`,
+                type: 'Update',
+                actor: VICTIM,
+                object: note({ content: '<p>edited by alice</p>' }),
+            };
+            assert.equal(await post(edit, VICTIM), 'accepted');
+            await settle(() => messages().some(m => /edited by alice/.test(m.message)));
+
+            const byAuthor = Object.fromEntries(
+                messages().map(m => [m.from_actor, m.message])
+            );
+            assert.match(byAuthor[VICTIM], /edited by alice/);
+            assert.match(byAuthor[ATTACKER], /planted/);
+        });
+
+        it('refuses a stored row that cannot be read', async () => {
+            await storeVictimNote();
+            //  a row whose JSON does not parse; SQLite's json_extract() would
+            //  fail on it in the table, so the lookups stand in for one
+            const savedById = Collection.objectsById;
+            const savedEmbedded = Collection.objectsByEmbeddedId;
+            Collection.objectsById = (id, cb) =>
+                cb(null, [{ info: { name: 'sharedInbox' }, object: null }]);
+            Collection.objectsByEmbeddedId = (id, cb) => cb(null, []);
+            try {
+                const result = await post(deleteNote(VICTIM), VICTIM);
+                assert.equal(result, 'accessDenied');
+            } finally {
+                Collection.objectsById = savedById;
+                Collection.objectsByEmbeddedId = savedEmbedded;
+            }
+            assert.equal(messages().length, 1);
+            assert.equal(storedRows().length, 1);
+        });
+    });
+
+    describe('Delete of an actor that can no longer be fetched', function () {
+        const GONE = `${GOOD}/users/gone`;
+
+        function postUnfetchable(activity) {
+            const handler = new ActivityPubWebHandler();
+            const noop = () => {};
+            handler.log = {
+                trace: noop,
+                debug: noop,
+                info: noop,
+                warn: noop,
+                error: noop,
+            };
+            handler.sysLog = handler.log;
+            handler._getAssociatedActors = (objectActorId, keyId, cb) =>
+                cb(new Error('actor fetch failed'));
+            return new Promise(resolve => {
+                const respond = name => () => resolve(name);
+                handler.webServer = {
+                    accepted: respond('accepted'),
+                    accessDenied: respond('accessDenied'),
+                    resourceNotFound: respond('resourceNotFound'),
+                    badRequest: respond('badRequest'),
+                    notImplemented: respond('notImplemented'),
+                    internalServerError: respond('internalServerError'),
+                };
+                const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
+                req.headers = {};
+                req.url = '/_enig/ap/sharedInbox';
+                req.method = 'POST';
+                handler._inboxPostHandler(req, {}, { keyId: `${GONE}#main-key` }, SHARED);
+            });
+        }
+
+        const selfDelete = (actor = GONE, object = GONE) => ({
+            id: `${GOOD}/activities/delete-self`,
+            type: 'Delete',
+            actor,
+            object,
+        });
+
+        async function storeGoneActor() {
+            await new Promise((resolve, reject) =>
+                Collection.addActor(
+                    { id: GONE, type: 'Person', inbox: `${GONE}/inbox` },
+                    '@gone@good.example',
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+            await new Promise((resolve, reject) =>
+                Collection.addToCollection(
+                    'followers',
+                    null,
+                    'https://test.example.com/_enig/ap/users/bob/followers',
+                    GONE,
+                    { id: GONE, type: 'Person' },
+                    false,
+                    true,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+            //  someone else's state, which must stay
+            await new Promise((resolve, reject) =>
+                Collection.addSharedInboxItem(
+                    {
+                        id: `${GOOD}/activities/c9`,
+                        type: 'Create',
+                        actor: VICTIM,
+                        object: note(),
+                    },
+                    true,
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+        }
+
+        const rowsFor = id =>
+            _apDb
+                .prepare('SELECT name FROM collection WHERE object_id = ? ORDER BY name;')
+                .all(id)
+                .map(r => r.name);
+
+        for (const status of [404, 410]) {
+            it(`is accepted when the origin answers ${status}, removing only that actor's state`, async () => {
+                await storeGoneActor();
+                served.set(GONE, { status });
+
+                assert.equal(await postUnfetchable(selfDelete()), 'accepted');
+                assert.deepEqual(rowsFor(GONE), []);
+                assert.equal(storedRows().length, 1, "others' rows are untouched");
+            });
+        }
+
+        it('is refused when the origin still serves the actor', async () => {
+            await storeGoneActor();
+            served.set(GONE, {
+                doc: { id: GONE, type: 'Person', inbox: `${GONE}/inbox` },
+            });
+            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
+        });
+
+        it('is refused when the origin fails for another reason', async () => {
+            await storeGoneActor();
+            served.set(GONE, { status: 500 });
+            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
+        });
+
+        it('is refused for an object other than the actor itself', async () => {
+            await storeGoneActor();
+            served.set(GONE, { status: 410 });
+            const forged = selfDelete(`${GOOD}/users/other`, GONE);
+            assert.equal(await postUnfetchable(forged), 'accessDenied');
+            assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
+        });
     });
 });
 

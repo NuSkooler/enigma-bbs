@@ -364,9 +364,22 @@ module.exports = class Note extends ActivityPubObject {
 
     toUpdatedMessage(options, cb) {
         const original = new Message();
-        original.load({ uuid: options.messageUuid }, err => {
+        const loadWith = options.messageId
+            ? { messageId: options.messageId }
+            : { uuid: options.messageUuid };
+        original.load(loadWith, err => {
             if (err) {
                 return cb(err);
+            }
+
+            //  The message is found by Note id alone: it must also be this
+            //  Note's author's, or an edit could rewrite someone else's post
+            if (original.getRemoteFromUser() !== this.attributedTo) {
+                return cb(
+                    Errors.AccessDenied(
+                        `Message ${original.messageUuid} is not by the Note's author`
+                    )
+                );
             }
 
             //  rebuild message
@@ -426,30 +439,46 @@ module.exports = class Note extends ActivityPubObject {
         });
     }
 
-    static deleteAssocMessage(noteId, cb) {
-        const filter = {
-            resultType: 'uuid',
-            metaTuples: [
-                {
-                    category: Message.WellKnownMetaCategories.ActivityPub,
-                    name: Message.ActivityPubPropertyNames.NoteId,
-                    value: noteId,
-                },
-            ],
-            limit: 1,
-        };
+    //
+    //  Delete every message stored for |noteId| (one per local recipient of
+    //  a private Note) that is by |authorId|; a message for the same Note id
+    //  by anyone else is left alone. cb(err, { deleted, foreign }).
+    //
+    static deleteAssocMessage(noteId, authorId, cb) {
+        const result = { deleted: 0, foreign: 0 };
+        Message.getMessageIdsByMetaValue(
+            Message.WellKnownMetaCategories.ActivityPub,
+            Message.ActivityPubPropertyNames.NoteId,
+            noteId,
+            (err, messageIds) => {
+                if (err || !messageIds || messageIds.length === 0) {
+                    return cb(err || null, result);
+                }
 
-        return Message.findMessages(filter, (err, messageUuid) => {
-            if (!messageUuid) {
-                return cb(null);
+                async.eachSeries(
+                    messageIds,
+                    (messageId, next) => {
+                        const message = new Message();
+                        message.load({ messageId }, err => {
+                            if (err) {
+                                return next(err);
+                            }
+                            if (message.getRemoteFromUser() !== authorId) {
+                                result.foreign += 1;
+                                return next(null);
+                            }
+                            Message.deleteByMessageUuid(message.messageUuid, err => {
+                                if (!err) {
+                                    result.deleted += 1;
+                                }
+                                return next(err);
+                            });
+                        });
+                    },
+                    err => cb(err, result)
+                );
             }
-
-            messageUuid = messageUuid[0]; // limit 1
-
-            Message.deleteByMessageUuid(messageUuid, err => {
-                return cb(err);
-            });
-        });
+        );
     }
 
     _setSubject(message) {

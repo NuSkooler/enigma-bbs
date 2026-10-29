@@ -9,6 +9,8 @@ const {
 const { acceptFollowRequest } = require('../../../activitypub/follow_util');
 const {
     fetchAnnouncedNote,
+    fetchNoteFromOrigin,
+    isConstraintError,
     recordInboundBoost,
     recordInboundLike,
 } = require('../../../activitypub/boost_util');
@@ -28,6 +30,8 @@ const Note = require('../../../activitypub/note');
 const ActivityPubObject = require('../../../activitypub/object');
 const EnigAssert = require('../../../enigma_assert');
 const Message = require('../../../message');
+//  called through the module, so tests can stand in for the network
+const HttpUtil = require('../../../http_util');
 const Events = require('../../../events');
 const { Errors } = require('../../../enig_error');
 const { getFullUrl } = require('../../../web_util');
@@ -42,7 +46,10 @@ const {
     actorDomainMatchesKeyId,
     actorIdsOf,
     storedObjectOwnerIds,
+    storedObjectsOwnerIds,
     verifySignerOwnsObject,
+    verifyNoteAuthor,
+    sameHost,
     readInboxBody,
 } = require('../../../activitypub/security');
 
@@ -406,38 +413,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 signature.keyId,
                 (err, remoteActor, signatureActor) => {
                     if (err) {
-                        //  For Delete activities the remote actor may have already been
-                        //  removed from the origin server before the Delete reaches us.
-                        //  If the objectId and keyId share the same hostname we accept
-                        //  the delete for Actor-type objects only (domain binding).
-                        //  Note deletes and all other activity types still require a
-                        //  verifiable signature.
-                        if (activity.type === WellKnownActivity.Delete) {
-                            const objectId = _.get(
-                                activity,
-                                'object.id',
-                                activity.object
+                        //  An actor that deleted itself may be gone from its
+                        //  server before its Delete reaches us, so its key
+                        //  cannot be fetched. Such a Delete is not signed by
+                        //  anything we can check; it is accepted only when
+                        //  the actor's own origin says the actor is gone.
+                        if (
+                            activity.type === WellKnownActivity.Delete &&
+                            _.get(activity, 'object.id', activity.object) ===
+                                getActorId(activity)
+                        ) {
+                            return this._inboxDeleteGoneActor(
+                                inboxType,
+                                resp,
+                                getActorId(activity)
                             );
-                            if (
-                                objectId &&
-                                sigActorId &&
-                                hostsMatch(objectId, sigActorId)
-                            ) {
-                                this.log.info(
-                                    { objectId, sigActorId, inboxType },
-                                    'Delete: actor fetch failed; accepting via domain binding'
-                                );
-                                return this._inboxDeleteActivity(
-                                    inboxType,
-                                    resp,
-                                    activity,
-                                    {
-                                        httpSigValidated: false,
-                                        domainVerifiedOnly: true,
-                                        signerId: null,
-                                    }
-                                );
-                            }
                         }
                         this.log.warn(
                             { err: err.message, sigActorId, inboxType },
@@ -504,7 +494,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             return this._inboxAnnounceActivity(resp, activity);
 
                         case WellKnownActivity.Create:
-                            return this._inboxCreateActivity(resp, activity);
+                            return this._inboxCreateActivity(resp, activity, auth);
 
                         case WellKnownActivity.Delete:
                             return this._inboxDeleteActivity(
@@ -596,12 +586,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
     }
 
-    _inboxCreateActivity(resp, activity) {
+    _inboxCreateActivity(resp, activity, auth) {
         const createWhat = _.get(activity, 'object.type');
         switch (createWhat) {
             case 'Note':
             case 'Article':
-                return this._inboxCreateNoteActivity(resp, activity);
+                return this._inboxCreateNoteActivity(resp, activity, auth);
 
             default:
                 this.log.warn(
@@ -625,13 +615,76 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return this.webServer.accepted(resp);
     }
 
-    _inboxCreateNoteActivity(resp, activity) {
-        const note = new Note(activity.object);
-        if (!note.isValid()) {
-            this.log.warn({ note }, 'Invalid Note');
+    //
+    //  A Create must come from the Note's author (#964 review). Delivered
+    //  directly, it is signed by the author, its actor is the author, and the
+    //  Note is attributed to the author with an id on the author's host.
+    //  Anything else may be a forwarded reply (Mastodon forwards a reply
+    //  to the followers of the post it answers, signed by the forwarder): the
+    //  copy as received is not used. The Note is fetched from its own id, and
+    //  must come back with that id, from that host, attributed to an actor
+    //  there, who must also be the activity's actor. That copy is stored.
+    //
+    _inboxCreateNoteActivity(resp, activity, auth) {
+        const received = new Note(activity.object);
+        if (!received.isValid()) {
+            this.log.warn({ note: received }, 'Invalid Note');
             return this.webServer.notImplemented(resp);
         }
 
+        const actorId = getActorId(activity);
+        const signerId = auth && auth.signerId;
+        const direct =
+            signerId && actorId === signerId && !verifyNoteAuthor(received, signerId);
+
+        const verified = cb => {
+            if (direct) {
+                return cb(null, received, activity);
+            }
+            return fetchNoteFromOrigin(received.id, (err, note) => {
+                if (err) {
+                    return cb(err);
+                }
+                const authorId = actorIdsOf(note.attributedTo)[0];
+                if (authorId !== actorId) {
+                    return cb(
+                        Errors.ValidationFailed(
+                            "The Create's actor is not the Note's author"
+                        )
+                    );
+                }
+                //  store the origin's copy, not the one received
+                return cb(null, note, Object.assign({}, activity, { object: note }));
+            });
+        };
+
+        verified((err, note, storedActivity) => {
+            if (err) {
+                this.log.warn(
+                    {
+                        error: err.message,
+                        activityId: activity.id,
+                        noteId: received.id,
+                        actorId,
+                        signerId,
+                    },
+                    'Will not accept Create: not verified as from the Note author'
+                );
+                return this.webServer.accessDenied(resp);
+            }
+
+            if (!direct) {
+                this.log.info(
+                    { activityId: activity.id, noteId: note.id, actorId, signerId },
+                    'Accepted a forwarded Create from the Note origin'
+                );
+            }
+
+            this._storeCreatedNote(resp, storedActivity, note);
+        });
+    }
+
+    _storeCreatedNote(resp, activity, note) {
         const recipientActorIds = note.recipientIds();
         async.forEach(
             recipientActorIds,
@@ -651,7 +704,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 }
             },
             err => {
-                if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                //  a repeated delivery of the same Note is not an error
+                if (err && !isConstraintError(err)) {
                     return this.webServer.internalServerError(resp, err);
                 }
 
@@ -709,7 +763,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     Message.WellKnownAreaTags.ActivityPubShared,
                     note,
                     err => {
-                        if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                        if (err && !isConstraintError(err)) {
                             this.log.error(
                                 {
                                     activityId: activity.id,
@@ -820,16 +874,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return Collection.objectsById(objectId, callback);
                 },
                 (objectsInfo, callback) => {
-                    Collection.objectByEmbeddedId(objectId, (err, obj, objInfo) => {
+                    //  every row holding the object, not one picked at random
+                    Collection.objectsByEmbeddedId(objectId, (err, embedding) => {
                         if (err) {
                             return callback(err);
                         }
-
-                        const allObjsInfo = objectsInfo;
-                        if (obj) {
-                            allObjsInfo.push({ info: objInfo, object: obj });
-                        }
-                        return callback(null, objectsInfo);
+                        return callback(null, objectsInfo.concat(embedding));
                     });
                 },
             ],
@@ -856,6 +906,43 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             if (objectsInfo.length === 0) {
                 return this.webServer.resourceNotFound(resp);
+            }
+
+            //  Rows other than an actor's own (the cache, follow lists) hold a
+            //  Note: all of them must name the signer as its owner, or none
+            //  is deleted.
+            const actorKeyed = [
+                Collections.Actors,
+                Collections.Following,
+                Collections.Followers,
+            ];
+            const noteRows = objectsInfo.filter(o => !actorKeyed.includes(o.info.name));
+            if (noteRows.length > 0) {
+                const owners = storedObjectsOwnerIds(
+                    noteRows.map(o => o.object),
+                    objectId
+                );
+                const reason =
+                    owners.reason ||
+                    verifyObjectOwner(auth.httpSigValidated) ||
+                    verifySignerOwnsObject(
+                        auth.signerId,
+                        owners.ownerIds,
+                        getActorId(activity)
+                    );
+                if (reason) {
+                    this.log.warn(
+                        {
+                            error: reason,
+                            inboxType,
+                            objectId,
+                            ownerIds: owners.ownerIds,
+                            signerId: auth.signerId,
+                        },
+                        'Will not Delete object: not from its owner'
+                    );
+                    return this.webServer.accessDenied(resp);
+                }
             }
 
             //  Generally we'd have a 1:1 objectId -> object here, but it's
@@ -888,10 +975,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 }
 
                                 return this._verifyObjectOwner(
-                                    //  Notes always require a proper sig
-                                    Object.assign({}, auth, {
-                                        domainVerifiedOnly: false,
-                                    }),
+                                    auth,
                                     objInfo.object,
                                     storedObjectOwnerIds(objInfo.object, objectId),
                                     activity,
@@ -932,6 +1016,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                                 ) {
                                                     return Note.deleteAssocMessage(
                                                         objectId,
+                                                        auth.signerId,
                                                         err => {
                                                             if (err) {
                                                                 this.log.warn(
@@ -1039,13 +1124,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return nextObjInfo(null);
                     }
 
-                    //  Malformed; we'll go ahead and remove
-                    return this._deleteObjectWithStats(
-                        collectionName,
-                        objInfo.object,
-                        stats,
-                        nextObjInfo
+                    //  A row that does not parse: its owner cannot be checked
+                    this.log.warn(
+                        { inboxType, collectionName, objectId },
+                        'Will not Delete object: the stored copy cannot be read'
                     );
+                    stats.refused.push({ collectionName, objectId });
+                    return nextObjInfo(null);
                 },
                 err => {
                     if (err) {
@@ -1071,56 +1156,119 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    //
+    //  Rewrite every message stored for the Note (one per local recipient of
+    //  a private Note). toUpdatedMessage() refuses a message that is not by
+    //  the Note's author.
+    //
     _updateMessageAssocWithNote(objectId, activity) {
-        const filter = {
-            resultType: 'uuid',
-            metaTuples: [
-                {
-                    category: Message.WellKnownMetaCategories.ActivityPub,
-                    name: Message.ActivityPubPropertyNames.NoteId,
-                    value: objectId,
-                },
-            ],
-            limit: 1,
-        };
-
-        Message.findMessages(filter, (err, messageUuid) => {
-            if (!messageUuid) {
-                return this.log.warn(
-                    { messageUuid },
-                    'Failed to find message for Update Note'
-                );
-            }
-
-            messageUuid = messageUuid[0]; // limit 1
-
-            const note = new Note(activity.object);
-            if (!note.isValid()) {
-                return this.log.error('Note within Update does not appear to be valid');
-            }
-
-            const updateOpts = {
-                messageUuid,
-            };
-
-            note.toUpdatedMessage(updateOpts, (err, message) => {
-                if (err) {
-                    return this.log.error(
-                        { error: err.message, messageUuid, step: 'Note to Message' },
-                        'Note Update failed to update underlying message'
+        Message.getMessageIdsByMetaValue(
+            Message.WellKnownMetaCategories.ActivityPub,
+            Message.ActivityPubPropertyNames.NoteId,
+            objectId,
+            (err, messageIds) => {
+                if (err || !messageIds || messageIds.length === 0) {
+                    return this.log.warn(
+                        { objectId, error: err && err.message },
+                        'Failed to find message for Update Note'
                     );
                 }
 
-                message.update(err => {
-                    if (err) {
-                        this.log.error(
-                            { error: err.message, messageUuid, step: 'Persist' },
-                            'Note Update failed to update underlying message'
+                const note = new Note(activity.object);
+                if (!note.isValid()) {
+                    return this.log.error(
+                        'Note within Update does not appear to be valid'
+                    );
+                }
+
+                async.eachSeries(
+                    messageIds,
+                    (messageId, next) => {
+                        note.toUpdatedMessage({ messageId }, (err, message) => {
+                            if (err) {
+                                this.log.error(
+                                    {
+                                        error: err.message,
+                                        messageId,
+                                        step: 'Note to Message',
+                                    },
+                                    'Note Update failed to update underlying message'
+                                );
+                                return next(null);
+                            }
+
+                            message.update(err => {
+                                if (err) {
+                                    this.log.error(
+                                        {
+                                            error: err.message,
+                                            messageId,
+                                            step: 'Persist',
+                                        },
+                                        'Note Update failed to update underlying message'
+                                    );
+                                }
+                                return next(null);
+                            });
+                        });
+                    },
+                    () => {}
+                );
+            }
+        );
+    }
+
+    //
+    //  A Delete of an actor whose key could not be fetched (#964 review):
+    //  nothing signed it that we can check, so ask the actor's own origin.
+    //  Only a 404 or 410 from the actor's host, for the actor's own id, says
+    //  the actor is gone; then its local state alone is removed: the cached
+    //  actor and its entries in local follow lists.
+    //
+    _inboxDeleteGoneActor(inboxType, resp, actorId) {
+        HttpUtil.getJson(
+            actorId,
+            { headers: { Accept: ActivityStreamMediaType } },
+            err => {
+                const gone =
+                    err &&
+                    [404, 410].includes(err.statusCode) &&
+                    sameHost(err.responseUrl || actorId, actorId);
+                if (!gone) {
+                    this.log.warn(
+                        {
+                            actorId,
+                            inboxType,
+                            statusCode: err ? err.statusCode : 200,
+                            error: err ? err.message : undefined,
+                        },
+                        'Will not Delete actor: its origin does not say it is gone'
+                    );
+                    return this.webServer.accessDenied(resp);
+                }
+
+                async.eachSeries(
+                    [Collections.Actors, Collections.Following, Collections.Followers],
+                    (collectionName, next) =>
+                        Collection.removeById(collectionName, actorId, removeErr => {
+                            if (removeErr) {
+                                this.log.warn(
+                                    { actorId, collectionName, error: removeErr.message },
+                                    'Failed removing entries for deleted Actor'
+                                );
+                            }
+                            return next(null);
+                        }),
+                    () => {
+                        this.sysLog.info(
+                            { actorId, inboxType, statusCode: err.statusCode },
+                            'AP: removed local state for an actor its origin reports gone'
                         );
+                        return this.webServer.accepted(resp);
                     }
-                });
-            });
-        });
+                );
+            }
+        );
     }
 
     _deleteObjectWithStats(collectionName, object, stats, cb) {
@@ -1143,18 +1291,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     //
     //  An Update or Delete of an existing object must come from its owner:
-    //  |ownerIds| (see storedObjectOwnerIds) must include the signing actor,
-    //  who must also be the activity's actor. Domain binding alone (an Actor
-    //  that can no longer be fetched) has no signer to compare, and
-    //  verifyObjectOwner limits it to Actor objects.
+    //  a verified signature, and |ownerIds| (see storedObjectsOwnerIds) must
+    //  include the signing actor, who must also be the activity's actor.
     //
     _verifyObjectOwner(auth, object, ownerIds, activity, cb) {
-        let reason = verifyObjectOwner(
-            auth.httpSigValidated,
-            auth.domainVerifiedOnly,
-            object && object.type
-        );
-        if (!reason && auth.httpSigValidated) {
+        let reason = verifyObjectOwner(auth.httpSigValidated);
+        if (!reason) {
             reason = verifySignerOwnsObject(
                 auth.signerId,
                 ownerIds,
@@ -1328,12 +1470,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const targetObjectId = _.get(activity, 'object.id');
         const objectType = _.get(activity, 'object.type');
 
-        Collection.objectByEmbeddedId(targetObjectId, (err, obj) => {
+        //  every stored row holding the Note, not one picked at random
+        Collection.objectsByEmbeddedId(targetObjectId, (err, rows) => {
             if (err) {
                 return this.webServer.internalServerError(resp, err);
             }
 
-            if (!obj) {
+            if (rows.length === 0) {
                 this.log.warn(
                     { targetObjectId, type: objectType, activityType: activity.type },
                     `Could not ${activity.type} Object; Not found`
@@ -1341,9 +1484,16 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            const ownerIds = storedObjectOwnerIds(obj, targetObjectId);
-            const updateAuth = Object.assign({}, auth, { domainVerifiedOnly: false });
-            this._verifyObjectOwner(updateAuth, obj, ownerIds, activity, err => {
+            const owners = storedObjectsOwnerIds(
+                rows.map(r => r.object),
+                targetObjectId
+            );
+            const ownerIds = owners.ownerIds;
+            this._verifyObjectOwner(auth, rows[0].object, ownerIds, activity, err => {
+                if (!err && owners.reason) {
+                    err = Errors.ValidationFailed(owners.reason);
+                }
+
                 //  and an edit may not hand the object to someone else
                 const newOwnerIds = actorIdsOf(_.get(activity, 'object.attributedTo'));
                 if (
@@ -1485,7 +1635,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         },
                         `AP: Saved 'Note' to "${localAddressedTo}" as message ${messageId}`
                     );
-                } else if (err.code === 'SQLITE_CONSTRAINT') {
+                } else if (isConstraintError(err)) {
                     return cb(null);
                 }
                 return cb(err);

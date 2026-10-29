@@ -363,23 +363,18 @@ exports.isSafeOutboundUrl = isSafeOutboundUrl;
 //
 //  httpSigValidated  — true when the HTTP signature was cryptographically
 //                      verified against the remote actor's public key
-//  domainVerifiedOnly — true when the remote actor could not be fetched
-//                       (e.g. self-deleted) but domain binding was confirmed
-//                       by the caller; only Actor-type objects are allowed
-//                       without a full signature in this case
-//  objectType        — the `type` field of the object being modified/deleted
+//  domainVerifiedOnly, objectType — no longer used: domain binding alone
+//                      never permits a change. A Delete of an actor that can
+//                      no longer be fetched is verified with its origin
+//                      instead (see the inbox handler).
 //
 //  Returns null when the operation is permitted, or a human-readable reason
-//  string when it should be refused.
+//  string when it should be refused. Who may change the object is checked
+//  separately (verifySignerOwnsObject).
 //
-function verifyObjectOwner(httpSigValidated, domainVerifiedOnly, objectType) {
+function verifyObjectOwner(httpSigValidated) {
     if (httpSigValidated) {
         return null; // cryptographic proof — permit
-    }
-    if (domainVerifiedOnly && objectType === 'Actor') {
-        // Actor self-deletion: fetch failed (actor already removed from remote),
-        // but domain binding was confirmed.  Permit cleanup of local state.
-        return null;
     }
     return 'HTTP signature required to verify object ownership';
 }
@@ -499,3 +494,73 @@ function verifyFetchedActorId(doc, requestedUrl, fetchedUrl, keyId) {
     return `The fetched actor id ${docId} does not match ${requestedUrl}`;
 }
 exports.verifyFetchedActorId = verifyFetchedActorId;
+
+//
+//  A Note (or Article) delivered directly by its author: attributed to that
+//  one actor, with an id on the author's host. Returns null or a reason.
+//
+function verifyNoteAuthor(note, authorId) {
+    const authors = actorIdsOf(note && note.attributedTo);
+    if (authors.length !== 1 || authors[0] !== authorId) {
+        return 'The Note is not attributed to the signing actor';
+    }
+    if (!sameHost(note.id, authorId)) {
+        return "The Note id is not on its author's host";
+    }
+    return null;
+}
+exports.verifyNoteAuthor = verifyNoteAuthor;
+
+//
+//  May |doc|, fetched for |requestedUrl|, be taken as the Note at that URL?
+//  The fetch must not have left the URL's host, the id must be that URL, and
+//  it must be attributed to one actor on the same host. Returns null or a
+//  reason.
+//
+function verifyFetchedNote(doc, requestedUrl, fetchedUrl) {
+    if (!doc || !['Note', 'Article'].includes(doc.type)) {
+        return `The object at ${requestedUrl} is not a Note or Article`;
+    }
+    if (!sameHost(fetchedUrl || requestedUrl, requestedUrl)) {
+        return `The fetch of ${requestedUrl} was redirected to another host`;
+    }
+    if (doc.id !== requestedUrl) {
+        return `The object fetched from ${requestedUrl} has another id`;
+    }
+    const authors = actorIdsOf(doc.attributedTo);
+    if (authors.length !== 1 || !sameHost(authors[0], requestedUrl)) {
+        return `The Note at ${requestedUrl} is not attributed to an actor on its host`;
+    }
+    return null;
+}
+exports.verifyFetchedNote = verifyFetchedNote;
+
+//
+//  The owner of |objectId| across every stored row that holds it (the
+//  Create it came in with, an Announce that embeds it, ...). Each row that
+//  names an owner must name the same one, so a planted row cannot decide or
+//  share ownership; a row that does not parse cannot be checked at all.
+//  Returns { ownerIds, reason }: ownerIds is empty when no row names one.
+//
+function storedObjectsOwnerIds(storedObjects, objectId) {
+    let ownerIds = [];
+    for (const stored of storedObjects || []) {
+        if (!stored) {
+            return { ownerIds: [], reason: 'A stored copy of the object cannot be read' };
+        }
+        const ids = [...new Set(storedObjectOwnerIds(stored, objectId))].sort();
+        if (ids.length === 0) {
+            continue;
+        }
+        if (ownerIds.length === 0) {
+            ownerIds = ids;
+        } else if (ids.join('\n') !== ownerIds.join('\n')) {
+            return {
+                ownerIds: [],
+                reason: 'Stored copies of the object name different owners',
+            };
+        }
+    }
+    return { ownerIds, reason: null };
+}
+exports.storedObjectsOwnerIds = storedObjectsOwnerIds;
