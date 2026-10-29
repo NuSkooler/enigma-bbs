@@ -44,11 +44,11 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 * **The message table is rebuilt once, at the first start** ([#958](https://github.com/NuSkooler/enigma-bbs/issues/958)). Message IDs are no longer reused after the newest message is deleted, which SQLite can only do by recreating the `message` table. ENiGMA½ does this by itself the first time it starts after the upgrade: every message ID, all message meta and the full-text index are kept, and the whole rebuild is one transaction, so if it fails the old table is left as it was and the log says so at `error`; it is tried again at the next start. The log shows `Upgrading the message table` with the message count before it begins and `Upgraded the message table` with the time it took. A board with 36,000 messages took about a third of a second; a much larger one may take a little while to come up.
 
-  **Action:** none. As always, back up `db/message.sqlite3` first, and make sure there is free disk space for a second copy of the message table while the rebuild runs.
+  **Action:** none. As always, back up `db/message.sqlite3` first, and make sure there is free disk space for a second copy of the message table while this rebuild runs.
 
 * **The message search index is rebuilt once, at the first start** ([#964](https://github.com/NuSkooler/enigma-bbs/issues/964)). Editing an ActivityPub post used to leave its old text in the full-text index, and `PRAGMA integrity_check` on `message.sqlite3` reports such an index as malformed. Right after the message table rebuild above, ENiGMA½ rebuilds the index from the messages themselves, once, in one transaction; if it fails the index is left as it was and the log says so at `error`, and it is tried again at the next start. The log shows `Rebuilding the message search index` before it begins and `Rebuilt the message search index` with the time it took. A board with 36,000 messages took about one and a half seconds.
 
-  **Action:** none.
+  **Action:** none. The old index is kept until the new one is committed, so make sure there is free disk space for a new search index while it runs. The free space for a second copy of the message table, above, is for the #958 table rebuild only.
 
 ## 0.5.0-beta to 0.5.1-beta
 

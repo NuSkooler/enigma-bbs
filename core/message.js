@@ -1003,60 +1003,64 @@ module.exports = class Message {
         const self = this;
 
         try {
-            msgDb.transaction(() => {
-                const row = msgDb
-                    .prepare('SELECT message_id FROM message WHERE message_uuid = ?;')
-                    .get(self.messageUuid);
-                if (!row) {
-                    throw Errors.DoesNotExist(
-                        `No message with UUID ${self.messageUuid} to update`
-                    );
-                }
+            msgDb
+                .transaction(() => {
+                    const row = msgDb
+                        .prepare('SELECT message_id FROM message WHERE message_uuid = ?;')
+                        .get(self.messageUuid);
+                    if (!row) {
+                        throw Errors.DoesNotExist(
+                            `No message with UUID ${self.messageUuid} to update`
+                        );
+                    }
 
-                msgDb
-                    .prepare(
-                        `UPDATE message
+                    msgDb
+                        .prepare(
+                            `UPDATE message
                         SET area_tag = ?, reply_to_message_id = ?, to_user_name = ?, from_user_name = ?,
                             subject = ?, message = ?, modified_timestamp = ?
                         WHERE message_uuid = ?;`
-                    )
-                    .run(
-                        self.areaTag,
-                        self.replyToMsgId,
-                        self.toUserName,
-                        self.fromUserName,
-                        self.subject,
-                        self.message,
-                        getISOTimestampString(self.modTimestamp),
-                        self.messageUuid
-                    );
-                self.messageId = row.message_id;
+                        )
+                        .run(
+                            self.areaTag,
+                            self.replyToMsgId,
+                            self.toUserName,
+                            self.fromUserName,
+                            self.subject,
+                            self.message,
+                            getISOTimestampString(self.modTimestamp),
+                            self.messageUuid
+                        );
+                    self.messageId = row.message_id;
 
-                if (self.meta) {
-                    const deleteStmt = msgDb.prepare(
-                        `DELETE FROM message_meta
+                    if (self.meta) {
+                        const deleteStmt = msgDb.prepare(
+                            `DELETE FROM message_meta
                         WHERE message_id = ? AND meta_category = ? AND meta_name = ?;`
-                    );
-                    const insertStmt = msgDb.prepare(
-                        `INSERT OR IGNORE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                        );
+                        const insertStmt = msgDb.prepare(
+                            `INSERT OR IGNORE INTO message_meta (message_id, meta_category, meta_name, meta_value)
                         VALUES (?, ?, ?, ?);`
-                    );
-                    for (const category of Object.keys(self.meta)) {
-                        for (const name of Object.keys(self.meta[category])) {
-                            deleteStmt.run(self.messageId, category, name);
-                            const val = self.meta[category][name];
-                            for (const v of Array.isArray(val) ? val : [val]) {
-                                insertStmt.run(
-                                    self.messageId,
-                                    category,
-                                    name,
-                                    coerceToText(v)
-                                );
+                        );
+                        for (const category of Object.keys(self.meta)) {
+                            for (const name of Object.keys(self.meta[category])) {
+                                deleteStmt.run(self.messageId, category, name);
+                                const val = self.meta[category][name];
+                                for (const v of Array.isArray(val) ? val : [val]) {
+                                    insertStmt.run(
+                                        self.messageId,
+                                        category,
+                                        name,
+                                        coerceToText(v)
+                                    );
+                                }
                             }
                         }
                     }
-                }
-            })();
+                    //  immediate: take the write lock before the SELECT, so another
+                    //  connection cannot write between it and the UPDATE (SQLITE_BUSY)
+                })
+                .immediate();
 
             return cb(null, self.messageId);
         } catch (err) {
