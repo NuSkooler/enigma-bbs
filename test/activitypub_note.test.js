@@ -1051,6 +1051,8 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
     //  url -> { doc, responseUrl } served by the stand-in network
     let served;
     let fetched;
+    //  exact match against the URLs the stand-in network was asked for
+    const wasFetched = url => fetched.some(u => u === url);
     let savedGetJson;
     let savedWebFinger;
 
@@ -1178,7 +1180,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
         assert.ifError(err);
         assert.equal(actor.id, erin);
         assert.equal(cachedJson(erin).publicKey.id, keyId, 'cached under its own id');
-        assert.ok(fetched.includes(erin), "fetched from the actor's own URL");
+        assert.ok(wasFetched(erin), "fetched from the actor's own URL");
     });
 
     it('refuses a key URL pointing at an actor whose own document lists another key (T5)', async () => {
@@ -1196,7 +1198,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
         const { err } = await fromKeyId(keyId);
 
         assert.ok(err, 'refused');
-        assert.ok(fetched.includes(VICTIM), "the victim's own document was asked");
+        assert.ok(wasFetched(VICTIM), "the victim's own document was asked");
         const cached = cachedJson(VICTIM);
         assert.ok(!cached || cached.publicKey.publicKeyPem === pem(realKey.publicKey));
     });
@@ -1242,7 +1244,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
         const { err } = await fromId(bob);
 
         assert.ok(err);
-        assert.ok(!fetched.includes(EVIL), 'the off-host actor is never fetched');
+        assert.ok(!wasFetched(EVIL), 'the off-host actor is never fetched');
     });
 
     it("follows a handle's static WebFinger link to another host (split domain)", async () => {
@@ -1518,7 +1520,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
 
             assert.deepEqual(fanOut, [], 'nothing cached to send to at once');
             assert.deepEqual(lateInboxes, [`${GOOD}/inbox`], 'delivered once resolved');
-            assert.ok(fetched.includes(VICTIM), 'fetched again');
+            assert.ok(wasFetched(VICTIM), 'fetched again');
             assert.equal(cachedJson(VICTIM).id, VICTIM, 'and cached again');
         });
 
@@ -1539,7 +1541,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             await settle();
             assert.deepEqual(got.now, [`${GOOD}/inbox`]);
             assert.deepEqual(got.late(), []);
-            assert.ok(!fetched.includes(VICTIM), 'no fetch for a cached follower');
+            assert.ok(!wasFetched(VICTIM), 'no fetch for a cached follower');
         });
 
         it('gives cached followers at once while the others hang', async () => {
@@ -1720,7 +1722,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                     attackerKey.privateKey
                 );
                 assert.equal(result, 'accessDenied');
-                assert.ok(fetched.includes(NOTE), 'the origin was asked');
+                assert.ok(wasFetched(NOTE), 'the origin was asked');
                 assert.deepEqual(storedFrom(), []);
             });
 
@@ -1823,7 +1825,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                 answeredBy: `${GOOD}/.well-known/webfinger?resource=${encodeURIComponent(X)}`,
             });
             assert.ok((await fromId(X)).err);
-            assert.ok(!fetched.includes(X), 'not fetched on that answer');
+            assert.ok(!wasFetched(X), 'not fetched on that answer');
         });
 
         it('does not fetch a WebFinger link for an actor URL to another host', async () => {
@@ -1839,7 +1841,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                 answeredBy: `https://evil.example/.well-known/webfinger?resource=${encodeURIComponent(X)}`,
             });
             assert.ok((await fromId(X)).err);
-            assert.ok(!fetched.includes(VICTIM), 'the other host is not asked');
+            assert.ok(!wasFetched(VICTIM), 'the other host is not asked');
         });
 
         it("refuses a signature whose keyId is not the signing actor's key (M20)", async () => {
@@ -2098,6 +2100,8 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
     //  url -> { doc } or { status }
     let served;
     let fetched;
+    //  exact match against the URLs the stand-in network was asked for
+    const wasFetched = url => fetched.some(u => u === url);
     let requests;
     let savedGetJson;
 
@@ -2262,7 +2266,7 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             const result = await post(create(ATTACKER, note()), ATTACKER);
             assert.equal(result, 'accessDenied');
             //  a Note off the actor's host cannot be the actor's
-            assert.ok(!fetched.includes(NOTE), 'nothing is fetched for it');
+            assert.ok(!wasFetched(NOTE), 'nothing is fetched for it');
             assert.deepEqual(messages(), []);
         });
 
@@ -2358,7 +2362,7 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.equal(rows[0].id, `${N2}#create-from-origin`);
             assert.equal(rows[0].actor, VICTIM);
             assert.equal(rows[0].object.content, '<p>genuine #2</p>');
-            assert.ok(!objectIds().includes(NOTE));
+            assert.ok(!objectIds().some(o => o === NOTE));
 
             //  the victim's Note #1, then its Update and Delete, all work
             served.set(NOTE, { doc: note() });
@@ -2387,12 +2391,12 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
 
             //  the author's real Create under that id is still stored
             assert.equal(await post(create(VICTIM, note(), id), VICTIM), 'accepted');
-            assert.ok(objectIds().includes(id));
+            assert.ok(objectIds().some(o => o === id));
             assert.equal(messages().length, 2);
 
             assert.equal(await post(deleteNote(), VICTIM), 'accepted');
             assert.equal(messages().length, 1, "Note #1's message is gone");
-            assert.ok(!objectIds().includes(id));
+            assert.ok(!objectIds().some(o => o === id));
         });
 
         for (const forwardedFirst of [true, false]) {
@@ -2719,14 +2723,14 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
                 ATTACKER
             );
             assert.ok(err, 'not taken as sent');
-            assert.ok(!fetched.includes(NOTE), 'and not fetched from another host');
+            assert.ok(!wasFetched(NOTE), 'and not fetched from another host');
         });
 
         it("takes the announcer's own embedded Note as sent", async () => {
             const { err, n } = await fetchAnnounced(note(), VICTIM);
             assert.ifError(err);
             assert.equal(n.id, NOTE);
-            assert.ok(!fetched.includes(NOTE), 'no fetch needed');
+            assert.ok(!wasFetched(NOTE), 'no fetch needed');
         });
 
         it("fetches an embedded Note by another actor on the announcer's host", async () => {
@@ -2736,7 +2740,7 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
                 `${GOOD}/users/bob`
             );
             assert.ifError(err);
-            assert.ok(fetched.includes(NOTE), 'fetched from its origin');
+            assert.ok(wasFetched(NOTE), 'fetched from its origin');
             assert.match(n.content, /origin copy/);
         });
     });
