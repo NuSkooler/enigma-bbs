@@ -1527,14 +1527,14 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             return req;
         }
 
-        function post(activity, keyId, privateKey) {
+        function post(activity, keyId, privateKey, warnings = []) {
             const handler = new ActivityPubWebHandler();
             const noop = () => {};
             handler.log = {
                 trace: noop,
                 debug: noop,
                 info: noop,
-                warn: noop,
+                warn: (obj, msg) => warnings.push({ obj, msg }),
                 error: noop,
             };
             handler.sysLog = handler.log;
@@ -1554,6 +1554,117 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                 handler._inboxPostHandler(req, {}, signature, 'sharedInbox');
             });
         }
+
+        describe('Create, through the real signer derivation', function () {
+            const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+            const createOf = (actor, object, id) => ({
+                id: id || `${new URL(actor).origin}/activities/c-${Math.random()}`,
+                type: 'Create',
+                actor,
+                to: [PUBLIC],
+                object,
+            });
+            const storedFrom = () =>
+                _msgDb
+                    .prepare(
+                        `SELECT meta_value FROM message_meta WHERE meta_name = 'remote_from_user';`
+                    )
+                    .all()
+                    .map(r => r.meta_value);
+
+            beforeEach(() => {
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                served.set(EVIL, {
+                    doc: actorDoc(EVIL, { publicKeyPem: pem(attackerKey.publicKey) }),
+                });
+            });
+
+            it("stores the author's own Create, signed with the author's key", async () => {
+                const result = await post(
+                    createOf(VICTIM, noteJson('<p>by alice</p>')),
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+                assert.equal(result, 'accepted');
+                assert.deepEqual(storedFrom(), [VICTIM]);
+            });
+
+            it("refuses a Create signed with another key under the author's keyId", async () => {
+                const result = await post(
+                    createOf(VICTIM, noteJson('<p>forged</p>')),
+                    `${VICTIM}#main-key`,
+                    attackerKey.privateKey
+                );
+                assert.equal(result, 'accessDenied');
+                assert.deepEqual(storedFrom(), []);
+            });
+
+            it("refuses another actor's Create naming the author, which the origin does not confirm", async () => {
+                const result = await post(
+                    createOf(VICTIM, noteJson('<p>forged</p>'), `${GOOD}/activities/c-x`),
+                    `${EVIL}#main-key`,
+                    attackerKey.privateKey
+                );
+                assert.equal(result, 'accessDenied');
+                assert.ok(fetched.includes(NOTE), 'the origin was asked');
+                assert.deepEqual(storedFrom(), []);
+            });
+
+            it("refuses the author's Create of a Note attributed to someone else", async () => {
+                //  signer, actor and the Note's host are alice's; the author
+                //  is carol, and the origin does not serve the Note
+                const carols = Object.assign(noteJson('<p>as carol</p>'), {
+                    attributedTo: `${GOOD}/users/carol`,
+                });
+                const result = await post(
+                    createOf(VICTIM, carols),
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+                assert.equal(result, 'accessDenied');
+                assert.deepEqual(storedFrom(), []);
+            });
+        });
+
+        it("does not take the signer from an actor off the keyId's host", async () => {
+            //  evil.example's WebFinger sends the lookup of its actor to
+            //  other.example, whose actor lists evil.example's keyId
+            const actor = 'https://evil.example/users/m';
+            const other = 'https://other.example/users/m';
+            served.set(`webfinger:${actor}`, {
+                json: {
+                    subject: actor,
+                    links: [
+                        { rel: 'self', type: 'application/activity+json', href: other },
+                    ],
+                },
+                answeredBy: `https://other.example/.well-known/webfinger?resource=${encodeURIComponent(actor)}`,
+            });
+            served.set(other, {
+                doc: actorDoc(other, {
+                    id: `${actor}#main-key`,
+                    publicKeyPem: pem(attackerKey.publicKey),
+                }),
+            });
+
+            const warnings = [];
+            const result = await post(
+                {
+                    id: 'https://evil.example/activities/like-1',
+                    type: 'Like',
+                    actor,
+                    object: NOTE,
+                },
+                `${actor}#main-key`,
+                attackerKey.privateKey,
+                warnings
+            );
+
+            assert.equal(result, 'accessDenied');
+            const refusal = warnings.find(w => /not the signing actor/.test(w.msg));
+            assert.ok(refusal, 'refused as not signed by its actor');
+            assert.equal(refusal.obj.signerId, null, 'no signer off the keyId host');
+        });
 
         it('a planted actor document cannot take over a cached actor', async () => {
             //  Alice's post, and Alice cached with her real key
@@ -2060,6 +2171,16 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             const { err } = await fetchAnnounced(note(), ATTACKER);
             //  looked up by its id, which an announcer may only do on its host
             assert.ok(err);
+        });
+
+        it("looks up an embedded Note whose id is not on the announcer's host", async () => {
+            //  the author is the announcer, but the Note id is the victim's
+            const { err } = await fetchAnnounced(
+                note({ attributedTo: ATTACKER, content: '<p>squat</p>' }),
+                ATTACKER
+            );
+            assert.ok(err, 'not taken as sent');
+            assert.ok(!fetched.includes(NOTE), 'and not fetched from another host');
         });
 
         it('takes an embedded Note from the announcer host as sent', async () => {
