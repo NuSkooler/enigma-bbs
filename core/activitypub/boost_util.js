@@ -73,8 +73,8 @@ exports.sendActorDelete = sendActorDelete;
 //  Handles three cases:
 //    1. String URL that is one of our own Note/Article endpoints → local collection lookup
 //    2. String URL that is remote → HTTP GET with 3s timeout
-//    3. Embedded object → used as sent only when it and its author are on the
-//       announcer's host; otherwise resolved by its id as in 1 and 2
+//    3. Embedded object → used as sent only when it is the announcer's own
+//       Note, on its host; otherwise resolved by its id as in 1 and 2
 //
 //  fromActorId (optional) — when provided, the fetched URL's hostname must match
 //  the actor's hostname to prevent cross-domain content injection (audit finding #7).
@@ -105,13 +105,15 @@ function fetchAnnouncedNote(objectOrId, fromActorId, fetchAs, cb) {
                 )
             );
         }
+        //  an announcer speaks for its own Notes only: one by another actor,
+        //  even on its host, is fetched from its origin
         const authors = actorIdsOf(objectOrId.attributedTo);
         if (
             fromActorId &&
             isString(objectOrId.id) &&
             sameHost(objectOrId.id, fromActorId) &&
             authors.length === 1 &&
-            sameHost(authors[0], fromActorId)
+            authors[0] === fromActorId
         ) {
             return cb(null, new Note(objectOrId));
         }

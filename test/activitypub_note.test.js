@@ -2555,11 +2555,22 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.ok(!fetched.includes(NOTE), 'and not fetched from another host');
         });
 
-        it('takes an embedded Note from the announcer host as sent', async () => {
-            const { err, n } = await fetchAnnounced(note(), `${GOOD}/users/bob`);
+        it("takes the announcer's own embedded Note as sent", async () => {
+            const { err, n } = await fetchAnnounced(note(), VICTIM);
             assert.ifError(err);
             assert.equal(n.id, NOTE);
             assert.ok(!fetched.includes(NOTE), 'no fetch needed');
+        });
+
+        it("fetches an embedded Note by another actor on the announcer's host", async () => {
+            served.set(NOTE, { doc: note({ content: '<p>origin copy</p>' }) });
+            const { err, n } = await fetchAnnounced(
+                note({ content: '<p>as announced</p>' }),
+                `${GOOD}/users/bob`
+            );
+            assert.ifError(err);
+            assert.ok(fetched.includes(NOTE), 'fetched from its origin');
+            assert.match(n.content, /origin copy/);
         });
     });
 

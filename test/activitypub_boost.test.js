@@ -384,10 +384,10 @@ describe('fetchAnnouncedNote() — embedded object (no network)', function () {
             id: 'https://remote.example.com/notes/embedded1',
             type: 'Note',
             content: '<p>Hello from remote</p>',
-            attributedTo: 'https://remote.example.com/users/alice',
+            attributedTo: ANNOUNCER,
         };
 
-        //  announced by an actor on the Note's own host
+        //  the announcer's own Note
         fetchAnnouncedNote(embedded, ANNOUNCER, (err, note) => {
             assert.ifError(err);
             assert.ok(note, 'should return a note');
@@ -403,7 +403,7 @@ describe('fetchAnnouncedNote() — embedded object (no network)', function () {
             type: 'Article',
             name: 'An Article Title',
             content: '<p>An article</p>',
-            attributedTo: 'https://remote.example.com/users/alice',
+            attributedTo: ANNOUNCER,
         };
 
         fetchAnnouncedNote(embedded, ANNOUNCER, (err, note) => {
