@@ -1068,6 +1068,9 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             if (!hit) {
                 return cb(new Error(`not found: ${url}`));
             }
+            if (hit.hang) {
+                return; // never answers
+            }
             return cb(null, JSON.parse(JSON.stringify(hit.doc)), {
                 statusCode: 200,
                 headers: { 'content-type': 'application/activity+json' },
@@ -1429,10 +1432,15 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
     });
 
     describe('delivery to followers', function () {
-        const { collectFollowerInboxes } = require('../core/activitypub/follow_util.js');
+        const {
+            collectFollowerInboxes,
+            resetFollowerFailures,
+        } = require('../core/activitypub/follow_util.js');
         const { migrateActivityPubActorCachePurge } = require('../core/database.js');
         const bob = { userId: 2, username: 'bob', getProperty: () => null };
         const FOLLOWERS = 'https://test.example.com/_enig/ap/users/bob/followers';
+
+        beforeEach(() => resetFollowerFailures());
 
         const addFollower = id =>
             new Promise((resolve, reject) =>
@@ -1452,12 +1460,28 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                     err => (err ? reject(err) : resolve())
                 )
             );
-        const inboxes = () =>
+        const addCached = (id, sharedInbox) =>
             new Promise((resolve, reject) =>
-                collectFollowerInboxes(bob, (err, list) =>
-                    err ? reject(err) : resolve(list.sort())
+                Collection.addActor(
+                    actorDoc(id, {}, { endpoints: { sharedInbox } }),
+                    id,
+                    err => (err ? reject(err) : resolve())
                 )
             );
+
+        //  { now: inboxes given at once, late: () => inboxes found after }
+        const collect = () =>
+            new Promise((resolve, reject) =>
+                collectFollowerInboxes(bob, (err, now, late) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    const later = [];
+                    late(inbox => later.push(inbox));
+                    resolve({ now: now.sort(), late: () => later.sort() });
+                })
+            );
+        const settle = () => new Promise(resolve => setTimeout(resolve, 20));
 
         it('reaches a follower purged from the actor cache, and caches it again', async () => {
             const withShared = actorDoc(
@@ -1468,11 +1492,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                 }
             );
             await addFollower(VICTIM);
-            await new Promise((resolve, reject) =>
-                Collection.addActor(withShared, VICTIM, err =>
-                    err ? reject(err) : resolve()
-                )
-            );
+            await addCached(VICTIM, `${GOOD}/inbox`);
             _apDb.pragma('user_version = 1');
             migrateActivityPubActorCachePurge(_apDb);
             assert.equal(cachedJson(VICTIM), undefined, 'purged');
@@ -1480,15 +1500,24 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
 
             //  the fan-out a new public post uses
             const scanner = require('../core/scanner_tossers/activitypub.js').getModule;
+            const lateInboxes = [];
             const fanOut = await new Promise((resolve, reject) =>
                 scanner.prototype._collectFollowersSharedInboxEndpoints.call(
                     {},
                     bob,
-                    (err, list) => (err ? reject(err) : resolve(list))
+                    (err, list, followers, late) => {
+                        if (err) {
+                            return reject(err);
+                        }
+                        late(inbox => lateInboxes.push(inbox));
+                        resolve(list);
+                    }
                 )
             );
+            await settle();
 
-            assert.deepEqual(fanOut, [`${GOOD}/inbox`]);
+            assert.deepEqual(fanOut, [], 'nothing cached to send to at once');
+            assert.deepEqual(lateInboxes, [`${GOOD}/inbox`], 'delivered once resolved');
             assert.ok(fetched.includes(VICTIM), 'fetched again');
             assert.equal(cachedJson(VICTIM).id, VICTIM, 'and cached again');
         });
@@ -1497,21 +1526,85 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             const solo = 'https://solo.example/users/sam';
             await addFollower(solo);
             served.set(solo, { doc: actorDoc(solo) });
-            assert.deepEqual(await inboxes(), [`${solo}/inbox`]);
+            const got = await collect();
+            await settle();
+            assert.deepEqual(got.late(), [`${solo}/inbox`]);
         });
 
         it('takes a cached follower from the cache, and skips one that cannot be resolved', async () => {
             await addFollower(VICTIM);
             await addFollower('https://gone.example/users/zed');
-            await new Promise((resolve, reject) =>
-                Collection.addActor(
-                    actorDoc(VICTIM, {}, { endpoints: { sharedInbox: `${GOOD}/inbox` } }),
-                    VICTIM,
-                    err => (err ? reject(err) : resolve())
-                )
-            );
-            assert.deepEqual(await inboxes(), [`${GOOD}/inbox`]);
+            await addCached(VICTIM, `${GOOD}/inbox`);
+            const got = await collect();
+            await settle();
+            assert.deepEqual(got.now, [`${GOOD}/inbox`]);
+            assert.deepEqual(got.late(), []);
             assert.ok(!fetched.includes(VICTIM), 'no fetch for a cached follower');
+        });
+
+        it('gives cached followers at once while the others hang', async () => {
+            await addFollower(VICTIM);
+            await addCached(VICTIM, `${GOOD}/inbox`);
+            const slow = 'https://slow.example/users/sid';
+            await addFollower(slow);
+            served.set(slow, { hang: true });
+            served.set(`webfinger:${slow}`, { hang: true });
+
+            const got = await Promise.race([
+                collect(),
+                new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 500)),
+            ]);
+            assert.notEqual(got, 'TIMEOUT');
+            assert.deepEqual(got.now, [`${GOOD}/inbox`]);
+        });
+
+        it('does not try a follower that failed again within the retry time', async () => {
+            const dead = 'https://dead.example/users/dan';
+            await addFollower(dead);
+            await collect();
+            await settle();
+            const tries = () => fetched.filter(u => String(u) === dead).length;
+            assert.equal(tries(), 1);
+
+            await collect();
+            await settle();
+            assert.equal(tries(), 1, 'not fetched again');
+
+            resetFollowerFailures();
+            await collect();
+            await settle();
+            assert.equal(tries(), 2, 'tried again once it has expired');
+        });
+
+        it('reads a follower list longer than SQLite allows in one statement', async () => {
+            const count = 33000;
+            const insert = _apDb.prepare(
+                `INSERT INTO collection (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
+                VALUES (?, ?, '2026-10-29T12:00:00Z', ?, ?, ?, 0);`
+            );
+            _apDb.transaction(() => {
+                for (let i = 0; i < count; ++i) {
+                    const id = `https://h${i}.example/users/u`;
+                    insert.run(
+                        FOLLOWERS,
+                        'followers',
+                        'owner',
+                        id,
+                        JSON.stringify({ id })
+                    );
+                    insert.run(
+                        'https://www.w3.org/ns/activitystreams#PublicActors',
+                        'actors',
+                        'https://www.w3.org/ns/activitystreams#Public',
+                        id,
+                        JSON.stringify({ id, type: 'Person', inbox: `${id}/inbox` })
+                    );
+                }
+            })();
+
+            const got = await collect();
+            assert.equal(got.now.length, count);
+            assert.deepEqual(fetched, []);
         });
     });
 

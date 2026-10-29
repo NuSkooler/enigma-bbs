@@ -159,6 +159,23 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     }
                     allEndpoints = Array.from(new Set(allEndpoints)); //  unique again
 
+                    //  followers resolved after this (not in the actor cache)
+                    if (deliveryEndpoints.late) {
+                        deliveryEndpoints.late(inbox => {
+                            if (allEndpoints.includes(inbox)) {
+                                return;
+                            }
+                            activity.sendTo(inbox, fromUser, err => {
+                                if (err) {
+                                    this.log.warn(
+                                        { inbox, error: err.message },
+                                        'Failed to send "Note" Activity to a follower resolved late'
+                                    );
+                                }
+                            });
+                        });
+                    }
+
                     async.eachLimit(
                         allEndpoints,
                         4,
@@ -281,12 +298,16 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
     _collectDeliveryEndpoints(message, note, localUser, cb) {
         this._collectFollowersSharedInboxEndpoints(
             localUser,
-            (err, endpoints, followersEndpoint) => {
+            (err, endpoints, followersEndpoint, late) => {
                 if (err) {
                     return cb(err);
                 }
 
-                const base = { sharedInboxes: endpoints, followers: followersEndpoint };
+                const base = {
+                    sharedInboxes: endpoints,
+                    followers: followersEndpoint,
+                    late,
+                };
 
                 //  Priority 1: explicit AP address in the TO field
                 const addrInfo = getAddressedToInfo(message.toUserName);
@@ -348,12 +369,13 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
     _collectFollowersSharedInboxEndpoints(localUser, cb) {
         const localFollowersEndpoint = Endpoints.followers(localUser);
 
-        //  every follower, including any missing from the actor cache
-        collectFollowerInboxes(localUser, (err, sharedInboxEndpoints) => {
+        //  cached followers now; those missing from the actor cache are
+        //  handed to |late| as they are resolved
+        collectFollowerInboxes(localUser, (err, sharedInboxEndpoints, late) => {
             if (err) {
                 return cb(err);
             }
-            return cb(null, sharedInboxEndpoints, localFollowersEndpoint);
+            return cb(null, sharedInboxEndpoints, localFollowersEndpoint, late);
         });
     }
 

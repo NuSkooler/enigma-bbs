@@ -203,14 +203,54 @@ function rejectFollowRequest(localUser, requestActor, requestActivity, cb) {
 }
 
 //
-//  The inboxes that reach |localUser|'s followers: each follower's sharedInbox,
-//  or its own inbox when it has none. A follower missing from the actor cache
-//  (purged at upgrade, or expired) is fetched again through Actor.fromId(),
-//  which verifies it and caches it again, instead of being skipped. The
-//  follower row's own copy of the actor is not used: it may predate those
-//  checks.
+//  Followers that could not be resolved are not tried again for this long,
+//  so a follower whose server is gone does not cost every post a full set of
+//  fetches. Kept in memory: losing it on restart costs one retry each.
 //
-//  cb(err, inboxes: string[]) -- unique
+const FollowerFailureTtlMs = 6 * 60 * 60 * 1000;
+const FollowerFailureMaxEntries = 10000;
+const followerFailures = new Map(); // actorId -> retry after (ms)
+
+function followerFailedRecently(actorId) {
+    const retryAfter = followerFailures.get(actorId);
+    if (retryAfter === undefined) {
+        return false;
+    }
+    if (Date.now() < retryAfter) {
+        return true;
+    }
+    followerFailures.delete(actorId);
+    return false;
+}
+
+function noteFollowerFailure(actorId) {
+    if (followerFailures.size >= FollowerFailureMaxEntries) {
+        const now = Date.now();
+        for (const [id, retryAfter] of followerFailures) {
+            if (retryAfter <= now || followerFailures.size >= FollowerFailureMaxEntries) {
+                followerFailures.delete(id);
+            }
+        }
+    }
+    followerFailures.set(actorId, Date.now() + FollowerFailureTtlMs);
+}
+
+exports.resetFollowerFailures = () => followerFailures.clear();
+
+//
+//  The inboxes that reach |localUser|'s followers: each follower's sharedInbox,
+//  or its own inbox when it has none.
+//
+//  cb(err, inboxes, late) is called once the actor cache has been read, with
+//  the inboxes of cached followers, so delivery to them is not held up. A
+//  follower missing from the cache (purged at upgrade, or expired) is
+//  fetched again in the background through Actor.fromId(), which verifies
+//  and re-caches it, four at a time and signed as the local user; one that
+//  fails is not tried again for FollowerFailureTtlMs. late(deliver) hands
+//  each further inbox found that way to deliver(inbox), including those
+//  found before late() was called; without it they are cached for the next
+//  post. The follower row's own copy of the actor is not used: it may
+//  predate those checks.
 //
 function collectFollowerInboxes(localUser, cb) {
     const followersEndpoint = Endpoints.followers(localUser);
@@ -221,10 +261,6 @@ function collectFollowerInboxes(localUser, cb) {
         }
 
         const ids = ((collection && collection.orderedItems) || []).filter(isString);
-        if (ids.length === 0) {
-            return cb(null, []);
-        }
-
         const inboxOf = actor =>
             (actor.endpoints && actor.endpoints.sharedInbox) || actor.inbox;
 
@@ -233,42 +269,53 @@ function collectFollowerInboxes(localUser, cb) {
                 return cb(err);
             }
 
-            const inboxes = [];
+            const seen = new Set();
             const misses = [];
             for (const id of ids) {
                 const hit = cached.get(id);
                 if (hit) {
-                    inboxes.push(inboxOf(hit.actor));
-                } else {
+                    const inbox = inboxOf(hit.actor);
+                    if (isString(inbox) && inbox) {
+                        seen.add(inbox);
+                    }
+                } else if (!followerFailedRecently(id)) {
                     misses.push(id);
                 }
             }
 
-            async.eachLimit(
-                misses,
-                FollowerFetchConcurrency,
-                (actorId, next) => {
-                    //  signed as the local user, for servers that require it
-                    Actor.fromId(actorId, localUser, (err, actor) => {
-                        if (err || !actor) {
-                            Logger.log &&
-                                Logger.log.warn(
-                                    { actorId, error: err && err.message },
-                                    'Cannot resolve follower; not delivering to it'
-                                );
-                            return next(null);
-                        }
-                        inboxes.push(inboxOf(actor));
-                        return next(null);
-                    });
-                },
-                () => {
-                    return cb(
-                        null,
-                        Array.from(new Set(inboxes.filter(i => isString(i) && i)))
-                    );
+            //  inboxes found after cb(), until a deliver function is given
+            let deliver = null;
+            const pending = [];
+            const late = fn => {
+                deliver = fn;
+                pending.splice(0).forEach(inbox => deliver(inbox));
+            };
+            const found = inbox => {
+                if (!isString(inbox) || !inbox || seen.has(inbox)) {
+                    return;
                 }
-            );
+                seen.add(inbox);
+                return deliver ? deliver(inbox) : pending.push(inbox);
+            };
+
+            cb(null, Array.from(seen), late);
+
+            async.eachLimit(misses, FollowerFetchConcurrency, (actorId, next) => {
+                //  signed as the local user, for servers that require it
+                Actor.fromId(actorId, localUser, (err, actor) => {
+                    if (err || !actor) {
+                        noteFollowerFailure(actorId);
+                        Logger.log &&
+                            Logger.log.warn(
+                                { actorId, error: err && err.message },
+                                'Cannot resolve follower; not delivering to it'
+                            );
+                        return next(null);
+                    }
+                    found(inboxOf(actor));
+                    return next(null);
+                });
+            });
         });
     });
 }

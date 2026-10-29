@@ -295,11 +295,18 @@ module.exports = class Collection extends ActivityPubObject {
             return cb(null, new Map());
         }
 
-        const placeholders = ids.map(() => '?').join(', ');
+        //  a chunk's ids stay well under SQLite's bound-variable limit
+        const ChunkSize = 500;
+        const result = new Map();
         try {
-            const rows = apDb
-                .prepare(
-                    `SELECT c.object_id, c.object_json, m.meta_value AS subject
+            const rows = [];
+            for (let i = 0; i < ids.length; i += ChunkSize) {
+                const chunk = ids.slice(i, i + ChunkSize);
+                const placeholders = chunk.map(() => '?').join(', ');
+                rows.push(
+                    ...apDb
+                        .prepare(
+                            `SELECT c.object_id, c.object_json, m.meta_value AS subject
                     FROM collection c
                     LEFT JOIN collection_object_meta m
                         ON  m.object_id      = c.object_id
@@ -307,10 +314,11 @@ module.exports = class Collection extends ActivityPubObject {
                         AND m.name           = c.name
                         AND m.meta_name      = 'actor_subject'
                     WHERE c.collection_id = ? AND c.name = ? AND c.object_id IN (${placeholders});`
-                )
-                .all(ActorCollectionId, Collections.Actors, ...ids);
+                        )
+                        .all(ActorCollectionId, Collections.Actors, ...chunk)
+                );
+            }
 
-            const result = new Map();
             for (const row of rows) {
                 const obj = ActivityPubObject.fromJsonString(row.object_json);
                 if (obj) {
@@ -320,11 +328,12 @@ module.exports = class Collection extends ActivityPubObject {
                     });
                 }
             }
-
-            return cb(null, result);
         } catch (err) {
             return cb(err);
         }
+
+        //  outside the try: an exception in the caller is not a query error
+        return cb(null, result);
     }
 
     static removeExpiredActors(maxAgeDays, cb) {

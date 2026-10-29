@@ -52,7 +52,7 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 * **The ActivityPub actor cache is emptied once, at the first start.** Cached remote actors could have been planted by another server, and such an entry cannot be told from a genuine one, so the `actors` collection in `db/activitypub.sqlite3` is cleared once and actors are fetched again as they are needed. Follower and following lists, posts and reactions are not touched. The log shows `Purging the ActivityPub actor cache` and `Purged the ActivityPub actor cache`; 50,000 cached actors took under a second.
 
-  **Action:** none. Delivery to followers is not interrupted: when a post, boost or like goes out, a follower that is not in the cache is fetched again (four at a time) before delivery. The first post after the upgrade may take a while to go out on a board with many followers, and expect more outbound fetching for a while after the upgrade.
+  **Action:** none. Delivery to followers is not interrupted: when a post, boost or like goes out, followers in the cache get it at once, and a follower that is not in the cache is fetched again in the background (four at a time) and gets it once found. On a board with many followers, the first posts after the upgrade reach most followers a little later than usual, and expect more outbound fetching for a while. A follower that cannot be fetched is not tried again for six hours (this is kept in memory, so a restart tries it again).
 
 ## 0.5.0-beta to 0.5.1-beta
 

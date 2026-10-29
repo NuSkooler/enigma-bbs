@@ -313,7 +313,7 @@ function sendBoost(localUser, noteId, cb) {
 
             //  Collect delivery targets: note author's inbox + followers' shared inboxes
             callback => {
-                _collectReactionInboxes(localUser, noteId, (err, inboxes) => {
+                _collectReactionInboxes(localUser, noteId, announce, (err, inboxes) => {
                     return callback(err, inboxes);
                 });
             },
@@ -422,9 +422,13 @@ function undoBoost(localUser, noteId, cb) {
         async.waterfall(
             [
                 callback => {
-                    _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                        return callback(err, sharedInboxes);
-                    });
+                    _collectFollowerSharedInboxes(
+                        localUser,
+                        undo,
+                        (err, sharedInboxes) => {
+                            return callback(err, sharedInboxes);
+                        }
+                    );
                 },
                 (sharedInboxes, callback) => {
                     async.eachLimit(
@@ -522,7 +526,7 @@ function sendLike(localUser, noteId, cb) {
                 });
             },
             callback => {
-                _collectReactionInboxes(localUser, noteId, (err, inboxes) => {
+                _collectReactionInboxes(localUser, noteId, like, (err, inboxes) => {
                     return callback(err, inboxes);
                 });
             },
@@ -615,9 +619,13 @@ function undoLike(localUser, noteId, cb) {
         async.waterfall(
             [
                 callback => {
-                    _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                        return callback(err, sharedInboxes);
-                    });
+                    _collectFollowerSharedInboxes(
+                        localUser,
+                        undo,
+                        (err, sharedInboxes) => {
+                            return callback(err, sharedInboxes);
+                        }
+                    );
                 },
                 (sharedInboxes, callback) => {
                     async.eachLimit(
@@ -788,9 +796,13 @@ function sendDelete(localUser, noteId, cb) {
 
             //  Collect follower shared-inbox endpoints.
             callback => {
-                _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                    return callback(err, sharedInboxes);
-                });
+                _collectFollowerSharedInboxes(
+                    localUser,
+                    deleteActivity,
+                    (err, sharedInboxes) => {
+                        return callback(err, sharedInboxes);
+                    }
+                );
             },
 
             //  Deliver Delete activity to each follower shared inbox.
@@ -877,9 +889,10 @@ function sendActorDelete(localUser, cb) {
         cc: [followersEndpoint],
     });
 
-    collectFollowerInboxes(localUser, (err, sharedInboxes) => {
+    _collectFollowerSharedInboxes(localUser, deleteActivity, (err, sharedInboxes) => {
         if (err || sharedInboxes.length === 0) {
-            //  No followers that can be resolved, or a DB error — nothing to deliver.
+            //  No cached followers, or a DB error: nothing to deliver now
+            //  (followers resolved later still get it)
             return cb(null);
         }
 
@@ -911,7 +924,7 @@ function sendActorDelete(localUser, cb) {
 //    - the note author's inbox (or their server's sharedInbox)
 //    - all of the local user's followers' shared inboxes
 //  Returns a de-duplicated array of inbox URLs.
-function _collectReactionInboxes(localUser, noteId, cb) {
+function _collectReactionInboxes(localUser, noteId, lateActivity, cb) {
     async.parallel(
         {
             authorInbox: next => {
@@ -936,7 +949,7 @@ function _collectReactionInboxes(localUser, noteId, cb) {
                 });
             },
             followerInboxes: next => {
-                _collectFollowerSharedInboxes(localUser, next);
+                _collectFollowerSharedInboxes(localUser, lateActivity, next);
             },
         },
         (err, results) => {
@@ -950,7 +963,23 @@ function _collectReactionInboxes(localUser, noteId, cb) {
     );
 }
 
-//  The inboxes that reach the local user's followers (see collectFollowerInboxes)
-function _collectFollowerSharedInboxes(localUser, cb) {
-    return collectFollowerInboxes(localUser, cb);
+//  The inboxes that reach the local user's followers (see
+//  collectFollowerInboxes): those of cached followers now, and
+//  |lateActivity| is delivered to the rest as they are resolved
+function _collectFollowerSharedInboxes(localUser, lateActivity, cb) {
+    return collectFollowerInboxes(localUser, (err, inboxes, late) => {
+        if (!err && late && lateActivity) {
+            late(inbox =>
+                lateActivity.sendTo(inbox, localUser, err => {
+                    if (err) {
+                        Log.warn(
+                            { inbox, activityId: lateActivity.id, error: err.message },
+                            'Failed to deliver to a follower resolved late'
+                        );
+                    }
+                })
+            );
+        }
+        return cb(err, inboxes);
+    });
 }
