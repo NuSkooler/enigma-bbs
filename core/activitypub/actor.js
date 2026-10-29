@@ -5,7 +5,7 @@
 const { Errors } = require('../enig_error.js');
 const UserProps = require('../user_property');
 const Endpoints = require('./endpoint');
-const { userNameFromSubject, isValidLink } = require('./util');
+const { handleFromSubject, isValidLink } = require('./util');
 const Log = require('../logger').log;
 const Logger = require('../logger');
 
@@ -251,30 +251,99 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             //  Cache miss or needs refreshed; Try to do so now
-            Actor._fromWebFinger(id, fromUser, keyId, (err, actor, subject) => {
+            Actor._fromWebFinger(id, fromUser, keyId, (err, actor, webFingerRes) => {
                 if (err) {
                     return callback(err);
                 }
 
-                if (subject) {
-                    subject = `@${userNameFromSubject(subject)}`; // e.g. @Username@host.com
-                } else if (!_.isEmpty(actor)) {
-                    subject = actor.id; //   best we can do for now
-                }
+                //  a handle only once confirmed; otherwise the actor's id,
+                //  as when there is no subject at all
+                Actor._confirmedHandle(actor, id, webFingerRes, handle => {
+                    const subject = handle ? `@${handle}` : actor.id; // e.g. @Username@host.com
 
-                // deliver result to caller
-                callback(err, actor, subject);
+                    // deliver result to caller
+                    callback(null, actor, subject);
 
-                // cache our entry
-                if (actor) {
+                    // cache our entry
                     Collection.addActor(actor, subject, err => {
                         if (err) {
                             //  :TODO: Log me
                         }
                     });
-                }
+                });
             });
         });
+    }
+
+    //
+    //  The "user@host" handle |actor| may be shown and looked up as, or null.
+    //  A WebFinger subject is taken on the word of both sides, as Mastodon
+    //  does (ProcessAccountService#check_webfinger!): the actor's own host
+    //  (for preferredUsername@actor-host, or the actor's FEP-2c59 webfinger
+    //  property) must name the handle, and the handle's host must point it
+    //  back at this actor id. Otherwise any server could claim
+    //  alice@good.example for its own actor, or relabel someone else's.
+    //
+    //  query, queryRes — the WebFinger lookup that found the actor, reused
+    //                    when it is one of the two above
+    //
+    static _confirmedHandle(actor, query, queryRes, cb) {
+        const lower = h => (h || '').replace(/^@/, '').toLowerCase();
+        let actorHost;
+        try {
+            actorHost = new URL(actor.id).host;
+        } catch {
+            return cb(null);
+        }
+        const start =
+            handleFromSubject(actor.webfinger) ||
+            (_.isString(actor.preferredUsername) &&
+                handleFromSubject(`${actor.preferredUsername}@${actorHost}`));
+        if (!start) {
+            return cb(null);
+        }
+
+        const finger = (handle, next) => {
+            if (queryRes && lower(query) === lower(handle)) {
+                return next(queryRes);
+            }
+            WebFinger.queryWebFinger(`@${handle}`, (err, res) => next(err ? null : res));
+        };
+        const pointsHere = res => Actor._activityLinkHref(res) === actor.id;
+
+        finger(start, res => {
+            const named = res && handleFromSubject(res.subject);
+            if (!named) {
+                return cb(null);
+            }
+            if (lower(named) === lower(start)) {
+                return cb(pointsHere(res) ? named : null);
+            }
+            //  the actor's host names a handle elsewhere (a split domain):
+            //  that host must agree
+            finger(named, res => {
+                const again = res && handleFromSubject(res.subject);
+                if (again && lower(again) === lower(named) && pointsHere(res)) {
+                    return cb(named);
+                }
+                warnLog(
+                    { actorId: actor.id, subject: named },
+                    'WebFinger subject not confirmed by its host; not using it'
+                );
+                return cb(null);
+            });
+        });
+    }
+
+    static _activityLinkHref(res) {
+        const links = res && res.links;
+        if (!Array.isArray(links)) {
+            return null;
+        }
+        const link = links.find(
+            l => l && l.type === ActivityStreamMediaType && l.href?.length > 0
+        );
+        return link ? link.href : null;
     }
 
     static actorCacheMaintenanceTask(args, cb) {
@@ -384,27 +453,26 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             // we need a link with 'application/activity+json'
-            const links = res.links;
-            if (!Array.isArray(links)) {
+            if (!Array.isArray(res.links)) {
                 return cb(Errors.DoesNotExist('No "links" object in WebFinger response'));
             }
 
-            const activityLink = links.find(l => {
-                return l.type === ActivityStreamMediaType && l.href?.length > 0;
-            });
-
-            if (!activityLink) {
+            const href = Actor._activityLinkHref(res);
+            if (!href) {
                 return cb(
                     Errors.DoesNotExist('No Activity link found in WebFinger response')
                 );
             }
 
-            //  The host that answered speaks for its own actors only. A
-            //  query redirected by the queried host (split domain setups)
-            //  answers for the host it was sent to.
-            if (!answeredBy || !sameHost(activityLink.href, answeredBy)) {
+            //  A handle's domain owns its namespace, so it may point at an
+            //  actor on another host (a split domain with a static WebFinger
+            //  document); the actor fetched must still be the one at that
+            //  URL. A lookup by actor URL is answered by that URL's host (or
+            //  the host it redirected the query to), for its own actors only.
+            const byUrl = /^https?:\/\//i.test(actorQuery);
+            if (byUrl && (!answeredBy || !sameHost(href, answeredBy))) {
                 warnLog(
-                    { actorQuery, href: activityLink.href, answeredBy },
+                    { actorQuery, href, answeredBy },
                     'Refusing WebFinger link to an actor on another host'
                 );
                 return cb(
@@ -415,14 +483,9 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             // we can now query the href value for an Actor
-            return Actor._fromRemoteQuery(
-                activityLink.href,
-                fromUser,
-                keyId,
-                (err, actor) => {
-                    return cb(err, actor, res.subject);
-                }
-            );
+            return Actor._fromRemoteQuery(href, fromUser, keyId, (err, actor) => {
+                return cb(err, actor, res);
+            });
         });
     }
 };

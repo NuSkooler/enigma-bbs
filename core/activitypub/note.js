@@ -9,6 +9,7 @@ const {
     htmlToMessageBody,
     recipientIdsFromObject,
     extractMessageMetadata,
+    stripDisplayControls,
 } = require('./util');
 const { PublicCollectionId } = require('./const');
 const Endpoints = require('./endpoint');
@@ -286,7 +287,10 @@ module.exports = class Note extends ActivityPubObject {
                 uuid: makeMessageUuid(),
             });
 
-            message.fromUserName = fromActorSubject || this.attributedTo;
+            //  a remote name is shown on the board: no control codes
+            message.fromUserName = stripDisplayControls(
+                fromActorSubject || this.attributedTo
+            );
 
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
             message.message = htmlToMessageBody(

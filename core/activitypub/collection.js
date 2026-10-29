@@ -190,18 +190,27 @@ module.exports = class Collection extends ActivityPubObject {
         }
 
         try {
+            //  an actor's own id wins over a handle; of several actors with
+            //  the same handle (one that moved), the latest confirmed
             const row = apDb
                 .prepare(
                     `SELECT c.name, c.timestamp, c.owner_actor_id, c.is_private, c.object_json, m.meta_value
-                    FROM collection c, collection_object_meta m
-                    WHERE c.collection_id = ? AND c.name = ? AND m.object_id = c.object_id AND (c.object_id = ? OR (m.meta_name = ? AND m.meta_value = ? COLLATE NOCASE))
+                    FROM collection c
+                    LEFT JOIN collection_object_meta m
+                        ON  m.collection_id = c.collection_id
+                        AND m.name          = c.name
+                        AND m.object_id     = c.object_id
+                        AND m.meta_name     = 'actor_subject'
+                    WHERE c.collection_id = ? AND c.name = ?
+                      AND (c.object_id = ? OR m.meta_value = ? COLLATE NOCASE)
+                    ORDER BY (c.object_id = ?) DESC, c.timestamp DESC, c.rowid DESC
                     LIMIT 1;`
                 )
                 .get(
                     ActorCollectionId,
                     Collections.Actors,
                     actorIdOrSubject,
-                    'actor_subject',
+                    actorIdOrSubject,
                     actorIdOrSubject
                 );
 
@@ -255,6 +264,21 @@ module.exports = class Collection extends ActivityPubObject {
                     'actor_subject',
                     subject
                 );
+
+                //  a handle belongs to one actor: the one just confirmed for it
+                if (subject !== actor.id) {
+                    apDb.prepare(
+                        `UPDATE collection_object_meta SET meta_value = object_id
+                            WHERE collection_id = ? AND name = ? AND meta_name = ?
+                              AND meta_value = ? COLLATE NOCASE AND object_id != ?;`
+                    ).run(
+                        ActorCollectionId,
+                        Collections.Actors,
+                        'actor_subject',
+                        subject,
+                        actor.id
+                    );
+                }
             })();
 
             return cb(null);

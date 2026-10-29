@@ -1182,20 +1182,39 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
         assert.equal(cachedJson(gina), undefined);
     });
 
-    it('refuses a WebFinger link to an actor on another host', async () => {
-        served.set('webfinger:@alice@good.example', {
+    it('refuses a WebFinger link from an actor URL to another host', async () => {
+        const bob = `${GOOD}/users/bob`;
+        served.set(`webfinger:${bob}`, {
             json: {
-                subject: 'acct:alice@good.example',
+                subject: 'acct:bob@good.example',
                 links: [{ rel: 'self', type: 'application/activity+json', href: EVIL }],
             },
-            answeredBy: `${GOOD}/.well-known/webfinger?resource=acct%3Aalice%40good.example`,
+            answeredBy: `${GOOD}/.well-known/webfinger?resource=${encodeURIComponent(bob)}`,
         });
         served.set(EVIL, { doc: actorDoc(EVIL) });
 
-        const { err } = await fromId('@alice@good.example');
+        const { err } = await fromId(bob);
 
         assert.ok(err);
         assert.ok(!fetched.includes(EVIL), 'the off-host actor is never fetched');
+    });
+
+    it("follows a handle's static WebFinger link to another host (split domain)", async () => {
+        const social = 'https://social.good.example/users/hana';
+        //  answered by good.example itself, with no redirect
+        served.set('webfinger:@hana@good.example', {
+            json: {
+                subject: 'acct:hana@good.example',
+                links: [{ rel: 'self', type: 'application/activity+json', href: social }],
+            },
+            answeredBy: `${GOOD}/.well-known/webfinger?resource=acct%3Ahana%40good.example`,
+        });
+        served.set(social, { doc: actorDoc(social) });
+
+        const { err, actor } = await fromId('@hana@good.example');
+
+        assert.ifError(err);
+        assert.equal(actor.id, social);
     });
 
     it('follows a WebFinger link on the host the query was redirected to', async () => {
@@ -1214,6 +1233,156 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
 
         assert.ifError(err);
         assert.equal(actor.id, social);
+    });
+
+    describe('WebFinger subjects (handles)', function () {
+        const MALLORY = 'https://evil.example/users/mallory';
+        const fromIdSubject = id =>
+            new Promise(resolve =>
+                Actor.fromId(id, (err, actor, subject) =>
+                    resolve({ err, actor, subject })
+                )
+            );
+        //  answered by the queried host
+        const finger = (query, subject, href) =>
+            served.set(`webfinger:${query}`, {
+                json: {
+                    subject,
+                    links: [{ rel: 'self', type: 'application/activity+json', href }],
+                },
+                answeredBy: /^https:/.test(query)
+                    ? `${new URL(query).origin}/.well-known/webfinger`
+                    : `https://${query.replace(/^@[^@]*@/, '')}/.well-known/webfinger`,
+            });
+        const cachedSubject = id => {
+            const row = _apDb
+                .prepare(
+                    `SELECT meta_value FROM collection_object_meta
+                    WHERE name = 'actors' AND object_id = ? AND meta_name = 'actor_subject';`
+                )
+                .get(id);
+            return row && row.meta_value;
+        };
+
+        function serveAlice() {
+            served.set(VICTIM, {
+                doc: actorDoc(VICTIM, {}, { preferredUsername: 'alice' }),
+            });
+            finger('@alice@good.example', 'acct:alice@good.example', VICTIM);
+        }
+
+        //  evil.example claims alice@good.example for its own actor, at
+        //  every WebFinger lookup it answers
+        function serveMallory() {
+            served.set(MALLORY, {
+                doc: actorDoc(
+                    MALLORY,
+                    { publicKeyPem: pem(attackerKey.publicKey) },
+                    { preferredUsername: 'mallory' }
+                ),
+            });
+            finger(MALLORY, 'acct:alice@good.example', MALLORY);
+            finger('@mallory@evil.example', 'acct:alice@good.example', MALLORY);
+        }
+
+        it('does not take a subject its host does not confirm', async () => {
+            serveAlice();
+            serveMallory();
+
+            const { err, subject } = await fromIdSubject(MALLORY);
+
+            assert.ifError(err);
+            assert.equal(subject, MALLORY, 'falls back to the actor id');
+            assert.equal(cachedSubject(MALLORY), MALLORY);
+            assert.ok(fetched.length > 0);
+        });
+
+        it('leaves the real actor with its handle', async () => {
+            serveAlice();
+            serveMallory();
+
+            const alice = await fromIdSubject(VICTIM);
+            assert.ifError(alice.err);
+            assert.equal(alice.subject, '@alice@good.example');
+
+            await fromIdSubject(MALLORY);
+
+            const byHandle = await fromIdSubject('@alice@good.example');
+            assert.equal(byHandle.actor.id, VICTIM);
+            assert.equal(byHandle.subject, '@alice@good.example');
+            assert.equal(cachedSubject(VICTIM), '@alice@good.example');
+        });
+
+        it('takes a split domain subject the handle host confirms', async () => {
+            const social = 'https://social.good.example/users/hana';
+            served.set(social, {
+                doc: actorDoc(social, {}, { preferredUsername: 'hana' }),
+            });
+            //  the actor's host names the handle on the main domain, whose
+            //  static WebFinger points back at the actor
+            finger('@hana@social.good.example', 'acct:hana@good.example', social);
+            finger('@hana@good.example', 'acct:hana@good.example', social);
+
+            const { err, subject } = await fromIdSubject(social);
+
+            assert.ifError(err);
+            assert.equal(subject, '@hana@good.example');
+            assert.equal((await fromIdSubject('@hana@good.example')).actor.id, social);
+        });
+
+        it('strips control codes from a subject, and refuses an overlong one', async () => {
+            served.set(MALLORY, {
+                doc: actorDoc(MALLORY, {}, { preferredUsername: 'mallory' }),
+            });
+            finger(
+                '@mallory@evil.example',
+                'acct:\u001b[2J\u001b[31mmall\u0007ory|07@evil.example',
+                MALLORY
+            );
+
+            const { subject } = await fromIdSubject(MALLORY);
+            assert.equal(subject, '@mallory@evil.example');
+
+            const msg = await toMessage(
+                new Note({
+                    id: 'https://evil.example/notes/9',
+                    type: 'Note',
+                    attributedTo: MALLORY,
+                    content: 'x',
+                })
+            );
+            assert.equal(msg.fromUserName, '@mallory@evil.example');
+
+            const long = 'a'.repeat(300);
+            const loud = 'https://evil.example/users/loud';
+            served.set(loud, { doc: actorDoc(loud, {}, { preferredUsername: long }) });
+            finger(`@${long}@evil.example`, `acct:${long}@evil.example`, loud);
+            assert.equal((await fromIdSubject(loud)).subject, loud);
+        });
+
+        it('prefers an exact id over a handle, and the latest actor confirmed for a handle', async () => {
+            const add = (doc, subject) =>
+                new Promise((resolve, reject) =>
+                    Collection.addActor(doc, subject, err =>
+                        err ? reject(err) : resolve()
+                    )
+                );
+            const lookup = q =>
+                new Promise(resolve =>
+                    Collection.actor(q, (err, a) => resolve(a && a.id))
+                );
+
+            //  a row whose subject is another actor's id, stored first
+            await add(actorDoc(MALLORY), VICTIM);
+            await add(actorDoc(VICTIM), '@alice@good.example');
+            assert.equal(await lookup(VICTIM), VICTIM);
+
+            //  alice moved: her new actor is confirmed for the handle
+            const moved = 'https://good.example/users/alice2';
+            await add(actorDoc(moved), '@alice@good.example');
+            assert.equal(await lookup('@alice@good.example'), moved);
+            assert.equal(cachedSubject(VICTIM), VICTIM, 'the old actor gives it up');
+        });
     });
 
     describe('delivery to followers', function () {
