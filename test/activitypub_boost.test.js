@@ -60,6 +60,7 @@ delete require.cache[require.resolve('../core/activitypub/collection.js')];
 delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
 const {
     fetchAnnouncedNote,
+    recordInboundBoost,
     recordInboundLike,
     sendBoost,
     sendLike,
@@ -497,6 +498,40 @@ describe('fetchAnnouncedNote() — local collection lookup (no network)', functi
 });
 
 // ─── recordInboundLike ────────────────────────────────────────────────────────
+
+describe('recordInboundBoost()', function () {
+    it('stores the verified Note, not the embedded copy as sent', done => {
+        const noteId = 'https://remote.example.com/notes/boosted';
+        const verified = {
+            id: noteId,
+            type: 'Note',
+            attributedTo: 'https://remote.example.com/users/alice',
+            content: '<p>as its origin has it</p>',
+        };
+        const announce = {
+            id: 'https://remote.example.com/activities/announce-verified',
+            type: 'Announce',
+            actor: 'https://remote.example.com/users/bob',
+            object: Object.assign({}, verified, {
+                attributedTo: 'https://evil.example/users/mallory',
+                content: '<p>as sent</p>',
+            }),
+        };
+        recordInboundBoost(announce, verified, err => {
+            assert.ifError(err);
+            const row = _apDb
+                .prepare(
+                    `SELECT object_json FROM collection
+                     WHERE name = 'sharedInbox' AND object_id = ?`
+                )
+                .get(announce.id);
+            const stored = JSON.parse(row.object_json).object;
+            assert.equal(stored.content, verified.content);
+            assert.equal(stored.attributedTo, verified.attributedTo);
+            done();
+        });
+    });
+});
 
 describe('recordInboundLike()', function () {
     const ACTOR_ID = 'https://remote.example.com/users/alice';

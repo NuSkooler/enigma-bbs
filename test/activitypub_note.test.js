@@ -2658,6 +2658,29 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.match(byAuthor[ATTACKER], /planted/);
         });
 
+        it('an Update and a Delete are refused while another stored row cannot be read', async () => {
+            await storeVictimNote();
+            //  beside the genuine row, one whose JSON does not parse
+            const savedById = Collection.objectsById;
+            Collection.objectsById = (id, cb) =>
+                cb(null, [{ info: { name: 'sharedInbox' }, object: null }]);
+            const edit = {
+                id: `${GOOD}/activities/update-unreadable`,
+                type: 'Update',
+                actor: VICTIM,
+                object: note({ content: '<p>edited</p>' }),
+            };
+            try {
+                assert.equal(await post(edit, VICTIM), 'accessDenied');
+                assert.equal(await post(deleteNote(VICTIM), VICTIM), 'accessDenied');
+            } finally {
+                Collection.objectsById = savedById;
+            }
+            await settle();
+            assert.equal(messages().length, 1);
+            assert.match(messages()[0].message, /the genuine post/);
+        });
+
         it('refuses a stored row that cannot be read', async () => {
             await storeVictimNote();
             //  a row whose JSON does not parse; SQLite's json_extract() would
