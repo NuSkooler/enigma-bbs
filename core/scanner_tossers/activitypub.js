@@ -161,11 +161,12 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
 
                     //  followers resolved after this (not in the actor cache)
                     if (deliveryEndpoints.late) {
-                        deliveryEndpoints.late(inbox => {
+                        deliveryEndpoints.late((inbox, done) => {
                             if (allEndpoints.includes(inbox)) {
-                                return;
+                                return done();
                             }
                             activity.sendTo(inbox, fromUser, err => {
+                                done();
                                 if (err) {
                                     this.log.warn(
                                         { inbox, error: err.message },

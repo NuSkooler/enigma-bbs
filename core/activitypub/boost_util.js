@@ -951,16 +951,26 @@ function _collectReactionInboxes(localUser, noteId, lateActivity, cb) {
                 });
             },
             followerInboxes: next => {
-                _collectFollowerSharedInboxes(localUser, lateActivity, next);
+                collectFollowerInboxes(localUser, (err, inboxes, late) =>
+                    next(err, { inboxes, late })
+                );
             },
         },
         (err, results) => {
             if (err) return cb(err);
-            const all = [...results.followerInboxes];
+            const all = [...results.followerInboxes.inboxes];
             if (results.authorInbox) {
                 all.push(results.authorInbox);
             }
-            return cb(null, Array.from(new Set(all.filter(Boolean))));
+            const unique = Array.from(new Set(all.filter(Boolean)));
+            //  a follower found later is not sent to again at the author's inbox
+            _deliverLate(
+                results.followerInboxes.late,
+                lateActivity,
+                localUser,
+                new Set(unique)
+            );
+            return cb(null, unique);
         }
     );
 }
@@ -970,18 +980,30 @@ function _collectReactionInboxes(localUser, noteId, lateActivity, cb) {
 //  |lateActivity| is delivered to the rest as they are resolved
 function _collectFollowerSharedInboxes(localUser, lateActivity, cb) {
     return collectFollowerInboxes(localUser, (err, inboxes, late) => {
-        if (!err && late && lateActivity) {
-            late(inbox =>
-                lateActivity.sendTo(inbox, localUser, err => {
-                    if (err) {
-                        Log.warn(
-                            { inbox, activityId: lateActivity.id, error: err.message },
-                            'Failed to deliver to a follower resolved late'
-                        );
-                    }
-                })
-            );
+        if (!err) {
+            _deliverLate(late, lateActivity, localUser, new Set(inboxes));
         }
         return cb(err, inboxes);
+    });
+}
+
+//  Deliver |activity| to each follower inbox |late| finds, but none in |sent|
+function _deliverLate(late, activity, localUser, sent) {
+    if (!late || !activity) {
+        return;
+    }
+    late((inbox, done) => {
+        if (sent.has(inbox)) {
+            return done();
+        }
+        activity.sendTo(inbox, localUser, err => {
+            if (err) {
+                Log.warn(
+                    { inbox, activityId: activity.id, error: err.message },
+                    'Failed to deliver to a follower resolved late'
+                );
+            }
+            return done();
+        });
     });
 }

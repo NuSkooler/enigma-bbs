@@ -235,7 +235,82 @@ function noteFollowerFailure(actorId) {
     followerFailures.set(actorId, Date.now() + FollowerFailureTtlMs);
 }
 
-exports.resetFollowerFailures = () => followerFailures.clear();
+//
+//  Follower lookups are shared by every post: at most
+//  FollowerFetchConcurrency run at once, board wide, and a post that needs
+//  an actor already being looked up waits on that lookup instead of
+//  starting its own.
+//
+//  A slot is freed after this long even if a lookup never calls back
+//  (Actor.fromId() has its own request timeouts)
+const FollowerLookupTimeoutMs = 60 * 1000;
+
+//  Runs |work(finish)| and calls done() once: at finish(), or after |ms|
+function withTimeout(work, ms, done) {
+    let finished = false;
+    const finish = (...args) => {
+        if (!finished) {
+            finished = true;
+            clearTimeout(timer);
+            done(...args);
+        }
+    };
+    const timer = setTimeout(() => finish(Errors.General('Timed out')), ms);
+    if (timer.unref) {
+        timer.unref();
+    }
+    work(finish);
+}
+
+const followerLookups = new Map(); // actorId -> [cb, ...]
+const newLookupQueue = () =>
+    async.queue((task, done) => {
+        withTimeout(
+            //  signed as the local user, for servers that require it
+            finish => Actor.fromId(task.actorId, task.localUser, finish),
+            FollowerLookupTimeoutMs,
+            (err, actor) => {
+                const waiting = followerLookups.get(task.actorId) || [];
+                followerLookups.delete(task.actorId);
+                done();
+                waiting.forEach(cb => cb(err, actor));
+            }
+        );
+    }, FollowerFetchConcurrency);
+let followerLookupQueue = newLookupQueue();
+
+function lookUpFollower(actorId, localUser, cb) {
+    const waiting = followerLookups.get(actorId);
+    if (waiting) {
+        return waiting.push(cb);
+    }
+    followerLookups.set(actorId, [cb]);
+    followerLookupQueue.push({ actorId, localUser });
+}
+
+//
+//  Sends to followers resolved late are fire-and-forget for the caller; they
+//  go through one board-wide queue, FollowerFetchConcurrency at a time like
+//  the sends to cached followers. A send that never calls back frees its
+//  slot after LateSendTimeoutMs.
+//
+const LateSendTimeoutMs = 60 * 1000;
+const newSendQueue = () =>
+    async.queue(
+        (send, done) => withTimeout(send, LateSendTimeoutMs, () => done()),
+        FollowerFetchConcurrency
+    );
+let lateSendQueue = newSendQueue();
+
+//  for tests: forget failures, lookups in flight and queued sends
+exports.resetFollowerFailures = () => {
+    followerFailures.clear();
+    followerLookups.clear();
+    followerLookupQueue.kill();
+    followerLookupQueue = newLookupQueue();
+    lateSendQueue.kill();
+    lateSendQueue = newSendQueue();
+};
 
 //
 //  The inboxes that reach |localUser|'s followers: each follower's sharedInbox,
@@ -245,9 +320,9 @@ exports.resetFollowerFailures = () => followerFailures.clear();
 //  the inboxes of cached followers, so delivery to them is not held up. A
 //  follower missing from the cache (purged at upgrade, or expired) is
 //  fetched again in the background through Actor.fromId(), which verifies
-//  and re-caches it, four at a time and signed as the local user; one that
-//  fails is not tried again for FollowerFailureTtlMs. late(deliver) hands
-//  each further inbox found that way to deliver(inbox), including those
+//  and re-caches it (see lookUpFollower); one that fails is not tried again
+//  for FollowerFailureTtlMs. late(deliver) hands each further inbox found
+//  that way to deliver(inbox, done), queued (see lateSendQueue), including those
 //  found before late() was called, if they still follow; without it they
 //  are cached for the next post. The follower row's own copy of the actor is not used: it may
 //  predate those checks.
@@ -286,23 +361,23 @@ function collectFollowerInboxes(localUser, cb) {
             //  inboxes found after cb(), until a deliver function is given
             let deliver = null;
             const pending = [];
+            const send = inbox => lateSendQueue.push(done => deliver(inbox, done));
             const late = fn => {
                 deliver = fn;
-                pending.splice(0).forEach(inbox => deliver(inbox));
+                pending.splice(0).forEach(send);
             };
             const found = inbox => {
                 if (!isString(inbox) || !inbox || seen.has(inbox)) {
                     return;
                 }
                 seen.add(inbox);
-                return deliver ? deliver(inbox) : pending.push(inbox);
+                return deliver ? send(inbox) : pending.push(inbox);
             };
 
             cb(null, Array.from(seen), late);
 
-            async.eachLimit(misses, FollowerFetchConcurrency, (actorId, next) => {
-                //  signed as the local user, for servers that require it
-                Actor.fromId(actorId, localUser, (err, actor) => {
+            misses.forEach(actorId => {
+                lookUpFollower(actorId, localUser, (err, actor) => {
                     if (err || !actor) {
                         noteFollowerFailure(actorId);
                         Logger.log &&
@@ -310,7 +385,7 @@ function collectFollowerInboxes(localUser, cb) {
                                 { actorId, error: err && err.message },
                                 'Cannot resolve follower; not delivering to it'
                             );
-                        return next(null);
+                        return;
                     }
                     //  the list was read before a lookup that can take a
                     //  while: skip one who has stopped following since
@@ -322,7 +397,6 @@ function collectFollowerInboxes(localUser, cb) {
                             if (!err && follows) {
                                 found(inboxOf(actor));
                             }
-                            return next(null);
                         }
                     );
                 });

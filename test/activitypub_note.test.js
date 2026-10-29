@@ -1073,19 +1073,18 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             if (hit.hang) {
                 return; // never answers
             }
-            if (hit.defer && !hit.released) {
+            const respond = () =>
+                cb(null, JSON.parse(JSON.stringify(hit.doc)), {
+                    statusCode: 200,
+                    headers: { 'content-type': 'application/activity+json' },
+                    responseUrl: hit.responseUrl || url,
+                });
+            if (hit.defer) {
                 //  answers when the test calls release()
-                hit.release = () => {
-                    hit.released = true;
-                    HttpUtil.getJson(url, opts, cb);
-                };
+                hit.release = respond;
                 return;
             }
-            return cb(null, JSON.parse(JSON.stringify(hit.doc)), {
-                statusCode: 200,
-                headers: { 'content-type': 'application/activity+json' },
-                responseUrl: hit.responseUrl || url,
-            });
+            return respond();
         };
 
         //  WebFinger on a URL answers with that URL, from the URL's host,
@@ -1093,6 +1092,9 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
         savedWebFinger = WebFinger.queryWebFinger;
         WebFinger.queryWebFinger = (query, cb) => {
             const answer = served.get(`webfinger:${query}`);
+            if (answer && answer.hang) {
+                return; // never answers
+            }
             if (answer) {
                 return cb(null, answer.json, answer.answeredBy);
             }
@@ -1487,7 +1489,10 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                         return reject(err);
                     }
                     const later = [];
-                    late(inbox => later.push(inbox));
+                    late((inbox, done) => {
+                        later.push(inbox);
+                        done();
+                    });
                     resolve({ now: now.sort(), late: () => later.sort() });
                 })
             );
@@ -1519,7 +1524,10 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                         if (err) {
                             return reject(err);
                         }
-                        late(inbox => lateInboxes.push(inbox));
+                        late((inbox, done) => {
+                            lateInboxes.push(inbox);
+                            done();
+                        });
                         resolve(list);
                     }
                 )
@@ -1674,6 +1682,7 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             served.set(late, { doc: actorDoc(late), defer: true });
 
             const got = await collect();
+            await settle();
             assert.equal(typeof served.get(late).release, 'function', 'lookup in flight');
             await new Promise((resolve, reject) =>
                 Collection.removeById('followers', late, err =>
@@ -1684,6 +1693,65 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             await settle();
 
             assert.deepEqual(got.late(), []);
+        });
+
+        it('looks a follower up once for two posts at the same time', async () => {
+            const late = 'https://late.example/users/lee';
+            await addFollower(late);
+            served.set(late, { doc: actorDoc(late), defer: true });
+
+            const first = await collect();
+            const second = await collect();
+            await settle();
+            served.get(late).release();
+            await settle();
+
+            assert.equal(fetched.filter(u => u === late).length, 1, 'one fetch');
+            assert.deepEqual(first.late(), [`${late}/inbox`]);
+            assert.deepEqual(second.late(), [`${late}/inbox`]);
+        });
+
+        it('runs at most four follower lookups at once, across posts', async () => {
+            const carl = { userId: 3, username: 'carl', getProperty: () => null };
+            const carlFollowers =
+                'https://test.example.com/_enig/ap/users/carl/followers';
+            const ids = [];
+            for (let i = 0; i < 10; ++i) {
+                for (const [who, endpoint] of [
+                    ['b', FOLLOWERS],
+                    ['c', carlFollowers],
+                ]) {
+                    const id = `https://f${who}${i}.example/users/u`;
+                    ids.push(id);
+                    served.set(id, { doc: actorDoc(id), defer: true });
+                    await new Promise((resolve, reject) =>
+                        Collection.addToCollection(
+                            'followers',
+                            null,
+                            endpoint,
+                            id,
+                            { id, type: 'Person' },
+                            false,
+                            true,
+                            err => (err ? reject(err) : resolve())
+                        )
+                    );
+                }
+            }
+            const collectFor = user =>
+                new Promise((resolve, reject) =>
+                    collectFollowerInboxes(user, err => (err ? reject(err) : resolve()))
+                );
+
+            await Promise.all([collectFor(bob), collectFor(carl)]);
+            await settle();
+
+            const inFlight = () => ids.filter(id => wasFetched(id)).length;
+            assert.equal(inFlight(), 4);
+            //  as each finishes, the next starts
+            ids.filter(id => wasFetched(id)).forEach(id => served.get(id).release());
+            await settle();
+            assert.equal(inFlight(), 8);
         });
 
         it('gives cached followers at once while the others hang', async () => {

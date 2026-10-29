@@ -1057,6 +1057,32 @@ describe('outbound reactions reach followers resolved late', function () {
         assert.deepEqual(sentTo('Like'), [LATE_INBOX]);
     });
 
+    it("sends a Like once to an inbox that is both the author's and a late follower's", async () => {
+        const noteId = 'https://late.example/notes/by-author';
+        //  the Note is known, by an author on the late follower's server
+        await new Promise((resolve, reject) =>
+            Collection.addSharedInboxItem(
+                {
+                    id: `${noteId}/activity`,
+                    type: 'Create',
+                    actor: 'https://late.example/users/author',
+                    object: {
+                        id: noteId,
+                        type: 'Note',
+                        attributedTo: 'https://late.example/users/author',
+                    },
+                },
+                true,
+                err => (err ? reject(err) : resolve())
+            )
+        );
+        await new Promise((resolve, reject) =>
+            sendLike(user, noteId, err => (err ? reject(err) : resolve()))
+        );
+        await settle();
+        assert.deepEqual(sentTo('Like'), [LATE_INBOX]);
+    });
+
     it('an Announce', async () => {
         await new Promise((resolve, reject) =>
             sendBoost(user, 'https://remote.example.com/notes/late-boost', err =>
