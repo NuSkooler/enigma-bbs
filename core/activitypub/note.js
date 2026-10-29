@@ -408,6 +408,13 @@ module.exports = class Note extends ActivityPubObject {
                             //  re-target as message to be updated
                             message.messageUuid = original.messageUuid;
 
+                            //  update() merges meta by name, and toMessage() has no
+                            //  Create activity to record here (it would write 0):
+                            //  keep the stored one
+                            delete message.meta.ActivityPub[
+                                Message.ActivityPubPropertyNames.ActivityId
+                            ];
+
                             return callback(null, message);
                         });
                     },

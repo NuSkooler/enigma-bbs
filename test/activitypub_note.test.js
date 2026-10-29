@@ -381,6 +381,107 @@ describe('Note.toMessage() + Message.persist() — duplicate delivery dedup', fu
     });
 });
 
+// ─── Update{Note}: Note.toUpdatedMessage() + Message.update() (#964) ──────────
+
+describe('Note.toUpdatedMessage() + Message.update() — an edited Note (#964)', function () {
+    const NOTE_ID = 'https://remote.example.com/notes/edit-1';
+    const CREATE_ID = 'https://remote.example.com/activities/create-1';
+
+    function cbToPromise(fn) {
+        return new Promise((resolve, reject) =>
+            fn((err, result) => (err ? reject(err) : resolve(result)))
+        );
+    }
+
+    function metaValues(messageId, category, name) {
+        return _msgDb
+            .prepare(
+                `SELECT meta_value FROM message_meta
+                WHERE message_id = ? AND meta_category = ? AND meta_name = ?;`
+            )
+            .raw()
+            .all(messageId, category, name)
+            .map(r => r[0]);
+    }
+
+    //  what the inbox does for Create{Note}, then Update{Note}
+    async function createThenEdit() {
+        const created = await toMessage(
+            makeNote({ id: NOTE_ID, content: '<p>Original walrus text</p>' }),
+            { activityId: CREATE_ID }
+        );
+        const messageId = await cbToPromise(cb => created.persist(cb));
+        //  later posts, so a re-insert would get a different ID
+        await cbToPromise(cb =>
+            makeNote({ id: 'https://remote.example.com/notes/later' }).toMessage(
+                { toUser: 'All', areaTag: AREA_TAG },
+                (err, msg) => (err ? cb(err) : msg.persist(cb))
+            )
+        );
+        //  set after import, never part of the Note
+        await cbToPromise(cb =>
+            created.persistMetaValue(
+                Message.WellKnownMetaCategories.System,
+                Message.SystemMetaNames.StateFlags0,
+                '2',
+                cb
+            )
+        );
+
+        const edited = makeNote({ id: NOTE_ID, content: '<p>Edited zebra text</p>' });
+        const updated = await cbToPromise(cb =>
+            edited.toUpdatedMessage({ messageUuid: created.messageUuid }, cb)
+        );
+        const updatedId = await cbToPromise(cb => updated.update(cb));
+        return { created, messageId, updated, updatedId };
+    }
+
+    it('keeps the message ID and replaces the text', async () => {
+        const { created, messageId, updated, updatedId } = await createThenEdit();
+
+        assert.equal(updatedId, messageId);
+        assert.equal(updated.messageId, messageId);
+        const rows = _msgDb
+            .prepare('SELECT message_id, message FROM message WHERE message_uuid = ?;')
+            .all(created.messageUuid);
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].message_id, messageId);
+        assert.match(rows[0].message, /Edited zebra text/);
+
+        const fts = term =>
+            _msgDb
+                .prepare('SELECT docid FROM message_fts WHERE message_fts MATCH ?;')
+                .raw()
+                .all(term)
+                .map(r => r[0]);
+        assert.deepEqual(fts('zebra'), [messageId]);
+        assert.deepEqual(fts('walrus'), []);
+        _msgDb.exec(`INSERT INTO message_fts(message_fts) VALUES('integrity-check');`);
+    });
+
+    it('keeps the Create activity ID and meta set after import', async () => {
+        const { messageId } = await createThenEdit();
+
+        const AP = Message.WellKnownMetaCategories.ActivityPub;
+        assert.deepEqual(
+            metaValues(messageId, AP, Message.ActivityPubPropertyNames.ActivityId),
+            [CREATE_ID]
+        );
+        assert.deepEqual(
+            metaValues(messageId, AP, Message.ActivityPubPropertyNames.NoteId),
+            [NOTE_ID]
+        );
+        assert.deepEqual(
+            metaValues(
+                messageId,
+                Message.WellKnownMetaCategories.System,
+                Message.SystemMetaNames.StateFlags0
+            ),
+            ['2']
+        );
+    });
+});
+
 // ─── formatAttachmentBlock — pure function ────────────────────────────────────
 //
 //  Shared formatter used by Note.toMessage() (importer) AND the dedicated AP
