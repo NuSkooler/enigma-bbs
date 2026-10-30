@@ -1029,12 +1029,18 @@ exports.MenuModule = class MenuModule extends PluginModule {
             return views;
         }
 
-        let view;
-        let customMciId = startId;
         const config = this.menuConfig.config;
-        const endId = options.endId || 99; //  we'll fail to get a view before 99
+        const endId = options.endId || 99;
 
-        while (customMciId <= endId && (view = form.getView(customMciId))) {
+        //  Walk the whole range rather than stopping at the first missing ID:
+        //  art that drops one custom view (e.g. a %TL10 replaced by a status
+        //  bar) must not silently freeze every custom view after it.
+        for (let customMciId = startId; customMciId <= endId; ++customMciId) {
+            const view = form.getView(customMciId);
+            if (!view) {
+                continue;
+            }
+
             const key = `${formName}InfoFormat${customMciId}`; //  e.g. "mainInfoFormat10"
             const format = config[key];
 
@@ -1045,8 +1051,6 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 view.key = key; // cache
                 views.push(view);
             }
-
-            ++customMciId;
         }
 
         return views;

@@ -69,8 +69,10 @@ The WFC `config` block allows for the following keys:
 | `messageListFormat` | No | Format for each row of the message list. Tokens below. |
 | `messageDetailFormat` | No | Format for the detail pane. Defaults to `{text}`. |
 | `noMessagesText` | No | Shown when the inbox is empty. |
-| `statusBarMessagesFormat` | No | `%SB5` messages panel. Token: `{count}`. Defaults to `MSG {count}`. |
-| `statusBarPagesFormat` | No | `%SB5` pages panel. Token: `{count}`. Defaults to `PAGE {count}`. |
+| `unreadIndicator` | No | Value of the `{unreadIndicator}` message token for an unread message; empty once read. Defaults to `*`. |
+| `statusBar<Name>Format` | No | Format for the `%SB5` panel named `<name>`, e.g. `statusBarUserFormat` for a panel named `user`. See [Status Bar](#status-bar) below. |
+| `statusBar<Name>ActiveFormat` | No | Used instead of `statusBar<Name>Format` while the panel's `{count}` is above zero. |
+| `statusBarFormat` | No | One-line header for an `%SB5` with no `panels` and no `text` of its own. See [Status Bar](#status-bar) below. |
 | `ticker` | No | Activity marquee config. See [Activity Ticker](#activity-ticker) below. |
 | `hideCursor` | No | Boolean. Hide the terminal cursor while on the dashboard, which otherwise parks wherever the last refresh finished drawing. Defaults to `true`. |
 
@@ -146,7 +148,7 @@ Format tokens: `{userName}`, `{realName}`, `{nodeId}`, `{title}`, `{points}`, `{
 Routing a notification type to the `ticker` sink puts it on the marquee too.
 
 :::note
-`rotateOn: "cycle"` relies on the ticker's `cycle complete` event. Quote the value — an unquoted HJSON string swallows a trailing `//` comment, so `rotateOn: cycle // note` silently becomes the whole line.
+`rotateOn: "cycle"` relies on the ticker's `cycle complete` event. Every motion fires it for both short and long text; `bounce` with text that fits the view does not move, and instead rotates every `holdTicks` ticks. Quote the value — an unquoted HJSON string swallows a trailing `//` comment, so `rotateOn: cycle // note` silently becomes the whole line.
 :::
 
 ## Node Messages
@@ -167,7 +169,69 @@ Break-into-chat deliberately does **not** get its own menu. `sysopChat` is enter
 
 The viewer uses the `messages` art spec with `%VM1` (list) and `%MT2` (detail). **If that art is missing, a plain text list is shown instead**, so the feature works before a theme provides art.
 
-Message list and detail format tokens: `{index}`, `{id}`, `{userName}`, `{realName}`, `{nodeId}`, `{type}`, `{read}`, `{timestamp}`, `{text}`.
+Message list and detail format tokens: `{index}`, `{id}`, `{userName}`, `{realName}`, `{nodeId}`, `{type}`, `{read}`, `{unreadIndicator}`, `{timestamp}`, `{text}`. `{unreadIndicator}` is `unreadIndicator` (default `*`) for an unread message and empty once it has been read; pad it, e.g. `{unreadIndicator:<1}`, to keep columns aligned.
+
+Each list item's `text` is replaced with `messageListFormat` before `%VM1` formats it. To lay a row out with `%VM1`'s own `itemFormat` / `focusItemFormat` instead, set `messageListFormat: "{text}"` so `{text}` stays the bare message. `messageListFormat` also formats the plain text fallback list.
+
+## Status Bar
+Add a `%SB5` to the WFC art for a status bar. Give it **panel mode** — a `panels` array in its MCI config — for full control: a panel's own `text` template cannot see WFC values, so each panel is filled from code instead. The menu template ships a minimal `SB5` with `messages` and `pages` panels, so placing `%SB5` in art works with no further config.
+
+An `SB5` with no `panels` and no `text` of its own — for example in a theme without its own `wfc.ans`, which then gets the default theme's art but none of its config — shows the whole header as one line from `statusBarFormat`. The default is `{now}  {currentUserName}  Prv:{newPrivateMail} Addr:{newMessagesAddrTo}  Avl:{availIndicator} Vis:{visIndicator}  Msg:{pendingNodeMessageCount} Page:{pendingPageCount}`. An `SB5` that has a `text` template of its own, such as a clock, is left alone.
+
+Every named panel is filled from `statusBar<Name>Format` (the panel name with its first letter upper-cased), formatted against the same values as custom MCI 10+ (see [Theming](#theming)) plus `{count}`:
+
+| Panel | `{count}` | Default format |
+|-------|-----------|----------------|
+| `messages` | Unread messages in the inbox | `MSG {count}` |
+| `pages` | Pending sysop pages | `PAGE {count}` |
+| any other | `0` | *(none)* |
+
+While `{count}` is above zero, `statusBar<Name>ActiveFormat` is used instead if set, so a panel can light up when something is waiting. A panel with no format at all is left alone, so a static `text` label panel keeps working. The messages count updates the moment a message arrives; everything else follows the dashboard's 5 second refresh.
+
+```hjson
+config: {
+    nowDateTimeFormat: "|10ddd MMM Do|08, |10h|08:|10mm|02a"
+    statusBarNowFormat: "{now}"
+    statusBarUserFormat: "|10{currentUserName}"
+    statusBarMailFormat: "|02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo}"
+    statusBarMessagesFormat: "|02MSG|08:|02{count}"
+    statusBarMessagesActiveFormat: "|14MSG|08:|15{count}"
+    statusBarPagesFormat: "|02PAGE|08:|02{count}"
+    statusBarPagesActiveFormat: "|13PAGE|08:|15{count}"
+}
+0: {
+    mci: {
+        SB5: {
+            width: 78
+            separator: " "
+            panels: [
+                {
+                    name: now
+                    width: 21
+                }
+                {
+                    name: user
+                    width: fill
+                }
+                {
+                    name: mail
+                    width: 14
+                }
+                {
+                    name: messages
+                    width: 7
+                }
+                {
+                    name: pages
+                    width: 7
+                }
+            ]
+        }
+    }
+}
+```
+
+A theme's `panels` array replaces the menu's wholesale. See [Status Bar View](../art/views/status_bar_view.md) for per-panel options (`justify`, `styleSGR1`, `fillChar`, `overflow`, ...).
 
 ## Theming
 The following MCI codes are available:
@@ -207,8 +271,10 @@ The following MCI codes are available:
     * `message`: Log message.
 * `MT3` or `ET3`: Selected node status information. May be a single or multi-line view.
     * Set `nodeStatusSelectionFormat` to the format desired, using `\n` for line feeds in an `MT` view. The available format keys are the same as the node status list above.
-* `SB5`: Optional status bar. Named panels `messages` and `pages` are driven from code; format them with `statusBarMessagesFormat` / `statusBarPagesFormat`. See [Status Bar View](../art/views/status_bar_view.md).
-* MCI 10...99: Custom entries with the following format keys available:
+* `SB5`: Optional status bar in panel mode. Each named panel is filled from `statusBar<Name>Format`. See [Status Bar](#status-bar) above.
+* `TK6`: Optional activity ticker. See [Activity Ticker](#activity-ticker) above.
+* MCI 10...99: Custom entries with the following format keys available (also available to `%SB5` panel formats and ticker `idleText`):
+    * `boardName`: The board name from `general.boardName`.
     * `nowDate`: Current date in the `dateFormat` style, defaulting to `short`.
     * `nowTime`: Current time in the `timeFormat` style, defaulting to `short`.
     * `now`: Current date and/or time in `nowDateTimeFormat` format.

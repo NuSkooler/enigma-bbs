@@ -296,3 +296,32 @@ describe('MenuModule custom view cursor restore', () => {
         });
     });
 });
+
+describe('MenuModule custom view range', () => {
+    it('keeps going past a gap in the custom MCI range', () => {
+        //  WFC art that swaps its %TL10 header for a %SB5 status bar must not
+        //  freeze TL11+ -- the walk used to stop at the first missing ID.
+        const client = makeTrackingClient();
+        const mod = makeModule(client, { 11: {}, 13: {} }, null, {
+            mainInfoFormat10: 'gone',
+            mainInfoFormat11: 'eleven',
+            mainInfoFormat13: 'thirteen',
+        });
+
+        const keys = mod.getCustomViewsWithFilter('main', 10).map(v => v.key);
+        assert.deepEqual(keys, ['mainInfoFormat11', 'mainInfoFormat13']);
+    });
+
+    it('still honours endId', () => {
+        const client = makeTrackingClient();
+        const mod = makeModule(client, { 10: {}, 12: {} }, null, {
+            mainInfoFormat10: 'ten',
+            mainInfoFormat12: 'twelve',
+        });
+
+        const keys = mod
+            .getCustomViewsWithFilter('main', 10, { endId: 11 })
+            .map(v => v.key);
+        assert.deepEqual(keys, ['mainInfoFormat10']);
+    });
+});
