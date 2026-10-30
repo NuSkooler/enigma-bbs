@@ -62,6 +62,34 @@ function wordWrapText(text, options) {
 
     const lenFunc = options.pipeCodeSupport ? renderStringLength : ansiRenderStringLength;
 
+    //  A gobbled piece is at most |width| characters, which is more than |width|
+    //  columns when it holds wide (e.g. CJK) characters. Such a piece is split
+    //  again by columns, keeping each ESC sequence or pipe code whole.
+    const pipeToken = options.pipeCodeSupport ? '|\\|[A-Z\\d]{2}' : '';
+    const REGEXP_TOKEN = new RegExp(
+        `\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]${pipeToken}|[\\s\\S]`,
+        'gu'
+    );
+
+    function fitToWidth(piece) {
+        if (lenFunc(piece) <= options.width) {
+            return [piece];
+        }
+
+        const parts = [''];
+        let partLen = 0;
+        for (const [token] of piece.matchAll(REGEXP_TOKEN)) {
+            const tokenLen = lenFunc(token);
+            if (partLen > 0 && partLen + tokenLen > options.width) {
+                parts.push('');
+                partLen = 0;
+            }
+            parts[parts.length - 1] += token;
+            partLen += tokenLen;
+        }
+        return parts;
+    }
+
     let m;
     let word;
     let c;
@@ -77,35 +105,37 @@ function wordWrapText(text, options) {
     }
 
     function appendWord() {
-        word.match(REGEXP_GOBBLE).forEach(w => {
-            renderLen = lenFunc(w);
+        word.match(REGEXP_GOBBLE)
+            .flatMap(fitToWidth)
+            .forEach(w => {
+                renderLen = lenFunc(w);
 
-            if (result.renderLen[i] + renderLen > options.width) {
-                if (0 === i) {
-                    result.firstWrapRange = {
-                        start: wordStart,
-                        end: wordStart + w.length,
-                    };
+                if (result.renderLen[i] + renderLen > options.width) {
+                    if (0 === i) {
+                        result.firstWrapRange = {
+                            start: wordStart,
+                            end: wordStart + w.length,
+                        };
+                    }
+
+                    const prefix =
+                        options.pipeCodeSupport && lastColorCode ? lastColorCode : '';
+                    result.wrapped[++i] = prefix + w;
+                    result.renderLen[i] = renderLen;
+                } else {
+                    result.wrapped[i] += w;
+                    result.renderLen[i] = (result.renderLen[i] || 0) + renderLen;
                 }
 
-                const prefix =
-                    options.pipeCodeSupport && lastColorCode ? lastColorCode : '';
-                result.wrapped[++i] = prefix + w;
-                result.renderLen[i] = renderLen;
-            } else {
-                result.wrapped[i] += w;
-                result.renderLen[i] = (result.renderLen[i] || 0) + renderLen;
-            }
-
-            //  Track last active numeric pipe colour code so continuation lines
-            //  inherit the correct colour when pipeCodeSupport is enabled.
-            if (options.pipeCodeSupport) {
-                const codes = w.match(/\|[0-9]{2}/g);
-                if (codes) {
-                    lastColorCode = codes[codes.length - 1];
+                //  Track last active numeric pipe colour code so continuation lines
+                //  inherit the correct colour when pipeCodeSupport is enabled.
+                if (options.pipeCodeSupport) {
+                    const codes = w.match(/\|[0-9]{2}/g);
+                    if (codes) {
+                        lastColorCode = codes[codes.length - 1];
+                    }
                 }
-            }
-        });
+            });
     }
 
     //

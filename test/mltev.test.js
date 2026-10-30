@@ -1165,6 +1165,20 @@ describe('MultiLineEditTextView — setPipeText', () => {
         assert.deepEqual(plainLines(v).slice(0, 2), ['A'.repeat(80), 'next line']);
     });
 
+    it('adds no blank rows for trailing line breaks', async () => {
+        const v = makeAt(20, 1);
+        await setPipeText(v, 'first\nsecond\r\n\n');
+
+        assert.deepEqual(plainLines(v), ['first', 'second']);
+    });
+
+    it('starts wide characters on the first row', async () => {
+        const v = makeAt(10, 1);
+        await setPipeText(v, '日本語日本語日本語日本語');
+
+        assert.deepEqual(plainLines(v), ['日本語日本', '語日本語日', '本語']);
+    });
+
     it('keeps the line breaks in the text', async () => {
         const v = makeAt(20, 1);
         await setPipeText(v, 'first\r\nsecond\nthird');

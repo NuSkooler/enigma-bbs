@@ -14,7 +14,6 @@ const MultiLineEditTextView =
 const Errors = require('../core/enig_error.js').Errors;
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
-const { pipeToAnsi } = require('./color_codes.js');
 
 //  deps
 const async = require('async');
@@ -1070,12 +1069,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     view.addText(text);
                 } else {
                     if (options.pipeSupport) {
-                        const ansi = pipeToAnsi(text, this.client);
-                        if (view.getData() !== ansi) {
-                            view.setPipeText(text);
-                        } else {
-                            view.redraw();
-                        }
+                        //  getData() is the laid out buffer, never the source
+                        //  text, so there is nothing to compare: always set it
+                        view.setPipeText(text);
                     } else if (view.getData() !== text) {
                         view.setText(text);
                     } else {
