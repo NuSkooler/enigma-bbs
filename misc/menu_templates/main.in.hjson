@@ -266,6 +266,14 @@
                     //  Without the art file a plain text list is shown instead,
                     //  so this works before the theme catches up.
                     messages: wfcmessages
+                    //  Task screen (t). Needs %VM1 (list), %MT2 (detail) and
+                    //  %XY3 (prompt line). Without it a plain text list is
+                    //  shown instead.
+                    tasks: wfctasks
+                    //  Run / stop confirm, drawn at the task screen's %XY3:
+                    //  %TL2 gets the question, %TM1 is yes/no. Without it a
+                    //  plain "question [y/N]" line is shown instead.
+                    taskPrompt: wfctaskprompt
                 }
 
                 //  Where a notification goes when it reaches an +op sitting
@@ -297,6 +305,15 @@
                 //      idleText: "{boardName} - {totalCalls} calls"
                 //      events: {
                 //          userLogin: "|15{userName}|07 logged in on node |15{nodeId}|07"
+                //          //  Scheduler tasks. Only taskFailed and
+                //          //  taskOverdue are on by default; a failed run
+                //          //  shows taskFailed in place of taskFinished.
+                //          //  Tokens: {taskName}, {taskDesc}, {reason},
+                //          //  {byUser}, {error}, {duration}, {timeoutMs}
+                //          taskStarted: "|07Task |15{taskDesc}|07 started"
+                //          taskFinished: "|07Task |15{taskDesc}|07 finished in {duration}"
+                //          taskFailed: "|12Task |15{taskDesc}|12 failed|07: {error}"
+                //          taskOverdue: "|14Task |15{taskDesc}|14 is overdue|07"
                 //      }
                 //  }
 
@@ -304,13 +321,16 @@
                 //  Each named panel is filled from statusBar<Name>Format,
                 //  e.g. a panel named "user" reads statusBarUserFormat.
                 //  Tokens: everything custom MCI 10+ gets, plus {count} --
-                //  unread messages for "messages", pending pages for "pages".
+                //  unread messages for "messages", pending pages for "pages",
+                //  running scheduler tasks for "tasks".
                 //  statusBar<Name>ActiveFormat, when set, is used instead
                 //  while {count} is above zero. A panel with no format is
                 //  left alone, so a static `text` label still works.
                 //  statusBarMessagesFormat: "|08MSG |07{count}"
                 //  statusBarMessagesActiveFormat: "|08MSG |15{count}"
                 //  statusBarPagesFormat: "|08PAGE |07{count}"
+                //  statusBarTasksFormat: "|08TASK |07{count}"
+                //  statusBarTasksActiveFormat: "|08TASK |11{count}"
                 //  statusBarUserFormat: "|15{currentUserName}"
                 //  An SB5 without panels (and without a text of its own)
                 //  shows one header line instead:
@@ -340,6 +360,45 @@
                 //  Per-field format for the full-log detail pane.
                 //  Tokens: {name}, {sep}, {value}. Pipe color codes supported.
                 //  logDetailFieldFormat: "|08{name}|07{sep}|07{value}"
+
+                //  Task screen (form 5): eventScheduler.events, to run and
+                //  stop. Row tokens: {index}, {name}, {desc}, {schedule},
+                //  {nextRun}, {status}, {statusIndicator}, {lastRunAt},
+                //  {lastResult}, {lastError}, {duration}, {durationMs},
+                //  {byUser}, {runCount}, {elapsed}, {startedAt},
+                //  {overdueSince}, {stopAction}, {stopVerb}
+                //  taskListFormat: "{statusIndicator} {desc:<26.26} {schedule:<16.16} {nextRun:<14.14} {lastResult}"
+                //  taskListFocusFormat: "|15{statusIndicator} {desc:<26.26} {schedule:<16.16} {nextRun:<14.14} {lastResult}"
+                //  taskDateTimeFormat: "MM/DD hh:mma"
+                //  taskStatusIndicators: {
+                //      running: "*"
+                //      overdue: "!"
+                //      failed: X
+                //      ok: "+"
+                //      never: "-"
+                //  }
+                //  taskManualScheduleText: manual
+                //  taskNoNextRunText: "-"
+                //  taskNeverRunText: never
+                //  Detail pane, one line per field. Tokens: {name}, {sep}, {value}
+                //  taskDetailFieldFormat: "|08{name}|07{sep}{value}"
+                //  noTasksText: "|08No tasks.|07"
+                //  Confirm questions; same tokens as a row. {stopVerb} is
+                //  Kill or Abandon (taskStopVerbs) by what stopping does.
+                //  runTaskPromptFormat: "Run {desc}?"
+                //  stopTaskPromptFormat: "{stopVerb} {desc}?"
+                //  Result of run / stop, in {taskActionResult} for the
+                //  tasksInfoFormat10+ custom views, else written at %XY3.
+                //  Keys: started, alreadyRunning, disabled, unknown, killed,
+                //  abandoned, notRunning, unavailable. Tokens: {name}, {desc}
+                //  taskActionResultFormats: {
+                //      started: "|10Started |15{desc}"
+                //  }
+                //  Custom views: tasksInfoFormat10, 11, ... Tokens: {taskCount},
+                //  {runningTaskCount}, {overdueTaskCount}, {failedTaskCount},
+                //  {selectedTaskName}, {selectedTaskDesc}, {taskActionResult},
+                //  {now}, plus everything custom MCI 10+ on the dashboard gets
+                //  tasksInfoFormat10: "{taskActionResult}"
 			}
 
 			form: {
@@ -409,6 +468,10 @@
                             keys: [ "s", "shift + s" ]
                             action: @method:sendNodeMessage
                         }
+                        {
+                            keys: [ "t", "shift + t" ]
+                            action: @method:displayTasks
+                        }
 						@reference:common.quitToPrevEntry
 					]
 				}
@@ -465,6 +528,87 @@
                         {
                             keys: [ "escape", "q", "shift + q" ]
                             action: @method:exitMessages
+                        }
+                    ]
+                }
+
+                //  Task screen — VM1: task list (up/down); MT2: detail
+                //  (PgUp/PgDn); XY3: where the confirm prompt goes
+                5: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                        }
+                        MT2: {
+                            mode: preview
+                            acceptsFocus: false
+                            acceptsInput: false
+                        }
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "return", "r", "shift + r" ]
+                            action: @method:runSelectedTask
+                        }
+                        {
+                            keys: [ "x", "shift + x" ]
+                            action: @method:stopSelectedTask
+                        }
+                        {
+                            keys: [ "f", "shift + f" ]
+                            action: @method:refreshTasks
+                        }
+                        {
+                            keys: [ "page up" ]
+                            action: @method:scrollTaskDetailPageUp
+                        }
+                        {
+                            keys: [ "page down" ]
+                            action: @method:scrollTaskDetailPageDown
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @method:exitTasks
+                        }
+                    ]
+                }
+
+                //  Run / stop confirm (art: taskPrompt), drawn at form 5's
+                //  XY3. TL2 shows the question.
+                6: {
+                    mci: {
+                        TM1: {
+                            argName: promptValue
+                            items: [ "yes", "no" ]
+                            focus: true
+                            submit: true
+                            hotKeys: { Y: 0, N: 1 }
+                            hotKeySubmit: true
+                        }
+                        TL2: {
+                            acceptsFocus: false
+                            acceptsInput: false
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { promptValue: 0 }
+                                action: @method:taskPromptYes
+                            }
+                            {
+                                value: { promptValue: 1 }
+                                action: @method:taskPromptNo
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:taskPromptNo
                         }
                     ]
                 }

@@ -17,7 +17,7 @@ Events can have the following members:
 | `schedule` | No | A [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string such as `at 4:00 am`, or `every 24 hours`. Can also be (or contain) an `@watch` clause. See **Schedules** below for details. Without one, the event is a **manual-only task**: see below. |
 | `args` | No | An array of arguments to pass along to the method or binary specified in `action`. |
 | `desc` | No | A display name for the event, for example in a task list. Defaults to the event's name. |
-| `confirm` | No | `true` asks the operator to confirm before running the event by hand. The scheduler itself does nothing with it; it is for whatever offers the event to an operator. |
+| `confirm` | No | `true` asks the operator to confirm before running the event by hand. The scheduler itself does nothing with it; it is for whatever offers the event to an operator, such as the [WFC's task screen](../modules/wfc.md#tasks). |
 | `manual` | No | Default `true`. `false` hides the event from the task list and refuses to run it by hand; it still runs on its schedule. |
 | `enabled` | No | Default `true`. `false` ignores the entry entirely: it is neither scheduled nor listed. This is how to switch off one of the built-in events. |
 | `timeout` | No | Milliseconds a run may take before it is overdue. An overdue `@execute` process is killed, and its run fails with `timed out`. A `@method` cannot be stopped, so an overdue one keeps running and its event stays blocked until it finishes or an operator stops it; see **Running Events and Their Results**. Unset or `0`: no limit. |
@@ -89,7 +89,7 @@ Examples:
 Just like with methods, any supplied `args` will be passed along.
 
 ## Manual-only Tasks
-An event with an `action` and no `schedule` is never run on its own. It is listed with the other events and can be run on demand, for example from the WFC. At startup ENiGMA½ logs one line naming every manual-only event, so an event whose `schedule` was left out by mistake stays visible:
+An event with an `action` and no `schedule` is never run on its own. It is listed with the other events and can be run on demand, for example from the [WFC's task screen](../modules/wfc.md#tasks). At startup ENiGMA½ logs one line naming every manual-only event, so an event whose `schedule` was left out by mistake stays visible:
 
 ```
 Manual-only scheduled events (no schedule, run on demand): optimizeDatabases, checkpointDatabases, backupDatabases, tossInboundNow

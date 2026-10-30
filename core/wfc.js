@@ -25,6 +25,7 @@ const MultiLineEditTextView =
 const WfcInbox = require('./wfc_inbox');
 const { InterruptType } = require('./user_interrupt_queue');
 const ansi = require('./ansi_term');
+const { wordWrapText } = require('./word_wrap');
 
 //  deps
 const async = require('async');
@@ -45,6 +46,8 @@ const FormIds = {
     fullLog: 2,
     confirmKickPrompt: 3,
     messages: 4,
+    tasks: 5,
+    confirmTaskPrompt: 6,
 };
 
 const MciViewIds = {
@@ -69,6 +72,17 @@ const MciViewIds = {
         messageDetail: 2,
 
         customRangeStart: 10,
+    },
+    tasks: {
+        taskList: 1,
+        taskDetail: 2,
+        promptXy: 3,
+
+        customRangeStart: 10,
+    },
+    taskPrompt: {
+        yesNo: 1,
+        question: 2,
     },
 };
 
@@ -119,7 +133,17 @@ const TickerEventKeys = {
     [SysEvents.UserRunDoor]: 'userRunDoor',
     [SysEvents.UserSendNodeMsg]: 'userSendNodeMsg',
     [SysEvents.UserAchievementEarned]: 'userAchievementEarned',
+    //  scheduler tasks; a failed TaskFinished is shown as 'taskFailed'
+    [SysEvents.TaskStarted]: 'taskStarted',
+    [SysEvents.TaskFinished]: 'taskFinished',
+    [SysEvents.TaskOverdue]: 'taskOverdue',
 };
+
+const TaskSystemEvents = [
+    SysEvents.TaskStarted,
+    SysEvents.TaskFinished,
+    SysEvents.TaskOverdue,
+];
 
 //  Shown unless the op configures otherwise. Anything without a format string
 //  is simply not shown, so ops opt in to the noisier ones.
@@ -127,6 +151,10 @@ const DefaultTickerEventFormats = {
     userLogin: '|15{userName}|07 logged in on node |15{nodeId}|07',
     userAchievementEarned: '|15{userName}|07 earned |14{title}|07 (+{points})',
     userUpload: '|15{userName}|07 uploaded |15{fileCount}|07 file(s)',
+    //  Only the task events that need the op. An hourly task starting and
+    //  finishing fine would be noise; taskStarted / taskFinished are opt-in.
+    taskFailed: '|12Task |15{taskDesc}|12 failed|07: {error}',
+    taskOverdue: '|14Task |15{taskDesc}|14 is overdue|07',
 };
 
 const DefaultTickerMaxItems = 10;
@@ -135,6 +163,7 @@ const DefaultTickerMaxItems = 10;
 const DefaultStatusBarPanelFormats = {
     messages: 'MSG {count}',
     pages: 'PAGE {count}',
+    tasks: 'TASK {count}', //  running scheduler tasks
 };
 
 //  An unconfigured (single mode) %SB5: the old header line, plus the counts.
@@ -146,7 +175,74 @@ const DefaultStatusBarFormat =
 //  Secure + 2FA + root user + 'wfc' group.
 const DefaultACS = 'SCAF2ID1GM[wfc]';
 const MainStatRefreshTimeMs = 5000; // 5s
+
+//
+//  Task screen (form 5). Formats stay plain ASCII, like the inbox ones: they
+//  reach a CP437 terminal as-is.
+//
+const TaskRefreshRunningMs = 1000; //  while any task is running
+const TaskRefreshIdleMs = 5000;
+
+const DefaultTaskListFormat =
+    '|07  {statusIndicator}|07 {desc:<26.26} |08{schedule:<16.16} |07{nextRun:<14.14} {lastResult}';
+const DefaultTaskListFocusFormat =
+    '|15> {statusIndicator}|15 {desc:<26.26} |07{schedule:<16.16} |15{nextRun:<14.14} {lastResult}';
+
+const DefaultTaskStatusIndicators = {
+    running: '*',
+    overdue: '!',
+    failed: 'X',
+    ok: '+',
+    never: '-',
+};
+
+const DefaultTaskActionResultFormats = {
+    started: '|10Started |15{desc}|07',
+    alreadyRunning: '|14{desc} is already running|07',
+    disabled: '|12{desc} cannot be run by hand|07',
+    unknown: '|12No such task: {name}|07',
+    killed: '|14Stopping |15{desc}|14: its process was told to quit|07',
+    abandoned: '|14Abandoned |15{desc}|14; it may still be running|07',
+    notRunning: '|07{desc} is not running',
+    unavailable: '|12The event scheduler is not running|07',
+};
+
+const DefaultTaskStopVerbs = {
+    kill: 'Kill',
+    abandon: 'Abandon',
+};
 const MailCountTTLSeconds = 10;
+
+//  850ms, 12.3s, 4m 05s, 1h 02m
+function formatTaskDuration(ms) {
+    if (!_.isFinite(ms) || ms < 0) {
+        return '';
+    }
+    if (ms < 1000) {
+        return `${Math.round(ms)}ms`;
+    }
+    const totalSeconds = ms / 1000;
+    if (totalSeconds < 60) {
+        return `${totalSeconds.toFixed(1)}s`;
+    }
+    const seconds = Math.floor(totalSeconds) % 60;
+    const minutes = Math.floor(totalSeconds / 60) % 60;
+    const hours = Math.floor(totalSeconds / 3600);
+    const pad2 = n => String(n).padStart(2, '0');
+    if (hours > 0) {
+        return `${hours}h ${pad2(minutes)}m`;
+    }
+    return `${minutes}m ${pad2(seconds)}s`;
+}
+
+//  '||' is a literal '|' to pipeToAnsi(), so text from outside (an error,
+//  a script's output) cannot turn into colour codes
+function escapePipes(value) {
+    return String(null === value || undefined === value ? '' : value).replace(
+        /\|/g,
+        '||'
+    );
+}
 
 exports.getModule = class WaitingForCallerModule extends MenuModule {
     constructor(options) {
@@ -243,35 +339,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 return this._displayFullLogPage(cb);
             },
             scrollFullLogDetailPageUp: (formData, extraArgs, cb) => {
-                const detailView = this.getView(
-                    'fullLog',
-                    MciViewIds.fullLog.entryDetail
-                );
-                if (detailView) {
-                    detailView.topVisibleIndex = Math.max(
-                        0,
-                        detailView.topVisibleIndex - detailView.dimens.height
-                    );
-                    detailView.redraw();
-                }
+                this._scrollDetailPage('fullLog', MciViewIds.fullLog.entryDetail, -1);
                 return cb(null);
             },
             scrollFullLogDetailPageDown: (formData, extraArgs, cb) => {
-                const detailView = this.getView(
-                    'fullLog',
-                    MciViewIds.fullLog.entryDetail
-                );
-                if (detailView) {
-                    const maxTop = Math.max(
-                        0,
-                        detailView.buffer.lines.length - detailView.dimens.height
-                    );
-                    detailView.topVisibleIndex = Math.min(
-                        maxTop,
-                        detailView.topVisibleIndex + detailView.dimens.height
-                    );
-                    detailView.redraw();
-                }
+                this._scrollDetailPage('fullLog', MciViewIds.fullLog.entryDetail, 1);
                 return cb(null);
             },
             exitFullLog: (formData, extraArgs, cb) => {
@@ -297,6 +369,38 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             exitMessages: (formData, extraArgs, cb) => {
                 this.removeViewController('messages');
                 return this._displayMainPage(true, cb);
+            },
+            displayTasks: (formData, extraArgs, cb) => {
+                return this._displayTasksPage(cb);
+            },
+            runSelectedTask: (formData, extraArgs, cb) => {
+                return this._requestTaskAction('run', cb);
+            },
+            stopSelectedTask: (formData, extraArgs, cb) => {
+                return this._requestTaskAction('stop', cb);
+            },
+            refreshTasks: (formData, extraArgs, cb) => {
+                return this._refreshTasks(cb);
+            },
+            scrollTaskDetailPageUp: (formData, extraArgs, cb) => {
+                this._scrollDetailPage('tasks', MciViewIds.tasks.taskDetail, -1);
+                return cb(null);
+            },
+            scrollTaskDetailPageDown: (formData, extraArgs, cb) => {
+                this._scrollDetailPage('tasks', MciViewIds.tasks.taskDetail, 1);
+                return cb(null);
+            },
+            exitTasks: (formData, extraArgs, cb) => {
+                this._teardownTasks();
+                return this._displayMainPage(true, cb);
+            },
+            taskPromptYes: (formData, extraArgs, cb) => {
+                this._closeTaskPrompt(true);
+                return cb(null);
+            },
+            taskPromptNo: (formData, extraArgs, cb) => {
+                this._closeTaskPrompt(false);
+                return cb(null);
             },
         };
     }
@@ -535,6 +639,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         );
 
         this._stopActivityFeed();
+        this._teardownTasks();
 
         this._restoreOpVisibility();
 
@@ -564,7 +669,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     //
-    //  Whatever takes over the screen (help, full log, messages) drops
+    //  Whatever takes over the screen (help, full log, messages, tasks) drops
     //  form 0 rather than detaching it. Detaching destroys its ticker's timer
     //  for good, so the marquee froze after a visit to the full log; leaving
     //  it attached kept its keys live (escape in the message viewer also left
@@ -821,14 +926,33 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this._activityListeners = Events.addMultipleEventListener(
             Object.keys(TickerEventKeys),
             (event, eventName) => {
-                const key = TickerEventKeys[eventName];
-                const format = key && formats[key];
+                //  a %SB5 'tasks' panel counts running tasks; keep it current
+                if (TaskSystemEvents.includes(eventName) && this._mainFormOwnsScreen()) {
+                    this._updateStatusBarPanels();
+                }
+
+                const format = this._tickerFormatFor(formats, eventName, event);
                 if (!format) {
                     return; //  not configured: not shown
                 }
                 this._pushTicker(stringFormat(format, this._tickerFormatObj(event)));
             }
         );
+    }
+
+    //
+    //  The format for |eventName|, or nothing. A TaskFinished that failed is
+    //  the derived 'taskFailed' key, falling back to 'taskFinished'.
+    //
+    _tickerFormatFor(formats, eventName, event) {
+        const key = TickerEventKeys[eventName];
+        if (!key) {
+            return null;
+        }
+        if ('taskFinished' === key && event && false === event.ok) {
+            return formats.taskFailed || formats.taskFinished || null;
+        }
+        return formats[key] || null;
     }
 
     _stopActivityFeed() {
@@ -853,6 +977,18 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             fileCount: files.length,
             minutesOnline: event.minutesOnline || 0,
             boardName: _.get(Config(), 'general.boardName', ''),
+
+            //  scheduler task events
+            taskName: _.isString(event.name) ? event.name : '',
+            taskDesc: event.desc || event.name || '',
+            reason: event.reason || '',
+            byUser: event.byUser || '',
+            error: event.error || '',
+            durationMs: _.isFinite(event.durationMs) ? event.durationMs : '',
+            duration: _.isFinite(event.durationMs)
+                ? formatTaskDuration(event.durationMs)
+                : '',
+            timeoutMs: _.isFinite(event.timeoutMs) ? event.timeoutMs : '',
         };
     }
 
@@ -970,12 +1106,13 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     //  False before the dashboard is drawn and while a sub-viewer (full log,
-    //  messages) owns the screen: form 0 views must not be painted then.
+    //  messages, tasks) owns the screen: form 0 views must not be painted then.
     _mainFormOwnsScreen() {
         return (
             !!this.viewControllers.main &&
             !this.viewControllers.fullLog &&
-            !this.viewControllers.messages
+            !this.viewControllers.messages &&
+            !this._tasksMode
         );
     }
 
@@ -1123,6 +1260,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
             //  Inbox -- same shape as the pendingPage* set above.
             ...this._inboxStats(),
+
+            //  Scheduler tasks
+            ...this._taskCountStats(),
         };
 
         this._updateStatusBarPanels();
@@ -1180,6 +1320,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const counts = {
             messages: this._inbox().unreadCount(),
             pages: this.pendingPages.length,
+            //  only asked of the scheduler when a theme has the panel
+            tasks: panelNames.includes('tasks') ? this._runningTaskCount() : 0,
         };
 
         const updates = {};
@@ -1553,6 +1695,911 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             { extraArgs: { toNodeId } },
             cb
         );
+    }
+
+    //
+    //  Task screen (form 5): the event scheduler's tasks, to list, run and
+    //  stop. While it is up the dashboard's form is released entirely and
+    //  drawn afresh on the way out, so nothing of form 0 -- its refresh, its
+    //  ticker's own timer, its keys -- can reach this screen.
+    //
+    //  _tasksMode is 'art' (form 5 views), 'text' (no art: a plain list), or
+    //  unset when the screen is not up.
+    //
+    _scheduler() {
+        return require('./event_scheduler.js').getInstance();
+    }
+
+    _loadTaskRows() {
+        const scheduler = this._scheduler();
+        if (!scheduler || !_.isFunction(scheduler.listTasks)) {
+            return [];
+        }
+        try {
+            return scheduler.listTasks();
+        } catch (e) {
+            this.client.log.warn({ error: e.message }, 'WFC could not list tasks');
+            return [];
+        }
+    }
+
+    _runningTaskCount() {
+        return this._loadTaskRows().filter(r => r.running).length;
+    }
+
+    _taskCountStats() {
+        const rows = this._loadTaskRows();
+        return {
+            runningTaskCount: rows.filter(r => r.running).length,
+            overdueTaskCount: rows.filter(r => r.overdue).length,
+        };
+    }
+
+    _tasksOwnScreen() {
+        if ('art' === this._tasksMode) {
+            return !!this.viewControllers.tasks && !this._taskPromptActive;
+        }
+        return 'text' === this._tasksMode && !this._taskPromptActive;
+    }
+
+    _displayTasksPage(cb) {
+        this._stopRefreshing();
+        this._releaseMainForm();
+
+        this._taskRows = [];
+        this._lastTaskListKey = null;
+        this._lastTaskDetailText = null;
+        this._lastTasksTextScreen = null;
+        this._taskActionResult = '';
+        this._taskPromptActive = false;
+        this._pendingTaskAction = null;
+
+        this._startTaskListeners();
+
+        const artSpec = _.get(this.menuConfig, 'config.art.tasks');
+        if (!artSpec) {
+            return this._displayTasksFallback(cb);
+        }
+
+        this._tasksMode = 'art';
+        async.series(
+            [
+                callback =>
+                    this.displayArtAndPrepViewController(
+                        'tasks',
+                        FormIds.tasks,
+                        { clearScreen: true },
+                        callback
+                    ),
+                callback => {
+                    const listView = this.getView('tasks', MciViewIds.tasks.taskList);
+                    if (!listView) {
+                        return callback(
+                            Errors.MissingMci(
+                                `Missing task list VM${MciViewIds.tasks.taskList} MCI`
+                            )
+                        );
+                    }
+                    this._applyTaskListFormats(listView);
+                    listView.on('index update', index => {
+                        const row = this._taskRows[index];
+                        this._selectedTaskIndex = index;
+                        this._selectedTaskName = row ? row.name : null;
+                        this._paintTaskDetail(true);
+                        this._paintTasksInfo();
+                    });
+                    return callback(null);
+                },
+                callback => this._refreshTasks(callback),
+            ],
+            err => {
+                if (err) {
+                    //  Art named but not there, or missing its list: the
+                    //  plain list still lets the op run and stop tasks.
+                    this.client.log.debug(
+                        { error: err.message, art: artSpec },
+                        'WFC task screen art unavailable; using text fallback'
+                    );
+                    this.removeViewController('tasks');
+                    return this._displayTasksFallback(cb);
+                }
+                return cb(null);
+            }
+        );
+    }
+
+    //  taskListFormat / taskListFocusFormat win; else VM1's own item formats;
+    //  else the defaults.
+    _applyTaskListFormats(listView) {
+        if (!_.isFunction(listView.setPropertyValue)) {
+            return;
+        }
+        if (this.config.taskListFormat) {
+            listView.setPropertyValue('itemFormat', this.config.taskListFormat);
+            listView.setPropertyValue(
+                'focusItemFormat',
+                this.config.taskListFocusFormat || this.config.taskListFormat
+            );
+        } else if (!listView.itemFormat) {
+            listView.setPropertyValue('itemFormat', DefaultTaskListFormat);
+            if (!listView.focusItemFormat) {
+                listView.setPropertyValue('focusItemFormat', DefaultTaskListFocusFormat);
+            }
+        }
+    }
+
+    _startTaskListeners() {
+        this._stopTaskListeners();
+        this._taskEventListeners = Events.addMultipleEventListener(TaskSystemEvents, () =>
+            this._refreshTasks()
+        );
+    }
+
+    _stopTaskListeners() {
+        if (this._taskEventListeners) {
+            Events.removeMultipleEventListener(this._taskEventListeners);
+            delete this._taskEventListeners;
+        }
+    }
+
+    _stopTasksRefreshTimer() {
+        if (this._tasksRefreshTimer) {
+            clearTimeout(this._tasksRefreshTimer);
+            delete this._tasksRefreshTimer;
+        }
+    }
+
+    _scheduleTasksRefresh() {
+        this._stopTasksRefreshTimer();
+        if (!this._tasksMode) {
+            return;
+        }
+        const anyRunning = (this._taskRows || []).some(r => r.running);
+        this._tasksRefreshDelayMs = anyRunning ? TaskRefreshRunningMs : TaskRefreshIdleMs;
+        this._tasksRefreshTimer = setTimeout(() => {
+            delete this._tasksRefreshTimer;
+            this._refreshTasks();
+        }, this._tasksRefreshDelayMs);
+    }
+
+    //
+    //  Everything the task screen holds: called on the way back to the
+    //  dashboard and from leave(). Safe to call when the screen is not up.
+    //
+    _teardownTasks() {
+        this._stopTaskListeners();
+        this._stopTasksRefreshTimer();
+        this._removeTaskPromptKeyHandler();
+        this._removeTasksTextKeyHandler();
+        this.removeViewController('taskPrompt');
+        this.removeViewController('tasks');
+        this._taskPromptActive = false;
+        this._pendingTaskAction = null;
+        this._tasksMode = null;
+    }
+
+    //
+    //  Keeps the selection on the same task by name; a task that has gone
+    //  leaves it at the same position, clamped.
+    //
+    _resolveTaskSelection(rows) {
+        let index = rows.findIndex(r => r.name === this._selectedTaskName);
+        if (index < 0) {
+            index = Math.min(this._selectedTaskIndex || 0, rows.length - 1);
+        }
+        index = Math.max(index, 0);
+        this._selectedTaskIndex = index;
+        this._selectedTaskName = rows[index] ? rows[index].name : null;
+        return index;
+    }
+
+    _selectedTaskRow() {
+        return (this._taskRows || []).find(r => r.name === this._selectedTaskName);
+    }
+
+    _refreshTasks(cb) {
+        if (!this._tasksMode) {
+            return cb ? cb(null) : undefined;
+        }
+
+        this._taskRows = this._loadTaskRows();
+        this._resolveTaskSelection(this._taskRows);
+
+        if (this._tasksOwnScreen()) {
+            if ('art' === this._tasksMode) {
+                this._paintTaskList();
+                this._paintTaskDetail(false);
+                this._paintTasksInfo();
+            } else {
+                this._paintTasksText();
+            }
+        }
+
+        this._scheduleTasksRefresh();
+        return cb ? cb(null) : undefined;
+    }
+
+    _taskDateTimeFormat() {
+        return this.config.taskDateTimeFormat || this.getDateTimeFormat('short');
+    }
+
+    _formatTaskDate(d) {
+        if (!d) {
+            return '';
+        }
+        const m = moment(d);
+        return m.isValid() ? m.format(this._taskDateTimeFormat()) : '';
+    }
+
+    _taskStatus(row) {
+        if (row.running) {
+            return row.overdue ? 'overdue' : 'running';
+        }
+        if (!row.lastRun) {
+            return 'never';
+        }
+        return row.lastRun.ok ? 'ok' : 'failed';
+    }
+
+    _taskFormatObj(row, index) {
+        const lastRun = row.lastRun || null;
+        const status = this._taskStatus(row);
+        const indicators = Object.assign(
+            {},
+            DefaultTaskStatusIndicators,
+            this.config.taskStatusIndicators
+        );
+        const stopVerbs = Object.assign(
+            {},
+            DefaultTaskStopVerbs,
+            this.config.taskStopVerbs
+        );
+        const neverText = _.isString(this.config.taskNeverRunText)
+            ? this.config.taskNeverRunText
+            : 'never';
+
+        let schedule = row.schedule;
+        if (!schedule) {
+            schedule = _.isString(this.config.taskManualScheduleText)
+                ? this.config.taskManualScheduleText
+                : 'manual';
+        }
+
+        let lastResult = neverText;
+        if (lastRun) {
+            lastResult = lastRun.ok ? 'ok' : 'failed';
+        }
+
+        return {
+            index: index + 1,
+            name: row.name,
+            desc: row.desc || row.name,
+            schedule,
+            manualOnly: !!row.manualOnly,
+            nextRun: row.nextRun
+                ? this._formatTaskDate(row.nextRun)
+                : _.isString(this.config.taskNoNextRunText)
+                  ? this.config.taskNoNextRunText
+                  : '-',
+            status,
+            statusIndicator: indicators[status] || '',
+            running: !!row.running,
+            overdue: !!row.overdue,
+            startedAt: this._formatTaskDate(row.startedAt),
+            overdueSince: this._formatTaskDate(row.overdueSince),
+            elapsed:
+                row.running && row.startedAt
+                    ? formatTaskDuration(Date.now() - new Date(row.startedAt).getTime())
+                    : '',
+            stopAction: row.stopAction || '',
+            stopVerb: row.stopAction ? stopVerbs[row.stopAction] || '' : '',
+            confirm: !!row.confirm,
+            runCount: row.runCount || 0,
+            lastRunAt: lastRun ? this._formatTaskDate(lastRun.start) : neverText,
+            lastResult,
+            lastError: (lastRun && lastRun.error) || '',
+            durationMs:
+                lastRun && _.isFinite(lastRun.durationMs) ? lastRun.durationMs : '',
+            duration:
+                lastRun && _.isFinite(lastRun.durationMs)
+                    ? formatTaskDuration(lastRun.durationMs)
+                    : '',
+            byUser: (lastRun && lastRun.byUser) || '',
+            reason: (lastRun && lastRun.reason) || '',
+            exitCode:
+                lastRun && null !== lastRun.exitCode && undefined !== lastRun.exitCode
+                    ? lastRun.exitCode
+                    : '',
+            stoppedBy: (lastRun && lastRun.stoppedBy) || '',
+            //  the VM's default '{text}', for themes that format nothing
+            text: row.desc || row.name,
+        };
+    }
+
+    _paintTaskList() {
+        const listView = this.getView('tasks', MciViewIds.tasks.taskList);
+        if (!listView) {
+            return;
+        }
+
+        const items = this._taskRows.map((r, i) => this._taskFormatObj(r, i));
+        const index = this._selectedTaskIndex || 0;
+
+        //  An unchanged list is not redrawn: at one refresh a second while a
+        //  task runs, that would be a needless repaint of every row. {elapsed}
+        //  changes every second, so it only counts when a format shows it.
+        const showsElapsed = [listView.itemFormat, listView.focusItemFormat].some(
+            f => _.isString(f) && f.includes('{elapsed')
+        );
+        const key = JSON.stringify({
+            items: showsElapsed ? items : items.map(i => _.omit(i, 'elapsed')),
+            index,
+        });
+        if (key === this._lastTaskListKey) {
+            return;
+        }
+        this._lastTaskListKey = key;
+
+        const sameLength = (listView.items || []).length === items.length;
+        listView.setItems(items);
+        if (sameLength) {
+            //  setItems() blanks the old footprint before the redraw, for a
+            //  list that shrank; the same number of rows just overwrites, and
+            //  skipping the blank pass stops the rows flickering
+            delete listView.oldDimens;
+        }
+        listView.setFocusItemIndex(index); //  redraws
+    }
+
+    //  |force|: a new selection always repaints; a refresh only on change,
+    //  so a scrolled detail stays put while nothing in it moves.
+    _paintTaskDetail(force) {
+        const detailView = this.getView('tasks', MciViewIds.tasks.taskDetail);
+        if (!detailView) {
+            return;
+        }
+
+        const row = this._selectedTaskRow();
+        const text = row
+            ? this._formatTaskDetailText(row)
+            : this.config.noTasksText || '|08No tasks.|07';
+
+        if (!force && text === this._lastTaskDetailText) {
+            return;
+        }
+        this._lastTaskDetailText = text;
+        this._setWrappedText(detailView, text);
+    }
+
+    //
+    //  Wraps to the view's width before it gets there: an %MT narrower than
+    //  the terminal drops characters from wrapped plain text (#968).
+    //
+    _setWrappedText(view, pipeText) {
+        if (!(view instanceof MultiLineEditTextView)) {
+            return view.setText(pipeText);
+        }
+
+        const width = view.dimens.width;
+        const wrapped = pipeText
+            .split('\n')
+            .map(line =>
+                (
+                    wordWrapText(line, { width, pipeCodeSupport: true }).wrapped || ['']
+                ).join('\n')
+            )
+            .join('\n');
+
+        view.setAnsi(pipeToAnsi(wrapped, this.client), {
+            prepped: false,
+            forceLineTerm: true,
+        });
+    }
+
+    _tasksInfoFormatObj() {
+        const rows = this._taskRows || [];
+        const selected = this._selectedTaskRow();
+        return Object.assign({}, this.stats || {}, {
+            now: moment().format(this._dateTimeFormat('now')),
+            taskCount: rows.length,
+            runningTaskCount: rows.filter(r => r.running).length,
+            overdueTaskCount: rows.filter(r => r.overdue).length,
+            failedTaskCount: rows.filter(r => !r.running && r.lastRun && !r.lastRun.ok)
+                .length,
+            selectedTaskName: selected ? selected.name : '',
+            selectedTaskDesc: selected ? selected.desc || selected.name : '',
+            taskActionResult: this._taskActionResult || '',
+        });
+    }
+
+    _paintTasksInfo() {
+        this.updateCustomViewTextsWithFilter(
+            'tasks',
+            MciViewIds.tasks.customRangeStart,
+            this._tasksInfoFormatObj()
+        );
+    }
+
+    //  Label + value lines; values are escaped so a stray '|' in an error or
+    //  in script output is shown, not taken as a colour code. |compact| (the
+    //  text list) leaves out what the row already shows, and blank lines.
+    _formatTaskDetailText(row, { compact = false } = {}) {
+        const obj = this._taskFormatObj(row, 0);
+        const lastRun = row.lastRun || null;
+        const fieldFmt = this.config.taskDetailFieldFormat || '|08{name}|07{sep}{value}';
+        const field = (name, value) =>
+            stringFormat(fieldFmt, { name, sep: ': ', value: escapePipes(value) });
+
+        const header =
+            obj.desc !== row.name
+                ? `|15${escapePipes(obj.desc)} |08(${escapePipes(row.name)})|07`
+                : `|15${escapePipes(obj.desc)}|07`;
+
+        const parts = [];
+        if (!compact) {
+            parts.push(header);
+            parts.push(field('Schedule', obj.schedule));
+            if (row.nextRun) {
+                parts.push(field('Next run', obj.nextRun));
+            }
+        }
+        const blank = () => {
+            if (!compact) {
+                parts.push('');
+            }
+        };
+
+        if (row.running) {
+            let status = `running since ${obj.startedAt}`;
+            if (row.overdue) {
+                status += `, overdue since ${obj.overdueSince}`;
+            }
+            parts.push(field('Status', status));
+            if (row.stopAction) {
+                parts.push(
+                    field(
+                        'Stop',
+                        'kill' === row.stopAction
+                            ? 'kills its process'
+                            : 'abandons it (it cannot be stopped, and may keep running)'
+                    )
+                );
+            }
+        } else {
+            parts.push(field('Status', 'idle'));
+        }
+        parts.push(field('Runs', `${obj.runCount} since startup`));
+
+        blank();
+        if (!lastRun) {
+            parts.push(field('Last run', obj.lastRunAt));
+            return parts.join('\n');
+        }
+
+        parts.push(field('Last run', obj.lastRunAt));
+        parts.push(
+            field('Result', lastRun.ok ? 'ok' : `failed: ${lastRun.error || 'error'}`)
+        );
+        if ('' !== obj.duration) {
+            parts.push(field('Duration', obj.duration));
+        }
+        if (lastRun.reason) {
+            parts.push(field('Reason', lastRun.reason));
+        }
+        if (lastRun.byUser) {
+            parts.push(field('By', lastRun.byUser));
+        }
+        if ('' !== obj.exitCode) {
+            parts.push(field('Exit code', obj.exitCode));
+        }
+        if (lastRun.stoppedBy) {
+            parts.push(field('Stopped by', lastRun.stoppedBy));
+        }
+        if (lastRun.overdue) {
+            parts.push(field('Overdue', 'yes, it ran past its timeout'));
+        }
+
+        if (lastRun.outputTail) {
+            blank();
+            parts.push(field('Output', ''));
+            parts.push(`|07${escapePipes(lastRun.outputTail)}`);
+        }
+
+        return parts.join('\n');
+    }
+
+    //  Running a task asks first only when it says so; stopping always asks.
+    _taskNeedsConfirm(kind, row) {
+        if ('stop' === kind) {
+            return true;
+        }
+        return true === row.confirm;
+    }
+
+    _taskPromptQuestion(kind, row) {
+        const obj = this._taskFormatObj(row, 0);
+        if ('stop' === kind) {
+            return stringFormat(
+                this.config.stopTaskPromptFormat || '{stopVerb} {desc}?',
+                obj
+            );
+        }
+        return stringFormat(this.config.runTaskPromptFormat || 'Run {desc}?', obj);
+    }
+
+    _requestTaskAction(kind, cb) {
+        if (!this._tasksMode || this._taskPromptActive) {
+            return cb(null);
+        }
+
+        //  act on what the scheduler says now, not on the last refresh
+        this._taskRows = this._loadTaskRows();
+        this._resolveTaskSelection(this._taskRows);
+        const row = this._selectedTaskRow();
+        if (!row) {
+            return cb(null);
+        }
+
+        if ('stop' === kind && !row.running) {
+            this._setTaskActionResult(
+                this._scheduler() ? 'notRunning' : 'unavailable',
+                row
+            );
+            return this._refreshTasks(cb);
+        }
+
+        if (!this._taskNeedsConfirm(kind, row)) {
+            this._doTaskAction(kind, row.name);
+            return cb(null);
+        }
+
+        this._pendingTaskAction = { kind, name: row.name };
+        const question = this._taskPromptQuestion(kind, row);
+
+        const xyView = this.getView('tasks', MciViewIds.tasks.promptXy);
+        const promptArt = _.get(this.menuConfig, 'config.art.taskPrompt');
+        if ('art' === this._tasksMode && xyView && promptArt) {
+            return this._showTaskPromptArt(question, xyView.position, cb);
+        }
+        return this._showTaskPrompt(question, cb);
+    }
+
+    _doTaskAction(kind, name) {
+        const row = (this._taskRows || []).find(r => r.name === name) || { name };
+        const scheduler = this._scheduler();
+        if (!scheduler) {
+            this._setTaskActionResult('unavailable', row);
+            return this._refreshTasks();
+        }
+
+        const byUser = this.client.user.username;
+        let status;
+        if ('stop' === kind) {
+            status = scheduler.stop(name, { byUser });
+        } else {
+            status = scheduler.runNow(name, { reason: 'wfc', byUser });
+        }
+
+        this.client.log.info(
+            { task: name, action: kind, status, byUser, nodeId: this.client.node },
+            `WFC task ${kind}: ${status}`
+        );
+
+        //  the row may have finished already (a synchronous @method), so
+        //  re-read it for the message
+        this._setTaskActionResult(status, row);
+        return this._refreshTasks();
+    }
+
+    _setTaskActionResult(status, row) {
+        const formats = Object.assign(
+            {},
+            DefaultTaskActionResultFormats,
+            this.config.taskActionResultFormats
+        );
+        const fmt = formats[status] || '{name}: {status}';
+        this._taskActionResult = stringFormat(fmt, {
+            name: row.name,
+            desc: row.desc || row.name,
+            status,
+        });
+        this._showTaskActionResult();
+    }
+
+    //
+    //  The result of run / stop goes to {taskActionResult} in the custom
+    //  views. Art that shows none gets it at %XY3, where the prompt was.
+    //
+    _showTaskActionResult() {
+        if ('art' !== this._tasksMode || !this.viewControllers.tasks) {
+            return; //  the text screen draws it with everything else
+        }
+
+        const shown = this.getCustomViewsWithFilter(
+            'tasks',
+            MciViewIds.tasks.customRangeStart,
+            { filter: ['{taskActionResult'] }
+        );
+        if (shown.length > 0) {
+            return this._paintTasksInfo();
+        }
+
+        const xyView = this.getView('tasks', MciViewIds.tasks.promptXy);
+        if (xyView) {
+            this._writeTasksLine(xyView.position, this._taskActionResult);
+        }
+    }
+
+    //  Clears from |position| to the end of the line, then writes |pipeText|
+    _writeTasksLine(position, pipeText) {
+        const width = Math.max(1, this.client.term.termWidth - position.col);
+        this.client.term.rawWrite(
+            `${ansi.goto(position.row, position.col)}${ansi.reset()}${' '.repeat(width)}`
+        );
+        this.client.term.rawWrite(ansi.goto(position.row, position.col));
+        this.client.term.write(pipeToAnsi(pipeText || '', this.client));
+    }
+
+    _detachTasksInput() {
+        if (this.viewControllers.tasks) {
+            this.viewControllers.tasks.setFocus(false);
+        }
+        this._removeTasksTextKeyHandler();
+    }
+
+    _attachTasksInput() {
+        if ('art' === this._tasksMode && this.viewControllers.tasks) {
+            this.viewControllers.tasks.setFocus(true);
+        } else if ('text' === this._tasksMode) {
+            this._addTasksTextKeyHandler();
+        }
+    }
+
+    //
+    //  One prompt for run and stop: wfctaskprompt, drawn at %XY3, has a %TM1
+    //  yes/no and a %TL2 that gets the question. Form 6's submit calls
+    //  taskPromptYes / taskPromptNo.
+    //
+    _showTaskPromptArt(question, position, cb) {
+        this._taskPromptActive = true;
+        this._detachTasksInput();
+        this.removeViewController('taskPrompt');
+
+        this.client.term.rawWrite(ansi.goto(position.row, position.col));
+        this.displayArtAndPrepViewController(
+            'taskPrompt',
+            FormIds.confirmTaskPrompt,
+            {
+                //  art MCI positions count from row 1, column 1
+                viewOffsets: { row: position.row - 1, col: position.col - 1 },
+            },
+            err => {
+                if (err) {
+                    this.client.log.debug(
+                        { error: err.message },
+                        'WFC task prompt art unavailable; using a text prompt'
+                    );
+                    this.removeViewController('taskPrompt');
+                    return this._showTaskPrompt(question, cb);
+                }
+
+                const questionView = this.getView(
+                    'taskPrompt',
+                    MciViewIds.taskPrompt.question
+                );
+                if (questionView) {
+                    questionView.setText(question);
+                }
+                return cb(null);
+            }
+        );
+    }
+
+    //  No prompt art: the question and a y/N answer on a single line
+    _showTaskPrompt(question, cb) {
+        this._taskPromptActive = true;
+        this._detachTasksInput();
+
+        const position = this._taskPromptPosition();
+        const suffix = _.isString(this.config.taskPromptSuffix)
+            ? this.config.taskPromptSuffix
+            : ' |08[|15y|08/|15N|08]|07 ';
+        this._writeTasksLine(position, `|07${question}${suffix}`);
+
+        this._removeTaskPromptKeyHandler();
+        this._taskPromptKeyHandler = ch => {
+            this._removeTaskPromptKeyHandler();
+            this._closeTaskPrompt(_.isString(ch) && 'y' === ch.toLowerCase());
+        };
+        this.client.on('key press', this._taskPromptKeyHandler);
+        return cb(null);
+    }
+
+    _taskPromptPosition() {
+        const xyView = this.getView('tasks', MciViewIds.tasks.promptXy);
+        if ('art' === this._tasksMode && xyView) {
+            return xyView.position;
+        }
+        return { row: this.client.term.termHeight || 24, col: 1 };
+    }
+
+    _removeTaskPromptKeyHandler() {
+        if (this._taskPromptKeyHandler) {
+            this.client.removeListener('key press', this._taskPromptKeyHandler);
+            delete this._taskPromptKeyHandler;
+        }
+    }
+
+    _closeTaskPrompt(confirmed) {
+        const pending = this._pendingTaskAction;
+        this._pendingTaskAction = null;
+
+        if (!this._taskPromptActive) {
+            return;
+        }
+
+        this.removeViewController('taskPrompt');
+        this._removeTaskPromptKeyHandler();
+        this._taskPromptActive = false;
+
+        if (!this._tasksMode) {
+            return; //  the op left meanwhile
+        }
+
+        if ('art' === this._tasksMode) {
+            this._writeTasksLine(this._taskPromptPosition(), '');
+        } else {
+            this._lastTasksTextScreen = null; //  the prompt line needs redrawing
+        }
+
+        this._attachTasksInput();
+
+        if (confirmed && pending) {
+            return this._doTaskAction(pending.kind, pending.name);
+        }
+        if ('art' === this._tasksMode) {
+            this._showTaskActionResult(); //  put back what the prompt covered
+        }
+        return this._refreshTasks();
+    }
+
+    //
+    //  No art: a plain list, driven by the same keys. Up / down or 1-9
+    //  select, enter / R run, X stop, F refresh, Q / escape back.
+    //
+    _displayTasksFallback(cb) {
+        this._tasksMode = 'text';
+        this.client.term.rawWrite(ansi.resetScreen());
+        this._addTasksTextKeyHandler();
+        return this._refreshTasks(cb);
+    }
+
+    _addTasksTextKeyHandler() {
+        this._removeTasksTextKeyHandler();
+        this._tasksTextKeyHandler = (ch, key) => this._onTasksTextKey(ch, key);
+        this.client.on('key press', this._tasksTextKeyHandler);
+    }
+
+    _removeTasksTextKeyHandler() {
+        if (this._tasksTextKeyHandler) {
+            this.client.removeListener('key press', this._tasksTextKeyHandler);
+            delete this._tasksTextKeyHandler;
+        }
+    }
+
+    _onTasksTextKey(ch, key) {
+        const name = (key && key.name) || '';
+        const c = _.isString(ch) ? ch.toLowerCase() : '';
+        const done = () => {};
+
+        if ('escape' === name || 'q' === c) {
+            this._teardownTasks();
+            return this._displayMainPage(true, done);
+        }
+        if ('return' === name || 'r' === c) {
+            return this._requestTaskAction('run', done);
+        }
+        if ('x' === c) {
+            return this._requestTaskAction('stop', done);
+        }
+        if ('f' === c) {
+            return this._refreshTasks();
+        }
+
+        const rows = this._taskRows || [];
+        let index = this._selectedTaskIndex || 0;
+        if ('up arrow' === name) {
+            index -= 1;
+        } else if ('down arrow' === name) {
+            index += 1;
+        } else if (/^[1-9]$/.test(c)) {
+            index = parseInt(c, 10) - 1;
+        } else {
+            return;
+        }
+
+        if (index < 0 || index >= rows.length) {
+            return;
+        }
+        this._selectedTaskIndex = index;
+        this._selectedTaskName = rows[index].name;
+        return this._paintTasksText();
+    }
+
+    _paintTasksText() {
+        const rows = this._taskRows || [];
+        const listFmt = this.config.taskListFormat || DefaultTaskListFormat;
+        const focusFmt =
+            this.config.taskListFocusFormat ||
+            (this.config.taskListFormat ? listFmt : DefaultTaskListFocusFormat);
+        const termWidth = this.client.term.termWidth || 80;
+
+        const lines = [
+            this.config.tasksTextHeader ||
+                '|15Tasks|08: |07up|08/|07down select, |15R|07un, |15X|07 stop, |15F|07 refresh, |15Q|07uit',
+            '',
+        ];
+
+        if (!rows.length) {
+            lines.push(this.config.noTasksText || '|08No tasks.|07');
+        }
+        rows.forEach((row, i) => {
+            const fmt = i === this._selectedTaskIndex ? focusFmt : listFmt;
+            lines.push(stringFormat(fmt, this._taskFormatObj(row, i)));
+        });
+
+        const selected = this._selectedTaskRow();
+        if (selected) {
+            lines.push('');
+            const detailRows = Math.max(
+                0,
+                (this.client.term.termHeight || 24) - lines.length - 3
+            );
+            const detail = this._formatTaskDetailText(selected, { compact: true })
+                .split('\n')
+                .map(
+                    line =>
+                        wordWrapText(line, {
+                            width: termWidth - 1,
+                            pipeCodeSupport: true,
+                        }).wrapped || ['']
+                )
+                .reduce((acc, wrapped) => acc.concat(wrapped), [])
+                .slice(0, detailRows);
+            lines.push(...detail);
+        }
+
+        lines.push('');
+        lines.push(this._taskActionResult || '');
+
+        const screen = lines.join('\r\n');
+        if (screen === this._lastTasksTextScreen) {
+            return;
+        }
+        this._lastTasksTextScreen = screen;
+
+        //  write(), not rawWrite(), for the text: write() is what converts it
+        //  to the client's encoding
+        this.client.term.rawWrite(ansi.resetScreen());
+        this.client.term.write(pipeToAnsi(`${screen}|07`, this.client));
+    }
+
+    _scrollDetailPage(formName, viewId, direction) {
+        const detailView = this.getView(formName, viewId);
+        if (!detailView) {
+            return;
+        }
+        const page = detailView.dimens.height;
+        if (direction < 0) {
+            detailView.topVisibleIndex = Math.max(0, detailView.topVisibleIndex - page);
+        } else {
+            const maxTop = Math.max(0, detailView.buffer.lines.length - page);
+            detailView.topVisibleIndex = Math.min(
+                maxTop,
+                detailView.topVisibleIndex + page
+            );
+        }
+        detailView.redraw();
     }
 
     _dateTimeFormat(element) {

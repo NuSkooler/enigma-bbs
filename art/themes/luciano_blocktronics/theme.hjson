@@ -284,6 +284,26 @@
 					messageDetailFormat: "|00|02From|08: |10{userName} |08(|02node |10{nodeId}|08) |02at |10{timestamp}\n\n|07{text}"
 					noMessagesText: "|00|02No messages|08."
 
+					// task screen (form 5) rows: 2 + 1 + 1 + 26 + 1 + 16 + 1 + 13 + 1 + 6 = 68 of 73
+					taskListFormat: "|00  {statusIndicator} |02{desc:<26.26} |03{schedule:<16.16} |02{nextRun:<13.13} |07{lastResult:<6.6}"
+					taskListFocusFormat: "|00|10> {statusIndicator} |15{desc:<26.26} |11{schedule:<16.16} |15{nextRun:<13.13} |15{lastResult:<6.6}"
+					taskDateTimeFormat: "MM/DD hh:mma"
+					taskStatusIndicators: {
+						running: "|11*"
+						overdue: "|14!"
+						failed: "|12X"
+						ok: "|10+"
+						never: "|08-"
+					}
+					taskDetailFieldFormat: "|03{name}|08{sep}|11{value}"
+					noTasksText: "|00|02No tasks|08."
+					runTaskPromptFormat: "|00|07Run |15{desc}|07?"
+					stopTaskPromptFormat: "|00|07{stopVerb} |15{desc}|07?"
+					// result of run / stop; a %TL10 in wfctasks can show it,
+					// otherwise it is written at %XY3
+					tasksInfoFormat10: "{taskActionResult}"
+					tasksInfoFormat11: "|00|15{runningTaskCount} |02running|08, |15{taskCount} |02tasks"
+
 					// today
 					mainInfoFormat11: "|00|15{callsToday:>5}"
 					mainInfoFormat12: "|00|15{postsToday:>5}"
@@ -447,6 +467,33 @@
 							height: 9
 							width: 73
 						}
+					}
+				}
+				// task screen (wfctasks)
+				5: {
+					mci: {
+						// task list
+						VM1: {
+							height: 9
+							width: 73
+						}
+						// selected task
+						MT2: {
+							mode: preview
+							autoScroll: false
+							height: 8
+							width: 73
+						}
+						// action result, if the art has it
+						TL10: { width: 60 }
+						TL11: { width: 30 }
+					}
+				}
+				// run / stop confirm (wfctaskprompt), drawn at form 5's XY3
+				6: {
+					mci: {
+						// the question
+						TL2: { width: 50 }
 					}
 				}
 			}

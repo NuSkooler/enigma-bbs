@@ -58,6 +58,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none required. `oputil.js config validate` now knows the members an event entry may have (`schedule`, `action`, `args`, `desc`, `confirm`, `manual`, `enabled`, `timeout`) and warns about any other, so run it once: a warning on an entry of yours is most likely a misspelling. To switch off a built-in event, set `enabled: false` on it. See [Event Scheduler](website/src/content/docs/configuration/event-scheduler.md).
 
+* **The WFC task screen reaches new installations only** ([#440](https://github.com/NuSkooler/enigma-bbs/issues/440)). Your `menu.hjson` is yours and is never rewritten, so <kbd>T</kbd> does nothing on an upgraded board until you add it.
+
+  **Action:** to get the task screen, copy from `misc/menu_templates/main.in.hjson` into `mainMenuWaitingForCaller` in your `menu.hjson`: the `t` / `shift + t` key on form `0` (`action: @method:displayTasks`), the new forms `5` (the task screen) and `6` (its confirm prompt), and the `tasks: wfctasks` and `taskPrompt: wfctaskprompt` art keys. The art is optional: without `wfctasks` a plain text list is shown, and without `wfctaskprompt` a plain `[y/N]` question. A theme of your own can add the formats listed under [WFC: Tasks](website/src/content/docs/modules/wfc.md#tasks); `luciano_blocktronics` ships them. The activity ticker now shows failed and overdue tasks by default; set `taskFailed: ""` and `taskOverdue: ""` under `ticker.events` to turn that off.
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
