@@ -137,6 +137,12 @@ const DefaultStatusBarPanelFormats = {
     pages: 'PAGE {count}',
 };
 
+//  An unconfigured (single mode) %SB5: the old header line, plus the counts.
+const DefaultStatusBarFormat =
+    '{now}  {currentUserName}  Prv:{newPrivateMail} Addr:{newMessagesAddrTo}  ' +
+    'Avl:{availIndicator} Vis:{visIndicator}  Msg:{pendingNodeMessageCount} ' +
+    'Page:{pendingPageCount}';
+
 //  Secure + 2FA + root user + 'wfc' group.
 const DefaultACS = 'SCAF2ID1GM[wfc]';
 const MainStatRefreshTimeMs = 5000; // 5s
@@ -1145,13 +1151,18 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return;
         }
 
+        const panelNames = view.getPanelNames();
+        if (0 === panelNames.length) {
+            return this._updateSingleStatusBar(view);
+        }
+
         const counts = {
             messages: this._inbox().unreadCount(),
             pages: this.pendingPages.length,
         };
 
         const updates = {};
-        view.getPanelNames().forEach(name => {
+        panelNames.forEach(name => {
             const key = `statusBar${_.upperFirst(name)}`;
             const count = counts[name] || 0;
             const fmt =
@@ -1167,6 +1178,24 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (!_.isEmpty(updates)) {
             view.setPanels(updates);
         }
+    }
+
+    //
+    //  A %SB5 nobody configured -- typically a theme without its own wfc.ans,
+    //  which art lookup then takes from the default theme -- gets the whole
+    //  header as one line rather than sitting blank. An SB with a `text`
+    //  template of its own belongs to the theme and is left alone.
+    //
+    _updateSingleStatusBar(view) {
+        if (!_.isFunction(view.setText)) {
+            return;
+        }
+        if (_.isFunction(view.hasTextTemplate) && view.hasTextTemplate()) {
+            return;
+        }
+
+        const fmt = this.config.statusBarFormat || DefaultStatusBarFormat;
+        view.setText(stringFormat(fmt, this.stats || {}));
     }
 
     _getNodeStatusIndexByNodeId(nodeStatusView, nodeId) {

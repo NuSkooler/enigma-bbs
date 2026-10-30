@@ -72,6 +72,7 @@ The WFC `config` block allows for the following keys:
 | `unreadIndicator` | No | Value of the `{unreadIndicator}` message token for an unread message; empty once read. Defaults to `*`. |
 | `statusBar<Name>Format` | No | Format for the `%SB5` panel named `<name>`, e.g. `statusBarUserFormat` for a panel named `user`. See [Status Bar](#status-bar) below. |
 | `statusBar<Name>ActiveFormat` | No | Used instead of `statusBar<Name>Format` while the panel's `{count}` is above zero. |
+| `statusBarFormat` | No | One-line header for an `%SB5` with no `panels` and no `text` of its own. See [Status Bar](#status-bar) below. |
 | `ticker` | No | Activity marquee config. See [Activity Ticker](#activity-ticker) below. |
 | `hideCursor` | No | Boolean. Hide the terminal cursor while on the dashboard, which otherwise parks wherever the last refresh finished drawing. Defaults to `true`. |
 
@@ -173,7 +174,9 @@ Message list and detail format tokens: `{index}`, `{id}`, `{userName}`, `{realNa
 Each list item's `text` is replaced with `messageListFormat` before `%VM1` formats it. To lay a row out with `%VM1`'s own `itemFormat` / `focusItemFormat` instead, set `messageListFormat: "{text}"` so `{text}` stays the bare message. `messageListFormat` also formats the plain text fallback list.
 
 ## Status Bar
-Add a `%SB5` to the WFC art for a status bar. It must be in **panel mode** — a `panels` array in its MCI config — as a panel's own `text` template cannot see WFC values; each panel is filled from code instead. The menu template ships a minimal `SB5` with `messages` and `pages` panels, so placing `%SB5` in art works with no further config.
+Add a `%SB5` to the WFC art for a status bar. Give it **panel mode** — a `panels` array in its MCI config — for full control: a panel's own `text` template cannot see WFC values, so each panel is filled from code instead. The menu template ships a minimal `SB5` with `messages` and `pages` panels, so placing `%SB5` in art works with no further config.
+
+An `SB5` with no `panels` and no `text` of its own — for example in a theme without its own `wfc.ans`, which then gets the default theme's art but none of its config — shows the whole header as one line from `statusBarFormat`. The default is `{now}  {currentUserName}  Prv:{newPrivateMail} Addr:{newMessagesAddrTo}  Avl:{availIndicator} Vis:{visIndicator}  Msg:{pendingNodeMessageCount} Page:{pendingPageCount}`. An `SB5` that has a `text` template of its own, such as a clock, is left alone.
 
 Every named panel is filled from `statusBar<Name>Format` (the panel name with its first letter upper-cased), formatted against the same values as custom MCI 10+ (see [Theming](#theming)) plus `{count}`:
 

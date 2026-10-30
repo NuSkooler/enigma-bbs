@@ -367,6 +367,62 @@ describe('WFC status bar panels', () => {
         assert.equal(view.panels.messages, 'msg 1');
     });
 
+    //  A stand-in for a single-mode %SB5, with or without its own `text`.
+    function makeWfcWithSingleStatusBar(configPatch, textTemplate) {
+        const { instance } = makeWfc(configPatch);
+        const view = fakeStatusBar([]);
+        view.text = null;
+        view.hasTextTemplate = () => !!textTemplate;
+        view.setText = text => {
+            view.text = text;
+        };
+        instance.getView = (form, id) => ('main' === form && 5 === id ? view : null);
+        return { instance, view };
+    }
+
+    it('gives an unconfigured single-mode status bar the whole header', () => {
+        const { instance, view } = makeWfcWithSingleStatusBar({});
+        instance.stats = {
+            now: '10/29/2026',
+            currentUserName: 'NuSkooler',
+            newPrivateMail: 1,
+            newMessagesAddrTo: 2,
+            availIndicator: 'Y',
+            visIndicator: 'N',
+            pendingNodeMessageCount: 3,
+            pendingPageCount: 0,
+        };
+
+        instance._updateStatusBarPanels();
+        assert.equal(
+            view.text,
+            '10/29/2026  NuSkooler  Prv:1 Addr:2  Avl:Y Vis:N  Msg:3 Page:0'
+        );
+        assert.equal(view.setCalls, 0);
+
+        const custom = makeWfcWithSingleStatusBar({ statusBarFormat: '{now}!' });
+        custom.instance.stats = { now: 'today' };
+        custom.instance._updateStatusBarPanels();
+        assert.equal(custom.view.text, 'today!');
+    });
+
+    it('leaves a single-mode status bar with its own text template alone', () => {
+        const { instance, view } = makeWfcWithSingleStatusBar({}, '{CT}');
+        instance.stats = { now: 'today' };
+        instance._updateStatusBarPanels();
+        assert.equal(view.text, null);
+    });
+
+    it('reports whether a single-mode status bar has a text template', () => {
+        const bare = Object.create(StatusBarView.prototype);
+        bare._format = '';
+        assert.equal(bare.hasTextTemplate(), false);
+
+        const clock = Object.create(StatusBarView.prototype);
+        clock._format = '{CT}';
+        assert.equal(clock.hasTextTemplate(), true);
+    });
+
     it('updates the count the moment a node message arrives', () => {
         const { instance, view } = makeWfcWithStatusBar({}, ['messages']);
         instance.viewControllers.main = {}; //  dashboard is up

@@ -126,6 +126,11 @@ class StatusBarView extends TextView {
         return this._panels ? this._panels.map(p => p.name) : [];
     }
 
+    //  True when single mode was given a `text` template of its own.
+    hasTextTemplate() {
+        return !_.isEmpty(this._format);
+    }
+
     //  Update a single panel by name or index and redraw.
     setPanel(nameOrIndex, value) {
         if (!this._panels) {

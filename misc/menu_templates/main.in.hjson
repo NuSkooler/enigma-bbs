@@ -312,6 +312,9 @@
                 //  statusBarMessagesActiveFormat: "|08MSG |15{count}"
                 //  statusBarPagesFormat: "|08PAGE |07{count}"
                 //  statusBarUserFormat: "|15{currentUserName}"
+                //  An SB5 without panels (and without a text of its own)
+                //  shows one header line instead:
+                //  statusBarFormat: "{now}  {currentUserName}  Msg:{pendingNodeMessageCount}"
 
                 //  Menu used by S (send) and R (reply). Defaults to
                 //  wfcNodeMessage, the +op-side copy of nodeMessage.
