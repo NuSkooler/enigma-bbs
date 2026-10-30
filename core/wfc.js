@@ -563,8 +563,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
     }
 
+    //
+    //  Whatever takes over the screen (help, full log, messages) drops
+    //  form 0 rather than detaching it. Detaching destroys its ticker's timer
+    //  for good, so the marquee froze after a visit to the full log; leaving
+    //  it attached kept its keys live (escape in the message viewer also left
+    //  the WFC) and let the ticker draw over the other screen.
+    //  _displayMainPage() builds it again from the art.
+    //
+    _releaseMainForm() {
+        this.removeViewController('main');
+        this.lastLogTime = null; //  so the new quick log view gets filled
+    }
+
     _displayHelpPage(cb) {
         this._stopRefreshing();
+        this._releaseMainForm();
 
         this.displayAsset(this.menuConfig.config.art.help, { clearScreen: true }, () => {
             this.client.waitForKeyPress(() => {
@@ -928,6 +942,13 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             SysopChat.clearSessionsForClient(client);
         }
 
+        this.selectedNodeStatusIndex = 0; // will select during refresh
+
+        //  Form 0 views are not ours to paint while a sub-viewer is up
+        if (!this._mainFormOwnsScreen()) {
+            return;
+        }
+
         const nodeStatusSelectionView = this.getView(
             'main',
             MciViewIds.main.selectedNodeStatusInfo
@@ -936,7 +957,6 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             nodeStatusSelectionView.setText('');
         }
 
-        this.selectedNodeStatusIndex = 0; // will select during refresh
         this._refreshAll();
 
         // have to update the selection view here
@@ -960,8 +980,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _refreshAll(cb) {
-        //  Don't touch form 0 views while a sub-viewer owns the screen
-        if (this.viewControllers.fullLog || this.viewControllers.messages) {
+        //  Don't touch form 0 views while a sub-viewer owns the screen, or
+        //  while form 0 is gone (see _releaseMainForm())
+        if (!this._mainFormOwnsScreen()) {
             if (cb) {
                 return cb(null);
             }
@@ -1337,6 +1358,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     //
     _displayMessagesPage(cb) {
         this._stopRefreshing();
+        this._releaseMainForm();
 
         const artSpec = _.get(this.menuConfig, 'config.art.messages');
         if (!artSpec) {
@@ -1674,10 +1696,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _displayFullLogPage(cb) {
         this._stopRefreshing();
 
-        //  Detach the main VC so its key handler doesn't compete with fullLog's
-        if (this.viewControllers.main) {
-            this.viewControllers.main.detachClientEvents();
-        }
+        //  So form 0's keys and ticker don't compete with fullLog's
+        this._releaseMainForm();
 
         //  Remove any stale fullLog VC from a previous visit
         this.removeViewController('fullLog');

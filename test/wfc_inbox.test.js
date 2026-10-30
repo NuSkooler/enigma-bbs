@@ -547,3 +547,66 @@ describe('WFC message format tokens', () => {
         assert.equal(fmt(item(true), 0).unreadIndicator, '');
     });
 });
+
+describe('WFC screens that take over from the dashboard', () => {
+    let previousConfig;
+
+    before(() => {
+        previousConfig = configModule._pushTestConfig({
+            menus: { cls: false },
+            general: { boardName: 'Test Board' },
+        });
+    });
+
+    after(() => {
+        configModule._popTestConfig(previousConfig);
+    });
+
+    //  A form 0 that records whether it was let go
+    function withMainForm(instance) {
+        const main = { detached: 0 };
+        main.detachClientEvents = () => main.detached++;
+        main.getView = () => null;
+        instance.viewControllers.main = main;
+        return main;
+    }
+
+    //  Detaching form 0 destroyed its ticker's timer for good; keeping it
+    //  attached left its keys live, so escape in the message viewer also ran
+    //  form 0's prevMenu and left the WFC. It is dropped instead, and drawn
+    //  again from the art on the way back.
+    it('drops form 0 for the message viewer', () => {
+        const { instance } = makeWfc();
+        const main = withMainForm(instance);
+        instance._displayMessagesFallback = cb => cb(null);
+
+        instance._displayMessagesPage(() => {});
+        assert.equal(main.detached, 1);
+        assert.equal(instance.viewControllers.main, undefined);
+        assert.equal(instance._mainFormOwnsScreen(), false);
+    });
+
+    it('drops form 0 for the help page and the full log', () => {
+        const { instance } = makeWfc({ art: { help: 'wfchelp' } });
+        let main = withMainForm(instance);
+        instance.displayAsset = () => {}; //  never calls back: help stays up
+        instance._displayHelpPage(() => {});
+        assert.equal(main.detached, 1);
+        assert.equal(instance.viewControllers.main, undefined);
+
+        main = withMainForm(instance);
+        instance._readLogSnapshot = cb => cb(null, []);
+        instance.displayArtAndPrepViewController = (name, formId, opts, cb) => cb(null);
+        instance._displayFullLogPage(() => {});
+        assert.equal(main.detached, 1);
+        assert.equal(instance.viewControllers.main, undefined);
+    });
+
+    it('does not paint form 0 when a node drops while it is gone', () => {
+        const { instance } = makeWfc();
+        let refreshed = false;
+        instance._refreshAll = () => (refreshed = true);
+        instance._clientDisconnected({});
+        assert.equal(refreshed, false);
+    });
+});
