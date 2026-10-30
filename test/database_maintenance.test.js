@@ -116,15 +116,53 @@ describe('database maintenance tasks', () => {
 
         it('does not overwrite a set made in the same second', async () => {
             const dir = paths.join(tmpDir, 'backup');
-            const first = await database.backupDatabases(handles, { dir, keep: 5 });
-            const second = await database.backupDatabases(handles, { dir, keep: 5 });
-            assert.notEqual(first.dir, second.dir);
-            if (paths.basename(first.dir) === paths.basename(second.dir).slice(0, 16)) {
-                //  the same second: the suffix goes after the Z
-                assert.match(paths.basename(second.dir), /^\d{8}-\d{6}Z-2$/);
-            }
-            assert.ok(fs.existsSync(paths.join(first.dir, 'alpha.sqlite3')));
-            assert.ok(fs.existsSync(paths.join(second.dir, 'alpha.sqlite3')));
+            //  sets already taken for the next few seconds, so the backup is
+            //  sure to land on one of them
+            const now = Date.now();
+            const taken = [0, 1, 2, 3, 4, 5].map(s =>
+                new Date(now + s * 1000)
+                    .toISOString()
+                    .replace(/[-:]/g, '')
+                    .replace('T', '-')
+                    .replace(/\.\d+Z$/, 'Z')
+            );
+            taken.forEach(name =>
+                fs.mkdirSync(paths.join(dir, name), { recursive: true })
+            );
+
+            const result = await database.backupDatabases(handles, { dir, keep: 10 });
+
+            const name = paths.basename(result.dir);
+            assert.match(name, /^\d{8}-\d{6}Z-2$/, 'the suffix goes after the Z');
+            assert.ok(taken.includes(name.slice(0, 16)));
+            assert.ok(fs.existsSync(paths.join(result.dir, 'alpha.sqlite3')));
+            taken.forEach(name =>
+                assert.deepEqual(fs.readdirSync(paths.join(dir, name)), [], 'untouched')
+            );
+        });
+
+        it('never prunes the set it just wrote', async () => {
+            const dir = paths.join(tmpDir, 'backup');
+            //  sets that sort after today's, e.g. after the clock was stepped back
+            ['29990101-000000Z', '29990101-000001Z', '29990101-000002Z'].forEach(name =>
+                fs.mkdirSync(paths.join(dir, name), { recursive: true })
+            );
+
+            const result = await database.backupDatabases(handles, { dir, keep: 3 });
+
+            assert.ok(fs.existsSync(paths.join(result.dir, 'alpha.sqlite3')));
+            assert.deepEqual(result.pruned, ['29990101-000000Z']);
+        });
+
+        it('orders sets made in the same second by their number', async () => {
+            const dir = paths.join(tmpDir, 'backup');
+            ['20200101-000000Z', '20200101-000000Z-2', '20200101-000000Z-10'].forEach(
+                name => fs.mkdirSync(paths.join(dir, name), { recursive: true })
+            );
+
+            const result = await database.backupDatabases(handles, { dir, keep: 2 });
+
+            assert.deepEqual(result.pruned, ['20200101-000000Z', '20200101-000000Z-2']);
         });
 
         it('leaves no partial set behind when a backup fails', async () => {

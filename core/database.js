@@ -1499,6 +1499,13 @@ async function backupDatabases(handles, options) {
     }
 }
 
+//  The names sort by time, except that "-10" must follow "-2".
+function compareBackupSetNames(a, b) {
+    const stamp = name => name.slice(0, 16);
+    const seq = name => (name.length > 16 ? parseInt(name.slice(17), 10) : 1);
+    return stamp(a) < stamp(b) ? -1 : stamp(a) > stamp(b) ? 1 : seq(a) - seq(b);
+}
+
 async function runBackup(handles, options) {
     const dir = options.dir;
     const keep = options.keep || BACKUP_KEEP_DEFAULT;
@@ -1536,11 +1543,13 @@ async function runBackup(handles, options) {
         throw err;
     }
 
-    const sets = (await fse.readdir(dir))
-        .filter(entry => BACKUP_SET_REGEXP.test(entry))
-        .sort(); //  the names sort by time
+    //  The set just written always stays, even if older sets sort after it
+    //  (the clock was stepped back, or sets were restored from elsewhere).
+    const others = (await fse.readdir(dir))
+        .filter(entry => entry !== setName && BACKUP_SET_REGEXP.test(entry))
+        .sort(compareBackupSetNames);
 
-    const pruned = sets.slice(0, Math.max(0, sets.length - keep));
+    const pruned = others.slice(0, Math.max(0, others.length - (keep - 1)));
     for (const entry of pruned) {
         await fse.remove(paths.join(dir, entry));
     }
