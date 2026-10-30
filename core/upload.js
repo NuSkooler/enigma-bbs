@@ -25,8 +25,10 @@ const Events = require('./events.js');
 //  deps
 const async = require('async');
 const _ = require('lodash');
-const temptmp = require('temptmp').createTrackedSession('upload');
+const TempTmp = require('temptmp');
 const paths = require('path');
+const fse = require('fs-extra');
+const { randomUUID } = require('crypto');
 const sanatizeFilename = require('sanitize-filename');
 
 exports.moduleInfo = {
@@ -215,6 +217,15 @@ exports.getModule = class UploadModule extends MenuModule {
     }
 
     performUpload(cb) {
+        //
+        //  A session of its own: temptmp tracks paths by session ID, and its
+        //  cleanup() removes every path under that ID -- a shared one let the
+        //  first upload to finish delete every other node's receive directory
+        //  while files were still arriving in it. The session is only a
+        //  safety net for process exit; this upload is finished by a new
+        //  instance of this module, which removes the directory itself.
+        //
+        const temptmp = TempTmp.createTrackedSession(`upload_${randomUUID()}`);
         temptmp.mkdir({ prefix: 'enigul-' }, (err, tempRecvDirectory) => {
             if (err) {
                 return cb(err);
@@ -447,11 +458,21 @@ exports.getModule = class UploadModule extends MenuModule {
     }
 
     cleanupTempFiles() {
-        temptmp.cleanup(paths => {
-            Log.debug(
-                { paths: paths, sessionId: temptmp.sessionId },
-                'Temporary files cleaned up'
-            );
+        //  this upload's receive directory, and nothing else
+        const tempRecvDirectory = this.tempRecvDirectory;
+        if (!tempRecvDirectory) {
+            return;
+        }
+
+        fse.remove(tempRecvDirectory, err => {
+            if (err) {
+                return Log.warn(
+                    { path: tempRecvDirectory, error: err.message },
+                    'Failed to remove upload temp directory'
+                );
+            }
+
+            Log.debug({ path: tempRecvDirectory }, 'Temporary files cleaned up');
         });
     }
 

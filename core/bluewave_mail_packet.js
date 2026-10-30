@@ -227,7 +227,10 @@ class BlueWavePacketWriter extends EventEmitter {
             bulletins,
         };
 
-        this.temptmp = temptmp.createTrackedSession('bwpacketwriter');
+        //  unique: temptmp tracks, and cleans up, by session ID
+        this.temptmp = temptmp.createTrackedSession(
+            `bwpacketwriter_${crypto.randomUUID()}`
+        );
 
         //  areaTag -> { number, echoTag, area, conf, messages: [] }
         this.areas = new Map();
@@ -1043,7 +1046,10 @@ class BlueWavePacketReader extends EventEmitter {
 
     read() {
         //  only read() unpacks anything, and only read() cleans up after it
-        this.temptmp = temptmp.createTrackedSession('bwpacketreader');
+        //  unique: temptmp tracks, and cleans up, by session ID
+        this.temptmp = temptmp.createTrackedSession(
+            `bwpacketreader_${crypto.randomUUID()}`
+        );
 
         async.waterfall(
             [

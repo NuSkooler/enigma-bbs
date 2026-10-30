@@ -23,6 +23,7 @@ const { getEncodingFromCharacterSetIdentifier } = require('./ftn_util');
 
 const { EventEmitter } = require('events');
 const temptmp = require('temptmp');
+const { randomUUID } = require('crypto');
 const async = require('async');
 const fs = require('graceful-fs');
 const paths = require('path');
@@ -255,7 +256,8 @@ class QWKPacketReader extends EventEmitter {
 
         this.packetPath = packetPath;
         this.options = { mode, keepTearAndOrigin };
-        this.temptmp = temptmp.createTrackedSession('qwkpacketreader');
+        //  unique: temptmp tracks, and cleans up, by session ID
+        this.temptmp = temptmp.createTrackedSession(`qwkpacketreader_${randomUUID()}`);
     }
 
     static get Modes() {
@@ -1052,7 +1054,8 @@ class QWKPacketWriter extends EventEmitter {
             bulletins,
         };
 
-        this.temptmp = temptmp.createTrackedSession('qwkpacketwriter');
+        //  unique: temptmp tracks, and cleans up, by session ID
+        this.temptmp = temptmp.createTrackedSession(`qwkpacketwriter_${randomUUID()}`);
 
         this.areaTagConfMap = {};
     }
