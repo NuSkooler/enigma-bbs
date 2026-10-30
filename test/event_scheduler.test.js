@@ -611,6 +611,25 @@ describe('event scheduler', function () {
             }
         });
 
+        it('stops a run from a TaskStarted listener before its action starts', async () => {
+            await start({ t: { action: `@method:${METHODS}:hold` } });
+
+            const results = [];
+            const listener = event => results.push(scheduler.stop(event.name));
+            Events.on(Events.getSystemEvents().TaskStarted, listener);
+            try {
+                scheduler.runNow('t');
+            } finally {
+                Events.removeListener(Events.getSystemEvents().TaskStarted, listener);
+            }
+
+            assert.deepEqual(results, ['abandoned']);
+            assert.equal(methods.state.calls.length, 0, 'the action never ran');
+            const [row] = scheduler.listTasks();
+            assert.equal(row.running, false);
+            assert.equal(row.lastRun.ok, false);
+        });
+
         it('abandons an overdue @method', async () => {
             await start({ t: { action: `@method:${METHODS}:hold`, timeout: 30 } });
 

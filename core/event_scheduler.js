@@ -744,13 +744,6 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             : `Running scheduled event "${name}"...`
     );
 
-    emitTaskEvent(Events.getSystemEvents().TaskStarted, {
-        name,
-        desc: schedEvent.desc,
-        reason,
-        byUser,
-    });
-
     let done = false;
     let timer = null;
 
@@ -857,6 +850,17 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
         current.stoppedBy = stoppedBy || null;
         finish(null);
     };
+
+    //  Emitted once stop() can act on the run; a listener may stop it here
+    emitTaskEvent(Events.getSystemEvents().TaskStarted, {
+        name,
+        desc: schedEvent.desc,
+        reason,
+        byUser,
+    });
+    if (done) {
+        return;
+    }
 
     try {
         current.handle = schedEvent.executeAction(run, finish);

@@ -44,7 +44,7 @@ module.exports = {
 
     //  Prefix + eventScheduler.events name, e.g. task_last_run_backupDatabases
     //  JSON: the event's last run { start, end, durationMs, ok, error, reason,
-    //  exitCode, outputTail, byUser } -- see event_scheduler.js
+    //  exitCode, outputTail, byUser, overdue, stoppedBy } -- see event_scheduler.js
     TaskLastRunPrefix: 'task_last_run_',
 
     SystemMemoryStats: 'system_memory_stats', // object { totalBytes, freeBytes }; non-persistent
