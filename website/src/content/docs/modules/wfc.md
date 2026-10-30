@@ -354,7 +354,7 @@ While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** re
 | `PgUp` / `PgDn` | Scroll the detail pane |
 | `ESC` / `Q` | Back to the dashboard |
 
-A task runs in the background on the server, as it would on its schedule, so you can go back to the dashboard while it runs; the quick log, the [ticker](#activity-ticker) and a `tasks` [status bar](#status-bar) panel follow it from there. The run is recorded with you as `byUser` and `wfc` as its reason, and the WFC logs who ran or stopped what from which node. The screen refreshes every second while any task is running, otherwise every 5 seconds, and at once when a task starts, finishes or goes overdue. The selection stays on the same task across refreshes.
+A task runs in the background on the server, as it would on its schedule, so you can go back to the dashboard while it runs; the quick log, the [ticker](#activity-ticker) and a `tasks` [status bar](#status-bar) panel follow it from there. The run is recorded with you as `byUser` and `wfc` as its reason, and the WFC logs who ran or stopped what from which node. The screen refreshes every second while any task is running, otherwise every 5 seconds, and at once when a task starts, finishes or goes overdue, or when an edit to `config.hjson` [changes the events](../configuration/event-scheduler.md#changing-events-while-running). A task removed from the config while it runs stays listed, marked as removed, until it finishes. The selection stays on the same task across refreshes.
 
 The result of a run or stop (started, already running, killed, abandoned, ...) is put in `{taskActionResult}` for the custom views, or written at `%XY3` when the art shows no custom view with it.
 
@@ -391,6 +391,7 @@ Row tokens:
 | `{stoppedBy}` | Who stopped the last run, if anyone |
 | `{runCount}` | Runs since startup |
 | `{running}` / `{overdue}` | Booleans |
+| `{removed}` | Boolean: taken out of `config.hjson` while running; listed until the run finishes |
 | `{startedAt}` / `{elapsed}` | When the current run started / how long it has been going |
 | `{overdueSince}` | When the current run went past its `timeout` |
 | `{stopAction}` / `{stopVerb}` | `kill` or `abandon` / the `taskStopVerbs` entry for it |

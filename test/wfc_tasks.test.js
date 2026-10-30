@@ -7,7 +7,12 @@ const configModule = require('../core/config.js');
 const Events = require('../core/events.js');
 const SysEvents = require('../core/system_events.js');
 
-const TaskEvents = [SysEvents.TaskStarted, SysEvents.TaskFinished, SysEvents.TaskOverdue];
+const TaskEvents = [
+    SysEvents.TaskStarted,
+    SysEvents.TaskFinished,
+    SysEvents.TaskOverdue,
+    SysEvents.TasksReloaded,
+];
 
 //  eslint-disable-next-line no-control-regex
 const stripAnsi = s => s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
@@ -285,6 +290,14 @@ describe('WFC task screen', () => {
             assert.ok(/Status\|07: running since .+, overdue since /.test(text), text);
             assert.ok(text.includes('kills its process'));
             assert.ok(text.includes('Last run|07: never'));
+        });
+
+        it('says when a running task has been removed from the config', () => {
+            const { instance } = makeWfc();
+            const text = instance._formatTaskDetailText(
+                row('old', { running: true, startedAt: new Date(), removed: true })
+            );
+            assert.ok(/removed from the config/.test(text), text);
         });
 
         it('wraps the text to the view width before handing it over (#968)', () => {

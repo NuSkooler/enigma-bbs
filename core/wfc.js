@@ -145,6 +145,9 @@ const TaskSystemEvents = [
     SysEvents.TaskOverdue,
 ];
 
+//  ...and the task screen also redraws when a config edit changes the list
+const TaskScreenEvents = [...TaskSystemEvents, SysEvents.TasksReloaded];
+
 //  Shown unless the op configures otherwise. Anything without a format string
 //  is simply not shown, so ops opt in to the noisier ones.
 const DefaultTickerEventFormats = {
@@ -1830,7 +1833,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
     _startTaskListeners() {
         this._stopTaskListeners();
-        this._taskEventListeners = Events.addMultipleEventListener(TaskSystemEvents, () =>
+        this._taskEventListeners = Events.addMultipleEventListener(TaskScreenEvents, () =>
             this._refreshTasks()
         );
     }
@@ -2011,6 +2014,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     ? lastRun.exitCode
                     : '',
             stoppedBy: (lastRun && lastRun.stoppedBy) || '',
+            removed: !!row.removed,
             //  the VM's default '{text}', for themes that format nothing
             text: row.desc || row.name,
         };
@@ -2153,6 +2157,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             let status = `running since ${obj.startedAt}`;
             if (row.overdue) {
                 status += `, overdue since ${obj.overdueSince}`;
+            }
+            if (row.removed) {
+                status += '; removed from the config, gone once it finishes';
             }
             parts.push(field('Status', status));
             if (row.stopAction) {

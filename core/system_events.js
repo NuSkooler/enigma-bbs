@@ -50,4 +50,7 @@ module.exports = {
     //  @method keeps running, and its event stays blocked until it finishes
     //  or an operator abandons it.
     TaskOverdue: 'codes.l33t.enigma.system.task_overdue', //  { name, desc, reason, byUser, timeoutMs, startedAt }
+    //  A config.hjson change added, removed or changed eventScheduler.events
+    //  entries, and the scheduler has re-armed them.
+    TasksReloaded: 'codes.l33t.enigma.system.tasks_reloaded', //  { added, removed, changed } (names)
 };
