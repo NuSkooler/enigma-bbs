@@ -36,12 +36,14 @@ for dbfile in /path/to/enigma-bbs/db/*.sqlite3; do
 done
 ```
 
+The built-in `backupDatabases` event does the same from inside ENiGMA½ while it runs, into `backup/` under your database directory, keeping the newest 3 sets by default. It has no schedule; give it one (or run it by hand) as described in [Built-in Events](../configuration/event-scheduler.md#built-in-events). A copy made this way is consistent, and can be picked up by your regular backup.
+
 ### Backup Tools
 There are many backup solutions available across all platforms. Configuration of such tools is outside the scope of this documentation. With that said, the author has had great success with [Borg](https://www.borgbackup.org/).
 
 ## General Maintenance 
 ### Default Maintenance Tasks
-Several default maintenance tasks are defined as events in `core/config_default.js`, in the section `eventScheduler`. These events run at various times and perform several maintenance tasks. An example is the `trimMessageAreas` event, which is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed.
+Several default maintenance tasks are defined as events in `core/config_default.js`, in the section `eventScheduler`. These events run at various times and perform several maintenance tasks. An example is the `trimMessageAreas` event, which is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed. Others, such as `optimizeDatabases`, `checkpointDatabases` and `backupDatabases`, have no schedule and run only when asked. See [Built-in Events](../configuration/event-scheduler.md#built-in-events).
 
 ### Vacuuming Database Files
 SQLite database files become less performant over time and waste space. It is recommended to periodically vacuum your databases. Before proceeding, you should make a backup!

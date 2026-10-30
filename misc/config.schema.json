@@ -2166,18 +2166,42 @@
                         "type": "object",
                         "properties": {
                             "schedule": {
+                                "description": "Later style schedule and/or @watch:/path. Omit for a manual-only task.",
                                 "type": "string"
                             },
                             "action": {
+                                "description": "@method:path/to/module.js:method or @execute:/path/to/binary",
                                 "type": "string"
                             },
                             "args": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
+                                "type": "array"
+                            },
+                            "desc": {
+                                "description": "Display name, e.g. in the WFC task list.",
+                                "type": "string"
+                            },
+                            "confirm": {
+                                "description": "Ask before running this task by hand.",
+                                "type": "boolean"
+                            },
+                            "manual": {
+                                "description": "false hides the task from the task list and refuses running it by hand; it still runs on its schedule.",
+                                "type": "boolean"
+                            },
+                            "enabled": {
+                                "description": "false ignores the entry entirely, e.g. to switch off a default event.",
+                                "type": "boolean"
+                            },
+                            "timeout": {
+                                "description": "Milliseconds before a run is overdue: an @execute is killed, a @method keeps its event blocked until it finishes. 0 or unset: no limit.",
+                                "type": "number",
+                                "minimum": 0
                             }
-                        }
+                        },
+                        "patternProperties": {
+                            "^_": true
+                        },
+                        "additionalProperties": false
                     }
                 }
             },
