@@ -16,6 +16,7 @@ const FileEntry = require('./file_entry.js');
 const { moveFileWithCollisionHandling } = require('./file_util.js');
 const Log = require('./logger.js').log;
 const Events = require('./events.js');
+const UploadTempDir = require('./upload_temp_dir.js');
 const UserProps = require('./user_property.js');
 const UserTime = require('./user_time.js');
 const SysProps = require('./system_property.js');
@@ -1015,6 +1016,9 @@ exports.getModule = class TransferFileModule extends MenuModule {
                             return callback(null);
                         });
                     } else {
+                        //  an upload's receive directory stays put until this is done,
+                        //  even if the caller disconnects
+                        UploadTempDir.transferStarted(self.client, self.recvDirectory);
                         self.recvFilesFreeOfCharge(err => {
                             return callback(err);
                         });
@@ -1035,6 +1039,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
                 //  even when the transfer failed, so nothing is left behind
                 self.cleanupTempFiles();
+                UploadTempDir.transferFinished(self.client, self.recvDirectory);
 
                 return self.prevMenu();
             }
