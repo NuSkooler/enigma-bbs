@@ -85,7 +85,7 @@ exports.getModule = class UploadModule extends MenuModule {
         }
 
         if (_.has(options, 'lastMenuResult.tempRecvDirectory')) {
-            this.adoptTempRecvDirectory(options.lastMenuResult.tempRecvDirectory);
+            this.tempRecvDirectory = options.lastMenuResult.tempRecvDirectory;
         }
 
         if (_.has(options, 'lastMenuResult.areaInfo')) {
@@ -174,6 +174,19 @@ exports.getModule = class UploadModule extends MenuModule {
     adoptTempRecvDirectory(tempRecvDirectory) {
         this.tempRecvDirectory = tempRecvDirectory;
         this.uploadTempDir = UploadTempDir.claim(this.client, tempRecvDirectory);
+    }
+
+    enter() {
+        //
+        //  Claimed on entry, not on construction: from here on leave() is
+        //  certain to be called, and releases it. A module that is built but
+        //  never entered -- access denied, or a throw on the way -- leaves the
+        //  directory tracked, so a disconnect still removes it.
+        //
+        if (this.isFileTransferComplete() && this.tempRecvDirectory) {
+            this.adoptTempRecvDirectory(this.tempRecvDirectory);
+        }
+        return super.enter();
     }
 
     leave() {
@@ -473,12 +486,22 @@ exports.getModule = class UploadModule extends MenuModule {
             return this.uploadTempDir.release();
         }
 
-        if (this.tempRecvDirectory) {
-            Log.warn(
+        if (!this.tempRecvDirectory) {
+            return;
+        }
+
+        if (UploadTempDir.wasReleased(this.client, this.tempRecvDirectory)) {
+            //  e.g. the caller disconnected mid-transfer
+            return Log.debug(
                 { path: this.tempRecvDirectory },
-                'Not removing an upload directory this upload did not create'
+                'Upload directory was already removed'
             );
         }
+
+        Log.warn(
+            { path: this.tempRecvDirectory },
+            'Not removing an upload directory this upload did not create'
+        );
     }
 
     moveAndPersistUploadsToDatabase(newEntries) {

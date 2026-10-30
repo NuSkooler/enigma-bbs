@@ -22,6 +22,9 @@
 //  - abandon():  the caller left the upload; it is removed now, or as soon
 //                as a running transfer finishes
 //  - disconnecting abandons it too
+//  - wasReleased(): whether a directory made here has since been removed --
+//                so a claim that comes too late (after a disconnect) is not
+//                mistaken for a directory that was never ours
 //
 //  Each directory has a tracked temptmp session of its own: removing it can
 //  never touch another node's upload, and only ever removes a directory made
@@ -39,9 +42,13 @@ exports.transferStarted = transferStarted;
 exports.transferFinished = transferFinished;
 exports.abandon = abandon;
 exports.claim = claim;
+exports.wasReleased = wasReleased;
 
 //  resolved directory -> { client, session, dir, transferring, abandoned, released }
 const uploads = new Map();
+
+//  client -> Set of resolved directories released this session
+const releasedByClient = new WeakMap();
 
 const log = () => require('./logger.js').log;
 
@@ -73,6 +80,13 @@ function release(entry) {
     }
     entry.released = true;
     stopTracking(entry);
+
+    if (entry.client && 'object' === typeof entry.client) {
+        if (!releasedByClient.has(entry.client)) {
+            releasedByClient.set(entry.client, new Set());
+        }
+        releasedByClient.get(entry.client).add(keyOf(entry.dir));
+    }
 
     entry.session.cleanup(removed => {
         log().debug(
@@ -159,4 +173,9 @@ function claim(client, dir) {
     }
     stopTracking(entry);
     return { dir: entry.dir, release: () => release(entry) };
+}
+
+function wasReleased(client, dir) {
+    const released = client && 'object' === typeof client && releasedByClient.get(client);
+    return Boolean(dir && released && released.has(keyOf(dir)));
 }
