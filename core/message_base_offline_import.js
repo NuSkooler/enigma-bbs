@@ -39,6 +39,7 @@ const fs = require('graceful-fs');
 const paths = require('path');
 const { EventEmitter } = require('events');
 const temptmp = require('temptmp');
+const { randomUUID } = require('crypto');
 const fse = require('fs-extra');
 
 exports.moduleInfo = {
@@ -326,8 +327,9 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         this.summary = { imported: 0, rejected: 0, byArea: {}, areaChanges: null };
 
         //  per session: a tracked session shared between callers would have
-        //  one caller's cleanup take another's packet out from under them
-        this.temptmp = temptmp.createTrackedSession('offlineimport');
+        //  one caller's cleanup take another's packet out from under them.
+        //  temptmp tracks by session ID, so the ID must be unique too.
+        this.temptmp = temptmp.createTrackedSession(`offlineimport_${randomUUID()}`);
     }
 
     getSaveState() {

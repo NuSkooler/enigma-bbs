@@ -24,7 +24,7 @@ const async = require('async');
 const fs = require('graceful-fs');
 const crypto = require('crypto');
 const paths = require('path');
-const temptmp = require('temptmp').createTrackedSession('file_area');
+const TempTmp = require('temptmp');
 const iconv = require('iconv-lite');
 const execFile = require('child_process').execFile;
 const moment = require('moment');
@@ -373,7 +373,28 @@ const logDebug = (obj, msg) => maybeLog(obj, msg, 'debug');
 const logTrace = (obj, msg) => maybeLog(obj, msg, 'trace');
 const logError = (obj, msg) => maybeLog(obj, msg, 'error');
 
+//
+//  A temp session per extraction: temptmp tracks paths by session ID and its
+//  cleanup() removes every path under that ID, so a shared one let whichever
+//  scan finished first delete another scan's extraction out from under it.
+//
+function createExtractTempSession() {
+    return TempTmp.createTrackedSession(`file_area_${crypto.randomUUID()}`);
+}
+
+function cleanupExtractTempSession(temptmp) {
+    //  cleanup but don't wait
+    temptmp.cleanup(paths => {
+        //  note: don't use client logger here - may not be avail
+        logTrace(
+            { paths: paths, sessionId: temptmp.sessionId },
+            'Cleaned up temporary files'
+        );
+    });
+}
+
 function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
+    const temptmp = createExtractTempSession();
     async.waterfall(
         [
             function extractDescFiles(callback) {
@@ -505,26 +526,20 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                         });
                     },
                     () => {
-                        //  cleanup but don't wait
-                        temptmp.cleanup(paths => {
-                            //  note: don't use client logger here - may not be avail
-                            logTrace(
-                                { paths: paths, sessionId: temptmp.sessionId },
-                                'Cleaned up temporary files'
-                            );
-                        });
                         return callback(null);
                     }
                 );
             },
         ],
         err => {
+            cleanupExtractTempSession(temptmp);
             return cb(err);
         }
     );
 }
 
 function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries, cb) {
+    const temptmp = createExtractTempSession();
     async.waterfall(
         [
             function extractToTemp(callback) {
@@ -571,6 +586,7 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
             },
         ],
         err => {
+            cleanupExtractTempSession(temptmp);
             return cb(err);
         }
     );

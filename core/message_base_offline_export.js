@@ -264,7 +264,10 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                         );
                     },
                     callback => {
-                        this.temptmp = temptmp.createTrackedSession('offlineexport');
+                        //  unique: temptmp tracks, and cleans up, by session ID
+                        this.temptmp = temptmp.createTrackedSession(
+                            `offlineexport_${randomUUID()}`
+                        );
                         this.temptmp.mkdir(
                             { prefix: 'enigofflineexport-' },
                             (err, tempDir) => {

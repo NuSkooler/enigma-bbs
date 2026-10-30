@@ -39,7 +39,6 @@ const async = require('async');
 const _ = require('lodash');
 const pty = require('node-pty');
 const TempTmp = require('temptmp');
-const temptmp = TempTmp.createTrackedSession('transfer_file');
 const paths = require('path');
 const fs = require('graceful-fs');
 const crypto = require('crypto');
@@ -111,6 +110,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
         });
 
         this.sentFileIds = [];
+
+        //
+        //  This transfer's own temp files. temptmp tracks paths by session
+        //  ID, and cleanup() removes every path under that ID -- so a shared
+        //  ID would have whichever transfer finishes first delete the others'
+        //  temp files while they are still in use.
+        //
+        this.temptmp = TempTmp.createTrackedSession(
+            `transfer_file_${crypto.randomUUID()}`
+        );
     }
 
     isSending() {
@@ -359,11 +368,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
     //
     //  A per-transfer DSZLOG for protocols that declare |dszLog|. Its own
-    //  tracked temptmp session, because the module-wide one is cleaned up by
-    //  whichever transfer finishes first -- another caller's, possibly, while
-    //  this one is still writing. Calls back (null, { path, session }), or
-    //  (null, null) if there is to be no log; failing to make one only costs
-    //  the salvage, so it never fails the transfer.
+    //  tracked temptmp session, so it is removed as soon as it has been read.
+    //  Calls back (null, { path, session }), or (null, null) if there is to
+    //  be no log; failing to make one only costs the salvage, so it never
+    //  fails the transfer.
     //
     createDszLog(cb) {
         if (!this.protocolConfig.external.dszLog) {
@@ -417,6 +425,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
     prepAndBuildSendArgs(filePaths, cb) {
         const externalArgs = this.protocolConfig.external['sendArgs'];
+        const temptmp = this.temptmp;
 
         async.waterfall(
             [
@@ -934,6 +943,15 @@ exports.getModule = class TransferFileModule extends MenuModule {
         );
     }
 
+    cleanupTempFiles() {
+        this.temptmp.cleanup(paths => {
+            Log.debug(
+                { paths: paths, sessionId: this.temptmp.sessionId },
+                'Temporary files cleaned up'
+            );
+        });
+    }
+
     initSequence() {
         const self = this;
 
@@ -1002,16 +1020,6 @@ exports.getModule = class TransferFileModule extends MenuModule {
                         });
                     }
                 },
-                function cleanupTempFiles(callback) {
-                    temptmp.cleanup(paths => {
-                        Log.debug(
-                            { paths: paths, sessionId: temptmp.sessionId },
-                            'Temporary files cleaned up'
-                        );
-                    });
-
-                    return callback(null);
-                },
                 function updateUserAndSystemStats(callback) {
                     if (self.isSending()) {
                         return self.updateSendStats(callback);
@@ -1024,6 +1032,9 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 if (err) {
                     self.client.log.warn({ error: err.message }, 'File transfer error');
                 }
+
+                //  even when the transfer failed, so nothing is left behind
+                self.cleanupTempFiles();
 
                 return self.prevMenu();
             }
