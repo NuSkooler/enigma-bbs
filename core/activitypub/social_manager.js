@@ -4,7 +4,6 @@ const { getServer } = require('../listening_server');
 const Endpoints = require('./endpoint');
 const Actor = require('./actor');
 const stringFormat = require('../string_format');
-const { pipeToAnsi } = require('../color_codes');
 const MultiLineEditTextView =
     require('../multi_line_edit_text_view').MultiLineEditTextView;
 const {
@@ -15,7 +14,6 @@ const {
 } = require('./follow_util');
 const { Collections } = require('./const');
 const EnigAssert = require('../enigma_assert');
-const { wordWrapText } = require('../word_wrap');
 
 // deps
 const async = require('async');
@@ -272,24 +270,7 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
             let s = stringFormat(selectedActorInfoFormat, actorInfo);
 
             if (view instanceof MultiLineEditTextView) {
-                // word wrap individual lines to prevent losing the original LFs
-                let lines = s.split('\n');
-                let wrapped = '';
-                for (let line of lines) {
-                    wrapped +=
-                        (
-                            wordWrapText(line, {
-                                width: view.dimens.width,
-                                pipeCodeSupport: true,
-                            }).wrapped || []
-                        ).join('\n') + '\n';
-                }
-
-                const opts = {
-                    prepped: false,
-                    forceLineTerm: true,
-                };
-                view.setAnsi(pipeToAnsi(wrapped, this.client), opts);
+                view.setPipeText(s);
             } else {
                 view.setText(s);
             }

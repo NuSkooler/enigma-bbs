@@ -5,7 +5,8 @@ const { LineBuffer } = require('./line_buffer.js');
 const strUtil = require('./string_util.js');
 const ansi = require('./ansi_term.js');
 const ansiPrep = require('./ansi_prep.js');
-const { pipeColorToAnsi } = require('./color_codes.js');
+const { pipeColorToAnsi, pipeToAnsi } = require('./color_codes.js');
+const { wordWrapText } = require('./word_wrap.js');
 
 const assert = require('assert');
 const _ = require('lodash');
@@ -1847,6 +1848,30 @@ class MultiLineEditTextView extends View {
         this._findState = null; //  new content — clear any active search
         this.buffer = new LineBuffer({ width: this.dimens.width });
         return this.setAnsiWithOptions(ansiText, options, cb);
+    }
+
+    //  Plain or pipe-coded text for display, word wrapped to the view's width.
+    //  setAnsi() lays its input out at the terminal's width and clips it to the
+    //  view's, which suits art but drops characters from text in a view
+    //  narrower than the terminal (#968). A full-width row needs its line
+    //  terminator forced, or it joins the next row when the view doesn't start
+    //  at column 1.
+    setPipeText(pipeText, cb) {
+        const width = this.dimens.width;
+        const wrapped = (pipeText || '')
+            .split(/\r?\n/)
+            .map(line =>
+                (
+                    wordWrapText(line, { width, pipeCodeSupport: true }).wrapped || ['']
+                ).join('\n')
+            )
+            .join('\n');
+
+        return this.setAnsi(
+            pipeToAnsi(wrapped, this.client),
+            { prepped: false, forceLineTerm: true },
+            cb
+        );
     }
 
     addText(text, options = { scrollMode: 'default' }) {

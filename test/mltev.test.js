@@ -1108,3 +1108,84 @@ describe('MultiLineEditTextView — _clampCursorToBuffer', () => {
         assert.doesNotThrow(() => v.onKeyPress(undefined, { name: 'backspace' }));
     });
 });
+
+// ─── setPipeText: text in a view narrower than the terminal (#968) ────────────
+
+describe('MultiLineEditTextView — setPipeText', () => {
+    const stripAnsi = s => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''); // eslint-disable-line no-control-regex
+
+    //  More than one 80-column terminal line, so the text wraps
+    const text = Array.from({ length: 30 }, (_, i) => `w${i}`).join(' ');
+
+    function makeAt(width, col) {
+        const v = makeMltev({ width, height: 10 });
+        v.position = { row: 1, col };
+        return v;
+    }
+
+    function setPipeText(view, pipeText) {
+        return new Promise((resolve, reject) =>
+            view.setPipeText(pipeText, err => (err ? reject(err) : resolve()))
+        );
+    }
+
+    const plainLines = v => v.buffer.lines.map(l => stripAnsi(l.chars).trimEnd());
+    const words = lines => lines.join(' ').split(/\s+/).filter(Boolean);
+
+    it('keeps every word of text wider than a view narrower than the terminal', async () => {
+        const v = makeAt(20, 1);
+        await setPipeText(v, text);
+
+        const lines = plainLines(v);
+        assert.ok(lines.length > 1, JSON.stringify(lines));
+        lines.forEach(l => assert.ok(l.length <= 20, `"${l}" is wider than the view`));
+        assert.deepEqual(words(lines), text.split(' '));
+    });
+
+    it('keeps full-width rows apart when the view does not start at column 1', async () => {
+        const v = makeAt(73, 8);
+        await setPipeText(v, text + ' ' + text);
+
+        const lines = plainLines(v);
+        lines.forEach(l => assert.ok(l.length <= 73, `"${l}" is wider than the view`));
+        assert.deepEqual(words(lines), (text + ' ' + text).split(' '));
+    });
+
+    it('adds no blank line after a line exactly as wide as the view', async () => {
+        const v = makeAt(73, 8);
+        await setPipeText(v, 'A'.repeat(73) + '\nnext line');
+
+        assert.deepEqual(plainLines(v).slice(0, 2), ['A'.repeat(73), 'next line']);
+    });
+
+    it('keeps the line breaks in the text', async () => {
+        const v = makeAt(20, 1);
+        await setPipeText(v, 'first\r\nsecond\nthird');
+
+        assert.deepEqual(plainLines(v).slice(0, 3), ['first', 'second', 'third']);
+    });
+
+    it('breaks a word too long for the view without losing any of it', async () => {
+        const v = makeAt(20, 1);
+        const path = '/home/enigma/file_base/incoming/a/very/long/path.zip';
+        await setPipeText(v, path);
+
+        assert.equal(plainLines(v).join(''), path);
+    });
+
+    it('carries the colour onto a wrapped line', async () => {
+        const v = makeAt(20, 1);
+        await setPipeText(v, '|12' + 'red '.repeat(8));
+
+        const second = v.buffer.lines[1].chars;
+        assert.ok(stripAnsi(second).startsWith('red'), JSON.stringify(second));
+        assert.ok(/\x1b\[[0-9;]*31m/.test(second), JSON.stringify(second)); // eslint-disable-line no-control-regex
+    });
+
+    it('leaves setAnsi() clipping art to the view', async () => {
+        const v = makeAt(20, 1);
+        await new Promise(resolve => v.setAnsi(text, {}, resolve));
+
+        assert.equal(stripAnsi(v.buffer.lines[0].chars).trimEnd(), text.slice(0, 20));
+    });
+});

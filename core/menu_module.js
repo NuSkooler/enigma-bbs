@@ -1072,7 +1072,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     if (options.pipeSupport) {
                         const ansi = pipeToAnsi(text, this.client);
                         if (view.getData() !== ansi) {
-                            view.setAnsi(ansi);
+                            view.setPipeText(text);
                         } else {
                             view.redraw();
                         }

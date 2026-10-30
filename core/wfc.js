@@ -662,13 +662,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             const nodeStatusSelectionFormat =
                 this.config.nodeStatusSelectionFormat || '{text}';
 
-            const s = stringFormat(nodeStatusSelectionFormat, item);
-
-            if (nodeStatusSelectionView instanceof MultiLineEditTextView) {
-                nodeStatusSelectionView.setAnsi(pipeToAnsi(s, this.client));
-            } else {
-                nodeStatusSelectionView.setText(s);
-            }
+            this._setWrappedText(
+                nodeStatusSelectionView,
+                stringFormat(nodeStatusSelectionFormat, item)
+            );
         }
     }
 
@@ -1640,13 +1637,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this._inbox().markRead(item.id);
 
         const fmt = this.config.messageDetailFormat || '{text}';
-        const text = stringFormat(fmt, this._messageFormatObj(item, 0));
-
-        if (detailView instanceof MultiLineEditTextView) {
-            detailView.setAnsi(pipeToAnsi(text, this.client));
-        } else {
-            detailView.setText(text);
-        }
+        this._setWrappedText(
+            detailView,
+            stringFormat(fmt, this._messageFormatObj(item, 0))
+        );
     }
 
     _refreshMessageList(cb) {
@@ -2093,28 +2087,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     //
-    //  Wraps to the view's width before it gets there: an %MT narrower than
-    //  the terminal drops characters from wrapped plain text (#968).
+    //  An %MT wraps pipe text to its own width; setAnsi() would drop the
+    //  characters past it (#968).
     //
     _setWrappedText(view, pipeText) {
-        if (!(view instanceof MultiLineEditTextView)) {
-            return view.setText(pipeText);
+        if (view instanceof MultiLineEditTextView) {
+            return view.setPipeText(pipeText);
         }
-
-        const width = view.dimens.width;
-        const wrapped = pipeText
-            .split('\n')
-            .map(line =>
-                (
-                    wordWrapText(line, { width, pipeCodeSupport: true }).wrapped || ['']
-                ).join('\n')
-            )
-            .join('\n');
-
-        view.setAnsi(pipeToAnsi(wrapped, this.client), {
-            prepped: false,
-            forceLineTerm: true,
-        });
+        return view.setText(pipeText);
     }
 
     _tasksInfoFormatObj() {
@@ -2795,7 +2775,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _updateFullLogDetail(detailView, rec) {
-        detailView.setAnsi(pipeToAnsi(this._formatLogDetailText(rec), this.client));
+        this._setWrappedText(detailView, this._formatLogDetailText(rec));
     }
 
     _displayFullLogPage(cb) {
@@ -2874,12 +2854,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         logListView.acceptsInput = false;
 
                         if (detailView) {
-                            detailView.setAnsi(
-                                pipeToAnsi(
-                                    this.config.fullLogEmptyMessage ||
-                                        '|08No log entries available|00',
-                                    this.client
-                                )
+                            this._setWrappedText(
+                                detailView,
+                                this.config.fullLogEmptyMessage ||
+                                    '|08No log entries available|00'
                             );
                         }
                     }
