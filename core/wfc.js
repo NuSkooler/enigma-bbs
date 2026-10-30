@@ -1714,25 +1714,27 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         return require('./event_scheduler.js').getInstance();
     }
 
-    _loadTaskRows() {
+    //  |options|: as listTasks(); { all: true } includes manual: false tasks
+    _loadTaskRows(options) {
         const scheduler = this._scheduler();
         if (!scheduler || !_.isFunction(scheduler.listTasks)) {
             return [];
         }
         try {
-            return scheduler.listTasks();
+            return scheduler.listTasks(options);
         } catch (e) {
             this.client.log.warn({ error: e.message }, 'WFC could not list tasks');
             return [];
         }
     }
 
+    //  Counted over every task, listed or not: a manual: false one runs too
     _runningTaskCount() {
-        return this._loadTaskRows().filter(r => r.running).length;
+        return this._loadTaskRows({ all: true }).filter(r => r.running).length;
     }
 
     _taskCountStats() {
-        const rows = this._loadTaskRows();
+        const rows = this._loadTaskRows({ all: true });
         return {
             runningTaskCount: rows.filter(r => r.running).length,
             overdueTaskCount: rows.filter(r => r.overdue).length,
@@ -2106,8 +2108,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         return Object.assign({}, this.stats || {}, {
             now: moment().format(this._dateTimeFormat('now')),
             taskCount: rows.length,
-            runningTaskCount: rows.filter(r => r.running).length,
-            overdueTaskCount: rows.filter(r => r.overdue).length,
+            //  over every task, as on the dashboard, not just the listed ones
+            ...this._taskCountStats(),
             failedTaskCount: rows.filter(r => !r.running && r.lastRun && !r.lastRun.ok)
                 .length,
             selectedTaskName: selected ? selected.name : '',

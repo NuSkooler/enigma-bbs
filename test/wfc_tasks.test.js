@@ -79,9 +79,12 @@ function fakeScheduler(rows) {
         runs: [],
         stops: [],
         listCalls: 0,
-        listTasks() {
+        listTasks(options) {
             sched.listCalls++;
-            return sched.rows.map(r => Object.assign({}, r));
+            const all = !!(options && options.all);
+            return sched.rows
+                .filter(r => all || false !== r.manual)
+                .map(r => Object.assign({}, r));
         },
         runNow(name, opts) {
             sched.runs.push({ name, opts });
@@ -668,6 +671,21 @@ describe('WFC task screen', () => {
 
             instance._updateStatusBarPanels();
             assert.equal(view.panels.tasks, 'TASK 2');
+        });
+
+        it('counts a running task that is not listed (manual: false)', () => {
+            const { instance } = makeWfc({}, [
+                row('a', { running: true }),
+                row('hidden', { running: true, manual: false }),
+            ]);
+            const view = { panels: {} };
+            view.getPanelNames = () => ['tasks'];
+            view.setPanels = u => Object.assign(view.panels, u);
+            instance.getView = (form, id) => ('main' === form && 5 === id ? view : null);
+
+            instance._updateStatusBarPanels();
+            assert.equal(view.panels.tasks, 'TASK 2');
+            assert.equal(instance._taskCountStats().runningTaskCount, 2);
         });
     });
 });

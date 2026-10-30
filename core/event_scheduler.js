@@ -884,12 +884,16 @@ EventSchedulerModule.prototype.stop = function (name, options) {
 //  Plain snapshot rows, one per event that may be run by hand (manual: false
 //  entries are left out). Safe to keep: nothing in a row is live state.
 //
+//  options: { all } -- true includes the manual: false entries, e.g. to count
+//  what is running.
+//
 //  A row with removed: true is an event a reload took away while it was
 //  running; it is listed until that run finishes.
 //
-EventSchedulerModule.prototype.listTasks = function () {
+EventSchedulerModule.prototype.listTasks = function (options) {
+    const all = !!(options && options.all);
     return [...this.events.values()]
-        .filter(e => e.manual)
+        .filter(e => all || e.manual)
         .map(e => {
             const current = e.running ? e.currentRun : null;
             const overdueSince = (current && current.overdueSince) || null;
@@ -918,6 +922,7 @@ EventSchedulerModule.prototype.listTasks = function () {
                 runCount: e.runCount,
                 confirm: e.confirm,
                 timeout: e.timeout || null,
+                manual: e.manual,
                 removed: e.removed,
             };
         });

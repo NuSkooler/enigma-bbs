@@ -280,6 +280,7 @@ describe('event scheduler', function () {
                 runCount: 0,
                 confirm: true,
                 timeout: 5000,
+                manual: true,
                 removed: false,
             });
         });
@@ -774,6 +775,31 @@ describe('event scheduler', function () {
             assert.equal(finished.ok, false);
             assert.equal(finished.error, 'boom');
             assert.equal(typeof finished.durationMs, 'number');
+        });
+    });
+
+    describe('listTasks({ all: true })', () => {
+        it('includes manual: false entries, so a running one can be counted', async () => {
+            await start({
+                hidden: {
+                    schedule: 'every 1 hours',
+                    action: `@method:${METHODS}:hold`,
+                    manual: false,
+                },
+                shown: { action: `@method:${METHODS}:ok` },
+            });
+
+            armed[0].fn();
+            assert.deepEqual(
+                scheduler.listTasks().map(r => r.name),
+                ['shown']
+            );
+            const all = scheduler.listTasks({ all: true });
+            assert.deepEqual(all.map(r => r.name).sort(), ['hidden', 'shown']);
+            const hidden = all.find(r => r.name === 'hidden');
+            assert.equal(hidden.running, true);
+            assert.equal(hidden.manual, false);
+            methods.state.pending[0](null);
         });
     });
 

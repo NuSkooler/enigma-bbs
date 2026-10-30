@@ -335,7 +335,7 @@ The following MCI codes are available:
     * `pendingNodeMessageUser`: Username who sent the most recent unread message, or empty.
     * `pendingNodeMessageNode`: Node ID of that sender, or empty.
     * `pendingNodeMessagePreview`: Truncated text of that message. Length via `messagePreviewLength`.
-    * `runningTaskCount`: Number of [scheduler tasks](#tasks) running now.
+    * `runningTaskCount`: Number of [scheduler tasks](#tasks) running now, including `manual: false` ones the task screen does not list.
     * `overdueTaskCount`: Number of running tasks past their `timeout`.
 
 
