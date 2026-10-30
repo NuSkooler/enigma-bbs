@@ -423,6 +423,63 @@ describe('WFC task screen', () => {
             instance._teardownTasks();
         });
 
+        it('does not stop a run that started after the op was asked', () => {
+            const first = new Date(Date.now() - 60000);
+            const { instance, client, scheduler } = openTextScreen([
+                row('busy', { running: true, startedAt: first, stopAction: 'kill' }),
+            ]);
+
+            client.emit('key press', 'x', { name: 'x' });
+            assert.equal(instance._taskPromptActive, true);
+
+            //  while the prompt is up the run ends and its schedule starts another
+            scheduler.rows = [
+                row('busy', { running: true, startedAt: new Date(), stopAction: 'kill' }),
+            ];
+            client.emit('key press', 'y', { name: 'y' });
+
+            assert.equal(scheduler.stops.length, 0);
+            assert.ok(instance._taskActionResult.includes('started again'));
+            instance._teardownTasks();
+        });
+
+        it('still follows the list selection after a prompt (art)', () => {
+            const { instance, client } = makeWfc({}, [
+                row('a', { confirm: true }),
+                row('b'),
+            ]);
+            const list = new EventEmitter();
+            list.setItems = items => (list.items = items);
+            list.setFocusItemIndex = i => (list.focus = i);
+            instance.getView = (form, id) => ('tasks' === form && 1 === id ? list : null);
+            instance._tasksMode = 'art';
+            //  like the real ViewController: losing focus drops every view listener
+            instance.viewControllers.tasks = {
+                setFocus: focused => {
+                    if (!focused) {
+                        list.removeAllListeners();
+                    }
+                },
+                detachClientEvents: () => {},
+                getView: () => null,
+            };
+            try {
+                instance._bindTaskListIndex();
+                instance._refreshTasks();
+
+                //  form 5's R key; 'a' asks first
+                instance._requestTaskAction('run', () => {});
+                assert.equal(instance._taskPromptActive, true);
+                client.emit('key press', 'n', { name: 'n' });
+                assert.equal(instance._taskPromptActive, false);
+
+                list.emit('index update', 1);
+                assert.equal(instance._selectedTaskName, 'b');
+            } finally {
+                instance._teardownTasks();
+            }
+        });
+
         it('ignores screen keys while the prompt is up', () => {
             const { instance, client, scheduler } = openTextScreen([
                 row('a', { confirm: true }),
@@ -641,6 +698,19 @@ describe('WFC ticker task events', () => {
         assert.equal(items.length, 2);
         assert.ok(items[0].includes('Back up') && items[0].includes('disk full'));
         assert.ok(items[1].includes('Slow one') && items[1].includes('overdue'));
+    });
+
+    it('keeps a pipe in an error from becoming a colour code', () => {
+        const items = feed({}, () => {
+            Events.emit(SysEvents.TaskFinished, {
+                name: 'x',
+                desc: 'A|12B',
+                ok: false,
+                error: 'bad |07 pipe',
+            });
+        });
+        assert.ok(items[0].includes('A||12B'));
+        assert.ok(items[0].includes('bad ||07 pipe'));
     });
 
     it('keeps starts and good finishes off by default', () => {

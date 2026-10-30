@@ -204,6 +204,7 @@ const DefaultTaskActionResultFormats = {
     killed: '|14Stopping |15{desc}|14: its process was told to quit|07',
     abandoned: '|14Abandoned |15{desc}|14; it may still be running|07',
     notRunning: '|07{desc} is not running',
+    runChanged: '|14{desc} finished and started again; not stopped|07',
     unavailable: '|12The event scheduler is not running|07',
 };
 
@@ -980,10 +981,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
             //  scheduler task events
             taskName: _.isString(event.name) ? event.name : '',
-            taskDesc: event.desc || event.name || '',
+            taskDesc: escapePipes(event.desc || event.name || ''),
             reason: event.reason || '',
             byUser: event.byUser || '',
-            error: event.error || '',
+            error: escapePipes(event.error || ''),
             durationMs: _.isFinite(event.durationMs) ? event.durationMs : '',
             duration: _.isFinite(event.durationMs)
                 ? formatTaskDuration(event.durationMs)
@@ -1781,18 +1782,17 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         );
                     }
                     this._applyTaskListFormats(listView);
-                    listView.on('index update', index => {
-                        const row = this._taskRows[index];
-                        this._selectedTaskIndex = index;
-                        this._selectedTaskName = row ? row.name : null;
-                        this._paintTaskDetail(true);
-                        this._paintTasksInfo();
-                    });
+                    this._bindTaskListIndex();
                     return callback(null);
                 },
                 callback => this._refreshTasks(callback),
             ],
             err => {
+                if ('art' !== this._tasksMode) {
+                    //  torn down (leave()) while the art was loading
+                    this.removeViewController('tasks');
+                    return cb(null);
+                }
                 if (err) {
                     //  Art named but not there, or missing its list: the
                     //  plain list still lets the op run and stop tasks.
@@ -1997,7 +1997,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             runCount: row.runCount || 0,
             lastRunAt: lastRun ? this._formatTaskDate(lastRun.start) : neverText,
             lastResult,
-            lastError: (lastRun && lastRun.error) || '',
+            lastError: escapePipes((lastRun && lastRun.error) || ''),
             durationMs:
                 lastRun && _.isFinite(lastRun.durationMs) ? lastRun.durationMs : '',
             duration:
@@ -2253,7 +2253,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return cb(null);
         }
 
-        this._pendingTaskAction = { kind, name: row.name };
+        this._pendingTaskAction = { kind, name: row.name, startedAt: row.startedAt };
         const question = this._taskPromptQuestion(kind, row);
 
         const xyView = this.getView('tasks', MciViewIds.tasks.promptXy);
@@ -2264,12 +2264,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         return this._showTaskPrompt(question, cb);
     }
 
-    _doTaskAction(kind, name) {
+    //  |startedAt|: for a stop the op confirmed, the run they were asked about
+    _doTaskAction(kind, name, startedAt) {
         const row = (this._taskRows || []).find(r => r.name === name) || { name };
         const scheduler = this._scheduler();
         if (!scheduler) {
             this._setTaskActionResult('unavailable', row);
             return this._refreshTasks();
+        }
+
+        if ('stop' === kind && startedAt) {
+            //  it finished while the prompt was up, and may have started again
+            const now = scheduler.listTasks().find(r => r.name === name);
+            if (now && now.running && !moment(now.startedAt).isSame(startedAt)) {
+                this._setTaskActionResult('runChanged', row);
+                return this._refreshTasks();
+            }
         }
 
         const byUser = this.client.user.username;
@@ -2340,6 +2350,24 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this.client.term.write(pipeToAnsi(pipeText || '', this.client));
     }
 
+    _bindTaskListIndex() {
+        const listView = this.getView('tasks', MciViewIds.tasks.taskList);
+        if (!listView) {
+            return;
+        }
+        this._onTaskListIndex =
+            this._onTaskListIndex ||
+            (index => {
+                const row = (this._taskRows || [])[index];
+                this._selectedTaskIndex = index;
+                this._selectedTaskName = row ? row.name : null;
+                this._paintTaskDetail(true);
+                this._paintTasksInfo();
+            });
+        listView.removeListener('index update', this._onTaskListIndex);
+        listView.on('index update', this._onTaskListIndex);
+    }
+
     _detachTasksInput() {
         if (this.viewControllers.tasks) {
             this.viewControllers.tasks.setFocus(false);
@@ -2350,6 +2378,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _attachTasksInput() {
         if ('art' === this._tasksMode && this.viewControllers.tasks) {
             this.viewControllers.tasks.setFocus(true);
+            //  setFocus(false) dropped every view listener, and setFocus(true)
+            //  only puts back the form's own
+            this._bindTaskListIndex();
         } else if ('text' === this._tasksMode) {
             this._addTasksTextKeyHandler();
         }
@@ -2455,7 +2486,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this._attachTasksInput();
 
         if (confirmed && pending) {
-            return this._doTaskAction(pending.kind, pending.name);
+            return this._doTaskAction(pending.kind, pending.name, pending.startedAt);
         }
         if ('art' === this._tasksMode) {
             this._showTaskActionResult(); //  put back what the prompt covered
