@@ -64,6 +64,18 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **Message lists can return to the first unread message** ([#197](https://github.com/NuSkooler/enigma-bbs/issues/197)). New installations bind `U` to this action in area, personal and search-result lists. Home and End stop at the first unread message when it lies between the selected row and the respective end; pressing the key again reaches that end. With no unread messages, Home and End go straight to the ends.
+
+  **Action:** add these entries to the existing `actionKeys` array in form `0` of `messageBaseMessageList`, `messageBaseMyMessagesList` and `messageBaseSearchResultsMessageList` in your `menu.hjson`:
+
+  ```hjson
+  { keys: [ "u", "shift + u" ], action: @method:jumpToFirstUnread }
+  { keys: [ "home" ], action: @method:messageListHome }
+  { keys: [ "end" ], action: @method:messageListEnd }
+  ```
+
+  Keep the existing quit, post and other bindings. If `actionKeys` is `@reference:common.quitToPrev`, replace it with an array beginning with `@reference:common.quitToPrevEntry`, followed by the entries above. The keys can be changed independently, and omitting the Home/End entries keeps their usual navigation. The shipped list art includes `U:unread`; custom art needs its own shortcut legend. See [Message Lists](website/src/content/docs/modules/message-lists.md#message-list-navigation).
+
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
 
   **Action:** none required. To use the new formats, install unarc as [Archivers](website/src/content/docs/configuration/archivers.md#unarc) describes. It needs version 0.8.0 or later, now on crates.io: `cargo install --locked unarc-cli`. The Docker image ships it from 0.6.0-beta on.
