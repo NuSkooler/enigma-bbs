@@ -1006,7 +1006,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
 
         if (appendMultiLine && view instanceof MultiLineEditTextView) {
-            view.setAnsi(text);
+            view.setAnsi(text, { wrapToView: true });
         } else {
             view.setText(text);
         }
@@ -1072,7 +1072,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     if (options.pipeSupport) {
                         const ansi = pipeToAnsi(text, this.client);
                         if (view.getData() !== ansi) {
-                            view.setAnsi(ansi);
+                            view.setAnsi(ansi, { wrapToView: true });
                         } else {
                             view.redraw();
                         }

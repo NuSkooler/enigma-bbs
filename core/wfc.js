@@ -556,7 +556,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             const s = stringFormat(nodeStatusSelectionFormat, item);
 
             if (nodeStatusSelectionView instanceof MultiLineEditTextView) {
-                nodeStatusSelectionView.setAnsi(pipeToAnsi(s, this.client));
+                nodeStatusSelectionView.setAnsi(pipeToAnsi(s, this.client), {
+                    wrapToView: true,
+                });
             } else {
                 nodeStatusSelectionView.setText(s);
             }
@@ -1461,7 +1463,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const text = stringFormat(fmt, this._messageFormatObj(item, 0));
 
         if (detailView instanceof MultiLineEditTextView) {
-            detailView.setAnsi(pipeToAnsi(text, this.client));
+            detailView.setAnsi(pipeToAnsi(text, this.client), { wrapToView: true });
         } else {
             detailView.setText(text);
         }
@@ -1668,7 +1670,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _updateFullLogDetail(detailView, rec) {
-        detailView.setAnsi(pipeToAnsi(this._formatLogDetailText(rec), this.client));
+        detailView.setAnsi(pipeToAnsi(this._formatLogDetailText(rec), this.client), {
+            wrapToView: true,
+        });
     }
 
     _displayFullLogPage(cb) {
@@ -1754,7 +1758,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                                     this.config.fullLogEmptyMessage ||
                                         '|08No log entries available|00',
                                     this.client
-                                )
+                                ),
+                                { wrapToView: true }
                             );
                         }
                     }

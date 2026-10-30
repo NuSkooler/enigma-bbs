@@ -1108,3 +1108,46 @@ describe('MultiLineEditTextView — _clampCursorToBuffer', () => {
         assert.doesNotThrow(() => v.onKeyPress(undefined, { name: 'backspace' }));
     });
 });
+
+// ─── setAnsi text narrower than the terminal ──────────────────────────────────
+
+describe('MultiLineEditTextView — setAnsi wrapToView', () => {
+    const stripAnsi = s => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''); // eslint-disable-line no-control-regex
+
+    //  More than one 80-column terminal line, so the text wraps
+    const text = Array.from({ length: 30 }, (_, i) => `w${i}`).join(' ');
+
+    function setAnsi(view, options) {
+        return new Promise((resolve, reject) =>
+            view.setAnsi(text, options, err => (err ? reject(err) : resolve()))
+        );
+    }
+
+    it('keeps every character of text wider than a view narrower than the terminal', async () => {
+        const v = makeMltev({ width: 20, height: 10 });
+        v.position = { row: 1, col: 1 };
+        await setAnsi(v, { wrapToView: true });
+
+        const lines = v.buffer.lines.map(l => stripAnsi(l.chars).trimEnd());
+        assert.ok(lines.every(l => l.length <= 20));
+        assert.strictEqual(lines.join(''), text);
+    });
+
+    it('wraps at the view width when the view does not start at column 1', async () => {
+        const v = makeMltev({ width: 73, height: 10 });
+        v.position = { row: 1, col: 8 };
+        await setAnsi(v, { wrapToView: true });
+
+        const lines = v.buffer.lines.map(l => stripAnsi(l.chars).trimEnd());
+        assert.strictEqual(lines.join(''), text);
+    });
+
+    it('still clips art to the view without wrapToView', async () => {
+        const v = makeMltev({ width: 20, height: 10 });
+        v.position = { row: 1, col: 1 };
+        await setAnsi(v, {});
+
+        const first = stripAnsi(v.buffer.lines[0].chars).trimEnd();
+        assert.strictEqual(first, text.slice(0, 20));
+    });
+});

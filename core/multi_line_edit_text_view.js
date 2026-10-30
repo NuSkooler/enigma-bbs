@@ -1909,15 +1909,23 @@ class MultiLineEditTextView extends View {
             return setLines(ansiText);
         }
 
+        //  Art is laid out at the terminal's (or its SAUCE) width and clipped
+        //  to the view. Text (wrapToView) must instead wrap at the view's
+        //  width, or everything between the two widths is lost. Each row
+        //  then fills the view, so it needs an explicit line terminator.
+        const wrapToView = true === options.wrapToView;
+
         ansiPrep(
             ansiText,
             {
-                termWidth: options.termWidth || this.client.term.termWidth,
+                termWidth: wrapToView
+                    ? this.dimens.width
+                    : options.termWidth || this.client.term.termWidth,
                 termHeight: options.termHeight || this.client.term.termHeight,
                 cols: this.dimens.width,
                 rows: 'auto',
                 startCol: this.position.col,
-                forceLineTerm: options.forceLineTerm,
+                forceLineTerm: wrapToView || options.forceLineTerm,
             },
             (err, preppedAnsi) => {
                 return setLines(err ? ansiText : preppedAnsi);
