@@ -1179,6 +1179,65 @@ describe('event scheduler', function () {
             assert.equal(calls, 1, 'not after shutdown');
         });
 
+        it('arms nothing when reload() is called after shutdown', async () => {
+            await start({});
+            const s = scheduler;
+            scheduler = null;
+            await new Promise(resolve => s.shutdown(resolve));
+
+            const before = armed.length;
+            const result = s.reload({
+                eventScheduler: {
+                    events: {
+                        late: {
+                            schedule: 'every 1 hours',
+                            action: `@method:${METHODS}:ok`,
+                        },
+                    },
+                },
+            });
+            assert.deepEqual(result, { added: [], removed: [], changed: [] });
+            assert.equal(armed.length, before);
+            assert.equal(s.events.has('late'), false);
+        });
+
+        it('arms the other entries when one fails to arm', async () => {
+            await start({});
+            const realArm = scheduler._arm.bind(scheduler);
+            scheduler._arm = (schedEvent, opts) => {
+                if ('bad' === schedEvent.name) {
+                    throw new Error('boom');
+                }
+                return realArm(schedEvent, opts);
+            };
+
+            const result = scheduler.reload({
+                eventScheduler: {
+                    events: {
+                        bad: {
+                            schedule: 'every 1 hours',
+                            action: `@method:${METHODS}:ok`,
+                        },
+                        good: {
+                            schedule: 'every 2 hours',
+                            action: `@method:${METHODS}:ok`,
+                        },
+                        off: { action: `@method:${METHODS}:ok`, enabled: false },
+                    },
+                },
+            });
+            assert.ok(result.added.includes('good'));
+            assert.ok(armedNames().length >= 1);
+            assert.equal(
+                scheduler.runNow('off'),
+                'disabled',
+                'the rest of the reload ran'
+            );
+            assert.ok(
+                log.entries.find(e => 'warn' === e.level && /Failed to arm/.test(e.msg))
+            );
+        });
+
         describe('@watch watchers', () => {
             let dir;
 

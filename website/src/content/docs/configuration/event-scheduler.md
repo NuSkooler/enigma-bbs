@@ -51,7 +51,7 @@ Edits to `eventScheduler.events` in `config.hjson` take effect without a restart
 * **Unchanged** events are left alone.
 * An entry that no longer loads (an `Invalid scheduled event entry`, such as a schedule that does not parse) is logged and left out, as it would be at startup; the other events are not affected.
 
-A reload never interrupts a run. A run in progress finishes under the settings it started with, its result is recorded as usual, and it can still be stopped. A changed event's next run uses its new settings. An event removed while it is running stays in the task list, marked as removed, until that run finishes, and is then dropped. Each event's last run and run count are kept across a reload.
+A reload never interrupts a run. A run in progress finishes under the settings it started with, its result is recorded as usual, and it can still be stopped. A changed event's next run uses its new settings. An event removed while it is running stays in the task list, marked as removed, until that run finishes, and is then dropped. An event that stays in the config keeps its run count across a reload; an event removed (or disabled) and added back starts its count again, as after a restart, but keeps its last run, which is saved with the system statistics.
 
 A reload that changes anything logs one line naming the events added, removed and changed, for example `Scheduled events reloaded: added nightlyScript; changed backupDatabases`, and emits the `TasksReloaded` system event.
 

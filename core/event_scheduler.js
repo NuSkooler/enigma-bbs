@@ -516,6 +516,7 @@ EventSchedulerModule.prototype.startup = function (cb) {
     }
 
     //  config.hjson edits re-arm the events; see reload()
+    this.isShutDown = false;
     this._stopConfigListener();
     this._configChangedListener = () => this.reload();
     Events.on(Events.getSystemEvents().ConfigChanged, this._configChangedListener);
@@ -524,6 +525,7 @@ EventSchedulerModule.prototype.startup = function (cb) {
 };
 
 EventSchedulerModule.prototype.shutdown = function (cb) {
+    this.isShutDown = true; //  a ConfigChanged already being emitted still calls reload()
     this._stopConfigListener();
 
     //  timers and @watch watchers; a run in progress is left to finish
@@ -733,6 +735,10 @@ EventSchedulerModule.prototype._disarm = function (schedEvent) {
 //  Returns { added, removed, changed }, names in each.
 //
 EventSchedulerModule.prototype.reload = function (config) {
+    if (this.isShutDown) {
+        return { added: [], removed: [], changed: [] };
+    }
+
     config = config || Config();
     this.moduleConfig = _.get(config, 'eventScheduler');
 
@@ -758,7 +764,7 @@ EventSchedulerModule.prototype.reload = function (config) {
         removed.push(name);
     });
 
-    candidates.forEach((candidate, name) => {
+    const reconcile = (candidate, name) => {
         const schedEvent = this.events.get(name);
 
         if (!schedEvent) {
@@ -789,6 +795,18 @@ EventSchedulerModule.prototype.reload = function (config) {
             initialWatchRun: schedEvent.watchFile !== prevWatchFile,
         });
         changed.push(name);
+    };
+
+    //  one entry that fails to arm must not leave the rest unarmed
+    candidates.forEach((candidate, name) => {
+        try {
+            reconcile(candidate, name);
+        } catch (e) {
+            Log().warn(
+                { eventName: name, error: errorText(e) },
+                'Failed to arm a scheduled event on reload'
+            );
+        }
     });
 
     this.disabledEvents = disabled;
