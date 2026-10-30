@@ -1853,9 +1853,11 @@ class MultiLineEditTextView extends View {
     //  Plain or pipe-coded text for display, word wrapped to the view's width.
     //  setAnsi() lays its input out at the terminal's width and clips it to the
     //  view's, which suits art but drops characters from text in a view
-    //  narrower than the terminal (#968). A full-width row needs its line
-    //  terminator forced, or it joins the next row when the view doesn't start
-    //  at column 1.
+    //  narrower than the terminal (#968). The text arrives already wrapped, so
+    //  the parser is given a width it never reaches: wrapping at the view's (or
+    //  the terminal's) last column would add a blank row after every full
+    //  line. A full-width row needs its line terminator forced, or it joins
+    //  the next row.
     setPipeText(pipeText, cb) {
         const width = this.dimens.width;
         const wrapped = (pipeText || '')
@@ -1869,7 +1871,7 @@ class MultiLineEditTextView extends View {
 
         return this.setAnsi(
             pipeToAnsi(wrapped, this.client),
-            { prepped: false, forceLineTerm: true },
+            { prepped: false, forceLineTerm: true, termWidth: width + 1 },
             cb
         );
     }

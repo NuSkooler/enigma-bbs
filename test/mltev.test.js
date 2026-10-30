@@ -1158,6 +1158,13 @@ describe('MultiLineEditTextView — setPipeText', () => {
         assert.deepEqual(plainLines(v).slice(0, 2), ['A'.repeat(73), 'next line']);
     });
 
+    it('adds no blank line after a full line in a view as wide as the terminal', async () => {
+        const v = makeAt(80, 1);
+        await setPipeText(v, 'A'.repeat(80) + '\nnext line');
+
+        assert.deepEqual(plainLines(v).slice(0, 2), ['A'.repeat(80), 'next line']);
+    });
+
     it('keeps the line breaks in the text', async () => {
         const v = makeAt(20, 1);
         await setPipeText(v, 'first\r\nsecond\nthird');
