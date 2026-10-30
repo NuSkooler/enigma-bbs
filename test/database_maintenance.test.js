@@ -64,7 +64,18 @@ describe('database maintenance tasks', () => {
             const result = await database.backupDatabases(handles, { dir, keep: 3 });
 
             assert.deepEqual(result.files, ['alpha.sqlite3', 'beta.sqlite3']);
-            assert.match(paths.basename(result.dir), /^\d{8}-\d{6}$/);
+            //  named in UTC
+            const name = paths.basename(result.dir);
+            assert.match(name, /^\d{8}-\d{6}Z$/);
+            const named = Date.UTC(
+                +name.slice(0, 4),
+                +name.slice(4, 6) - 1,
+                +name.slice(6, 8),
+                +name.slice(9, 11),
+                +name.slice(11, 13),
+                +name.slice(13, 15)
+            );
+            assert.ok(Math.abs(Date.now() - named) < 60 * 1000);
             assert.deepEqual(fs.readdirSync(dir), [paths.basename(result.dir)]);
 
             //  the copy is a working database with everything in it
@@ -80,21 +91,24 @@ describe('database maintenance tasks', () => {
             const dir = paths.join(tmpDir, 'backup');
             fs.mkdirSync(dir);
             //  older sets from earlier runs, plus things that are not sets
-            ['20200101-000000', '20210101-000000', '20220101-000000'].forEach(name =>
+            ['20200101-000000Z', '20210101-000000Z', '20220101-000000Z'].forEach(name =>
                 fs.mkdirSync(paths.join(dir, name))
             );
             fs.mkdirSync(paths.join(dir, 'keep-me'));
             fs.writeFileSync(paths.join(dir, 'notes.txt'), 'x');
+            //  not a UTC set name, so not ours to prune
+            fs.mkdirSync(paths.join(dir, '20190101-000000'));
 
             const result = await database.backupDatabases(handles, { dir, keep: 2 });
 
-            assert.deepEqual(result.pruned, ['20200101-000000', '20210101-000000']);
+            assert.deepEqual(result.pruned, ['20200101-000000Z', '20210101-000000Z']);
             assert.deepEqual(
                 fs.readdirSync(dir).sort(),
                 [
-                    '20220101-000000',
+                    '20220101-000000Z',
                     paths.basename(result.dir),
                     'keep-me',
+                    '20190101-000000',
                     'notes.txt',
                 ].sort()
             );
@@ -105,6 +119,10 @@ describe('database maintenance tasks', () => {
             const first = await database.backupDatabases(handles, { dir, keep: 5 });
             const second = await database.backupDatabases(handles, { dir, keep: 5 });
             assert.notEqual(first.dir, second.dir);
+            if (paths.basename(first.dir) === paths.basename(second.dir).slice(0, 16)) {
+                //  the same second: the suffix goes after the Z
+                assert.match(paths.basename(second.dir), /^\d{8}-\d{6}Z-2$/);
+            }
             assert.ok(fs.existsSync(paths.join(first.dir, 'alpha.sqlite3')));
             assert.ok(fs.existsSync(paths.join(second.dir, 'alpha.sqlite3')));
         });
@@ -139,13 +157,15 @@ describe('database maintenance tasks', () => {
 
         it('removes a .partial set a crashed backup left behind', async () => {
             const dir = paths.join(tmpDir, 'backup');
-            fs.mkdirSync(paths.join(dir, '20200101-000000.partial'), { recursive: true });
-            fs.writeFileSync(paths.join(dir, '20200101-000000.partial', 'x'), 'x');
+            fs.mkdirSync(paths.join(dir, '20200101-000000Z.partial'), {
+                recursive: true,
+            });
+            fs.writeFileSync(paths.join(dir, '20200101-000000Z.partial', 'x'), 'x');
             fs.mkdirSync(paths.join(dir, 'mine.partial'));
 
             await database.backupDatabases(handles, { dir, keep: 3 });
 
-            assert.ok(!fs.existsSync(paths.join(dir, '20200101-000000.partial')));
+            assert.ok(!fs.existsSync(paths.join(dir, '20200101-000000Z.partial')));
             assert.ok(fs.existsSync(paths.join(dir, 'mine.partial')), 'not ours');
         });
 

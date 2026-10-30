@@ -1454,10 +1454,17 @@ function scheduledEventCheckpointDatabases(args, cb) {
     return cb(null);
 }
 
-//  A completed backup set: <paths.db>/backup/YYYYMMDD-HHmmss[-n]/
-const BACKUP_SET_REGEXP = /^\d{8}-\d{6}(?:-\d+)?$/;
+//
+//  A completed backup set: <paths.db>/backup/YYYYMMDD-HHmmssZ[-n]/
+//
+//  The stamp is UTC, so the names sort by time: in local time the hour
+//  repeated when the clocks go back would make a newer set sort before an
+//  older one, and pruning would delete the wrong one. -n separates sets
+//  made in the same second.
+//
+const BACKUP_SET_REGEXP = /^\d{8}-\d{6}Z(?:-\d+)?$/;
 const BACKUP_PARTIAL_SUFFIX = '.partial';
-const BACKUP_PARTIAL_REGEXP = /^\d{8}-\d{6}(?:-\d+)?\.partial$/;
+const BACKUP_PARTIAL_REGEXP = /^\d{8}-\d{6}Z(?:-\d+)?\.partial$/;
 const BACKUP_KEEP_DEFAULT = 3;
 
 //
@@ -1506,7 +1513,7 @@ async function runBackup(handles, options) {
         }
     }
 
-    const stamp = moment().format('YYYYMMDD-HHmmss');
+    const stamp = moment.utc().format('YYYYMMDD-HHmmss[Z]');
     let setName = stamp;
     for (let n = 2; await fse.pathExists(paths.join(dir, setName)); ++n) {
         setName = `${stamp}-${n}`;

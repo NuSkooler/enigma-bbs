@@ -1733,7 +1733,7 @@ module.exports = () => {
                     action: '@method:core/database.js:scheduledEventCheckpointDatabases',
                 },
 
-                //  Copies the core databases into <paths.db>/backup/<timestamp>/
+                //  Copies the core databases into <paths.db>/backup/<UTC timestamp>/
                 //  while the BBS keeps running; args: [ <sets to keep, default 3> ]
                 backupDatabases: {
                     desc: 'Back up databases',
