@@ -295,6 +295,33 @@ describe('WFC task screen', () => {
             assert.ok(text.includes('Last run|07: never'));
         });
 
+        it('shows the signal of a killed run, not an exit code', () => {
+            const { instance } = makeWfc();
+            const text = instance._formatTaskDetailText(
+                row('script', {
+                    lastRun: {
+                        start: new Date(),
+                        ok: false,
+                        error: 'stopped by Sysop',
+                        exitCode: null,
+                        signal: 'SIGHUP',
+                        stoppedBy: 'Sysop',
+                    },
+                })
+            );
+            const plain = text.replace(/\|\d\d/g, '');
+            assert.ok(plain.includes('Signal: SIGHUP'), plain);
+            assert.ok(plain.includes('Stopped by: Sysop'), plain);
+            assert.ok(!plain.includes('Exit code'), plain);
+            assert.equal(
+                instance._taskFormatObj(
+                    row('script', { lastRun: { signal: 'SIGHUP' } }),
+                    0
+                ).signal,
+                'SIGHUP'
+            );
+        });
+
         it('says when a running task has been removed from the config', () => {
             const { instance } = makeWfc();
             const text = instance._formatTaskDetailText(
@@ -776,6 +803,25 @@ describe('WFC ticker task events', () => {
             }
         );
         assert.deepEqual(items, ['Task A by Sysop', 'a done in 1.5s']);
+    });
+
+    it('gives a finish its stoppedBy, exitCode and signal', () => {
+        const items = feed(
+            {
+                ticker: {
+                    events: { taskFailed: '{taskName} {signal} {exitCode} {stoppedBy}' },
+                },
+            },
+            () =>
+                Events.emit(SysEvents.TaskFinished, {
+                    name: 'a',
+                    ok: false,
+                    exitCode: null,
+                    signal: 'SIGHUP',
+                    stoppedBy: 'Sysop',
+                })
+        );
+        assert.deepEqual(items, ['a SIGHUP  Sysop']);
     });
 
     it('falls back to taskFinished for a failure when taskFailed is switched off', () => {

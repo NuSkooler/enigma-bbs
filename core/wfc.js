@@ -993,6 +993,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 ? formatTaskDuration(event.durationMs)
                 : '',
             timeoutMs: _.isFinite(event.timeoutMs) ? event.timeoutMs : '',
+            stoppedBy: event.stoppedBy || '',
+            exitCode: _.isFinite(event.exitCode) ? event.exitCode : '',
+            signal: event.signal || '',
         };
     }
 
@@ -2016,6 +2019,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     ? lastRun.exitCode
                     : '',
             stoppedBy: (lastRun && lastRun.stoppedBy) || '',
+            signal: (lastRun && lastRun.signal) || '',
             removed: !!row.removed,
             //  the VM's default '{text}', for themes that format nothing
             text: row.desc || row.name,
@@ -2200,6 +2204,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
         if ('' !== obj.exitCode) {
             parts.push(field('Exit code', obj.exitCode));
+        }
+        if (obj.signal) {
+            parts.push(field('Signal', obj.signal));
         }
         if (lastRun.stoppedBy) {
             parts.push(field('Stopped by', lastRun.stoppedBy));

@@ -4,7 +4,8 @@
 //  core/event_scheduler.js: optional schedules (manual-only tasks), the
 //  enabled / manual / timeout keys, runNow(), listTasks(), last run state and
 //  its persistence, the TaskStarted / TaskFinished system events, and the
-//  overlap guard, and config reload (re-arming on ConfigChanged).
+//  overlap guard, config reload (re-arming on ConfigChanged), and the
+//  signal recorded for a killed @execute.
 //
 //  later.setInterval is replaced so nothing is ever armed for real; the
 //  timers it was asked for are recorded and fired by hand.
@@ -1248,6 +1249,63 @@ describe('event scheduler', function () {
                 scheduler.reload(cfg({ w: watchEntry('b') }));
                 await until(() => methods.state.calls.length === 2);
             });
+        });
+    });
+
+    describe('signal', () => {
+        it('records the signal that ended a killed @execute, and no exit code', async function () {
+            if ('win32' === process.platform) {
+                this.skip();
+            }
+            const statLog = fakeStatLog();
+            await start({ t: { action: '@execute:sleep', args: ['10'] } }, statLog);
+
+            const seen = recordTaskEvents();
+            try {
+                scheduler.runNow('t');
+                assert.equal(scheduler.stop('t', { byUser: 'sysop' }), 'killed');
+                await until(() => !scheduler.listTasks()[0].running);
+
+                const { lastRun } = scheduler.listTasks()[0];
+                assert.equal(lastRun.signal, 'SIGHUP');
+                assert.equal(lastRun.exitCode, null);
+                assert.equal(JSON.parse(statLog.sets[0].value).signal, 'SIGHUP');
+
+                const [finished] = seen.finished;
+                assert.equal(finished.signal, 'SIGHUP');
+                assert.equal(finished.exitCode, null);
+                assert.equal(finished.stoppedBy, 'sysop');
+            } finally {
+                seen.stop();
+            }
+        });
+
+        it('names the signal of a process that kills itself', async function () {
+            if ('win32' === process.platform) {
+                this.skip();
+            }
+            await start({ t: { action: '@execute:sh', args: ['-c', 'kill -TERM $$'] } });
+
+            scheduler.runNow('t');
+            await until(() => scheduler.listTasks()[0].lastRun);
+            const { lastRun } = scheduler.listTasks()[0];
+            assert.equal(lastRun.signal, 'SIGTERM');
+            assert.equal(lastRun.exitCode, null);
+            assert.match(lastRun.error, /Killed by signal SIGTERM/);
+            assert.equal(lastRun.stoppedBy, null);
+        });
+
+        it('records no signal for a process that exits', async function () {
+            if ('win32' === process.platform) {
+                this.skip();
+            }
+            await start({ t: { action: '@execute:sh', args: ['-c', 'exit 3'] } });
+
+            scheduler.runNow('t');
+            await until(() => scheduler.listTasks()[0].lastRun);
+            const { lastRun } = scheduler.listTasks()[0];
+            assert.equal(lastRun.exitCode, 3);
+            assert.equal(lastRun.signal, null);
         });
     });
 });

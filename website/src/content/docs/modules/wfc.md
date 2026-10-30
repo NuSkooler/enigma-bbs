@@ -158,7 +158,7 @@ Available event keys: `userLogin`, `userLogoff`, `userUpload`, `userDownload`, `
 
 `taskFailed` is not an event of its own: it is a `taskFinished` whose run failed, shown with the `taskFailed` format in place of the `taskFinished` one. Set `taskFailed` to `""` and a failure is shown with the `taskFinished` format, if that is set. Starts and successful finishes are off by default because a task scheduled every hour would fill the marquee with them.
 
-Format tokens: `{userName}`, `{realName}`, `{nodeId}`, `{title}`, `{points}`, `{achievementTag}`, `{areaTag}`, `{doorTag}`, `{fileCount}`, `{minutesOnline}`, `{boardName}`. Task events add `{taskName}`, `{taskDesc}`, `{reason}`, `{byUser}`, `{error}`, `{duration}`, `{durationMs}` and `{timeoutMs}`. `idleText` is formatted against the same custom MCI values as the rest of the dashboard.
+Format tokens: `{userName}`, `{realName}`, `{nodeId}`, `{title}`, `{points}`, `{achievementTag}`, `{areaTag}`, `{doorTag}`, `{fileCount}`, `{minutesOnline}`, `{boardName}`. Task events add `{taskName}`, `{taskDesc}`, `{reason}`, `{byUser}`, `{error}`, `{duration}`, `{durationMs}` and `{timeoutMs}`, and a finished one `{stoppedBy}`, `{exitCode}` and `{signal}`. `idleText` is formatted against the same custom MCI values as the rest of the dashboard.
 
 Routing a notification type to the `ticker` sink puts it on the marquee too.
 
@@ -362,7 +362,7 @@ The result of a run or stop (started, already running, killed, abandoned, ...) i
 The task screen uses the `tasks` art spec (form 5):
 
 * `VM1`: the task list. Each row can use the tokens below, through `taskListFormat` and `taskListFocusFormat`, or else `VM1`'s own `itemFormat` and `focusItemFormat`.
-* `MT2`: the selected task in full: description and schedule, next run, whether it is running (since when, overdue since when, and what stopping it would do), and its last run (start, duration, result and error, reason, who ran it, exit code, who stopped it, whether it overran) with the tail of its output. It is word-wrapped to the view's width.
+* `MT2`: the selected task in full: description and schedule, next run, whether it is running (since when, overdue since when, and what stopping it would do), and its last run (start, duration, result and error, reason, who ran it, exit code or the signal that ended it, who stopped it, whether it overran) with the tail of its output. It is word-wrapped to the view's width.
 * `XY3`: where the confirm prompt is drawn.
 * MCI 10...99: custom entries formatted from `tasksInfoFormat10`, `tasksInfoFormat11` and so on, with `{taskCount}`, `{runningTaskCount}`, `{overdueTaskCount}`, `{failedTaskCount}`, `{selectedTaskName}`, `{selectedTaskDesc}`, `{taskActionResult}`, `{now}` and everything the dashboard's custom entries get.
 
@@ -388,6 +388,7 @@ Row tokens:
 | `{byUser}` | Who ran it by hand, if anyone |
 | `{reason}` | Why the last run ran (`Schedule`, `wfc`, ...) |
 | `{exitCode}` | The last run's exit code, for an `@execute` |
+| `{signal}` | The signal that ended the last run's process, e.g. `SIGHUP` when it was stopped; `{exitCode}` is then empty |
 | `{stoppedBy}` | Who stopped the last run, if anyone |
 | `{runCount}` | Runs since startup |
 | `{running}` / `{overdue}` | Booleans |

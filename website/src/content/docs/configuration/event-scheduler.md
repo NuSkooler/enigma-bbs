@@ -141,9 +141,24 @@ An event may run on its schedule, when its `@watch` file changes, or by hand. Ev
   * an `@execute` process is killed (hung up on, then `SIGKILL` 5 seconds later if it is still there), and the run fails with `timed out` once it exits;
   * a `@method` cannot be stopped, so it keeps running, and the event stays blocked (not started again, by hand or on schedule) and shown as overdue until the method finishes. Its run is then recorded as usual, marked as having overrun.
 * **Stopping a run.** An operator can stop a running event, overdue or not (for example from the WFC). An `@execute` process is killed and the run fails with `stopped by <operator>` when it exits. A `@method` is *abandoned*: its run is finished at once, failed with `abandoned by <operator>`, and the event can run again. JavaScript gives no way to stop a function, so an abandoned method may well still be working in the background, and whatever it reports later is ignored. Abandon only a run you believe is stuck, and bear in mind a second run may overlap the first.
-* **Last run.** The result of each event's most recent run is kept: when it started and ended, how long it took, whether it succeeded and the error if not, why it ran and who ran it, whether it overran its timeout and who stopped it, and for `@execute` the exit code and the last 20 lines of output (with terminal escape codes removed). It is saved as the system stat `task_last_run_<event name>`, so it survives a restart. A count of runs since startup is kept as well.
+* **Last run.** The result of each event's most recent run is kept: when it started and ended, how long it took, whether it succeeded and the error if not, why it ran and who ran it, whether it overran its timeout and who stopped it, and for `@execute` the exit code, or the signal that ended the process, and the last 20 lines of output (with terminal escape codes removed). It is saved as the system stat `task_last_run_<event name>`, so it survives a restart. A count of runs since startup is kept as well.
 
-Three system events follow each run, for modules that want them: `TaskStarted` with `{ name, desc, reason, byUser }`; `TaskOverdue` with `{ name, desc, reason, byUser, timeoutMs, startedAt }` when a run passes its timeout; and `TaskFinished` with `{ name, desc, reason, byUser, ok, error, durationMs, overdue }`. A reload of the events that changed anything emits `TasksReloaded` with `{ added, removed, changed }`, each a list of event names.
+The saved last run has these fields:
+
+| Field | Value |
+|-------|-------|
+| `start` / `end` | When the run started and ended |
+| `durationMs` | How long it took |
+| `ok` / `error` | Whether it succeeded, and the error if not |
+| `reason` | Why it ran: `Schedule`, `Watch file: ...`, or the reason given for a manual run |
+| `byUser` | Who ran it by hand, if anyone |
+| `overdue` | Whether it ran past its `timeout` |
+| `stoppedBy` | Who stopped it, if an operator did |
+| `exitCode` | For an `@execute`, the process's exit code; `null` if a signal ended it |
+| `signal` | For an `@execute` ended by a signal, its name, such as `SIGHUP` (what stopping it sends) or `SIGKILL`; otherwise `null` |
+| `outputTail` | For an `@execute`, the last 20 lines of output |
+
+Three system events follow each run, for modules that want them: `TaskStarted` with `{ name, desc, reason, byUser }`; `TaskOverdue` with `{ name, desc, reason, byUser, timeoutMs, startedAt }` when a run passes its timeout; and `TaskFinished` with `{ name, desc, reason, byUser, ok, error, durationMs, overdue, stoppedBy, exitCode, signal }`. A reload of the events that changed anything emits `TasksReloaded` with `{ added, removed, changed }`, each a list of event names.
 
 ## Example Entries
 

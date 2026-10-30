@@ -17,6 +17,7 @@ const sane = require('sane');
 const moment = require('moment');
 const paths = require('path');
 const fse = require('fs-extra');
+const os = require('os');
 
 //
 //  Both read late: config.js replaces |get| once the config is loaded (and
@@ -160,6 +161,15 @@ function emitTaskEvent(eventName, payload) {
             'A system event listener failed on a scheduled event'
         );
     }
+}
+
+//  'SIGHUP' for 1, and so on; a number with no name stays a number
+function signalName(signal) {
+    if (_.isString(signal)) {
+        return signal;
+    }
+    const name = _.findKey(os.constants.signals, n => n === signal);
+    return name || signal;
 }
 
 function errorText(err) {
@@ -389,12 +399,19 @@ class ScheduledEvent {
 
         proc.onExit(exitEvent => {
             exited = true;
+            //
+            //  node-pty reports a process ended by a signal as exitCode 0
+            //  plus the signal's number. It did not exit with 0, so record
+            //  no exit code (as Node's child_process does) and the signal.
+            //
+            if (exitEvent.signal) {
+                run.exitCode = null;
+                run.signal = signalName(exitEvent.signal);
+                return cb(Errors.ExternalProcess(`Killed by signal ${run.signal}`));
+            }
             run.exitCode = exitEvent.exitCode;
             if (exitEvent.exitCode) {
                 return cb(Errors.ExternalProcess(`Exit code ${exitEvent.exitCode}`));
-            }
-            if (exitEvent.signal) {
-                return cb(Errors.ExternalProcess(`Killed by signal ${exitEvent.signal}`));
             }
             return cb(null);
         });
@@ -970,7 +987,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
     schedEvent.startedAt = start;
     schedEvent.runCount += 1;
 
-    const run = { exitCode: null, output: null };
+    const run = { exitCode: null, signal: null, output: null };
 
     //
     //  What this run's finish depends on beyond the action's own result.
@@ -1030,6 +1047,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             error: errorText(err),
             reason,
             exitCode: run.exitCode,
+            signal: run.signal,
             outputTail: run.output ? run.output.toString() : null,
             byUser,
             overdue: !!current.overdueSince,
@@ -1059,6 +1077,9 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
         if (null !== run.exitCode) {
             endFields.exitCode = run.exitCode;
         }
+        if (run.signal) {
+            endFields.signal = run.signal;
+        }
         if (lastRun.overdue) {
             endFields.overdue = true;
             endFields.timeoutMs = timeout;
@@ -1085,6 +1106,9 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             error: lastRun.error,
             durationMs: lastRun.durationMs,
             overdue: lastRun.overdue,
+            stoppedBy: lastRun.stoppedBy,
+            exitCode: lastRun.exitCode,
+            signal: lastRun.signal,
         });
     };
 
