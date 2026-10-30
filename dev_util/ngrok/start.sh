@@ -12,8 +12,15 @@ if [[ ! -x "$BIN" ]]; then
     exit 1
 fi
 
-if grep -q 'authtoken: ""' "$CFG" || ! grep -q 'authtoken:' "$CFG"; then
-    echo "ERROR: set your authtoken in $CFG first"
+LOCAL_CFG="$SCRIPT_DIR/enigma.local.yml"  # gitignored; holds agent.authtoken
+
+CFG_ARGS=(--config "$CFG")
+if [[ -f "$LOCAL_CFG" ]]; then
+    CFG_ARGS+=(--config "$LOCAL_CFG")
+elif [[ -z "${NGROK_AUTHTOKEN:-}" ]]; then
+    echo "ERROR: no ngrok authtoken; export NGROK_AUTHTOKEN or create $LOCAL_CFG:"
+    echo "  agent:"
+    echo "      authtoken: '<your token>'"
     echo "  Get it from: https://dashboard.ngrok.com/get-started/your-authtoken"
     exit 1
 fi
@@ -26,4 +33,4 @@ echo "  contentServers.web.domain  →  <host>.ngrok-free.app"
 echo "  contentServers.web.https.port  →  443"
 echo ""
 
-exec "$BIN" start --config "$CFG" enigma-web
+exec "$BIN" start "${CFG_ARGS[@]}" enigma-web

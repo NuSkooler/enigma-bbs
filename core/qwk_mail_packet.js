@@ -1158,6 +1158,7 @@ class QWKPacketWriter extends EventEmitter {
         }
     }
 
+    //  true if the message is in the packet, false if it could not be written
     appendMessage(message) {
         //
         //  Each message has to:
@@ -1233,7 +1234,7 @@ class QWKPacketWriter extends EventEmitter {
         //  The first block is always a header
         if (!this._writeMessageHeader(message, totalBlocks)) {
             //  we can't write this message
-            return;
+            return false;
         }
 
         this.messagesStream.write(encodedMessage);
@@ -1253,6 +1254,7 @@ class QWKPacketWriter extends EventEmitter {
 
         this.totalMessages += 1;
         this.areaTagsSeen.add(message.areaTag);
+        return true;
     }
 
     _getEncoding(message) {

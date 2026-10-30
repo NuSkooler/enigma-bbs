@@ -266,18 +266,25 @@ exports.getModule = class ApSearchModule extends MenuModule {
     //    Free text              → FTS5 local actor cache
     _searchPeople(term, cb) {
         if (looksLikeActorId(term)) {
-            return Actor.fromId(normaliseHandle(term), this.client.user, (err, actor) => {
-                if (err) {
-                    this.client.log.warn({ term, err }, 'AP search: Actor.fromId failed');
-                    this._clearResults();
-                    this._setStatus(this.config.statusNotFound || 'Not found');
-                    return cb(null);
+            return Actor.fromSearch(
+                normaliseHandle(term),
+                this.client.user,
+                (err, actor) => {
+                    if (err) {
+                        this.client.log.warn(
+                            { term, err },
+                            'AP search: Actor.fromId failed'
+                        );
+                        this._clearResults();
+                        this._setStatus(this.config.statusNotFound || 'Not found');
+                        return cb(null);
+                    }
+                    //  Direct-lookup result: open actor view immediately.
+                    this._setStatus('');
+                    this._selectedActor = actor;
+                    return this._displayActorView(cb);
                 }
-                //  Direct-lookup result: open actor view immediately.
-                this._setStatus('');
-                this._selectedActor = actor;
-                return this._displayActorView(cb);
-            });
+            );
         }
 
         Collection.searchActors(ftsPhrase(term), (err, results) => {

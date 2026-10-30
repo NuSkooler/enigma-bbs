@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const msgDb = require('./database.js').dbs.message;
+const { getISOTimestampString } = require('./database.js');
 const configModule = require('./config.js');
 //  Look up the current Config.get function on each call rather than capturing
 //  it at module-load time. configModule.get is replaced at runtime by the
@@ -57,6 +58,8 @@ exports.getNewMessageCountInAreaForUser = getNewMessageCountInAreaForUser;
 exports.getNewMessageCountAddressedToUser = getNewMessageCountAddressedToUser;
 exports.getNewMessagesInAreaForUser = getNewMessagesInAreaForUser;
 exports.getMessageIdNewerThanTimestampByArea = getMessageIdNewerThanTimestampByArea;
+exports.getHighestMessageIdByArea = getHighestMessageIdByArea;
+exports.getLastReadIdForTimestampByArea = getLastReadIdForTimestampByArea;
 exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
 exports.getEffectiveNewScanLastReadId = getEffectiveNewScanLastReadId;
 exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
@@ -647,37 +650,87 @@ function getMessageListForArea(client, areaTag, filter, cb) {
     return Message.findMessages(filter, cb);
 }
 
+//
+//  The lowest message ID in |areaTag| newer than |newerThanTimestamp|, or null
+//  if there is none. Not the earliest *dated* one, which is what this used to
+//  answer: an import keeps its author's date, so the earliest-dated message
+//  can have arrived last, and a scan pointer built from it skipped every
+//  message that arrived before it. The comparison matches findMessages()'
+//  newerThanTimestamp. It covers the whole area, so for private_mail it is
+//  not limited to one user's mail -- conservative, as a pointer goes.
+//
 function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
-    Message.findMessages(
-        {
-            areaTag,
-            newerThanTimestamp,
-            sort: 'modTimestamp',
-            order: 'ascending',
-            limit: 1,
-        },
-        (err, id) => {
-            if (err) {
-                return cb(err);
-            }
-            return cb(null, id ? id[0] : null);
+    if (moment.isMoment(newerThanTimestamp)) {
+        newerThanTimestamp = getISOTimestampString(newerThanTimestamp);
+    }
+
+    //  answered outside the try, here and below: an exception thrown by the
+    //  caller's callback would otherwise call it a second time, with an error
+    let row;
+    try {
+        row = msgDb
+            .prepare(
+                'SELECT MIN(message_id) AS message_id ' +
+                    'FROM message ' +
+                    'WHERE area_tag = ? ' +
+                    "AND DATETIME(modified_timestamp) > DATETIME(?, '+1 seconds');"
+            )
+            .get(areaTag, newerThanTimestamp);
+    } catch (err) {
+        return cb(err);
+    }
+    return cb(null, row && row.message_id ? row.message_id : null);
+}
+
+//  the highest message ID in |areaTag|, or 0 for an empty area
+function getHighestMessageIdByArea(areaTag, cb) {
+    let row;
+    try {
+        row = msgDb
+            .prepare(
+                'SELECT MAX(message_id) AS message_id FROM message WHERE area_tag = ?;'
+            )
+            .get(areaTag);
+    } catch (err) {
+        return cb(err);
+    }
+    return cb(null, (row && row.message_id) || 0);
+}
+
+//
+//  A timestamp as a lastread ID for |areaTag|: everything dated after it is
+//  new, so one short of the lowest ID newer than it. With nothing newer the
+//  area is caught up, at its highest ID. null for an empty area, which has no
+//  pointer to give.
+//
+function getLastReadIdForTimestampByArea(areaTag, timestamp, cb) {
+    getMessageIdNewerThanTimestampByArea(areaTag, timestamp, (err, lowestId) => {
+        if (err) {
+            return cb(err);
         }
-    );
+        if (lowestId) {
+            return cb(null, lowestId - 1);
+        }
+        return getHighestMessageIdByArea(areaTag, (err, highestId) => {
+            return cb(err, highestId || null);
+        });
+    });
 }
 
 function getMessageAreaLastReadId(userId, areaTag, cb) {
+    let row;
     try {
-        const row = msgDb
+        row = msgDb
             .prepare(
                 'SELECT message_id ' +
                     'FROM user_message_area_last_read ' +
                     'WHERE user_id = ? AND area_tag = ?;'
             )
             .get(userId, areaTag.toLowerCase());
-        return cb(null, row ? row.message_id : 0);
     } catch (err) {
         return cb(err);
     }
+    return cb(null, row ? row.message_id : 0);
 }
 
 function getEffectiveNewScanLastReadId(user, areaTag, cb) {
@@ -686,19 +739,27 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
             return cb(null, 0); //  don't let a read error break the scan
         }
 
-        const floor = user.getProperty(UserProps.NewScanMinTimestamp);
-        if (!floor) {
+        //  mail addressed to the caller is never backlog, and the %NP count
+        //  reads the raw pointer too
+        const floorValue = Message.isPrivateAreaTag(areaTag)
+            ? null
+            : user.getProperty(UserProps.NewScanMinTimestamp);
+
+        //  parsed here rather than by SQLite, which answers NULL for a date
+        //  it cannot read -- and an area with "nothing after" a NULL floor
+        //  would count as read
+        const floor = floorValue ? moment(floorValue, moment.ISO_8601) : null;
+        if (!floor || !floor.isValid()) {
             return cb(null, rawLastRead || 0);
         }
 
-        getMessageIdNewerThanTimestampByArea(areaTag, floor, (err, floorMsgId) => {
-            if (err || !floorMsgId) {
+        //  nothing dated before the floor is new; an area with nothing after
+        //  it is caught up, not scanned from the pointer alone
+        getLastReadIdForTimestampByArea(areaTag, floor, (err, floorLastReadId) => {
+            if (err || !floorLastReadId) {
                 return cb(null, rawLastRead || 0);
             }
-            //  floorMsgId is the first message AT-OR-AFTER the floor timestamp;
-            //  step back one so messages exactly at the floor are included
-            const effectiveFloorId = Math.max(floorMsgId - 1, 0);
-            return cb(null, Math.max(rawLastRead || 0, effectiveFloorId));
+            return cb(null, Math.max(rawLastRead || 0, floorLastReadId));
         });
     });
 }
@@ -713,9 +774,10 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
     async.waterfall(
         [
             function getCurrent(callback) {
+                //  a pointer that could not be read is not 0: writing over it
+                //  could move it backwards
                 getMessageAreaLastReadId(userId, areaTag, function result(err, lastId) {
-                    lastId = lastId || 0;
-                    callback(null, lastId); //  ignore errors as we default to 0
+                    return callback(err, lastId || 0);
                 });
             },
             function update(lastId, callback) {
@@ -726,11 +788,13 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
                                 'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) ' +
                                     'VALUES (?, ?, ?);'
                             )
-                            .run(userId, areaTag, messageId);
-                        return callback(null, true); //  true=didUpdate
+                            //  lower case, as getMessageAreaLastReadId() reads
+                            //  it: a row stored any other way is never found
+                            .run(userId, areaTag.toLowerCase(), messageId);
                     } catch (err) {
                         return callback(err);
                     }
+                    return callback(null, true); //  true=didUpdate
                 } else {
                     callback(null);
                 }
@@ -793,7 +857,9 @@ function trimMessageAreasScheduledEvent(args, cb) {
                         LIMIT -1 OFFSET ${areaInfo.maxMessages}
                     );`
                 )
-                .run(areaInfo.areaTag.toLowerCase());
+                //  as stored, which is as configured: the age trim below
+                //  matches it the same way
+                .run(areaInfo.areaTag);
             Log.debug(
                 { areaInfo: areaInfo, type: 'maxMessages', count: info.changes },
                 'Area trimmed successfully'
@@ -962,8 +1028,14 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 //  - Marked exported (state_flags0 exported bit set)
                 //  - Marked with any external flavor (we don't mark local)
                 //
-                const maxExternalSentAgeDays = _.get(
-                    Config,
+                //  Config is a function here (see the top of this file), so the
+                //  setting has to be read from what it returns; reading the
+                //  function itself always fell back to the default. 0 keeps
+                //  sent mail, as 0 means unlimited for the other trim settings.
+                //
+                const DefaultMaxExternalSentAgeDays = 30;
+                const configured = _.get(
+                    Config(),
                     [
                         'messageConferences',
                         WellKnownConfTags.SystemInternal,
@@ -971,8 +1043,24 @@ function trimMessageAreasScheduledEvent(args, cb) {
                         WellKnownAreaTags.Private,
                         'maxExternalSentAgeDays',
                     ],
-                    30
+                    DefaultMaxExternalSentAgeDays
                 );
+
+                let maxExternalSentAgeDays = configured;
+                if (
+                    !Number.isFinite(maxExternalSentAgeDays) ||
+                    maxExternalSentAgeDays < 0
+                ) {
+                    Log.warn(
+                        { maxExternalSentAgeDays: configured },
+                        `Invalid maxExternalSentAgeDays; using ${DefaultMaxExternalSentAgeDays}`
+                    );
+                    maxExternalSentAgeDays = DefaultMaxExternalSentAgeDays;
+                }
+
+                if (0 === maxExternalSentAgeDays) {
+                    return callback(null);
+                }
 
                 try {
                     const info = msgDb
@@ -987,10 +1075,10 @@ function trimMessageAreasScheduledEvent(args, cb) {
                                 JOIN message_meta mmf
                                     ON m.message_id = mmf.message_id AND
                                     (mmf.meta_category='System' AND mmf.meta_name='${Message.SystemMetaNames.ExternalFlavor}')
-                                WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND DATETIME('now') > DATETIME(m.modified_timestamp, '+${maxExternalSentAgeDays} days')
+                                WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND DATETIME('now') > DATETIME(m.modified_timestamp, ?)
                             );`
                         )
-                        .run();
+                        .run(`+${maxExternalSentAgeDays} days`);
                     Log.debug(
                         { count: info.changes },
                         'Private externally sent messages trimmed successfully'

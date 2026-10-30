@@ -9,6 +9,9 @@ const {
     hasMessageConfAndAreaWrite,
     getMessageAreaByTag,
     getAllAvailableMessageAreaTags,
+    getMessageAreaLastReadId,
+    getHighestMessageIdByArea,
+    updateMessageAreaLastReadId,
 } = require('./message_area.js');
 const {
     BlueWavePacketReader,
@@ -16,7 +19,7 @@ const {
     echoTagFor,
 } = require('./bluewave_mail_packet.js');
 const {
-    BlueWaveExportAreasProperty,
+    OfflineMailAreasProperty,
     getUserExportAreas,
     blueWaveListedAreaTags,
 } = require('./offline_mail_areas.js');
@@ -28,7 +31,6 @@ const SysProps = require('./system_property.js');
 const UserProps = require('./user_property.js');
 const Events = require('./events.js');
 const { pathWithTerminatingSeparator } = require('./file_util.js');
-const { getISOTimestampString } = require('./database.js');
 
 //  deps
 const async = require('async');
@@ -93,14 +95,22 @@ const PacketFormats = [
                 start: cb => reader.readExtracted(packetDir, cb),
                 //  the same map: an area this caller's packet did not list is
                 //  not theirs to turn on
-                planAreaChanges: (config, now) =>
-                    planAreaChanges({
-                        current: getUserExportAreas(client, BlueWaveExportAreasProperty),
-                        requested: config.areas,
-                        echoTagMap,
-                        now,
+                planAreaChanges: (config, cb) =>
+                    getUserExportAreas(client, (err, current) => {
+                        if (err) {
+                            return cb(err);
+                        }
+                        return cb(
+                            null,
+                            planAreaChanges({
+                                current,
+                                requested: config.areas,
+                                echoTagMap,
+                            })
+                        );
                     }),
-                exportAreasProperty: BlueWaveExportAreasProperty,
+                //  shared with QWK, which has no offline configuration of its own
+                exportAreasProperty: OfflineMailAreasProperty,
             };
         },
     },
@@ -180,9 +190,14 @@ const PacketFormats = [
 //  which holds exactly the areas the caller's packet listed, can be turned
 //  on; any other is refused and reported rather than dropped without a word.
 //
-//  An area that stays on keeps where its next packet starts. One turned on
-//  starts at |now|: a year of backlog arriving unasked in the next packet is
-//  a worse surprise than missing what was posted before the caller wanted it.
+//  Where an area's next packet starts is the caller's lastread pointer, which
+//  this does not touch; _applyOfflineConfig() moves it for an area turned on.
+//  An area that stays on keeps its place. One turned on that the caller has
+//  never read, online or in a packet, starts from now: a year of backlog
+//  arriving unasked in the next packet is a worse surprise than missing what
+//  was posted before the caller wanted it. One they have read before resumes
+//  from their pointer, as Synchronet does. Private mail never starts from
+//  now: it was sent to the caller, so it is not backlog.
 //
 //  A list that would leave the caller with no area at all is not applied. An
 //  export with nothing in it delivers no packet, and nothing online edits
@@ -191,10 +206,11 @@ const PacketFormats = [
 //  Wolverine names areas by number rather than echotag -- since none of it
 //  resolves.
 //
-//  Returns { exportAreas, added, removed, refused, notes, emptied }: the new
-//  selection (null when nothing is to change) and, as echotags, what changed.
+//  Returns { exportAreas, added, removed, refused, notes, emptied,
+//  addedAreaTags }: the new selection as [ { areaTag } ] (null when nothing
+//  is to change), what changed as echotags, and the areas turned on.
 //
-const planAreaChanges = ({ current, requested, echoTagMap, now }) => {
+const planAreaChanges = ({ current, requested, echoTagMap }) => {
     //  what the caller saw each area called, for the report
     const echoTagOf = new Map();
     echoTagMap.forEach((areaTag, echoTag) => {
@@ -211,6 +227,7 @@ const planAreaChanges = ({ current, requested, echoTagMap, now }) => {
         refused: [],
         notes: [],
         emptied: false,
+        addedAreaTags: [],
     };
 
     const wanted = new Set();
@@ -242,7 +259,9 @@ const planAreaChanges = ({ current, requested, echoTagMap, now }) => {
 
     //  an area the caller can no longer see was not in their packet, so it
     //  could not have been named; it goes, and is not reported as a change
-    plan.exportAreas = current.filter(exportArea => wanted.has(exportArea.areaTag));
+    plan.exportAreas = current
+        .filter(exportArea => wanted.has(exportArea.areaTag))
+        .map(({ areaTag }) => ({ areaTag }));
     current.forEach(exportArea => {
         if (!wanted.has(exportArea.areaTag) && listed.has(exportArea.areaTag)) {
             plan.removed.push(nameOf(exportArea.areaTag));
@@ -251,8 +270,9 @@ const planAreaChanges = ({ current, requested, echoTagMap, now }) => {
 
     wanted.forEach(areaTag => {
         if (!currentTags.has(areaTag)) {
-            plan.exportAreas.push({ areaTag, newerThanTimestamp: now });
+            plan.exportAreas.push({ areaTag });
             plan.added.push(nameOf(areaTag));
+            plan.addedAreaTags.push(areaTag);
         }
     });
 
@@ -603,37 +623,97 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
             return cb(null);
         }
 
-        const plan = source.planAreaChanges(config, getISOTimestampString());
-        this.summary.areaChanges = plan;
-
-        this.client.log.info(
-            {
-                format: config.format,
-                added: plan.added,
-                removed: plan.removed,
-                refused: plan.refused,
-                emptied: plan.emptied,
-            },
-            'Offline configuration'
-        );
-
-        if (!plan.exportAreas) {
-            return cb(null);
-        }
-
-        return this.client.user.persistProperty(
-            source.exportAreasProperty,
-            JSON.stringify(plan.exportAreas),
-            err => {
-                if (err) {
-                    this.client.log.warn(
-                        { error: err.message },
-                        'Could not store the offline configuration'
-                    );
-                    this.packetError = 'Area changes could not be saved -- see the log';
-                }
+        source.planAreaChanges(config, (err, plan) => {
+            if (err) {
+                this.client.log.warn(
+                    { error: err.message },
+                    'Could not read the offline mail areas'
+                );
+                this.packetError = 'Area changes could not be saved -- see the log';
                 return cb(null);
             }
+
+            this.summary.areaChanges = plan;
+
+            this.client.log.info(
+                {
+                    format: config.format,
+                    added: plan.added,
+                    removed: plan.removed,
+                    refused: plan.refused,
+                    emptied: plan.emptied,
+                },
+                'Offline configuration'
+            );
+
+            if (!plan.exportAreas) {
+                return cb(null);
+            }
+
+            return this.client.user.persistProperty(
+                source.exportAreasProperty,
+                JSON.stringify(plan.exportAreas),
+                err => {
+                    if (err) {
+                        this.client.log.warn(
+                            { error: err.message },
+                            'Could not store the offline configuration'
+                        );
+                        this.packetError =
+                            'Area changes could not be saved -- see the log';
+                        return cb(null);
+                    }
+                    return this._startAddedAreas(plan.addedAreaTags, cb);
+                }
+            );
+        });
+    }
+
+    //
+    //  An area turned on that the caller has never read, online or in a
+    //  packet, starts from now rather than its whole history. One with a
+    //  lastread pointer resumes from it: they have been here before.
+    //  Private mail is left alone (see below).
+    //
+    _startAddedAreas(areaTags, cb) {
+        const userId = this.client.user.userId;
+
+        //  one area that fails is no reason to leave the rest from the start
+        const done = (areaTag, nextArea) => err => {
+            if (err) {
+                this.client.log.warn(
+                    { areaTag, error: err.message },
+                    'Could not start an added area from now'
+                );
+            }
+            return nextArea(null);
+        };
+
+        async.eachSeries(
+            //  mail addressed to the caller is not backlog, and moving its
+            //  pointer would mark their unread personal mail read online too
+            areaTags.filter(areaTag => areaTag !== Message.WellKnownAreaTags.Private),
+            (areaTag, nextArea) => {
+                getMessageAreaLastReadId(userId, areaTag, (err, lastReadId) => {
+                    if (err || lastReadId) {
+                        return done(areaTag, nextArea)(err);
+                    }
+
+                    getHighestMessageIdByArea(areaTag, (err, highestId) => {
+                        if (err || !highestId) {
+                            return done(areaTag, nextArea)(err);
+                        }
+                        return updateMessageAreaLastReadId(
+                            userId,
+                            areaTag,
+                            highestId,
+                            false,
+                            done(areaTag, nextArea)
+                        );
+                    });
+                });
+            },
+            () => cb(null)
         );
     }
 

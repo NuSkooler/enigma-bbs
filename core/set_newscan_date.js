@@ -12,7 +12,7 @@ const {
     getSortedAvailMessageConferences,
     getSortedAvailMessageAreasByConfTag,
     updateMessageAreaLastReadId,
-    getMessageIdNewerThanTimestampByArea,
+    getLastReadIdForTimestampByArea,
 } = require('./message_area.js');
 const UserProps = require('./user_property.js');
 
@@ -49,11 +49,26 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         this.menuMethods = {
             scanDateSubmit: (formData, extraArgs, cb) => {
                 let scanDate = _.get(formData, 'value.scanDate');
+
+                //  an empty mask field submits '' (no digits at all); a blank
+                //  floor date removes the floor
+                if ('floor' === this.target && this.allowClear && !/\d/.test(scanDate)) {
+                    return this.clearNewScanFloor(err =>
+                        err ? cb(err) : this.prevMenu(cb)
+                    );
+                }
+
                 if (!scanDate) {
                     return cb(Errors.MissingParam('"scanDate" missing from form data'));
                 }
 
-                scanDate = moment(scanDate, this.scanDateFormat);
+                //  The mask hands over its literals ("2026//"), which a lenient
+                //  parse fills in ("2026-01-01"). Parse the digits against the
+                //  format without its separators, as populateForm sets them,
+                //  and strictly so a partial date is not a date.
+                const digits = String(scanDate).replace(/\D/g, '');
+                const digitsFormat = this.scanDateFormat.replace(/[/\-. ]/g, '');
+                scanDate = moment(digits, digitsFormat, true);
                 if (!scanDate.isValid()) {
                     return cb(
                         Errors.Invalid(
@@ -94,29 +109,26 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         async.each(
             updateAreaTags,
             (areaTag, nextAreaTag) => {
-                getMessageIdNewerThanTimestampByArea(
-                    areaTag,
-                    scanDate,
-                    (err, messageId) => {
-                        if (err) {
-                            return nextAreaTag(err);
-                        }
-
-                        if (!messageId) {
-                            return nextAreaTag(null); //  nothing to do
-                        }
-
-                        messageId = Math.max(messageId - 1, 0);
-
-                        return updateMessageAreaLastReadId(
-                            this.client.user.userId,
-                            areaTag,
-                            messageId,
-                            true, //  allowOlder
-                            nextAreaTag
-                        );
+                //  everything dated after |scanDate| is new again; an area
+                //  with nothing after it is caught up
+                getLastReadIdForTimestampByArea(areaTag, scanDate, (err, messageId) => {
+                    if (err) {
+                        return nextAreaTag(err);
                     }
-                );
+
+                    //  0 is a pointer like any other: message 1 is new
+                    if (null === messageId) {
+                        return nextAreaTag(null); //  an empty area
+                    }
+
+                    return updateMessageAreaLastReadId(
+                        this.client.user.userId,
+                        areaTag,
+                        messageId,
+                        true, //  allowOlder
+                        nextAreaTag
+                    );
+                });
             },
             err => {
                 return cb(err);
@@ -166,6 +178,18 @@ exports.getModule = class SetNewScanDate extends MenuModule {
     setNewScanDateForFloorBase(targetSelection, scanDate, cb) {
         const value = scanDate.toISOString();
         return this.client.user.persistProperty(UserProps.NewScanMinTimestamp, value, cb);
+    }
+
+    //  no floor: callers fall back to the per-area pointers alone
+    clearNewScanFloor(cb) {
+        this.client.user.removeProperty(UserProps.NewScanMinTimestamp, err => {
+            if (err) {
+                return cb(err);
+            }
+
+            this.client.log.info('Cleared new scan floor');
+            return cb(null);
+        });
     }
 
     loadAvailMessageBaseSelections(cb) {

@@ -4,10 +4,56 @@
 const FileEntry = require('./file_entry');
 const UserProps = require('./user_property');
 const Events = require('./events');
+const { isClientConnected } = require('./client_connections.js');
 const { hasFileAreaDownloadAccess } = require('./file_base_area.js');
 
 //  deps
 const _ = require('lodash');
+
+//
+//  Temporary downloads (offline mail packets and the like) last until the
+//  session that queued them ends. One listener serves every session, and
+//  only while any session has one: a listener per download used up the
+//  emitter's cap on a busy board, and a once() listener per download was
+//  spent by whichever client disconnected first, leaving the file behind.
+//
+//  session uniqueId -> [ FileEntry ]
+const sessionTempDownloads = new Map();
+
+const removeSessionTempDownloads = evt => {
+    const sessionId = _.get(evt, 'client.session.uniqueId');
+    const entries = sessionTempDownloads.get(sessionId);
+    if (!entries) {
+        return;
+    }
+
+    sessionTempDownloads.delete(sessionId);
+    if (0 === sessionTempDownloads.size) {
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            removeSessionTempDownloads
+        );
+    }
+
+    entries.forEach(removeTempDownload);
+};
+
+function removeTempDownload(entry) {
+    const Log = require('./logger').log;
+    FileEntry.removeEntry(entry, { removePhysFile: true }, err => {
+        if (err) {
+            Log.warn(
+                { fileId: entry.fileId, path: entry.filePath },
+                'Failed removing temporary session download'
+            );
+        } else {
+            Log.debug(
+                { fileId: entry.fileId, path: entry.filePath },
+                'Removed temporary session download item'
+            );
+        }
+    });
+}
 
 module.exports = class DownloadQueue {
     constructor(client) {
@@ -132,27 +178,25 @@ module.exports = class DownloadQueue {
     }
 
     addTemporaryDownload(entry) {
+        //  a caller who hung up while it was built has already had their
+        //  ClientDisconnected, so nothing would ever remove it
+        if (!isClientConnected(this.client)) {
+            return removeTempDownload(entry);
+        }
+
         this.add(entry, true); //  true=systemFile
 
         //  clean up after ourselves when the session ends
-        const thisUniqueId = this.client.session.uniqueId;
-        Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
-            if (thisUniqueId === _.get(evt, 'client.session.uniqueId')) {
-                FileEntry.removeEntry(entry, { removePhysFile: true }, err => {
-                    const Log = require('./logger').log;
-                    if (err) {
-                        Log.warn(
-                            { fileId: entry.fileId, path: entry.filePath },
-                            'Failed removing temporary session download'
-                        );
-                    } else {
-                        Log.debug(
-                            { fileId: entry.fileId, path: entry.filePath },
-                            'Removed temporary session download item'
-                        );
-                    }
-                });
-            }
-        });
+        const sessionId = this.client.session.uniqueId;
+        if (0 === sessionTempDownloads.size) {
+            Events.on(
+                Events.getSystemEvents().ClientDisconnected,
+                removeSessionTempDownloads
+            );
+        }
+        if (!sessionTempDownloads.has(sessionId)) {
+            sessionTempDownloads.set(sessionId, []);
+        }
+        sessionTempDownloads.get(sessionId).push(entry);
     }
 };

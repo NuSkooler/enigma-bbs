@@ -362,6 +362,7 @@ class BlueWavePacketWriter extends EventEmitter {
         entry.scanning = entry.scanning || scanning;
     }
 
+    //  true if the message is in the packet, false if the area is full
     appendMessage(message) {
         const entry = this._areaFor(message.areaTag);
         entry.scanning = true;
@@ -376,7 +377,7 @@ class BlueWavePacketWriter extends EventEmitter {
                     )
                 );
             }
-            return;
+            return false;
         }
 
         const kind = areaKindFor(entry.areaTag, entry.area);
@@ -414,6 +415,7 @@ class BlueWavePacketWriter extends EventEmitter {
         });
 
         this.datOffset += text.length + 1;
+        return true;
     }
 
     //
