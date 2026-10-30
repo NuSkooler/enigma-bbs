@@ -1457,6 +1457,7 @@ function scheduledEventCheckpointDatabases(args, cb) {
 //  A completed backup set: <paths.db>/backup/YYYYMMDD-HHmmss[-n]/
 const BACKUP_SET_REGEXP = /^\d{8}-\d{6}(?:-\d+)?$/;
 const BACKUP_PARTIAL_SUFFIX = '.partial';
+const BACKUP_PARTIAL_REGEXP = /^\d{8}-\d{6}(?:-\d+)?\.partial$/;
 const BACKUP_KEEP_DEFAULT = 3;
 
 //
@@ -1477,6 +1478,14 @@ async function backupDatabases(handles, options) {
     const keep = options.keep || BACKUP_KEEP_DEFAULT;
 
     await fse.ensureDir(dir);
+
+    //  A crash mid-backup leaves its .partial set (a full copy) behind; only
+    //  one backup runs at a time, so any found now is stale.
+    for (const entry of await fse.readdir(dir)) {
+        if (BACKUP_PARTIAL_REGEXP.test(entry)) {
+            await fse.remove(paths.join(dir, entry));
+        }
+    }
 
     const stamp = moment().format('YYYYMMDD-HHmmss');
     let setName = stamp;

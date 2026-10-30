@@ -120,6 +120,18 @@ describe('database maintenance tasks', () => {
             handles.beta = database.openDatabase(paths.join(tmpDir, 'beta.sqlite3'));
         });
 
+        it('removes a .partial set a crashed backup left behind', async () => {
+            const dir = paths.join(tmpDir, 'backup');
+            fs.mkdirSync(paths.join(dir, '20200101-000000.partial'), { recursive: true });
+            fs.writeFileSync(paths.join(dir, '20200101-000000.partial', 'x'), 'x');
+            fs.mkdirSync(paths.join(dir, 'mine.partial'));
+
+            await database.backupDatabases(handles, { dir, keep: 3 });
+
+            assert.ok(!fs.existsSync(paths.join(dir, '20200101-000000.partial')));
+            assert.ok(fs.existsSync(paths.join(dir, 'mine.partial')), 'not ours');
+        });
+
         it('yields to the event loop while it copies', async () => {
             //  a larger database, so the copy takes several steps
             const big = handles.alpha;
