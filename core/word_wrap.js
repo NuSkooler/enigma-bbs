@@ -67,6 +67,11 @@ function wordWrapText(text, options) {
     //  |width| gets a piece of its own. Line terminators are dropped.
     //
     function splitToWidth(word) {
+        //  Most words fit: no need to segment them
+        if (lenFunc(word) <= options.width) {
+            return [word.replace(REGEXP_LINE_TERM, '')];
+        }
+
         const pieces = [''];
         let pieceLen = 0;
 
