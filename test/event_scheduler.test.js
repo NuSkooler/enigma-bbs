@@ -270,6 +270,9 @@ describe('event scheduler', function () {
                 args: ['x', 'y'],
                 running: false,
                 startedAt: null,
+                overdue: false,
+                overdueSince: null,
+                stopAction: null,
                 lastRun: null,
                 runCount: 0,
                 confirm: true,
@@ -412,40 +415,82 @@ describe('event scheduler', function () {
         });
     });
 
+    //  Records the task system events for the length of a test
+    function recordTaskEvents() {
+        const seen = { started: [], finished: [], overdue: [] };
+        const listeners = [
+            [SystemEvents.TaskStarted, e => seen.started.push(e)],
+            [SystemEvents.TaskFinished, e => seen.finished.push(e)],
+            [SystemEvents.TaskOverdue, e => seen.overdue.push(e)],
+        ];
+        listeners.forEach(([event, fn]) => Events.on(event, fn));
+        seen.stop = () =>
+            listeners.forEach(([event, fn]) => Events.removeListener(event, fn));
+        return seen;
+    }
+
     describe('timeout', () => {
-        it('marks a @method run failed on timeout and ignores its late callback', async () => {
+        it('keeps an overdue @method running and blocked until it calls back', async () => {
             const statLog = fakeStatLog();
             await start(
-                { t: { action: `@method:${METHODS}:hold`, timeout: 50 } },
+                {
+                    t: {
+                        schedule: 'every 1 hours',
+                        action: `@method:${METHODS}:hold`,
+                        timeout: 50,
+                    },
+                },
                 statLog
             );
 
-            const finished = [];
-            const onFinished = e => finished.push(e);
-            Events.on(SystemEvents.TaskFinished, onFinished);
+            const seen = recordTaskEvents();
             try {
-                assert.equal(scheduler.runNow('t'), 'started');
-                await until(() => !scheduler.listTasks()[0].running);
+                assert.equal(scheduler.runNow('t', { byUser: 'sysop' }), 'started');
+                await until(() => seen.overdue.length > 0);
 
-                let { lastRun } = scheduler.listTasks()[0];
-                assert.equal(lastRun.ok, false);
-                assert.equal(lastRun.error, 'timed out');
-                const warn = log.entries.find(e => 'warn' === e.level);
-                assert.equal(warn.obj.error, 'timed out');
-                assert.equal(warn.obj.timeoutMs, 50);
+                const [overdue] = seen.overdue;
+                assert.equal(overdue.name, 't');
+                assert.equal(overdue.timeoutMs, 50);
+                assert.equal(overdue.byUser, 'sysop');
+                assert.ok(overdue.startedAt instanceof Date);
 
-                //  the method finally answers: nothing changes
+                let [row] = scheduler.listTasks();
+                assert.equal(row.running, true, 'still running');
+                assert.equal(row.overdue, true);
+                assert.ok(row.overdueSince instanceof Date);
+                assert.equal(row.stopAction, 'abandon');
+                assert.equal(row.lastRun, null, 'not finished');
+                assert.equal(seen.finished.length, 0);
+
+                const warn = log.entries.find(
+                    e => 'warn' === e.level && /exceeded its timeout of 50 ms/.test(e.msg)
+                );
+                assert.ok(warn);
+                assert.match(warn.msg, /still running/);
+
+                //  still blocked, by hand and on schedule
+                assert.equal(scheduler.runNow('t'), 'alreadyRunning');
+                armed[0].fn();
+                assert.equal(methods.state.calls.length, 1);
+
+                //  the method finally answers: the run finishes as usual
                 methods.state.pending[0](null);
-                lastRun = scheduler.listTasks()[0].lastRun;
-                assert.equal(lastRun.ok, false);
-                assert.equal(finished.length, 1);
-                assert.equal(statLog.sets.length, 1);
+                [row] = scheduler.listTasks();
+                assert.equal(row.running, false);
+                assert.equal(row.overdue, false);
+                assert.equal(row.overdueSince, null);
+                assert.equal(row.stopAction, null);
+                assert.equal(row.lastRun.ok, true);
+                assert.equal(row.lastRun.overdue, true);
+                assert.equal(seen.finished.length, 1);
+                assert.equal(seen.finished[0].overdue, true);
+                assert.equal(JSON.parse(statLog.sets[0].value).overdue, true);
             } finally {
-                Events.removeListener(SystemEvents.TaskFinished, onFinished);
+                seen.stop();
             }
         });
 
-        it('kills an @execute process on timeout', async function () {
+        it('kills an @execute process on timeout, and records it as overdue', async function () {
             if ('win32' === process.platform) {
                 this.skip();
             }
@@ -453,11 +498,129 @@ describe('event scheduler', function () {
                 t: { action: '@execute:sleep', args: ['10'], timeout: 100 },
             });
 
-            const began = Date.now();
+            const seen = recordTaskEvents();
+            try {
+                const began = Date.now();
+                scheduler.runNow('t');
+                await until(() => !scheduler.listTasks()[0].running);
+                assert.ok(Date.now() - began < 3000);
+
+                const { lastRun } = scheduler.listTasks()[0];
+                assert.equal(lastRun.ok, false);
+                assert.equal(lastRun.error, 'timed out');
+                assert.equal(lastRun.overdue, true);
+                assert.equal(seen.overdue.length, 1, 'TaskOverdue before the kill');
+                assert.ok(
+                    log.entries.find(e => 'warn' === e.level && /killing it/.test(e.msg))
+                );
+            } finally {
+                seen.stop();
+            }
+        });
+    });
+
+    describe('stop()', () => {
+        it('answers unknown for a name it does not have, or a disabled one', async () => {
+            await start({
+                t: { action: `@method:${METHODS}:ok` },
+                off: { action: `@method:${METHODS}:ok`, enabled: false },
+            });
+            assert.equal(scheduler.stop('nope'), 'unknown');
+            assert.equal(scheduler.stop('off'), 'unknown');
+        });
+
+        it('answers notRunning when nothing is running', async () => {
+            await start({ t: { action: `@method:${METHODS}:ok` } });
+            assert.equal(scheduler.stop('t'), 'notRunning');
             scheduler.runNow('t');
-            await until(() => !scheduler.listTasks()[0].running);
-            assert.ok(Date.now() - began < 3000);
-            assert.equal(scheduler.listTasks()[0].lastRun.error, 'timed out');
+            assert.equal(scheduler.stop('t'), 'notRunning');
+        });
+
+        it('kills a running @execute; the run fails when the process exits', async function () {
+            if ('win32' === process.platform) {
+                this.skip();
+            }
+            await start({ t: { action: '@execute:sleep', args: ['10'] } });
+
+            const seen = recordTaskEvents();
+            try {
+                scheduler.runNow('t');
+                assert.equal(scheduler.listTasks()[0].stopAction, 'kill');
+
+                assert.equal(scheduler.stop('t', { byUser: 'sysop' }), 'killed');
+                await until(() => !scheduler.listTasks()[0].running);
+
+                const { lastRun } = scheduler.listTasks()[0];
+                assert.equal(lastRun.ok, false);
+                assert.equal(lastRun.error, 'stopped by sysop');
+                assert.equal(lastRun.stoppedBy, 'sysop');
+                assert.equal(lastRun.overdue, false);
+                assert.equal(seen.finished.length, 1);
+
+                const warn = log.entries.find(
+                    e => 'warn' === e.level && /Stopping/.test(e.msg)
+                );
+                assert.equal(warn.obj.byUser, 'sysop');
+            } finally {
+                seen.stop();
+            }
+        });
+
+        it('abandons a running @method, frees the task, and ignores its late callback', async () => {
+            const statLog = fakeStatLog();
+            await start({ t: { action: `@method:${METHODS}:hold` } }, statLog);
+
+            const seen = recordTaskEvents();
+            try {
+                scheduler.runNow('t');
+                assert.equal(
+                    scheduler.stop('t', { byUser: { username: 'sysop' } }),
+                    'abandoned'
+                );
+
+                let [row] = scheduler.listTasks();
+                assert.equal(row.running, false);
+                assert.equal(row.lastRun.ok, false);
+                assert.equal(row.lastRun.error, 'abandoned by sysop');
+                assert.equal(row.lastRun.stoppedBy, 'sysop');
+                assert.equal(seen.finished.length, 1);
+                assert.ok(
+                    log.entries.find(e => 'warn' === e.level && /Abandoning/.test(e.msg))
+                );
+
+                //  runnable again; the new run is in progress
+                assert.equal(scheduler.runNow('t'), 'started');
+                assert.equal(scheduler.listTasks()[0].running, true);
+
+                //  the abandoned method answers late: nothing of either run changes
+                methods.state.pending[0](null);
+                [row] = scheduler.listTasks();
+                assert.equal(row.running, true, 'the newer run is untouched');
+                assert.equal(row.lastRun.error, 'abandoned by sysop');
+                assert.equal(seen.finished.length, 1);
+                assert.equal(statLog.sets.length, 1);
+
+                //  the newer run still finishes normally
+                methods.state.pending[1](null);
+                [row] = scheduler.listTasks();
+                assert.equal(row.running, false);
+                assert.equal(row.lastRun.ok, true);
+                assert.equal(row.lastRun.stoppedBy, null);
+            } finally {
+                seen.stop();
+            }
+        });
+
+        it('abandons an overdue @method', async () => {
+            await start({ t: { action: `@method:${METHODS}:hold`, timeout: 30 } });
+
+            scheduler.runNow('t');
+            await until(() => scheduler.listTasks()[0].overdue);
+            assert.equal(scheduler.stop('t'), 'abandoned');
+
+            const { lastRun } = scheduler.listTasks()[0];
+            assert.equal(lastRun.overdue, true);
+            assert.equal(lastRun.error, 'abandoned by an operator');
         });
     });
 

@@ -20,7 +20,7 @@ Events can have the following members:
 | `confirm` | No | `true` asks the operator to confirm before running the event by hand. The scheduler itself does nothing with it; it is for whatever offers the event to an operator. |
 | `manual` | No | Default `true`. `false` hides the event from the task list and refuses to run it by hand; it still runs on its schedule. |
 | `enabled` | No | Default `true`. `false` ignores the entry entirely: it is neither scheduled nor listed. This is how to switch off one of the built-in events. |
-| `timeout` | No | Milliseconds a run may take before it is marked failed. An `@execute` process is killed; a `@method` cannot be stopped, so its run is marked failed and whatever it reports later is ignored. Unset or `0`: no limit. |
+| `timeout` | No | Milliseconds a run may take before it is overdue. An overdue `@execute` process is killed, and its run fails with `timed out`. A `@method` cannot be stopped, so an overdue one keeps running and its event stays blocked until it finishes or an operator stops it; see **Running Events and Their Results**. Unset or `0`: no limit. |
 
 `oputil.js config validate` knows these members and warns about any other, so a misspelled `schedule` (which would otherwise quietly make the event manual-only) is caught.
 
@@ -124,9 +124,13 @@ An event may run on its schedule, when its `@watch` file changes, or by hand. Ev
 
 * **One run at a time.** An event that is still running is not started again. A scheduled run skipped for that reason is logged at `info`, so an event that hangs does not just quietly stop happening; one skipped because its watch file changed again, or a request to run it by hand, is logged at `debug` (a WFC will tell the operator directly).
 * **Logging.** The start of each run is logged at `info` with its reason (`Schedule`, `Watch file: ...`, or the reason given for a manual run, along with who ran it), and its end at `info` with how long it took. A failure is logged at `warn`.
-* **Last run.** The result of each event's most recent run is kept: when it started and ended, how long it took, whether it succeeded and the error if not, why it ran and who ran it, and for `@execute` the exit code and the last 20 lines of output (with terminal escape codes removed). It is saved as the system stat `task_last_run_<event name>`, so it survives a restart. A count of runs since startup is kept as well.
+* **Timeouts.** A run that goes past the event's `timeout` is *overdue*: this is logged at `warn` and the `TaskOverdue` system event is emitted. What happens next depends on the action:
+  * an `@execute` process is killed (hung up on, then `SIGKILL` 5 seconds later if it is still there), and the run fails with `timed out` once it exits;
+  * a `@method` cannot be stopped, so it keeps running, and the event stays blocked (not started again, by hand or on schedule) and shown as overdue until the method finishes. Its run is then recorded as usual, marked as having overrun.
+* **Stopping a run.** An operator can stop a running event, overdue or not (for example from the WFC). An `@execute` process is killed and the run fails with `stopped by <operator>` when it exits. A `@method` is *abandoned*: its run is finished at once, failed with `abandoned by <operator>`, and the event can run again. JavaScript gives no way to stop a function, so an abandoned method may well still be working in the background, and whatever it reports later is ignored. Abandon only a run you believe is stuck, and bear in mind a second run may overlap the first.
+* **Last run.** The result of each event's most recent run is kept: when it started and ended, how long it took, whether it succeeded and the error if not, why it ran and who ran it, whether it overran its timeout and who stopped it, and for `@execute` the exit code and the last 20 lines of output (with terminal escape codes removed). It is saved as the system stat `task_last_run_<event name>`, so it survives a restart. A count of runs since startup is kept as well.
 
-Two system events are emitted around every run, for modules that want to follow them: `TaskStarted` with `{ name, desc, reason, byUser }`, and `TaskFinished` with `{ name, desc, reason, byUser, ok, error, durationMs }`.
+Three system events follow each run, for modules that want them: `TaskStarted` with `{ name, desc, reason, byUser }`; `TaskOverdue` with `{ name, desc, reason, byUser, timeoutMs, startedAt }` when a run passes its timeout; and `TaskFinished` with `{ name, desc, reason, byUser, ok, error, durationMs, overdue }`.
 
 ## Example Entries
 

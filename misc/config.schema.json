@@ -2193,7 +2193,7 @@
                                 "type": "boolean"
                             },
                             "timeout": {
-                                "description": "Milliseconds before a run is marked failed (an @execute process is killed). 0 or unset: no limit.",
+                                "description": "Milliseconds before a run is overdue: an @execute is killed, a @method keeps its event blocked until it finishes. 0 or unset: no limit.",
                                 "type": "number",
                                 "minimum": 0
                             }

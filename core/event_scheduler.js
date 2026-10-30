@@ -53,6 +53,15 @@ const RunStatus = {
 };
 exports.RunStatus = RunStatus;
 
+//  What stop() can answer
+const StopStatus = {
+    Killed: 'killed',
+    Abandoned: 'abandoned',
+    NotRunning: 'notRunning',
+    Unknown: 'unknown',
+};
+exports.StopStatus = StopStatus;
+
 //  @execute output kept for lastRun.outputTail
 const OUTPUT_TAIL_LINES = 20;
 //  ...and a bound on the raw buffer, for output that never sends a newline
@@ -179,6 +188,8 @@ class ScheduledEvent {
         this.startedAt = null;
         this.lastRun = null;
         this.runCount = 0;
+        //  the run in progress: { handle, overdueSince, stop(err, stoppedBy) }
+        this.currentRun = null;
     }
 
     get hasSchedule() {
@@ -295,11 +306,12 @@ class ScheduledEvent {
     //
     //  Starts the action; |cb(err)| is called when it completes. |run|
     //  collects what the action reports beyond success or failure (exitCode,
-    //  output). Returns { abort() }, used on timeout: it kills an @execute
-    //  process, and can do nothing about a @method.
+    //  output). Returns { killable, abort() }: for a running @execute,
+    //  abort() hangs up on the process (SIGKILL after a grace period), which
+    //  then exits and calls |cb|. A @method cannot be stopped.
     //
     executeAction(run, cb) {
-        const handle = { abort: () => {} };
+        const handle = { killable: false, abort: () => {} };
 
         if ('method' === this.action.type) {
             const modulePath = path.join(__dirname, '../', this.action.location); //  enigma-bbs base + supplied location (path/file.js')
@@ -352,6 +364,7 @@ class ScheduledEvent {
             return cb(null);
         });
 
+        handle.killable = true;
         handle.abort = () => {
             try {
                 proc.kill();
@@ -574,29 +587,94 @@ EventSchedulerModule.prototype.runNow = function (name, options) {
 };
 
 //
+//  Stops |name|'s run in progress, for an operator. Returns synchronously:
+//
+//    killed      an @execute process was hung up on (SIGKILL after a grace
+//                period); the run finishes, failed, when it exits
+//    abandoned   a @method cannot be stopped, so its run is finished now,
+//                failed, and the event may run again; the method may well
+//                still be working in the background, and whatever it
+//                reports later is ignored
+//    notRunning  nothing to stop
+//    unknown     no such event (or a disabled one)
+//
+//  options: { byUser }
+//
+EventSchedulerModule.prototype.stop = function (name, options) {
+    options = options || {};
+
+    const schedEvent = this.events.get(name);
+    if (!schedEvent) {
+        return StopStatus.Unknown;
+    }
+
+    const current = schedEvent.currentRun;
+    if (!schedEvent.running || !current) {
+        return StopStatus.NotRunning;
+    }
+
+    const byUser = userName(options.byUser);
+    const who = byUser || 'an operator';
+    const killing = current.handle && current.handle.killable;
+
+    Log().warn(
+        {
+            eventName: name,
+            byUser,
+            startedAt: schedEvent.startedAt,
+            overdueSince: current.overdueSince,
+        },
+        killing
+            ? `Stopping scheduled event "${name}" (killing its process)`
+            : `Abandoning scheduled event "${name}": it cannot be stopped, and may still be running`
+    );
+
+    if (killing) {
+        current.kill(`stopped by ${who}`, byUser);
+        return StopStatus.Killed;
+    }
+
+    current.abandon(`abandoned by ${who}`, byUser);
+    return StopStatus.Abandoned;
+};
+
+//
 //  Plain snapshot rows, one per event that may be run by hand (manual: false
 //  entries are left out). Safe to keep: nothing in a row is live state.
 //
 EventSchedulerModule.prototype.listTasks = function () {
     return [...this.events.values()]
         .filter(e => e.manual)
-        .map(e => ({
-            name: e.name,
-            desc: e.desc,
-            schedule: _.isString(e.scheduleText) ? e.scheduleText : null,
-            watchFile: (e.schedule && e.schedule.watchFile) || null,
-            manualOnly: e.isManualOnly,
-            nextRun: e.nextRun(),
-            actionType: e.action.type,
-            action: e.actionText,
-            args: _.clone(e.action.args),
-            running: e.running,
-            startedAt: e.startedAt,
-            lastRun: e.lastRun ? _.clone(e.lastRun) : null,
-            runCount: e.runCount,
-            confirm: e.confirm,
-            timeout: e.timeout || null,
-        }));
+        .map(e => {
+            const current = e.running ? e.currentRun : null;
+            const overdueSince = (current && current.overdueSince) || null;
+            let stopAction = null;
+            if (current) {
+                stopAction =
+                    current.handle && current.handle.killable ? 'kill' : 'abandon';
+            }
+
+            return {
+                name: e.name,
+                desc: e.desc,
+                schedule: _.isString(e.scheduleText) ? e.scheduleText : null,
+                watchFile: (e.schedule && e.schedule.watchFile) || null,
+                manualOnly: e.isManualOnly,
+                nextRun: e.nextRun(),
+                actionType: e.action.type,
+                action: e.actionText,
+                args: _.clone(e.action.args),
+                running: e.running,
+                startedAt: e.startedAt,
+                overdue: !!overdueSince,
+                overdueSince,
+                stopAction,
+                lastRun: e.lastRun ? _.clone(e.lastRun) : null,
+                runCount: e.runCount,
+                confirm: e.confirm,
+                timeout: e.timeout || null,
+            };
+        });
 };
 
 //
@@ -614,6 +692,9 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             reason,
             startedAt: schedEvent.startedAt,
         };
+        if (schedEvent.currentRun && schedEvent.currentRun.overdueSince) {
+            logFields.overdueSince = schedEvent.currentRun.overdueSince;
+        }
         const message = 'Scheduled event is still running; not starting it again';
 
         //
@@ -636,6 +717,21 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
     schedEvent.runCount += 1;
 
     const run = { exitCode: null, output: null };
+
+    //
+    //  What this run's finish depends on beyond the action's own result.
+    //  It lives in this closure, so a late callback from an abandoned run can
+    //  never touch the state of a newer one.
+    //
+    const current = {
+        handle: null,
+        overdueSince: null,
+        //  set when the run is being killed: the error it finishes with once
+        //  the process exits, whatever the exit looks like
+        forcedError: null,
+        stoppedBy: null,
+    };
+    schedEvent.currentRun = current;
 
     const startFields = { eventName: name, reason, action: schedEvent.action };
     if (manual) {
@@ -660,7 +756,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
 
     const finish = err => {
         if (done) {
-            //  e.g. a @method calling back after its timeout, or twice
+            //  e.g. a @method calling back after it was abandoned, or twice
             Log().debug(
                 { eventName: name, error: errorText(err) },
                 'Scheduled event completed after it had already finished; ignored'
@@ -674,6 +770,10 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             timer = null;
         }
 
+        if (current.forcedError) {
+            err = new Error(current.forcedError);
+        }
+
         const end = new Date();
         const lastRun = {
             start,
@@ -685,11 +785,16 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             exitCode: run.exitCode,
             outputTail: run.output ? run.output.toString() : null,
             byUser,
+            overdue: !!current.overdueSince,
+            stoppedBy: current.stoppedBy,
         };
 
         schedEvent.running = false;
         schedEvent.startedAt = null;
         schedEvent.lastRun = lastRun;
+        if (schedEvent.currentRun === current) {
+            schedEvent.currentRun = null;
+        }
 
         const endFields = {
             eventName: name,
@@ -702,12 +807,16 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
         if (null !== run.exitCode) {
             endFields.exitCode = run.exitCode;
         }
+        if (lastRun.overdue) {
+            endFields.overdue = true;
+            endFields.timeoutMs = schedEvent.timeout;
+        }
+        if (lastRun.stoppedBy) {
+            endFields.stoppedBy = lastRun.stoppedBy;
+        }
 
         if (err) {
             endFields.error = lastRun.error;
-            if (schedEvent.timeout) {
-                endFields.timeoutMs = schedEvent.timeout;
-            }
             Log().warn(endFields, `Scheduled event "${name}" failed`);
         } else {
             Log().info(endFields, `Scheduled event "${name}" finished`);
@@ -723,12 +832,34 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             ok: lastRun.ok,
             error: lastRun.error,
             durationMs: lastRun.durationMs,
+            overdue: lastRun.overdue,
         });
     };
 
-    let handle = null;
+    //  Hang up on an @execute; the run finishes with |error| once it exits
+    current.kill = (error, stoppedBy) => {
+        if (done) {
+            return;
+        }
+        if (!current.forcedError) {
+            current.forcedError = error;
+            current.stoppedBy = stoppedBy || null;
+        }
+        current.handle.abort();
+    };
+
+    //  Give up on a @method now; what it reports later is ignored
+    current.abandon = (error, stoppedBy) => {
+        if (done) {
+            return;
+        }
+        current.forcedError = error;
+        current.stoppedBy = stoppedBy || null;
+        finish(null);
+    };
+
     try {
-        handle = schedEvent.executeAction(run, finish);
+        current.handle = schedEvent.executeAction(run, finish);
     } catch (e) {
         finish(e);
     }
@@ -736,10 +867,43 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
     if (!done && schedEvent.timeout) {
         timer = setTimeout(() => {
             timer = null;
-            if (handle) {
-                handle.abort();
+            if (done) {
+                return;
             }
-            finish(new Error('timed out'));
+
+            current.overdueSince = new Date();
+            const killing = current.handle && current.handle.killable;
+
+            Log().warn(
+                {
+                    eventName: name,
+                    reason,
+                    byUser,
+                    timeoutMs: schedEvent.timeout,
+                    startedAt: start,
+                },
+                killing
+                    ? `Scheduled event "${name}" exceeded its timeout of ${schedEvent.timeout} ms; killing it`
+                    : `Scheduled event "${name}" exceeded its timeout of ${schedEvent.timeout} ms and is still running`
+            );
+
+            emitTaskEvent(Events.getSystemEvents().TaskOverdue, {
+                name,
+                desc: schedEvent.desc,
+                reason,
+                byUser,
+                timeoutMs: schedEvent.timeout,
+                startedAt: start,
+            });
+
+            //
+            //  A process can be ended, so it is, and its exit frees the event.
+            //  A @method cannot: the event stays running, and so blocked,
+            //  until it calls back or an operator abandons it (stop()).
+            //
+            if (killing) {
+                current.kill('timed out');
+            }
         }, schedEvent.timeout);
         timer.unref();
     }

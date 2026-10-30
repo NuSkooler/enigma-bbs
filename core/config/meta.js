@@ -746,7 +746,7 @@ module.exports = {
                     type: 'number',
                     min: 0,
                     description:
-                        'Milliseconds before a run is marked failed (an @execute process is killed). 0 or unset: no limit.',
+                        'Milliseconds before a run is overdue: an @execute is killed, a @method keeps its event blocked until it finishes. 0 or unset: no limit.',
                 },
             },
         },

@@ -45,5 +45,9 @@ module.exports = {
     //  Emitted by the event scheduler as an eventScheduler.events entry starts
     //  and finishes, whether it ran on schedule, on a watch file or by hand.
     TaskStarted: 'codes.l33t.enigma.system.task_started', //  { name, desc, reason, byUser }
-    TaskFinished: 'codes.l33t.enigma.system.task_finished', //  { name, desc, reason, byUser, ok, error, durationMs }
+    TaskFinished: 'codes.l33t.enigma.system.task_finished', //  { name, desc, reason, byUser, ok, error, durationMs, overdue }
+    //  A run went past the entry's timeout. An @execute is then killed; a
+    //  @method keeps running, and its event stays blocked until it finishes
+    //  or an operator abandons it.
+    TaskOverdue: 'codes.l33t.enigma.system.task_overdue', //  { name, desc, reason, byUser, timeoutMs, startedAt }
 };
