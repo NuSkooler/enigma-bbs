@@ -703,7 +703,54 @@ module.exports = {
             "'json' when list prints `unarc list --json` style output; entryMatch is then unused.",
     },
     fileTransferProtocols: { openMap: true },
-    'eventScheduler.events': { openMap: true },
+    //
+    //  The entry key set is short and documented (event-scheduler.md), so it
+    //  is closed. That matters more now that 'schedule' is optional: a
+    //  misspelled 'schedule' no longer makes the entry invalid, it quietly
+    //  makes it a manual-only task that never runs on its own.
+    //
+    'eventScheduler.events': {
+        openMap: true,
+        value: {
+            type: 'object',
+            closedKeys: true,
+            children: {
+                schedule: {
+                    type: 'string',
+                    description:
+                        'Later style schedule and/or @watch:/path. Omit for a manual-only task.',
+                },
+                action: {
+                    type: 'string',
+                    description: '@method:path/to/module.js:method or @execute:/path/to/binary',
+                },
+                args: { type: 'array' },
+                desc: {
+                    type: 'string',
+                    description: 'Display name, e.g. in the WFC task list.',
+                },
+                confirm: {
+                    type: 'boolean',
+                    description: 'Ask before running this task by hand.',
+                },
+                manual: {
+                    type: 'boolean',
+                    description:
+                        'false hides the task from the task list and refuses running it by hand; it still runs on its schedule.',
+                },
+                enabled: {
+                    type: 'boolean',
+                    description: 'false ignores the entry entirely, e.g. to switch off a default event.',
+                },
+                timeout: {
+                    type: 'number',
+                    min: 0,
+                    description:
+                        'Milliseconds before a run is marked failed (an @execute process is killed). 0 or unset: no limit.',
+                },
+            },
+        },
+    },
     infoExtractUtils: { openMap: true },
 
     //  ── Untyped nodes (default is null / {} and tells us nothing) ────────

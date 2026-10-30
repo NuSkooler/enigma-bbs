@@ -31,6 +31,7 @@ module.exports = {
     //  ftn_bso subscribes to this to trigger an immediate import/toss rather
     //  than waiting for the next scheduled run.  External mailers (binkd, etc.)
     //  are unaffected — they rely on the existing @watch / @sched mechanisms.
+    //  The tossInboundNow scheduler task emits it too, with { reason }.
     NewInboundBSO: 'codes.l33t.enigma.system.new_inbound_bso',
 
     //  Emitted by ftn_bso once an outbound flow file is written and ready to
@@ -40,4 +41,9 @@ module.exports = {
     //  messages to the same node into a single session) rather than waiting
     //  for the periodic pull cycle.  Crashmail semantics — see scanner_tossers/binkp.js.
     NewOutboundBSO: 'codes.l33t.enigma.system.new_outbound_bso',
+
+    //  Emitted by the event scheduler as an eventScheduler.events entry starts
+    //  and finishes, whether it ran on schedule, on a watch file or by hand.
+    TaskStarted: 'codes.l33t.enigma.system.task_started', //  { name, desc, reason, byUser }
+    TaskFinished: 'codes.l33t.enigma.system.task_finished', //  { name, desc, reason, byUser, ok, error, durationMs }
 };

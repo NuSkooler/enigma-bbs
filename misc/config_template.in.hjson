@@ -671,16 +671,28 @@
     //  using Later style syntax and/or @watch files.
     //  See docs/event-scheduler.md for more information.
     //
+    //  An event without a schedule is a manual-only task: it is never run
+    //  on its own, only on demand. Optional members: desc, confirm,
+    //  manual, enabled (false switches off an event, including a
+    //  built-in one) and timeout (milliseconds).
+    //
     eventScheduler: {
         events: {
             //  Example:
             //
             //  sampleEvent: {
+            //    desc: Sample script
             //    schedule: every 2 hours
             //    action: @execute:/path/to/some/script.sh
             //    args: [
             //        "--foo", "--bar"
             //    ]
+            //  }
+            //
+            //  Back up the databases nightly (a built-in manual-only task):
+            //
+            //  backupDatabases: {
+            //    schedule: at 4:00 am
             //  }
         }
     }

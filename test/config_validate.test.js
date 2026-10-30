@@ -424,6 +424,56 @@ describe('config validation: Blue Wave area entries', () => {
     });
 });
 
+describe('config validation: eventScheduler entries', () => {
+    //
+    //  Closed for the same reason: a short, documented key set, and since
+    //  'schedule' became optional a misspelled one turns a scheduled event
+    //  into a manual-only task that never runs on its own.
+    //
+    const events = entries => validate({ eventScheduler: { events: entries } });
+
+    it('accepts every documented member, and an entry with no schedule', () => {
+        assert.deepEqual(
+            events({
+                nightlyScript: {
+                    schedule: 'at 3:00 am',
+                    action: '@execute:/home/bbs/nightly.sh',
+                    args: ['--quiet'],
+                    desc: 'Nightly script',
+                    confirm: true,
+                    manual: false,
+                    timeout: 600000,
+                },
+                manualOnly: { action: '@method:mods/foo/foo.js:run', desc: 'Foo' },
+                backupDatabases: { schedule: 'at 4:00 am' },
+                dailyMaintenance: { enabled: false },
+            }),
+            []
+        );
+    });
+
+    it('catches a misspelled schedule', () => {
+        const [issue] = events({
+            nightlyScript: { schedul: 'at 3:00 am', action: '@execute:/bin/true' },
+        });
+
+        assert.equal(issue.code, IssueCodes.UnknownKey);
+        assert.equal(issue.path, 'eventScheduler.events.nightlyScript.schedul');
+        assert.equal(issue.suggestion, 'schedule');
+    });
+
+    it('types the new keys', () => {
+        const issues = events({
+            t: { action: '@execute:/bin/true', enabled: 'no', timeout: '10s' },
+        });
+
+        assert.deepEqual(issues.map(i => i.path).sort(), [
+            'eventScheduler.events.t.enabled',
+            'eventScheduler.events.t.timeout',
+        ]);
+    });
+});
+
 describe('config validation: ticAreas entries', () => {
     //
     //  Most open map values cannot be closed -- a file area carries whatever

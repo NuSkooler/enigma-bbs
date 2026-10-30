@@ -8,6 +8,7 @@ const Logger = require('./logger.js');
 //  deps
 const Database = require('better-sqlite3');
 const paths = require('path');
+const fse = require('fs-extra');
 const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment');
@@ -23,6 +24,10 @@ exports.getISOTimestampString = getISOTimestampString;
 exports.coerceToText = coerceToText;
 exports.initializeDatabases = initializeDatabases;
 exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
+exports.scheduledEventCheckpointDatabases = scheduledEventCheckpointDatabases;
+exports.scheduledEventBackupDatabases = scheduledEventBackupDatabases;
+exports.checkpointDatabases = checkpointDatabases;
+exports.backupDatabases = backupDatabases;
 exports.initMessageDatabase = initMessageDatabase;
 exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
 exports.migrateMessageFtsRebuild = migrateMessageFtsRebuild;
@@ -1402,4 +1407,128 @@ function scheduledEventOptimizeDatabases(args, cb) {
     } catch (err) {
         return cb(err);
     }
+}
+
+//
+//  Checkpoint the WAL of each database in |handles| ({ name: Database }),
+//  truncating the -wal file to zero bytes. A checkpoint cannot finish while
+//  a reader holds an older snapshot; SQLite then reports it busy and the
+//  WAL simply keeps its contents until the next one. Synchronous, and short:
+//  it copies only what is in the WAL.
+//
+//  Returns [ { database, busy, logFrames, checkpointedFrames } ]
+//
+function checkpointDatabases(handles) {
+    return Object.entries(handles).map(([database, db]) => {
+        const [row] = db.pragma('wal_checkpoint(TRUNCATE)');
+        return {
+            database,
+            busy: 0 !== row.busy,
+            logFrames: row.log,
+            checkpointedFrames: row.checkpointed,
+        };
+    });
+}
+
+function scheduledEventCheckpointDatabases(args, cb) {
+    let results;
+    try {
+        results = checkpointDatabases(dbs);
+    } catch (err) {
+        return cb(err);
+    }
+
+    const log = Logger.log;
+    results.forEach(result => {
+        log.info(result, 'Database WAL checkpoint');
+    });
+
+    const busy = results.filter(r => r.busy).map(r => r.database);
+    if (busy.length > 0) {
+        log.warn(
+            { databases: busy },
+            'Database WAL checkpoint could not complete (database busy); it will catch up next time'
+        );
+    }
+
+    return cb(null);
+}
+
+//  A completed backup set: <paths.db>/backup/YYYYMMDD-HHmmss[-n]/
+const BACKUP_SET_REGEXP = /^\d{8}-\d{6}(?:-\d+)?$/;
+const BACKUP_PARTIAL_SUFFIX = '.partial';
+const BACKUP_KEEP_DEFAULT = 3;
+
+//
+//  Back up each database in |handles| ({ name: Database }) into a new
+//  timestamped directory under |dir|, then delete all but the newest |keep|
+//  sets.
+//
+//  better-sqlite3's backup() copies a few pages at a time and yields to the
+//  event loop between steps, so the BBS keeps running while it works, and
+//  writes made meanwhile by this process are carried into the copy. The set
+//  is written to "<stamp>.partial" and renamed once every database is in,
+//  so a directory without the suffix is always complete.
+//
+//  Resolves to { dir: <set directory>, files: [ ... ], pruned: [ ... ] }
+//
+async function backupDatabases(handles, options) {
+    const dir = options.dir;
+    const keep = options.keep || BACKUP_KEEP_DEFAULT;
+
+    await fse.ensureDir(dir);
+
+    const stamp = moment().format('YYYYMMDD-HHmmss');
+    let setName = stamp;
+    for (let n = 2; await fse.pathExists(paths.join(dir, setName)); ++n) {
+        setName = `${stamp}-${n}`;
+    }
+
+    const setDir = paths.join(dir, setName);
+    const partialDir = setDir + BACKUP_PARTIAL_SUFFIX;
+    await fse.ensureDir(partialDir);
+
+    const files = [];
+    try {
+        for (const [name, db] of Object.entries(handles)) {
+            const file = `${name}.sqlite3`;
+            await db.backup(paths.join(partialDir, file));
+            files.push(file);
+        }
+        await fse.rename(partialDir, setDir);
+    } catch (err) {
+        await fse.remove(partialDir).catch(() => {});
+        throw err;
+    }
+
+    const sets = (await fse.readdir(dir))
+        .filter(entry => BACKUP_SET_REGEXP.test(entry))
+        .sort(); //  the names sort by time
+
+    const pruned = sets.slice(0, Math.max(0, sets.length - keep));
+    for (const entry of pruned) {
+        await fse.remove(paths.join(dir, entry));
+    }
+
+    return { dir: setDir, files, pruned };
+}
+
+//
+//  args[0]: how many backup sets to keep (default 3)
+//
+function scheduledEventBackupDatabases(args, cb) {
+    const keepArg = parseInt(Array.isArray(args) ? args[0] : undefined, 10);
+    const keep = keepArg > 0 ? keepArg : BACKUP_KEEP_DEFAULT;
+    const dir = paths.join(conf.get().paths.db, 'backup');
+
+    backupDatabases(dbs, { dir, keep }).then(
+        result => {
+            Logger.log.info(
+                { dir: result.dir, files: result.files, pruned: result.pruned, keep },
+                'Database backup complete'
+            );
+            return cb(null);
+        },
+        err => cb(err)
+    );
 }
