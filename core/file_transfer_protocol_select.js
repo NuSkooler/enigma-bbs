@@ -5,6 +5,7 @@
 const MenuModule = require('./menu_module.js').MenuModule;
 const Config = require('./config.js').get;
 const ViewController = require('./view_controller.js').ViewController;
+const UploadTempDir = require('./upload_temp_dir.js');
 
 //  deps
 const async = require('async');
@@ -68,21 +69,43 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
                     extraArgs: finalExtraArgs,
                 };
 
+                //  the transfer takes it from here: see leave()
+                this.handedOff = true;
+                const done = err => {
+                    if (err) {
+                        this.handedOff = false;
+                    }
+                    return cb(err);
+                };
+
                 if ('send' === this.config.direction) {
                     return this.gotoMenu(
                         this.config.downloadFilesMenu || 'sendFilesToUser',
                         modOpts,
-                        cb
+                        done
                     );
                 } else {
                     return this.gotoMenu(
                         this.config.uploadFilesMenu || 'recvFilesFromUser',
                         modOpts,
-                        cb
+                        done
                     );
                 }
             },
         };
+    }
+
+    leave() {
+        //
+        //  Left without starting a transfer -- the caller backed out, here or
+        //  after a failed transfer -- so a file base upload's receive
+        //  directory will not be used. (Once the upload module has taken the
+        //  directory over, or for anyone else's directory, this does nothing.)
+        //
+        if (!this.handedOff && this.extraArgs) {
+            UploadTempDir.abandon(this.client, this.extraArgs.recvDirectory);
+        }
+        return super.leave();
     }
 
     getMenuResult() {

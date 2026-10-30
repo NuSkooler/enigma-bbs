@@ -21,14 +21,12 @@ const Errors = require('./enig_error.js').Errors;
 const FileEntry = require('./file_entry.js');
 const isAnsi = require('./string_util.js').isAnsi;
 const Events = require('./events.js');
+const UploadTempDir = require('./upload_temp_dir.js');
 
 //  deps
 const async = require('async');
 const _ = require('lodash');
-const TempTmp = require('temptmp');
 const paths = require('path');
-const fse = require('fs-extra');
-const { randomUUID } = require('crypto');
 const sanatizeFilename = require('sanitize-filename');
 
 exports.moduleInfo = {
@@ -87,7 +85,7 @@ exports.getModule = class UploadModule extends MenuModule {
         }
 
         if (_.has(options, 'lastMenuResult.tempRecvDirectory')) {
-            this.tempRecvDirectory = options.lastMenuResult.tempRecvDirectory;
+            this.adoptTempRecvDirectory(options.lastMenuResult.tempRecvDirectory);
         }
 
         if (_.has(options, 'lastMenuResult.areaInfo')) {
@@ -168,6 +166,25 @@ exports.getModule = class UploadModule extends MenuModule {
         }
     }
 
+    //
+    //  Re-entered once the transfer is done: take over the receive directory
+    //  the options page made, so it can be removed once its files are moved.
+    //  A directory not made by an upload for this caller is never removed.
+    //
+    adoptTempRecvDirectory(tempRecvDirectory) {
+        this.tempRecvDirectory = tempRecvDirectory;
+        this.uploadTempDir = UploadTempDir.claim(this.client, tempRecvDirectory);
+    }
+
+    leave() {
+        //  left before the files were moved -- e.g. a disconnect while on
+        //  the file details page -- so they never will be
+        if (this.uploadTempDir && !this.movingUploads) {
+            this.cleanupTempFiles();
+        }
+        return super.leave();
+    }
+
     isBlindUpload() {
         return 'blind' === this.uploadType;
     }
@@ -208,6 +225,7 @@ exports.getModule = class UploadModule extends MenuModule {
     finishedLoading() {
         if (this.isFileTransferComplete()) {
             if (!this.areaInfo) {
+                this.cleanupTempFiles();
                 return this.client.log.error(
                     'Upload module re-entered without areaInfo; area selection was not forwarded'
                 );
@@ -217,16 +235,8 @@ exports.getModule = class UploadModule extends MenuModule {
     }
 
     performUpload(cb) {
-        //
-        //  A session of its own: temptmp tracks paths by session ID, and its
-        //  cleanup() removes every path under that ID -- a shared one let the
-        //  first upload to finish delete every other node's receive directory
-        //  while files were still arriving in it. The session is only a
-        //  safety net for process exit; this upload is finished by a new
-        //  instance of this module, which removes the directory itself.
-        //
-        const temptmp = TempTmp.createTrackedSession(`upload_${randomUUID()}`);
-        temptmp.mkdir({ prefix: 'enigul-' }, (err, tempRecvDirectory) => {
+        //  see upload_temp_dir.js for who removes it, and when
+        UploadTempDir.create(this.client, (err, tempRecvDirectory) => {
             if (err) {
                 return cb(err);
             }
@@ -459,31 +469,35 @@ exports.getModule = class UploadModule extends MenuModule {
 
     cleanupTempFiles() {
         //  this upload's receive directory, and nothing else
-        const tempRecvDirectory = this.tempRecvDirectory;
-        if (!tempRecvDirectory) {
-            return;
+        if (this.uploadTempDir) {
+            return this.uploadTempDir.release();
         }
 
-        fse.remove(tempRecvDirectory, err => {
-            if (err) {
-                return Log.warn(
-                    { path: tempRecvDirectory, error: err.message },
-                    'Failed to remove upload temp directory'
-                );
-            }
-
-            Log.debug({ path: tempRecvDirectory }, 'Temporary files cleaned up');
-        });
+        if (this.tempRecvDirectory) {
+            Log.warn(
+                { path: this.tempRecvDirectory },
+                'Not removing an upload directory this upload did not create'
+            );
+        }
     }
 
     moveAndPersistUploadsToDatabase(newEntries) {
-        const areaStorageDir = getAreaDefaultStorageDirectory(this.areaInfo);
         const self = this;
 
+        let areaStorageDir;
+        try {
+            areaStorageDir = getAreaDefaultStorageDirectory(this.areaInfo);
+        } catch (e) {
+            //  e.g. an area without storageTags
+            areaStorageDir = null;
+        }
+
         if (!areaStorageDir) {
-            return self.handleUploadError(
-                new Error('Cannot determine storage directory for area')
+            self.client.log.error(
+                { areaTag: _.get(this.areaInfo, 'areaTag') },
+                'Cannot determine storage directory for area; upload discarded'
             );
+            return self.cleanupTempFiles();
         }
 
         async.eachSeries(
@@ -714,6 +728,10 @@ exports.getModule = class UploadModule extends MenuModule {
                     //  locations -> their final area destinations. Don't make the user wait
                     //  here as I/O can take quite a bit of time. Log any failures.
                     //
+                    //  The moves remove the directory when they are done; leaving
+                    //  this module no longer does.
+                    //
+                    self.movingUploads = true;
                     self.moveAndPersistUploadsToDatabase(scanResults.newEntries);
                     return callback(null, scanResults.newEntries);
                 },
