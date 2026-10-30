@@ -37,6 +37,8 @@ const SPACE_CHARS = [
 ];
 
 const REGEXP_WORD_WRAP = new RegExp(`\t|[${SPACE_CHARS.join('')}]`, 'g');
+const REGEXP_LINE_TERM = /[\n\r\u2028\u2029]/g;
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 function wordWrapText(text, options) {
     assert(_.isObject(options));
@@ -46,21 +48,56 @@ function wordWrapText(text, options) {
     options.tabWidth = options.tabWidth || 4;
     options.tabChar = options.tabChar || ' ';
 
-    //const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}`, 'g');
-    //
-    //  For a given word, match 0->options.width chars -- always include a full trailing ESC
-    //  sequence if present!
+    const lenFunc = options.pipeCodeSupport ? renderStringLength : ansiRenderStringLength;
+
+    //  ESC sequences and (with pipeCodeSupport) pipe codes are kept whole when
+    //  a word is broken.
     //
     //  :TODO: Need to create ansi.getMatchRegex or something - this is used all over
-    const pipeGobble = options.pipeCodeSupport
-        ? `|.{0,${options.width}}\\|[A-Z\\d]{2}`
-        : '';
-    const REGEXP_GOBBLE = new RegExp(
-        `.{0,${options.width}}\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]${pipeGobble}|.{0,${options.width}}`,
-        'g'
+    const pipeCode = options.pipeCodeSupport ? '|\\|[A-Z\\d]{2}' : '';
+    const REGEXP_CODE = new RegExp(
+        `(\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]${pipeCode})`
     );
 
-    const lenFunc = options.pipeCodeSupport ? renderStringLength : ansiRenderStringLength;
+    //
+    //  Breaks a word into pieces of at most |width| columns. A piece ends
+    //  between ESC sequences, pipe codes or grapheme clusters, never inside
+    //  one: a surrogate pair, a flag, an emoji and its modifiers or a letter
+    //  and its combining marks stay together. A single cluster wider than
+    //  |width| gets a piece of its own. Line terminators are dropped.
+    //
+    function splitToWidth(word) {
+        //  Most words fit: no need to segment them
+        if (lenFunc(word) <= options.width) {
+            return [word.replace(REGEXP_LINE_TERM, '')];
+        }
+
+        const pieces = [''];
+        let pieceLen = 0;
+
+        word.split(REGEXP_CODE).forEach((part, index) => {
+            //  split() puts the captured codes at the odd indexes
+            const tokens =
+                index % 2
+                    ? [part]
+                    : Array.from(
+                          GRAPHEMES.segment(part.replace(REGEXP_LINE_TERM, '')),
+                          s => s.segment
+                      );
+
+            for (const token of tokens) {
+                const tokenLen = lenFunc(token);
+                if (pieceLen > 0 && pieceLen + tokenLen > options.width) {
+                    pieces.push('');
+                    pieceLen = 0;
+                }
+                pieces[pieces.length - 1] += token;
+                pieceLen += tokenLen;
+            }
+        });
+
+        return pieces;
+    }
 
     let m;
     let word;
@@ -77,10 +114,15 @@ function wordWrapText(text, options) {
     }
 
     function appendWord() {
-        word.match(REGEXP_GOBBLE).forEach(w => {
+        splitToWidth(word).forEach(w => {
             renderLen = lenFunc(w);
 
-            if (result.renderLen[i] + renderLen > options.width) {
+            //  A piece wider than the width (one wide cluster) still goes on
+            //  an empty line rather than leaving it blank
+            if (
+                result.renderLen[i] > 0 &&
+                result.renderLen[i] + renderLen > options.width
+            ) {
                 if (0 === i) {
                     result.firstWrapRange = {
                         start: wordStart,

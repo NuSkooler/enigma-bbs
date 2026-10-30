@@ -325,3 +325,28 @@ describe('MenuModule custom view range', () => {
         assert.deepEqual(keys, ['mainInfoFormat10']);
     });
 });
+
+describe('MenuModule custom view pipe text', () => {
+    it('wraps pipe text to a multi-line view narrower than the terminal (#968)', () => {
+        const client = makeTrackingClient();
+        const info = new MultiLineEditTextView({
+            client,
+            id: 10,
+            position: { row: 5, col: 8 },
+            dimens: { width: 40, height: 6 },
+            acceptsFocus: false,
+        });
+        const mod = makeModule(client, { 10: info }, info, {
+            mainInfoFormat10: '|03{text}',
+        });
+
+        const text = Array.from({ length: 30 }, (_, i) => `w${i}`).join(' ');
+        mod.updateCustomViewTextsWithFilter('main', 10, { text }, { pipeSupport: true });
+
+        const lines = info.buffer.lines.map(l =>
+            l.chars.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').trimEnd()
+        );
+        lines.forEach(l => assert.ok(l.length <= 40, `"${l}" is wider than the view`));
+        assert.deepEqual(lines.join(' ').split(/\s+/).filter(Boolean), text.split(' '));
+    });
+});
