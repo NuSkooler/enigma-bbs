@@ -1739,6 +1739,8 @@
                 TM1: {
                     argName: promptValue
                     items: [ "yes", "no" ]
+                    //  starts on "no": enter alone never kicks anyone
+                    focusItemIndex: 1
                     focus: true
                     hotKeys: { Y: 0, N: 1 }
                     hotKeySubmit: true

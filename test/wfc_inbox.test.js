@@ -610,3 +610,73 @@ describe('WFC screens that take over from the dashboard', () => {
         assert.equal(refreshed, false);
     });
 });
+
+describe('WFC kick prompt', () => {
+    let previousConfig;
+
+    before(() => {
+        previousConfig = configModule._pushTestConfig({
+            menus: { cls: false },
+            general: { boardName: 'Test Board' },
+        });
+    });
+
+    after(() => {
+        configModule._popTestConfig(previousConfig);
+    });
+
+    //  Taking form 0's focus for the prompt destroyed its ticker and status
+    //  bar timers and its node selection listener; giving the focus back
+    //  restored none of them, so form 0 is built again once the prompt is done.
+    it('builds form 0 again after the prompt is answered', async () => {
+        const { instance, client } = makeWfc();
+        client.currentMenuModule = instance;
+        const main = { detached: 0 };
+        main.detachClientEvents = () => main.detached++;
+        main.getView = () => null;
+        instance.viewControllers.main = main;
+
+        instance._getSelectedNodeItem = () => ({ node: '2' });
+        instance.getView = (form, id) =>
+            4 === id ? { position: { row: 20, col: 1 }, dimens: { width: 30 } } : null;
+        let promptOptions;
+        instance.promptForInput = (formSpec, options, cb) => {
+            promptOptions = options;
+            return cb(null);
+        };
+        let rebuilt = 0;
+        instance._displayMainPage = (clearScreen, cb) => {
+            rebuilt++;
+            return cb(null);
+        };
+
+        instance._confirmKickSelectedNode(() => {});
+        promptOptions.submitNotify();
+        assert.equal(rebuilt, 0, 'not while promptForInput is still putting form 0 back');
+
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(main.detached, 1, 'the old form 0 is let go');
+        assert.equal(instance.viewControllers.main, undefined);
+        assert.equal(rebuilt, 1);
+    });
+
+    it('builds nothing if the op left the WFC first', async () => {
+        const { instance, client } = makeWfc();
+        client.currentMenuModule = {};
+        instance._getSelectedNodeItem = () => ({ node: '2' });
+        instance.getView = (form, id) =>
+            4 === id ? { position: { row: 20, col: 1 }, dimens: { width: 30 } } : null;
+        let promptOptions;
+        instance.promptForInput = (formSpec, options, cb) => {
+            promptOptions = options;
+            return cb(null);
+        };
+        let rebuilt = 0;
+        instance._displayMainPage = () => rebuilt++;
+
+        instance._confirmKickSelectedNode(() => {});
+        promptOptions.submitNotify();
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(rebuilt, 0);
+    });
+});

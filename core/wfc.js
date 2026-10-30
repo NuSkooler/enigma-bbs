@@ -729,7 +729,18 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 if (false !== this.config.hideCursor) {
                     this.client.term.rawWrite(ansi.hideCursor());
                 }
-                this._startRefreshing();
+                //  Taking form 0's focus for the prompt destroyed its views'
+                //  timers (ticker, status bar) and listeners (the node
+                //  selection), and giving it back restores neither. Build it
+                //  again, as the other sub-screens do, once promptForInput
+                //  has finished putting it back.
+                setImmediate(() => {
+                    if (this.client.currentMenuModule !== this) {
+                        return; //  left the WFC meanwhile
+                    }
+                    this._releaseMainForm();
+                    this._displayMainPage(true, () => {});
+                });
             },
         };
 
