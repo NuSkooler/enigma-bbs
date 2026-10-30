@@ -5927,9 +5927,12 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
         }
     }
 
-    //  Immediate import when native BinkP session delivers files
-    this._onNewInboundBSO = () => {
-        tryImportNow('Import/toss triggered by BinkP inbound transfer');
+    //  Immediate import when native BinkP session delivers files, or when
+    //  asked to (the tossInboundNow task), which says so in |info.reason|
+    this._onNewInboundBSO = info => {
+        tryImportNow(
+            (info && info.reason) || 'Import/toss triggered by BinkP inbound transfer'
+        );
     };
     Events.on(Events.getSystemEvents().NewInboundBSO, this._onNewInboundBSO);
 

@@ -25,14 +25,17 @@ const Actor = require('./actor');
 const Note = require('./note');
 const ActivityPubObject = require('./object');
 const Endpoints = require('./endpoint');
-const { getJson } = require('../http_util');
-const { hostsMatch } = require('./security');
+//  called through the module, so tests can stand in for the network
+const HttpUtil = require('../http_util');
+const { hostsMatch, sameHost, actorIdsOf, verifyFetchedNote } = require('./security');
 const { Errors } = require('../enig_error');
 const { ActivityStreamMediaType, Collections, PublicCollectionId } = require('./const');
 const UserProps = require('../user_property');
 const StatLog = require('../stat_log');
 const Log = require('../logger').log;
 const Message = require('../message');
+const { collectFollowerInboxes } = require('./follow_util');
+const { signedFetchOptions } = require('./util');
 
 // deps
 const async = require('async');
@@ -43,6 +46,13 @@ const { isString } = require('lodash');
 const AnnounceObjectFetchTimeoutMs = 3000;
 
 exports.fetchAnnouncedNote = fetchAnnouncedNote;
+exports.fetchNoteFromOrigin = fetchNoteFromOrigin;
+exports.isConstraintError = isConstraintError;
+
+//  better-sqlite3 reports the extended code (SQLITE_CONSTRAINT_UNIQUE, ...)
+function isConstraintError(err) {
+    return !!err && isString(err.code) && err.code.startsWith('SQLITE_CONSTRAINT');
+}
 exports.recordInboundBoost = recordInboundBoost;
 exports.recordInboundLike = recordInboundLike;
 exports.sendBoost = sendBoost;
@@ -63,31 +73,54 @@ exports.sendActorDelete = sendActorDelete;
 //  Handles three cases:
 //    1. String URL that is one of our own Note/Article endpoints → local collection lookup
 //    2. String URL that is remote → HTTP GET with 3s timeout
-//    3. Embedded object (non-conforming senders) → use directly if Note or Article
+//    3. Embedded object → used as sent only when it is the announcer's own
+//       Note, on its host; otherwise resolved by its id as in 1 and 2
 //
 //  fromActorId (optional) — when provided, the fetched URL's hostname must match
 //  the actor's hostname to prevent cross-domain content injection (audit finding #7).
+//  fetchAs (optional) — local user a remote fetch is signed as
 //
-function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
-    //  Support legacy two-arg call: fetchAnnouncedNote(objectOrId, cb)
+function fetchAnnouncedNote(objectOrId, fromActorId, fetchAs, cb) {
+    //  Support legacy calls: (objectOrId, cb) and (objectOrId, fromActorId, cb)
     if (typeof fromActorId === 'function') {
         cb = fromActorId;
         fromActorId = null;
+        fetchAs = null;
+    } else if (typeof fetchAs === 'function') {
+        cb = fetchAs;
+        fetchAs = null;
     }
     const isNoteOrArticle = t => t === 'Note' || t === 'Article';
 
-    //  Case 3: already an embedded object
+    //  Case 3: already an embedded object. The announcer speaks for its own
+    //  host only: a Note from there, attributed to an actor there, is taken
+    //  as sent; any other is looked up by its id like a URL.
     if (!isString(objectOrId)) {
-        if (objectOrId && isNoteOrArticle(objectOrId.type)) {
+        if (!objectOrId || !isNoteOrArticle(objectOrId.type)) {
+            return cb(
+                Errors.Invalid(
+                    `Announce.object is an embedded non-Note/Article type: ${
+                        objectOrId && objectOrId.type
+                    }`
+                )
+            );
+        }
+        //  an announcer speaks for its own Notes only: one by another actor,
+        //  even on its host, is fetched from its origin
+        const authors = actorIdsOf(objectOrId.attributedTo);
+        if (
+            fromActorId &&
+            isString(objectOrId.id) &&
+            sameHost(objectOrId.id, fromActorId) &&
+            authors.length === 1 &&
+            authors[0] === fromActorId
+        ) {
             return cb(null, new Note(objectOrId));
         }
-        return cb(
-            Errors.Invalid(
-                `Announce.object is an embedded non-Note/Article type: ${
-                    objectOrId && objectOrId.type
-                }`
-            )
-        );
+        if (!isString(objectOrId.id)) {
+            return cb(Errors.Invalid('Announce.object has no id'));
+        }
+        return fetchAnnouncedNote(objectOrId.id, fromActorId, fetchAs, cb);
     }
 
     const noteId = objectOrId;
@@ -117,37 +150,62 @@ function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
             );
         }
 
-        const fetchOpts = {
-            headers: { Accept: ActivityStreamMediaType },
-            timeout: AnnounceObjectFetchTimeoutMs,
-            validContentTypes: [
-                ActivityStreamMediaType,
-                'application/json',
-                'application/ld+json',
-            ],
-        };
+        return fetchNoteFromOrigin(noteId, AnnounceObjectFetchTimeoutMs, fetchAs, cb);
+    });
+}
 
-        getJson(noteId, fetchOpts, (err, parsed) => {
-            if (err) {
-                return cb(
-                    Errors.HttpError(
-                        `Failed to fetch announced Note/Article "${noteId}": ${err.message}`
-                    )
-                );
-            }
+//
+//  GET a Note or Article from its own URL, as its origin serves it. The
+//  answer must not come from another host, must carry that URL as its id,
+//  and must be attributed to one actor on that host (verifyFetchedNote).
+//  getJson's limits apply: SSRF checks on the URL and on each redirect, a
+//  response size cap, a timeout, and the content type.
+//
+//  fetchAs (optional) — local user the GET is signed as, for origins that
+//  refuse unsigned fetches; signed GETs do not follow redirects.
+//
+function fetchNoteFromOrigin(noteId, timeoutMs, fetchAs, cb) {
+    if (typeof timeoutMs === 'function') {
+        cb = timeoutMs;
+        timeoutMs = AnnounceObjectFetchTimeoutMs;
+        fetchAs = null;
+    } else if (typeof fetchAs === 'function') {
+        cb = fetchAs;
+        fetchAs = null;
+    }
+    timeoutMs = timeoutMs || AnnounceObjectFetchTimeoutMs;
 
-            if (!parsed || !isNoteOrArticle(parsed.type)) {
-                return cb(
-                    Errors.Invalid(
-                        `Fetched object at "${noteId}" is not a Note or Article (got type: ${
-                            parsed && parsed.type
-                        })`
-                    )
-                );
-            }
+    const fetchOpts = {
+        headers: { Accept: ActivityStreamMediaType },
+        timeout: timeoutMs,
+        validContentTypes: [
+            ActivityStreamMediaType,
+            'application/json',
+            'application/ld+json',
+        ],
+    };
+    const sign = signedFetchOptions(fetchAs);
+    if (sign) {
+        fetchOpts.sign = sign;
+    }
 
-            return cb(null, new Note(new ActivityPubObject(parsed)));
-        });
+    HttpUtil.getJson(noteId, fetchOpts, (err, parsed, res) => {
+        if (err) {
+            return cb(
+                Errors.HttpError(
+                    `Failed to fetch Note/Article "${noteId}": ${err.message}`
+                )
+            );
+        }
+
+        //  unsigned GETs follow redirects; responseUrl is where it ended
+        const fetchedUrl = (res && res.responseUrl) || noteId;
+        const reason = verifyFetchedNote(parsed, noteId, fetchedUrl);
+        if (reason) {
+            return cb(Errors.ValidationFailed(reason));
+        }
+
+        return cb(null, new Note(new ActivityPubObject(parsed)));
     });
 }
 
@@ -162,13 +220,19 @@ function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
 function recordInboundBoost(activity, note, cb) {
     const actorId = isString(activity.actor) ? activity.actor : activity.actor.id;
 
+    //  An embedded object is stored as the verified Note: the copy as sent
+    //  could name another author, and stored rows decide who owns a Note.
+    if (!isString(activity.object)) {
+        activity = Object.assign({}, activity, { object: note });
+    }
+
     async.series(
         [
             //  Store the Announce activity itself in sharedInbox (for timeline display)
             callback => {
                 Collection.addSharedInboxItem(activity, true /* ignoreDupes */, err => {
-                    //  SQLITE_CONSTRAINT = already stored; idempotent
-                    if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                    //  SQLITE_CONSTRAINT* = already stored; idempotent
+                    if (err && !isConstraintError(err)) {
                         return callback(err);
                     }
                     return callback(null);
@@ -251,7 +315,7 @@ function sendBoost(localUser, noteId, cb) {
 
             //  Collect delivery targets: note author's inbox + followers' shared inboxes
             callback => {
-                _collectReactionInboxes(localUser, noteId, (err, inboxes) => {
+                _collectReactionInboxes(localUser, noteId, announce, (err, inboxes) => {
                     return callback(err, inboxes);
                 });
             },
@@ -360,9 +424,13 @@ function undoBoost(localUser, noteId, cb) {
         async.waterfall(
             [
                 callback => {
-                    _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                        return callback(err, sharedInboxes);
-                    });
+                    _collectFollowerSharedInboxes(
+                        localUser,
+                        undo,
+                        (err, sharedInboxes) => {
+                            return callback(err, sharedInboxes);
+                        }
+                    );
                 },
                 (sharedInboxes, callback) => {
                     async.eachLimit(
@@ -460,7 +528,7 @@ function sendLike(localUser, noteId, cb) {
                 });
             },
             callback => {
-                _collectReactionInboxes(localUser, noteId, (err, inboxes) => {
+                _collectReactionInboxes(localUser, noteId, like, (err, inboxes) => {
                     return callback(err, inboxes);
                 });
             },
@@ -553,9 +621,13 @@ function undoLike(localUser, noteId, cb) {
         async.waterfall(
             [
                 callback => {
-                    _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                        return callback(err, sharedInboxes);
-                    });
+                    _collectFollowerSharedInboxes(
+                        localUser,
+                        undo,
+                        (err, sharedInboxes) => {
+                            return callback(err, sharedInboxes);
+                        }
+                    );
                 },
                 (sharedInboxes, callback) => {
                     async.eachLimit(
@@ -652,7 +724,7 @@ function messageForNoteId(noteId, cb) {
                     }
 
                     msg.persist((err, messageId) => {
-                        if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                        if (err && !isConstraintError(err)) {
                             return cb(err);
                         }
 
@@ -726,9 +798,13 @@ function sendDelete(localUser, noteId, cb) {
 
             //  Collect follower shared-inbox endpoints.
             callback => {
-                _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                    return callback(err, sharedInboxes);
-                });
+                _collectFollowerSharedInboxes(
+                    localUser,
+                    deleteActivity,
+                    (err, sharedInboxes) => {
+                        return callback(err, sharedInboxes);
+                    }
+                );
             },
 
             //  Deliver Delete activity to each follower shared inbox.
@@ -815,9 +891,10 @@ function sendActorDelete(localUser, cb) {
         cc: [followersEndpoint],
     });
 
-    Collection.getFollowerSharedInboxes(followersEndpoint, (err, sharedInboxes) => {
+    _collectFollowerSharedInboxes(localUser, deleteActivity, (err, sharedInboxes) => {
         if (err || sharedInboxes.length === 0) {
-            //  No followers cached or DB error — nothing to deliver.
+            //  No cached followers, or a DB error: nothing to deliver now
+            //  (followers resolved later still get it)
             return cb(null);
         }
 
@@ -849,7 +926,7 @@ function sendActorDelete(localUser, cb) {
 //    - the note author's inbox (or their server's sharedInbox)
 //    - all of the local user's followers' shared inboxes
 //  Returns a de-duplicated array of inbox URLs.
-function _collectReactionInboxes(localUser, noteId, cb) {
+function _collectReactionInboxes(localUser, noteId, lateActivity, cb) {
     async.parallel(
         {
             authorInbox: next => {
@@ -874,55 +951,59 @@ function _collectReactionInboxes(localUser, noteId, cb) {
                 });
             },
             followerInboxes: next => {
-                _collectFollowerSharedInboxes(localUser, next);
+                collectFollowerInboxes(localUser, (err, inboxes, late) =>
+                    next(err, { inboxes, late })
+                );
             },
         },
         (err, results) => {
             if (err) return cb(err);
-            const all = [...results.followerInboxes];
+            const all = [...results.followerInboxes.inboxes];
             if (results.authorInbox) {
                 all.push(results.authorInbox);
             }
-            return cb(null, Array.from(new Set(all.filter(Boolean))));
+            const unique = Array.from(new Set(all.filter(Boolean)));
+            //  a follower found later is not sent to again at the author's inbox
+            _deliverLate(
+                results.followerInboxes.late,
+                lateActivity,
+                localUser,
+                new Set(unique)
+            );
+            return cb(null, unique);
         }
     );
 }
 
-//  Shared helper: collect unique shared-inbox endpoints for the local user's followers.
-//  Mirrors the logic in scanner_tossers/activitypub.js without duplicating the module.
-function _collectFollowerSharedInboxes(localUser, cb) {
-    const followersEndpoint = Endpoints.followers(localUser);
-
-    Collection.followers(followersEndpoint, 'all', (err, collection) => {
-        if (err) {
-            return cb(err);
+//  The inboxes that reach the local user's followers (see
+//  collectFollowerInboxes): those of cached followers now, and
+//  |lateActivity| is delivered to the rest as they are resolved
+function _collectFollowerSharedInboxes(localUser, lateActivity, cb) {
+    return collectFollowerInboxes(localUser, (err, inboxes, late) => {
+        if (!err) {
+            _deliverLate(late, lateActivity, localUser, new Set(inboxes));
         }
+        return cb(err, inboxes);
+    });
+}
 
-        const items =
-            collection && collection.orderedItems ? collection.orderedItems : [];
-
-        if (items.length === 0) {
-            return cb(null, []);
+//  Deliver |activity| to each follower inbox |late| finds, but none in |sent|
+function _deliverLate(late, activity, localUser, sent) {
+    if (!late || !activity) {
+        return;
+    }
+    late((inbox, done) => {
+        if (sent.has(inbox)) {
+            return done();
         }
-
-        async.mapLimit(
-            items,
-            4,
-            (actorId, next) => {
-                Actor.fromId(actorId, (err, actor) => {
-                    if (err || !actor) {
-                        return next(null, null);
-                    }
-                    return next(null, actor.endpoints && actor.endpoints.sharedInbox);
-                });
-            },
-            (err, inboxes) => {
-                if (err) {
-                    return cb(err);
-                }
-                const unique = Array.from(new Set(inboxes.filter(Boolean)));
-                return cb(null, unique);
+        activity.sendTo(inbox, localUser, err => {
+            if (err) {
+                Log.warn(
+                    { inbox, activityId: activity.id, error: err.message },
+                    'Failed to deliver to a follower resolved late'
+                );
             }
-        );
+            return done();
+        });
     });
 }

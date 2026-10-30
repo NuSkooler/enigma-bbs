@@ -17,6 +17,7 @@ exports.addNewClient = addNewClient;
 exports.removeClient = removeClient;
 exports.getConnectionByUserId = getConnectionByUserId;
 exports.getConnectionByNodeId = getConnectionByNodeId;
+exports.isClientConnected = isClientConnected;
 
 const clientConnections = [];
 exports.clientConnections = clientConnections;
@@ -197,6 +198,11 @@ function removeClient(client) {
             connectionCount: clientConnections.length,
         });
     }
+}
+
+//  false once removeClient() has run for |client|, before ClientDisconnected
+function isClientConnected(client) {
+    return clientConnections.includes(client);
 }
 
 function getConnectionByUserId(userId) {

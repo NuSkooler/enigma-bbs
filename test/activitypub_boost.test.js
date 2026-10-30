@@ -58,14 +58,19 @@ delete require.cache[require.resolve('../core/activitypub/object.js')];
 delete require.cache[require.resolve('../core/activitypub/activity.js')];
 delete require.cache[require.resolve('../core/activitypub/collection.js')];
 delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
+//  the follower fan-out holds Collection and Actor: load it with this DB
+delete require.cache[require.resolve('../core/activitypub/follow_util.js')];
+delete require.cache[require.resolve('../core/activitypub/actor.js')];
 const {
     fetchAnnouncedNote,
+    recordInboundBoost,
     recordInboundLike,
     sendBoost,
     sendLike,
     getBoostCount,
     getLikeCount,
     messageForNoteId,
+    sendDelete,
 } = require('../core/activitypub/boost_util.js');
 const Collection = require('../core/activitypub/collection.js');
 const Activity = require('../core/activitypub/activity.js');
@@ -377,15 +382,18 @@ describe('Activity.makeAnnounce()', function () {
 // ─── fetchAnnouncedNote — embedded object cases (no network) ──────────────────
 
 describe('fetchAnnouncedNote() — embedded object (no network)', function () {
+    const ANNOUNCER = 'https://remote.example.com/users/bob';
+
     it('returns a Note when given a valid embedded Note object', done => {
         const embedded = {
             id: 'https://remote.example.com/notes/embedded1',
             type: 'Note',
             content: '<p>Hello from remote</p>',
-            attributedTo: 'https://remote.example.com/users/alice',
+            attributedTo: ANNOUNCER,
         };
 
-        fetchAnnouncedNote(embedded, (err, note) => {
+        //  the announcer's own Note
+        fetchAnnouncedNote(embedded, ANNOUNCER, (err, note) => {
             assert.ifError(err);
             assert.ok(note, 'should return a note');
             assert.equal(note.type, 'Note');
@@ -400,10 +408,10 @@ describe('fetchAnnouncedNote() — embedded object (no network)', function () {
             type: 'Article',
             name: 'An Article Title',
             content: '<p>An article</p>',
-            attributedTo: 'https://remote.example.com/users/alice',
+            attributedTo: ANNOUNCER,
         };
 
-        fetchAnnouncedNote(embedded, (err, note) => {
+        fetchAnnouncedNote(embedded, ANNOUNCER, (err, note) => {
             assert.ifError(err);
             assert.ok(note, 'should return a note');
             assert.equal(note.type, 'Article');
@@ -494,6 +502,40 @@ describe('fetchAnnouncedNote() — local collection lookup (no network)', functi
 });
 
 // ─── recordInboundLike ────────────────────────────────────────────────────────
+
+describe('recordInboundBoost()', function () {
+    it('stores the verified Note, not the embedded copy as sent', done => {
+        const noteId = 'https://remote.example.com/notes/boosted';
+        const verified = {
+            id: noteId,
+            type: 'Note',
+            attributedTo: 'https://remote.example.com/users/alice',
+            content: '<p>as its origin has it</p>',
+        };
+        const announce = {
+            id: 'https://remote.example.com/activities/announce-verified',
+            type: 'Announce',
+            actor: 'https://remote.example.com/users/bob',
+            object: Object.assign({}, verified, {
+                attributedTo: 'https://evil.example/users/mallory',
+                content: '<p>as sent</p>',
+            }),
+        };
+        recordInboundBoost(announce, verified, err => {
+            assert.ifError(err);
+            const row = _apDb
+                .prepare(
+                    `SELECT object_json FROM collection
+                     WHERE name = 'sharedInbox' AND object_id = ?`
+                )
+                .get(announce.id);
+            const stored = JSON.parse(row.object_json).object;
+            assert.equal(stored.content, verified.content);
+            assert.equal(stored.attributedTo, verified.attributedTo);
+            done();
+        });
+    });
+});
 
 describe('recordInboundLike()', function () {
     const ACTOR_ID = 'https://remote.example.com/users/alice';
@@ -937,5 +979,140 @@ describe('messageForNoteId()', function () {
             assert.equal(msg.fromUserName, 'alice@remote.example.com');
             done();
         });
+    });
+});
+
+// ─── delivery to followers resolved late ─────────────────────────────────────
+
+describe('outbound reactions reach followers resolved late', function () {
+    const Actor = require('../core/activitypub/actor.js');
+    const { resetFollowerFailures } = require('../core/activitypub/follow_util.js');
+    const ActivityPubObject = require('../core/activitypub/object.js');
+    const ACTOR_ID = 'https://test.example.com/_enig/ap/users/lateuser';
+    const FOLLOWERS = `${ACTOR_ID}/followers`;
+    const LATE = 'https://late.example/users/lee';
+    const LATE_INBOX = 'https://late.example/inbox';
+
+    const user = {
+        username: 'lateuser',
+        getProperty: prop => (prop === UserProps.ActivityPubActorId ? ACTOR_ID : null),
+        getPropertyAsNumber: () => 0,
+        persistProperty: (prop, val, cb) => cb && cb(null),
+    };
+
+    let sent;
+    let savedSendTo;
+    let savedFromId;
+
+    beforeEach(done => {
+        resetFollowerFailures();
+        sent = [];
+        savedSendTo = ActivityPubObject.prototype.sendTo;
+        ActivityPubObject.prototype.sendTo = function (inbox, fromUser, cb) {
+            sent.push({ inbox, type: this.type });
+            return cb(null, '', { statusCode: 202 });
+        };
+        //  the follower is not in the actor cache, and resolves a moment later
+        savedFromId = Actor.fromId;
+        Actor.fromId = (id, fromUser, cb) => {
+            cb = typeof fromUser === 'function' ? fromUser : cb;
+            setTimeout(
+                () =>
+                    cb(null, {
+                        id,
+                        type: 'Person',
+                        inbox: `${id}/inbox`,
+                        endpoints: { sharedInbox: LATE_INBOX },
+                    }),
+                5
+            );
+        };
+        Collection.addToCollection(
+            'followers',
+            null,
+            FOLLOWERS,
+            LATE,
+            { id: LATE, type: 'Person' },
+            false,
+            true,
+            done
+        );
+    });
+
+    afterEach(() => {
+        ActivityPubObject.prototype.sendTo = savedSendTo;
+        Actor.fromId = savedFromId;
+    });
+
+    const settle = () => new Promise(resolve => setTimeout(resolve, 30));
+    const sentTo = type => sent.filter(s => s.type === type).map(s => s.inbox);
+
+    it('a Like', async () => {
+        await new Promise((resolve, reject) =>
+            sendLike(user, 'https://remote.example.com/notes/late-like', err =>
+                err ? reject(err) : resolve()
+            )
+        );
+        await settle();
+        assert.deepEqual(sentTo('Like'), [LATE_INBOX]);
+    });
+
+    it("sends a Like once to an inbox that is both the author's and a late follower's", async () => {
+        const noteId = 'https://late.example/notes/by-author';
+        //  the Note is known, by an author on the late follower's server
+        await new Promise((resolve, reject) =>
+            Collection.addSharedInboxItem(
+                {
+                    id: `${noteId}/activity`,
+                    type: 'Create',
+                    actor: 'https://late.example/users/author',
+                    object: {
+                        id: noteId,
+                        type: 'Note',
+                        attributedTo: 'https://late.example/users/author',
+                    },
+                },
+                true,
+                err => (err ? reject(err) : resolve())
+            )
+        );
+        await new Promise((resolve, reject) =>
+            sendLike(user, noteId, err => (err ? reject(err) : resolve()))
+        );
+        await settle();
+        assert.deepEqual(sentTo('Like'), [LATE_INBOX]);
+    });
+
+    it('an Announce', async () => {
+        await new Promise((resolve, reject) =>
+            sendBoost(user, 'https://remote.example.com/notes/late-boost', err =>
+                err ? reject(err) : resolve()
+            )
+        );
+        await settle();
+        assert.deepEqual(sentTo('Announce'), [LATE_INBOX]);
+    });
+
+    it('a Delete', async () => {
+        const noteId = 'https://test.example.com/_enig/ap/late-delete/note';
+        await new Promise((resolve, reject) =>
+            Collection.addOutboxItem(
+                user,
+                {
+                    id: `${noteId}/activity`,
+                    type: 'Create',
+                    actor: ACTOR_ID,
+                    object: { id: noteId, type: 'Note', attributedTo: ACTOR_ID },
+                },
+                false,
+                true,
+                err => (err ? reject(err) : resolve())
+            )
+        );
+        await new Promise((resolve, reject) =>
+            sendDelete(user, noteId, err => (err ? reject(err) : resolve()))
+        );
+        await settle();
+        assert.deepEqual(sentTo('Delete'), [LATE_INBOX]);
     });
 });

@@ -5,7 +5,8 @@ const { LineBuffer } = require('./line_buffer.js');
 const strUtil = require('./string_util.js');
 const ansi = require('./ansi_term.js');
 const ansiPrep = require('./ansi_prep.js');
-const { pipeColorToAnsi } = require('./color_codes.js');
+const { pipeColorToAnsi, pipeToAnsi } = require('./color_codes.js');
+const { wordWrapText } = require('./word_wrap.js');
 
 const assert = require('assert');
 const _ = require('lodash');
@@ -1847,6 +1848,42 @@ class MultiLineEditTextView extends View {
         this._findState = null; //  new content — clear any active search
         this.buffer = new LineBuffer({ width: this.dimens.width });
         return this.setAnsiWithOptions(ansiText, options, cb);
+    }
+
+    //  Plain or pipe-coded text for display, word wrapped to the view's width.
+    //  setAnsi() lays its input out at the terminal's width and clips it to the
+    //  view's, which suits art but drops characters from text in a view
+    //  narrower than the terminal (#968). The text is wrapped here first, so
+    //  the parser is given a width it never reaches: wrapping at the view's (or
+    //  the terminal's) last column would add a blank row after every full
+    //  line. A full-width row needs its line terminator forced, or it joins
+    //  the next row. Trailing line breaks would only add blank rows.
+    setPipeText(pipeText, cb) {
+        const width = this.dimens.width;
+        const wrapped = (pipeText || '')
+            .replace(/(\r?\n)+$/, '')
+            .split(/\r?\n/)
+            .map(line =>
+                (
+                    wordWrapText(line, { width, pipeCodeSupport: true }).wrapped || ['']
+                ).join('\n')
+            )
+            .join('\n');
+
+        return this.setAnsi(
+            pipeToAnsi(wrapped, this.client),
+            { prepped: false, forceLineTerm: true, termWidth: width + 1 },
+            err => {
+                //  The last row's forced terminator leaves an empty line behind
+                const lines = this.buffer.lines;
+                if (lines.length > 1 && '' === lines[lines.length - 1].chars) {
+                    lines.pop();
+                }
+                if (cb) {
+                    return cb(err);
+                }
+            }
+        );
     }
 
     addText(text, options = { scrollMode: 'default' }) {

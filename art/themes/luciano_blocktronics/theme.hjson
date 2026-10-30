@@ -251,11 +251,58 @@
 				config: {
 					// formats
 					quickLogTimestampFormat: "|01|03MM|08/|03DD hh:mm:ssa"
-					nowDateTimeFormat: "|00|10ddd|08, |10MMMM Do YYYY|08, |10h|08:|10mm|02a"
+					// {now} fills the 21 column SB5 "now" panel: keep it that short
+					nowDateTimeFormat: "|00|10ddd MMM Do|08, |10h|08:|10mm|02a"
 					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
 
-					// header
-					mainInfoFormat10: "|00|10{now}    |10{currentUserName} |08- |02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo} |08- |02Avail|08:|10{availIndicator} |02Vis|07:|10{visIndicator}"
+					// status bar (SB5): one format per named panel; {count} for
+					// messages/pages, whose Active format is used while it is > 0
+					statusBarNowFormat: "{now}"
+					statusBarUserFormat: "|00|10{currentUserName}"
+					statusBarMailFormat: "|00|02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo}"
+					statusBarStatusFormat: "|00|02Avl|08:|10{availIndicator} |02Vis|08:|10{visIndicator}"
+					statusBarMessagesFormat: "|00|02Msg|08:|02{count}"
+					statusBarMessagesActiveFormat: "|00|14Msg|08:|15{count}"
+					statusBarPagesFormat: "|00|02Page|08:|02{count}"
+					statusBarPagesActiveFormat: "|00|13Page|08:|15{count}"
+
+					// activity ticker (TK6)
+					ticker: {
+						rotateOn: "cycle"
+						maxItems: 10
+						idleText: "|00|10{boardName} |08- |10{totalCalls} |02calls total|08, |10{callsToday} |02today"
+						events: {
+							userLogin: "|00|10{userName} |02logged in on node |10{nodeId}"
+							userAchievementEarned: "|00|10{userName} |02earned |14{title} |08(|10+{points}|08)"
+							userUpload: "|00|10{userName} |02uploaded |10{fileCount} |02file(s)"
+						}
+					}
+
+					// message viewer (form 4). "{text}" keeps each list item's
+					// text raw so the VM1 item formats below can lay it out.
+					messageListFormat: "{text}"
+					messageDetailFormat: "|00|02From|08: |10{userName} |08(|02node |10{nodeId}|08) |02at |10{timestamp}\n\n|07{text}"
+					noMessagesText: "|00|02No messages|08."
+
+					// task screen (form 5) rows: 2 + 1 + 1 + 26 + 1 + 16 + 1 + 13 + 1 + 6 = 68 of 73
+					taskListFormat: "|00  {statusIndicator} |02{desc:<26.26} |03{schedule:<16.16} |02{nextRun:<13.13} |07{lastResult:<6.6}"
+					taskListFocusFormat: "|00|10> {statusIndicator} |15{desc:<26.26} |11{schedule:<16.16} |15{nextRun:<13.13} |15{lastResult:<6.6}"
+					taskDateTimeFormat: "MM/DD hh:mma"
+					taskStatusIndicators: {
+						running: "|11*"
+						overdue: "|14!"
+						failed: "|12X"
+						ok: "|10+"
+						never: "|08-"
+					}
+					taskDetailFieldFormat: "|03{name}|08{sep}|11{value}"
+					noTasksText: "|00|02No tasks|08."
+					runTaskPromptFormat: "|00|07Run |15{desc}|07?"
+					stopTaskPromptFormat: "|00|07{stopVerb} |15{desc}|07?"
+					// result of run / stop; a %TL10 in wfctasks can show it,
+					// otherwise it is written at %XY3
+					tasksInfoFormat10: "{taskActionResult}"
+					tasksInfoFormat11: "|00|15{runningTaskCount} |02running|08, |15{taskCount} |02tasks"
 
 					// today
 					mainInfoFormat11: "|00|15{callsToday:>5}"
@@ -342,6 +389,47 @@
 							height: 5
 							width: 12
 						}
+
+						// status bar: widths + separators = 78, user takes the rest (13)
+						SB5: {
+							width: 78
+							separator: " "
+							panels: [
+								{
+									name: now
+									width: 21
+								}
+								{
+									name: user
+									width: fill
+								}
+								{
+									name: mail
+									width: 14
+								}
+								{
+									name: status
+									width: 11
+								}
+								{
+									name: messages
+									width: 7
+								}
+								{
+									name: pages
+									width: 7
+								}
+							]
+						}
+
+						// activity ticker: bounce holds short text for holdTicks
+						// and scrolls long text end to end, then rotates
+						TK6: {
+							width: 78
+							motion: bounce
+							tickInterval: 100
+							holdTicks: 40
+						}
 					}
 				}
 				2: {
@@ -360,6 +448,52 @@
 							height: 12
 							width: 73
 						}
+					}
+				}
+				// message viewer (wfcmessages)
+				4: {
+					mci: {
+						// message list
+						VM1: {
+							height: 8
+							width: 73
+							itemFormat:      "|00|14{unreadIndicator:<1} |02{userName:<12.12} |08{nodeId:>2} |02{timestamp} |07{text}"
+							focusItemFormat: "|00|14{unreadIndicator:<1}|10>|15{userName:<12.12} |08{nodeId:>2} |15{timestamp} |15{text}"
+						}
+						// selected message
+						MT2: {
+							mode: preview
+							autoScroll: false
+							height: 9
+							width: 73
+						}
+					}
+				}
+				// task screen (wfctasks)
+				5: {
+					mci: {
+						// task list
+						VM1: {
+							height: 9
+							width: 73
+						}
+						// selected task
+						MT2: {
+							mode: preview
+							autoScroll: false
+							height: 8
+							width: 73
+						}
+						// action result, if the art has it
+						TL10: { width: 60 }
+						TL11: { width: 30 }
+					}
+				}
+				// run / stop confirm (wfctaskprompt), drawn at form 5's XY3
+				6: {
+					mci: {
+						// the question
+						TL2: { width: 50 }
 					}
 				}
 			}

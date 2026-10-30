@@ -979,6 +979,18 @@ module.exports = class Message {
         }
     }
 
+    //
+    //  Rewrites a stored message, found by messageUuid, in place (#964):
+    //  message_id is kept, so last read pointers, offline mail packets, replies
+    //  and FTN export pointers still see the same message. The UPDATE triggers
+    //  keep message_fts in step. No stored message with this UUID is an error;
+    //  nothing is inserted.
+    //
+    //  Meta is merged at the (category, name) level: each pair this message
+    //  carries in memory replaces every stored value for that pair (a name can
+    //  hold several), and every other stored meta row is left as it is, such
+    //  as state flags or properties added after the message was imported.
+    //
     update(cb) {
         if (!this.isValid()) {
             return cb(Errors.Invalid('Cannot update invalid message!'));
@@ -991,44 +1003,64 @@ module.exports = class Message {
         const self = this;
 
         try {
-            msgDb.transaction(() => {
-                const info = msgDb
-                    .prepare(
-                        `REPLACE INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?);`
-                    )
-                    .run(
-                        this.areaTag,
-                        this.messageUuid,
-                        this.replyToMsgId,
-                        this.toUserName,
-                        this.fromUserName,
-                        this.subject,
-                        this.message,
-                        getISOTimestampString(this.modTimestamp)
-                    );
-                self.messageId = info.lastInsertRowid;
+            msgDb
+                .transaction(() => {
+                    const row = msgDb
+                        .prepare('SELECT message_id FROM message WHERE message_uuid = ?;')
+                        .get(self.messageUuid);
+                    if (!row) {
+                        throw Errors.DoesNotExist(
+                            `No message with UUID ${self.messageUuid} to update`
+                        );
+                    }
 
-                if (this.meta) {
-                    const metaStmt = msgDb.prepare(
-                        `REPLACE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                    msgDb
+                        .prepare(
+                            `UPDATE message
+                        SET area_tag = ?, reply_to_message_id = ?, to_user_name = ?, from_user_name = ?,
+                            subject = ?, message = ?, modified_timestamp = ?
+                        WHERE message_uuid = ?;`
+                        )
+                        .run(
+                            self.areaTag,
+                            self.replyToMsgId,
+                            self.toUserName,
+                            self.fromUserName,
+                            self.subject,
+                            self.message,
+                            getISOTimestampString(self.modTimestamp),
+                            self.messageUuid
+                        );
+                    self.messageId = row.message_id;
+
+                    if (self.meta) {
+                        const deleteStmt = msgDb.prepare(
+                            `DELETE FROM message_meta
+                        WHERE message_id = ? AND meta_category = ? AND meta_name = ?;`
+                        );
+                        const insertStmt = msgDb.prepare(
+                            `INSERT OR IGNORE INTO message_meta (message_id, meta_category, meta_name, meta_value)
                         VALUES (?, ?, ?, ?);`
-                    );
-                    for (const category of Object.keys(this.meta)) {
-                        for (const name of Object.keys(this.meta[category])) {
-                            const val = this.meta[category][name];
-                            for (const v of Array.isArray(val) ? val : [val]) {
-                                metaStmt.run(
-                                    self.messageId,
-                                    category,
-                                    name,
-                                    coerceToText(v)
-                                );
+                        );
+                        for (const category of Object.keys(self.meta)) {
+                            for (const name of Object.keys(self.meta[category])) {
+                                deleteStmt.run(self.messageId, category, name);
+                                const val = self.meta[category][name];
+                                for (const v of Array.isArray(val) ? val : [val]) {
+                                    insertStmt.run(
+                                        self.messageId,
+                                        category,
+                                        name,
+                                        coerceToText(v)
+                                    );
+                                }
                             }
                         }
                     }
-                }
-            })();
+                    //  immediate: take the write lock before the SELECT, so another
+                    //  connection cannot write between it and the UPDATE (SQLITE_BUSY)
+                })
+                .immediate();
 
             return cb(null, self.messageId);
         } catch (err) {

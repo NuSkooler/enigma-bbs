@@ -77,6 +77,7 @@ const NamedDeviceAttrClients = [
     },
     { prefix: '73;99;121;84;101;114;109', termClient: 'icy_term', versioned: false },
 ];
+exports.NamedDeviceAttrClients = NamedDeviceAttrClients; //  exported for tests
 
 //  DA replies matched exactly
 const ExactDeviceAttrClients = {
@@ -110,7 +111,8 @@ function getDeviceAttrVersion(deviceAttr, prefix) {
 //  whatever follows the prefix is kept as-is.
 //
 function getCtermVersion(deviceAttr) {
-    return getDeviceAttrVersion(deviceAttr, NamedDeviceAttrClients[0].prefix);
+    const cterm = NamedDeviceAttrClients.find(c => 'cterm' === c.termClient);
+    return cterm ? getDeviceAttrVersion(deviceAttr, cterm.prefix) : null;
 }
 
 //

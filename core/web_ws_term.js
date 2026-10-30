@@ -18,7 +18,7 @@
 
 //  ENiGMA½
 const configModule = require('./config.js');
-const { getUrlPath } = require('./web_util.js');
+const { getUrlPath, getWebDomain } = require('./web_util.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -169,8 +169,11 @@ function contentTypeFor(filePath) {
 //
 //  1. wsTerm.endpoint, when set. Required behind a TLS proxy whose public
 //     port differs from the one ENiGMA½ listens on.
-//  2. wss://<contentServers.web.domain>:<loginServers.webSocket.wss.port>
-//     when the secure WebSocket server is enabled.
+//  2. wss://<host>:<loginServers.webSocket.wss.port> when the secure
+//     WebSocket server is enabled. <host> is the host of
+//     contentServers.web.overrideUrlPrefix when that is set, otherwise
+//     contentServers.web.domain. Only the host is taken from the prefix: its
+//     port and scheme are the web server's, not the WebSocket server's.
 //  3. null: enig-term then asks the caller for a host.
 //
 //  Plain ws:// is never derived: browsers connect over wss:// only.
@@ -182,7 +185,14 @@ function resolveEndpoint(config) {
     }
 
     const wss = _.get(config, 'loginServers.webSocket.wss');
-    const domain = _.get(config, 'contentServers.web.domain');
+    let domain;
+    try {
+        domain = getWebDomain(config);
+    } catch (e) {
+        //  unparsable overrideUrlPrefix; fall back to the plain domain
+        warnBadOverridePrefixOnce(_.get(config, 'contentServers.web.overrideUrlPrefix'));
+        domain = _.get(config, 'contentServers.web.domain');
+    }
     if (_.isPlainObject(wss) && true === wss.enabled && _.isString(domain) && domain) {
         const port = parseInt(wss.port, 10);
         if (!isNaN(port)) {
@@ -212,6 +222,19 @@ function generateClientConfig(config) {
 }
 
 let warnedNoEndpoint = false;
+let warnedBadOverridePrefix = false;
+
+//  resolveEndpoint() runs for every request of the page's config, so say it once
+function warnBadOverridePrefixOnce(value) {
+    if (warnedBadOverridePrefix) {
+        return;
+    }
+    warnedBadOverridePrefix = true;
+    Log().warn(
+        { overrideUrlPrefix: value },
+        'Unparsable contentServers.web.overrideUrlPrefix; deriving the enig-term endpoint from contentServers.web.domain'
+    );
+}
 
 function warnNoEndpointOnce(clientConfig) {
     if (null !== clientConfig.endpoint || warnedNoEndpoint) {
@@ -347,4 +370,5 @@ function handleRequest(webServer, req, resp) {
 //  for tests
 exports._resetWarnings = () => {
     warnedNoEndpoint = false;
+    warnedBadOverridePrefix = false;
 };

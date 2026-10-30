@@ -109,7 +109,7 @@ be a *complete* archiver entry, with every operation it needs. A partial one, su
 `Lzx: { list: { cmd: "my-unlzx" } }`, is not merged with anything: it becomes the whole `Lzx`
 archiver, and listing an LZX then fails.
 
-`unarc` is built from its [crates.io](https://crates.io/crates/unarc-cli) release for each
+`unarc` is built from its crates.io release ([lib.rs page](https://lib.rs/crates/unarc-cli)) for each
 platform during the image build, pinned by `UNARC_VERSION` in `docker/Dockerfile`. The build then
 runs `docker/check_tools.js`, which reads the default archivers and description tools and fails
 if any program they call is missing, if `unrar` is not RARLAB's, or if `unarc` is not the pinned

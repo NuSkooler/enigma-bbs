@@ -13,9 +13,47 @@ Events can have the following members:
 
 | Item | Required | Description |
 |------|----------|-------------|
-| `schedule` | Yes | A [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string such as `at 4:00 am`, or `every 24 hours`. Can also be (or contain) an `@watch` clause. See **Schedules** below for details. |
-| `action` | Yes | Action to perform when the schedule is triggered. May be an `@method` or `@execute` spec. See **Actions** below. |
+| `action` | Yes | Action to perform when the event runs. May be an `@method` or `@execute` spec. See **Actions** below. |
+| `schedule` | No | A [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string such as `at 4:00 am`, or `every 24 hours`. Can also be (or contain) an `@watch` clause. See **Schedules** below for details. Without one, the event is a **manual-only task**: see below. |
 | `args` | No | An array of arguments to pass along to the method or binary specified in `action`. |
+| `desc` | No | A display name for the event, for example in a task list. Defaults to the event's name. |
+| `confirm` | No | `true` asks the operator to confirm before running the event by hand. The scheduler itself does nothing with it; it is for whatever offers the event to an operator, such as the [WFC's task screen](../modules/wfc.md#tasks). |
+| `manual` | No | Default `true`. `false` hides the event from the task list and refuses to run it by hand; it still runs on its schedule. |
+| `enabled` | No | Default `true`. `false` ignores the entry entirely: it is neither scheduled nor listed. This is how to switch off one of the built-in events. |
+| `timeout` | No | Milliseconds a run may take before it is overdue. An overdue `@execute` process is killed, and its run fails with `timed out`. A `@method` cannot be stopped, so an overdue one keeps running and its event stays blocked until it finishes or an operator stops it; see **Running Events and Their Results**. Unset or `0`: no limit. |
+
+`oputil.js config validate` knows these members and warns about any other, so a misspelled `schedule` (which would otherwise quietly make the event manual-only) is caught.
+
+To switch off a built-in event, or change one of its members, name it in your `config.hjson`. Your entry is merged over the built-in one:
+
+```hjson
+eventScheduler: {
+    events: {
+        //  never trim message areas automatically
+        trimMessageAreas: {
+            enabled: false
+        }
+        //  back up the databases every night, keeping a week of backups
+        backupDatabases: {
+            schedule: at 4:00 am
+            args: [ "7" ]
+        }
+    }
+}
+```
+
+### Changing Events While Running
+Edits to `eventScheduler.events` in `config.hjson` take effect without a restart. When the file changes, the scheduler compares the new events with the ones it has:
+
+* **Added** events are armed, as at startup (a manual-only one is just listed). One that watches a file that is already there runs at once, as it would at startup.
+* **Removed** events, and events now `enabled: false`, are disarmed: their schedule is cleared and any `@watch` file is no longer watched.
+* **Changed** events (any change to `schedule`, `action`, `args`, `timeout`, `desc`, `confirm` or `manual`) are disarmed and armed again with the new settings. A changed event runs at once for an existing watch file only if its `@watch` path changed.
+* **Unchanged** events are left alone.
+* An entry that no longer loads (an `Invalid scheduled event entry`, such as a schedule that does not parse) is logged and left out, as it would be at startup; the other events are not affected.
+
+A reload never interrupts a run. A run in progress finishes under the settings it started with, its result is recorded as usual, and it can still be stopped. A changed event's next run uses its new settings. An event removed while it is running stays in the task list, marked as removed, until that run finishes, and is then dropped. An event that stays in the config keeps its run count across a reload; an event removed (or disabled) and added back starts its count again, as after a restart, but keeps its last run, which is saved with the system statistics.
+
+A reload that changes anything logs one line naming the events added, removed and changed, for example `Scheduled events reloaded: added nightlyScript; changed backupDatabases`, and emits the `TasksReloaded` system event.
 
 ### Schedules
 As mentioned above, `schedule` may contain a [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string and/or an `@watch` clause.
@@ -62,6 +100,65 @@ Examples:
 * `@execute:foo`
 
 Just like with methods, any supplied `args` will be passed along.
+
+## Manual-only Tasks
+An event with an `action` and no `schedule` is never run on its own. It is listed with the other events and can be run on demand, for example from the [WFC's task screen](../modules/wfc.md#tasks). At startup ENiGMA½ logs one line naming every manual-only event, so an event whose `schedule` was left out by mistake stays visible:
+
+```
+Manual-only scheduled events (no schedule, run on demand): optimizeDatabases, checkpointDatabases, backupDatabases, tossInboundNow
+```
+
+A `schedule` that is there but cannot be parsed is still an error: the event is logged as an `Invalid scheduled event entry` and dropped, as before.
+
+## Built-in Events
+ENiGMA½ ships with these events. Each can be switched off with `enabled: false`, given a `schedule`, or otherwise changed as above.
+
+| Event | Schedule | Description |
+|-------|----------|-------------|
+| `dailyMaintenance` | at 11:59pm | Resets today's counters (logins, posts, new users). Asks for confirmation when run by hand. |
+| `trimMessageAreas` | every 24 hours | Deletes messages beyond each area's age and count limits. Asks for confirmation when run by hand. |
+| `nntpMaintenance` | every 12 hours | NNTP server housekeeping. |
+| `updateFileAreaStats` | every 1 hours | Recounts the file base statistics. |
+| `forgotPasswordMaintenance` | every 24 hours | Removes expired password reset tokens. |
+| `twoFactorRegisterTokenMaintenance` | every 24 hours | Removes expired 2FA registration tokens. |
+| `activityPubActorCacheMaintenance` | every 24 hours | Removes old ActivityPub actor records. |
+| `activityPubSharedInboxMaintenance` | every 24 hours | Trims the ActivityPub shared inbox. |
+| `optimizeDatabases` | manual-only | Runs SQLite's `PRAGMA optimize` on each database. Quick. |
+| `checkpointDatabases` | manual-only | Folds each database's write-ahead log (`*.sqlite3-wal`) back into the database and truncates it. If a reader is busy the checkpoint cannot finish; this is logged and the next checkpoint catches up. |
+| `backupDatabases` | manual-only | Copies the core databases (`system`, `user`, `message`, `file`, `activitypub`) into a new directory, `backup/YYYYMMDD-HHmmssZ/` under `paths.db` (named in UTC, so the names sort by time), while the BBS keeps running, then deletes all but the newest backups. `args: [ "N" ]` sets how many to keep (default 3), counting the new one, which is never deleted. Old backups are deleted only after the new one is complete, so allow disk space for one more set than you keep. A backup is written to a `.partial` directory first and renamed when complete, so a directory without that suffix is always a full set. Databases kept by mods are not included. |
+| `tossInboundNow` | manual-only | Asks the FTN BSO scanner/tosser to import and toss its inbound directories now. It finishes as soon as the request is made (the toss is logged by the tosser), and fails if the FTN BSO scanner/tosser is not running. |
+
+:::note
+There is deliberately no `VACUUM` task: SQLite rebuilds the whole database during a VACUUM and the BBS would be frozen until it finished.
+:::
+
+## Running Events and Their Results
+An event may run on its schedule, when its `@watch` file changes, or by hand. Every run goes through the same path:
+
+* **One run at a time.** An event that is still running is not started again. A scheduled run skipped for that reason is logged at `info`, so an event that hangs does not just quietly stop happening; one skipped because its watch file changed again, or a request to run it by hand, is logged at `debug` (a WFC will tell the operator directly).
+* **Logging.** The start of each run is logged at `info` with its reason (`Schedule`, `Watch file: ...`, or the reason given for a manual run, along with who ran it), and its end at `info` with how long it took. A failure is logged at `warn`.
+* **Timeouts.** A run that goes past the event's `timeout` is *overdue*: this is logged at `warn` and the `TaskOverdue` system event is emitted. What happens next depends on the action:
+  * an `@execute` process is killed (hung up on, then `SIGKILL` 5 seconds later if it is still there), and the run fails with `timed out` once it exits;
+  * a `@method` cannot be stopped, so it keeps running, and the event stays blocked (not started again, by hand or on schedule) and shown as overdue until the method finishes. Its run is then recorded as usual, marked as having overrun.
+* **Stopping a run.** An operator can stop a running event, overdue or not (for example from the WFC). An `@execute` process is killed and the run fails with `stopped by <operator>` when it exits. A `@method` is *abandoned*: its run is finished at once, failed with `abandoned by <operator>`, and the event can run again. JavaScript gives no way to stop a function, so an abandoned method may well still be working in the background, and whatever it reports later is ignored. Abandon only a run you believe is stuck, and bear in mind a second run may overlap the first.
+* **Last run.** The result of each event's most recent run is kept: when it started and ended, how long it took, whether it succeeded and the error if not, why it ran and who ran it, whether it overran its timeout and who stopped it, and for `@execute` the exit code, or the signal that ended the process, and the last 20 lines of output (with terminal escape codes removed). It is saved as the system stat `task_last_run_<event name>`, so it survives a restart. A count of runs since startup is kept as well.
+
+The saved last run has these fields:
+
+| Field | Value |
+|-------|-------|
+| `start` / `end` | When the run started and ended |
+| `durationMs` | How long it took |
+| `ok` / `error` | Whether it succeeded, and the error if not |
+| `reason` | Why it ran: `Schedule`, `Watch file: ...`, or the reason given for a manual run |
+| `byUser` | Who ran it by hand, if anyone |
+| `overdue` | Whether it ran past its `timeout` |
+| `stoppedBy` | Who stopped it, if an operator did |
+| `exitCode` | For an `@execute`, the process's exit code; `null` if a signal ended it |
+| `signal` | For an `@execute` ended by a signal, its name, such as `SIGHUP` (what stopping it sends) or `SIGKILL`; otherwise `null` |
+| `outputTail` | For an `@execute`, the last 20 lines of output |
+
+Three system events follow each run, for modules that want them: `TaskStarted` with `{ name, desc, reason, byUser }`; `TaskOverdue` with `{ name, desc, reason, byUser, timeoutMs, startedAt }` when a run passes its timeout; and `TaskFinished` with `{ name, desc, reason, byUser, ok, error, durationMs, overdue, stoppedBy, exitCode, signal }`. A reload of the events that changed anything emits `TasksReloaded` with `{ added, removed, changed }`, each a list of event names.
 
 ## Example Entries
 

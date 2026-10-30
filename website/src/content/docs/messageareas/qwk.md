@@ -10,7 +10,7 @@ As like all other networks such as FidoNet-Style (FTN) networks, ENiGMA½ consid
 
 ### Supported Standards
 QWK must be considered a semi-standard as there are many implementations. What follows is a short & incomplete list of such standards ENiGMA½ supports:
-* The basic [QWK packet format](http://fileformats.archiveteam.org/wiki/QWK).
+* The basic [QWK packet format](https://web.archive.org/web/20241218182857/http://fileformats.archiveteam.org/wiki/QWK).
 * [QWKE extensions](https://github.com/wwivbbs/wwiv/blob/master/specs/qwk/qwke.txt).
 * [Synchronet BBS style extensions](http://wiki.synchro.net/ref:qwk) such as `HEADERS.DAT`, `@` kludges, and UTF-8 handling.
 
@@ -36,6 +36,9 @@ Example:
     }
 }
 ```
+
+### Areas and Scan Pointers
+A QWK packet carries the same areas as a Blue Wave packet, from one list per caller, and each area starts from the caller's ordinary new scan pointer. A message read online, or downloaded in a packet of either format, is not packed again, and the pointers move only once the packet has actually been downloaded. Setting a new scan date moves where the next packet starts too. A caller's earlier per-format area lists are moved over once, the first time they export after upgrading. If the packet cannot take a message, that area stops there and the rest of its new mail comes in the next packet. See [Areas and Scan Pointers](./bluewave.md#areas-and-scan-pointers).
 
 ### Bulletins
 A welcome screen, news, a logoff screen and further bulletins can be packed into every packet a caller downloads, as `HELLO`, `BBSNEWS`, `GOODBYE` and `BLT-0.1`, `BLT-0.2`, .... They are configured in `messageNetworks.offlineMail`, shared with Blue Wave; see [Bulletins](./bluewave.md#bulletins).

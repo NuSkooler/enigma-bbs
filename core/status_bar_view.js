@@ -120,6 +120,17 @@ class StatusBarView extends TextView {
 
     //  ── Public panel API ─────────────────────────────────────────────────────
 
+    //  Names of every panel, in config order; [] when not in panel mode.
+    //  Unnamed panels report their index as a string, as setPanels() accepts.
+    getPanelNames() {
+        return this._panels ? this._panels.map(p => p.name) : [];
+    }
+
+    //  True when single mode was given a `text` template of its own.
+    hasTextTemplate() {
+        return !_.isEmpty(this._format);
+    }
+
     //  Update a single panel by name or index and redraw.
     setPanel(nameOrIndex, value) {
         if (!this._panels) {

@@ -31,6 +31,9 @@ exports.messageToHtml = messageToHtml;
 exports.htmlToMessageBody = htmlToMessageBody;
 exports.userNameFromSubject = userNameFromSubject;
 exports.userNameToSubject = userNameToSubject;
+exports.handleFromSubject = handleFromSubject;
+exports.signedFetchOptions = signedFetchOptions;
+exports.stripDisplayControls = stripDisplayControls;
 exports.extractMessageMetadata = extractMessageMetadata;
 exports.recipientIdsFromObject = recipientIdsFromObject;
 exports.prepareLocalUserAsActor = prepareLocalUserAsActor;
@@ -523,6 +526,52 @@ function htmlToMessageBody(html) {
 
 function userNameFromSubject(subject) {
     return subject.replace(/^acct:(.+)$/, '$1');
+}
+
+//  A remote handle or name shown on the board: no control codes of any kind
+function stripDisplayControls(s) {
+    return isString(s)
+        ? stripAllControlCodes(s).replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
+        : '';
+}
+
+//  Longest "user@host" taken from a WebFinger subject
+const MaxHandleLength = 255;
+
+//
+//  The "user@host" a WebFinger subject ("acct:user@host") names, with control
+//  codes stripped, or null when it is not one.
+//
+function handleFromSubject(subject) {
+    if (!isString(subject)) {
+        return null;
+    }
+    const handle = stripDisplayControls(userNameFromSubject(subject.trim())).replace(
+        /^@/,
+        ''
+    );
+    if (handle.length > MaxHandleLength || !/^[^@\s/]+@[^@\s/]+$/.test(handle)) {
+        return null;
+    }
+    return handle;
+}
+
+//
+//  HTTP signature options for a GET made as local |user|, for servers that
+//  refuse unsigned fetches (Mastodon secure mode, GoToSocial), or null when
+//  there is no user or it has no key. A GET has no body: no digest.
+//
+function signedFetchOptions(user) {
+    const key = user && user.getProperty(UserProps.PrivateActivityPubSigningKey);
+    if (!key) {
+        return null;
+    }
+    return {
+        key,
+        keyId: Endpoints.actorId(user) + '#main-key',
+        authorizationHeaderName: 'Signature',
+        headers: ['(request-target)', 'host', 'date'],
+    };
 }
 
 function userNameToSubject(userName) {

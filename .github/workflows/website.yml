@@ -31,6 +31,8 @@ jobs:
         with:
           #  package.json requires >=22
           node-version: '22'
+          #  the runner's cached 22.x can lag; Astro pins a minimum patch
+          check-latest: true
           cache: npm
           #  Two lockfiles: the BBS's own and the site's.
           cache-dependency-path: |

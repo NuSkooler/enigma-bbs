@@ -4,10 +4,7 @@
 //  ENiGMA½
 const MessageBaseOfflineExport = require('./message_base_offline_export.js');
 const { BlueWavePacketWriter } = require('./bluewave_mail_packet.js');
-const {
-    BlueWaveExportAreasProperty,
-    blueWaveListedAreaTags,
-} = require('./offline_mail_areas.js');
+const { blueWaveListedAreaTags } = require('./offline_mail_areas.js');
 const Config = require('./config.js').get;
 
 //  deps
@@ -20,10 +17,10 @@ const _ = require('lodash');
 //
 const ImportModuleName = 'message_base_offline_import';
 
+//  the areas are shared with QWK, and the import replaces them from a reply
+//  packet's offline configuration; see offline_mail_areas.js
 const UserProperties = {
     ExportOptions: 'bluewave_export_options',
-    //  the import replaces this from a reply packet's offline configuration
-    ExportAreas: BlueWaveExportAreasProperty,
 };
 
 exports.moduleInfo = {

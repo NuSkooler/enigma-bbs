@@ -94,7 +94,7 @@ Settings live under `contentServers.web.wsTerm` in `config.hjson`. All of them a
 The generated `config.json` tells the page where to connect. ENiGMA½ picks the first of these that applies:
 
 1. `wsTerm.endpoint`, when it is set.
-2. `wss://<contentServers.web.domain>:<loginServers.webSocket.wss.port>`, when ENiGMA½'s own `wss` listener is enabled.
+2. `wss://<host>:<loginServers.webSocket.wss.port>`, when ENiGMA½'s own `wss` listener is enabled. `<host>` is the host of `contentServers.web.overrideUrlPrefix` when that is set, otherwise `contentServers.web.domain`. Only the host is taken from the prefix: its port is the web server's, so the derived URL always uses the `wss` listener's port.
 3. None. ENiGMA½ logs a warning once, and the page asks the caller for a host instead of connecting on its own.
 
 A plain `ws://` listener is never used to build the endpoint, because browsers on an HTTPS page will not connect to it.

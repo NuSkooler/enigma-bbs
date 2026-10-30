@@ -439,7 +439,10 @@ describe('.github/workflows/docker.yml cache (#814)', () => {
             'core/config/unarc_archivers.js',
             'util/exiftool2desc.js',
         ]) {
-            const re = new RegExp(`^\\s*- '${path.replace(/[./]/g, '\\$&')}'$`, 'm');
+            const re = new RegExp(
+                `^\\s*- '${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'$`,
+                'm'
+            );
             assert.match(text, re, `docker.yml does not build on ${path}`);
         }
     });

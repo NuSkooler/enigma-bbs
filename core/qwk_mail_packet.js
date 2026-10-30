@@ -117,7 +117,7 @@ const QWKNetworkTagIndicator = {
 };
 
 //  See the following:
-//  -   http://fileformats.archiveteam.org/wiki/QWK
+//  -   https://web.archive.org/web/20241218182857/http://fileformats.archiveteam.org/wiki/QWK
 //  -   http://wiki.synchro.net/ref:qwk
 //
 const MessageHeaderParser = new Parser()
@@ -467,7 +467,7 @@ class QWKPacketReader extends EventEmitter {
         //  the originating BBS, conf number <> name mapping, etc.
         //
         //  References:
-        //  -   http://fileformats.archiveteam.org/wiki/QWK
+        //  -   https://web.archive.org/web/20241218182857/http://fileformats.archiveteam.org/wiki/QWK
         //
         //
         //  A reply packet carries no CONTROL.DAT: it is written by the
@@ -1158,6 +1158,7 @@ class QWKPacketWriter extends EventEmitter {
         }
     }
 
+    //  true if the message is in the packet, false if it could not be written
     appendMessage(message) {
         //
         //  Each message has to:
@@ -1233,7 +1234,7 @@ class QWKPacketWriter extends EventEmitter {
         //  The first block is always a header
         if (!this._writeMessageHeader(message, totalBlocks)) {
             //  we can't write this message
-            return;
+            return false;
         }
 
         this.messagesStream.write(encodedMessage);
@@ -1253,6 +1254,7 @@ class QWKPacketWriter extends EventEmitter {
 
         this.totalMessages += 1;
         this.areaTagsSeen.add(message.areaTag);
+        return true;
     }
 
     _getEncoding(message) {

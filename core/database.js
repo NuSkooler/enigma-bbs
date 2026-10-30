@@ -8,6 +8,7 @@ const Logger = require('./logger.js');
 //  deps
 const Database = require('better-sqlite3');
 const paths = require('path');
+const fse = require('fs-extra');
 const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment');
@@ -23,6 +24,14 @@ exports.getISOTimestampString = getISOTimestampString;
 exports.coerceToText = coerceToText;
 exports.initializeDatabases = initializeDatabases;
 exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
+exports.scheduledEventCheckpointDatabases = scheduledEventCheckpointDatabases;
+exports.scheduledEventBackupDatabases = scheduledEventBackupDatabases;
+exports.checkpointDatabases = checkpointDatabases;
+exports.backupDatabases = backupDatabases;
+exports.initMessageDatabase = initMessageDatabase;
+exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
+exports.migrateMessageFtsRebuild = migrateMessageFtsRebuild;
+exports.migrateActivityPubActorCachePurge = migrateActivityPubActorCachePurge;
 
 exports.dbs = dbs;
 
@@ -221,6 +230,504 @@ function repairNumberTextValuesV1() {
         .run(NUMBER_TEXT_REPAIR_FLAG, `${totalRepaired}/${totalDeleted}`);
 }
 
+//
+//  message.sqlite3 schema versions, kept in PRAGMA user_version:
+//    0: message.message_id INTEGER PRIMARY KEY (an ID could be handed out again)
+//    1: message.message_id INTEGER PRIMARY KEY AUTOINCREMENT (#958)
+//    2: message_fts rebuilt once, dropping stale rows left by edits (#964)
+//
+const MESSAGE_DB_VERSION_AUTOINCREMENT = 1;
+const MESSAGE_DB_VERSION_FTS_REBUILD = 2;
+const MESSAGE_DB_VERSION_LATEST = MESSAGE_DB_VERSION_FTS_REBUILD;
+
+//  Columns in declaration order; the rebuild copies them by name.
+const MESSAGE_TABLE_COLUMNS = [
+    'message_id',
+    'area_tag',
+    'message_uuid',
+    'reply_to_message_id',
+    'to_user_name',
+    'from_user_name',
+    'subject',
+    'message',
+    'modified_timestamp',
+    'view_count',
+];
+
+//
+//  AUTOINCREMENT: a deleted message's ID is never given to a later one.
+//  Last read pointers, FTN export pointers (message_area_last_scan) and
+//  offline mail all mean "everything up to this ID", and plain INTEGER
+//  PRIMARY KEY reuses max(rowid) once the newest message is deleted (#958).
+//
+function messageTableSql(tableName) {
+    return `CREATE TABLE IF NOT EXISTS ${tableName} (
+                message_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                area_tag                VARCHAR NOT NULL,
+                message_uuid            VARCHAR(36) NOT NULL,
+                reply_to_message_id     INTEGER,
+                to_user_name            VARCHAR NOT NULL,
+                from_user_name          VARCHAR NOT NULL,
+                subject, /* FTS @ message_fts */
+                message, /* FTS @ message_fts */
+                modified_timestamp      DATETIME NOT NULL,
+                view_count              INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(message_uuid)
+            );`;
+}
+
+//
+//  message_fts is an external content FTS4 table (content="message"): it keeps
+//  only the index, keyed by docid = message rowid (= message_id), and reads
+//  the text from whatever table is called "message". The triggers below keep
+//  it in step, and are dropped with the table they are on.
+//
+const MESSAGE_INDEX_AND_TRIGGERS_SQL = `
+            CREATE INDEX IF NOT EXISTS message_by_area_tag_index
+                ON message (area_tag);
+
+            CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
+                DELETE FROM message_fts WHERE docid=old.rowid;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
+                DELETE FROM message_fts WHERE docid=old.rowid;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
+                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
+                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+            END;
+`;
+
+function initMessageDatabase(db) {
+    //  a new database has nothing to migrate
+    const isNew = !db
+        .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'message';`)
+        .get();
+
+    db.exec(`
+            ${messageTableSql('message')}
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (
+                content="message",
+                subject,
+                message
+            );
+
+            ${MESSAGE_INDEX_AND_TRIGGERS_SQL}
+
+            CREATE TABLE IF NOT EXISTS message_meta (
+                message_id      INTEGER NOT NULL,
+                meta_category   INTEGER NOT NULL,
+                meta_name       VARCHAR NOT NULL,
+                meta_value      VARCHAR NOT NULL,
+                UNIQUE(message_id, meta_category, meta_name, meta_value),
+                FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS user_message_area_last_read (
+                user_id     INTEGER NOT NULL,
+                area_tag    VARCHAR NOT NULL,
+                message_id  INTEGER NOT NULL,
+                UNIQUE(user_id, area_tag)
+            );
+
+            CREATE TABLE IF NOT EXISTS message_area_last_scan (
+                scan_toss       VARCHAR NOT NULL,
+                area_tag        VARCHAR NOT NULL,
+                message_id      INTEGER NOT NULL,
+                UNIQUE(scan_toss, area_tag)
+            );
+        `);
+
+    if (isNew) {
+        db.pragma(`user_version = ${MESSAGE_DB_VERSION_LATEST}`);
+        return;
+    }
+
+    //  in order: each one runs only from the version before it
+    migrateMessageIdAutoincrement(db);
+    migrateMessageFtsRebuild(db);
+}
+
+//  A failed or refused migration leaves startup going on the old schema, so a
+//  sysop who never reads the log would not know: say it on the console too.
+//  (Used for the activitypub database's migrations as well.)
+function reportMessageDbFailure(fields, message) {
+    if (Logger.log) {
+        Logger.log.error(fields, message);
+    }
+    console.error(`${message}${fields.error ? ` (${fields.error})` : ''}`); //  eslint-disable-line no-console
+}
+
+function isAutoincrementTable(db, tableName) {
+    const row = db
+        .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?;`)
+        .get(tableName);
+    return !!row && /\bAUTOINCREMENT\b/i.test(row.sql);
+}
+
+//
+//  The highest message ID this database has ever handed out, as far as it can
+//  tell. The newest message may have been deleted before the upgrade, and its
+//  ID can still be held by a last read pointer, an FTN export pointer, orphaned
+//  meta or the FTS index, so all of them count: starting the sequence at the
+//  surviving MAX(message_id) would give that ID out once more.
+//
+function highestMessageIdSeen(db) {
+    const sources = [
+        ['message', 'message_id'],
+        ['message_meta', 'message_id'],
+        ['user_message_area_last_read', 'message_id'],
+        ['message_area_last_scan', 'message_id'],
+        ['message_fts_docsize', 'docid'],
+    ];
+    const tableExists = db.prepare(
+        `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?;`
+    );
+    let highest = 0;
+    for (const [table, column] of sources) {
+        if (!tableExists.get(table)) {
+            continue;
+        }
+        //  integers only: SQLite sorts text above every integer, so one stray
+        //  text value would win MAX() and hide the real highest ID
+        const { id } = db
+            .prepare(
+                `SELECT MAX("${column}") AS id FROM "${table}" WHERE typeof("${column}") = 'integer';`
+            )
+            .get();
+        //  a pointer is only ever written from a real message ID; anything
+        //  else is ignored rather than allowed to push the sequence to its end
+        if (Number.isSafeInteger(id) && id > highest) {
+            highest = id;
+        }
+    }
+    return highest;
+}
+
+//
+//  One-time migration (#958): rebuild |message| with message_id INTEGER PRIMARY
+//  KEY AUTOINCREMENT, which ALTER TABLE cannot add. This is SQLite's documented
+//  12-step procedure (https://www.sqlite.org/lang_altertable.html#otheralter):
+//  foreign keys off outside the transaction, so DROP TABLE cascades nothing
+//  into message_meta; then in one transaction: create, copy, drop, rename,
+//  recreate the index and FTS triggers, seed sqlite_sequence, foreign key
+//  check, bump user_version. Any failure rolls the whole thing back and the
+//  old table is untouched; the next start tries again.
+//
+//  It must not run inside a transaction someone else opened: PRAGMA
+//  foreign_keys is a no-op there, and DROP TABLE would then cascade-delete
+//  every message_meta row.
+//
+//  Every message_id (= rowid = FTS docid) is copied as is, so the external
+//  content FTS index stays valid and is not rebuilt.
+//
+function migrateMessageIdAutoincrement(db) {
+    if (db.pragma('user_version', { simple: true }) >= MESSAGE_DB_VERSION_AUTOINCREMENT) {
+        return;
+    }
+
+    //  a fresh install was just created with AUTOINCREMENT: only record that
+    if (isAutoincrementTable(db, 'message')) {
+        db.pragma(`user_version = ${MESSAGE_DB_VERSION_AUTOINCREMENT}`);
+        return;
+    }
+
+    const log = Logger.log;
+
+    if (db.inTransaction) {
+        reportMessageDbFailure(
+            {},
+            'Not upgrading the message table inside an open transaction, where foreign keys cannot be turned off; it is unchanged, and the upgrade will be tried again at the next start'
+        );
+        return;
+    }
+
+    //  for the log only: another process may add messages before we lock
+    const rowCount = db.prepare('SELECT COUNT(*) AS n FROM message;').get().n;
+    if (log) {
+        log.info(
+            { rowCount },
+            'Upgrading the message table so message IDs are never reused (#958); this runs once and may take a while on a large message base'
+        );
+    }
+
+    const startedAt = Date.now();
+    const columns = MESSAGE_TABLE_COLUMNS.join(', ');
+    const metaViolations = () => db.pragma('foreign_key_check(message_meta)').length;
+    const countRows = table => db.prepare(`SELECT COUNT(*) AS n FROM ${table};`).get().n;
+
+    let result;
+    const fkWasOn = db.pragma('foreign_keys', { simple: true }) === 1;
+    db.pragma('foreign_keys = OFF');
+    try {
+        result = db
+            .transaction(() => {
+                //  another process (oputil, say) may have got here first
+                if (
+                    db.pragma('user_version', { simple: true }) >=
+                    MESSAGE_DB_VERSION_AUTOINCREMENT
+                ) {
+                    return null;
+                }
+
+                const violationsBefore = metaViolations();
+                const messagesBefore = countRows('message');
+                const metaBefore = countRows('message_meta');
+
+                db.exec(`
+                    DROP TABLE IF EXISTS message_new;
+                    ${messageTableSql('message_new')}
+                    INSERT INTO message_new (${columns})
+                        SELECT ${columns} FROM message ORDER BY message_id;
+                `);
+                const copied = countRows('message_new');
+                if (copied !== messagesBefore) {
+                    throw new Error(
+                        `Message table rebuild copied ${copied} of ${messagesBefore} rows`
+                    );
+                }
+
+                const sequence = highestMessageIdSeen(db);
+
+                //  DROP TABLE also drops the index and the four FTS triggers
+                db.exec(`
+                    DROP TABLE message;
+                    ALTER TABLE message_new RENAME TO message;
+                    ${MESSAGE_INDEX_AND_TRIGGERS_SQL}
+                `);
+
+                //  foreign_key_check cannot see rows that are gone: had foreign
+                //  keys still been on, DROP TABLE would have cascaded
+                const metaAfter = countRows('message_meta');
+                if (metaAfter !== metaBefore) {
+                    throw new Error(
+                        `Message table rebuild lost ${
+                            metaBefore - metaAfter
+                        } of ${metaBefore} message_meta rows`
+                    );
+                }
+
+                //  RENAME carries the sqlite_sequence row along; it holds
+                //  MAX(message_id) from the copy, or is missing if there was
+                //  nothing to copy
+                const seeded = db
+                    .prepare(
+                        `UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'message';`
+                    )
+                    .run(sequence).changes;
+                if (!seeded) {
+                    db.prepare(
+                        `INSERT INTO sqlite_sequence (name, seq) VALUES ('message', ?);`
+                    ).run(sequence);
+                }
+
+                const violationsAfter = metaViolations();
+                if (violationsAfter > violationsBefore) {
+                    throw new Error(
+                        `Message table rebuild left ${
+                            violationsAfter - violationsBefore
+                        } message_meta rows without a message`
+                    );
+                }
+
+                db.pragma(`user_version = ${MESSAGE_DB_VERSION_AUTOINCREMENT}`);
+                return { rowCount: copied, sequence, metaOrphans: violationsBefore };
+            })
+            .immediate();
+    } catch (err) {
+        reportMessageDbFailure(
+            { error: err.message, rowCount },
+            'Upgrading the message table failed; it is unchanged, and the upgrade will be tried again at the next start'
+        );
+        return;
+    } finally {
+        if (fkWasOn) {
+            db.pragma('foreign_keys = ON');
+        }
+    }
+
+    if (result && log) {
+        log.info(
+            {
+                rowCount: result.rowCount,
+                sequence: result.sequence,
+                metaOrphans: result.metaOrphans,
+                durationMs: Date.now() - startedAt,
+            },
+            'Upgraded the message table: message IDs are no longer reused'
+        );
+    }
+}
+
+//
+//  One-time migration (#964): rebuild the message_fts index from the message
+//  table. Message#update() used to REPLACE an edited message, which deletes
+//  the row without firing message_before_delete (recursive_triggers is off),
+//  so every edited ActivityPub post left a stale docid behind and the FTS4
+//  index fails PRAGMA integrity_check. 'rebuild' throws the index away and
+//  builds it again from the external content table.
+//
+//  It runs only from version 1, after the #958 rebuild: at 0 that one has not
+//  run yet (or failed), and jumping past it would skip it for good. Like the
+//  #958 one it will not run inside a transaction someone else opened, who
+//  could still roll it back after user_version says it is done.
+//
+function migrateMessageFtsRebuild(db) {
+    if (
+        db.pragma('user_version', { simple: true }) !== MESSAGE_DB_VERSION_AUTOINCREMENT
+    ) {
+        return;
+    }
+
+    const log = Logger.log;
+
+    if (db.inTransaction) {
+        reportMessageDbFailure(
+            {},
+            'Not rebuilding the message search index inside an open transaction; it is unchanged, and the rebuild will be tried again at the next start'
+        );
+        return;
+    }
+
+    const rowCount = db.prepare('SELECT COUNT(*) AS n FROM message;').get().n;
+    if (log) {
+        log.info(
+            { rowCount },
+            'Rebuilding the message search index to drop entries left by edited messages (#964); this runs once and may take a while on a large message base'
+        );
+    }
+
+    const startedAt = Date.now();
+    let result;
+    try {
+        result = db
+            .transaction(() => {
+                //  another process (oputil, say) may have got here first
+                if (
+                    db.pragma('user_version', { simple: true }) !==
+                    MESSAGE_DB_VERSION_AUTOINCREMENT
+                ) {
+                    return null;
+                }
+
+                db.exec(`INSERT INTO message_fts(message_fts) VALUES('rebuild');`);
+                db.pragma(`user_version = ${MESSAGE_DB_VERSION_FTS_REBUILD}`);
+                return {
+                    rowCount: db.prepare('SELECT COUNT(*) AS n FROM message;').get().n,
+                };
+            })
+            .immediate();
+    } catch (err) {
+        reportMessageDbFailure(
+            { error: err.message, rowCount },
+            'Rebuilding the message search index failed; it is unchanged, and the rebuild will be tried again at the next start'
+        );
+        return;
+    }
+
+    if (result && log) {
+        log.info(
+            { rowCount: result.rowCount, durationMs: Date.now() - startedAt },
+            'Rebuilt the message search index'
+        );
+    }
+}
+
+//
+//  activitypub.sqlite3 schema versions, kept in PRAGMA user_version:
+//    1: collection_fts reads sharedInbox/outbox text from $.object (above)
+//    2: the actor cache was purged once
+//
+const AP_DB_VERSION_ACTOR_CACHE_PURGED = 2;
+
+//
+//  One-time migration: empty the cache of remote actors (the 'actors'
+//  collection). Until #964's review, a fetched actor was cached under the id
+//  inside the fetched document, whatever URL it came from, so a cached
+//  actor's key may have been planted by another server. Such an entry cannot
+//  be told apart from a genuine one, so all of them go; Actor.fromId()
+//  fetches each again when it is next needed, and the cache maintenance task
+//  already drops entries by age.
+//
+//  Only the cache is removed. Followers and Following keep their own copy of
+//  each actor, and note_reactions holds actor ids only.
+//
+function migrateActivityPubActorCachePurge(db) {
+    if (db.pragma('user_version', { simple: true }) !== 1) {
+        return;
+    }
+
+    const count = () =>
+        db.prepare(`SELECT COUNT(*) AS n FROM collection WHERE name = 'actors';`).get().n;
+
+    //  nothing cached (a new database): only record the version
+    if (count() === 0) {
+        db.pragma(`user_version = ${AP_DB_VERSION_ACTOR_CACHE_PURGED}`);
+        return;
+    }
+
+    if (db.inTransaction) {
+        reportMessageDbFailure(
+            {},
+            'Not purging the ActivityPub actor cache inside an open transaction; it will be tried again at the next start'
+        );
+        return;
+    }
+
+    const log = Logger.log;
+    const rowCount = count();
+    if (log) {
+        log.info(
+            { rowCount },
+            'Purging the ActivityPub actor cache once; remote actors are fetched again when next needed'
+        );
+    }
+
+    const startedAt = Date.now();
+    let result;
+    try {
+        result = db
+            .transaction(() => {
+                //  another process may have got here first
+                if (db.pragma('user_version', { simple: true }) !== 1) {
+                    return null;
+                }
+                const meta = db
+                    .prepare(`DELETE FROM collection_object_meta WHERE name = 'actors';`)
+                    .run().changes;
+                const actors = db
+                    .prepare(`DELETE FROM collection WHERE name = 'actors';`)
+                    .run().changes;
+                db.pragma(`user_version = ${AP_DB_VERSION_ACTOR_CACHE_PURGED}`);
+                return { actors, meta };
+            })
+            .immediate();
+    } catch (err) {
+        reportMessageDbFailure(
+            { error: err.message, rowCount },
+            'Purging the ActivityPub actor cache failed; it is unchanged, and the purge will be tried again at the next start'
+        );
+        return;
+    }
+
+    if (result && log) {
+        log.info(
+            {
+                actors: result.actors,
+                meta: result.meta,
+                durationMs: Date.now() - startedAt,
+            },
+            'Purged the ActivityPub actor cache'
+        );
+    }
+}
+
 const DB_INIT_TABLE = {
     system: () => {
         dbs.system.exec(`
@@ -330,69 +837,7 @@ const DB_INIT_TABLE = {
     },
 
     message: () => {
-        dbs.message.exec(`
-            CREATE TABLE IF NOT EXISTS message (
-                message_id              INTEGER PRIMARY KEY,
-                area_tag                VARCHAR NOT NULL,
-                message_uuid            VARCHAR(36) NOT NULL,
-                reply_to_message_id     INTEGER,
-                to_user_name            VARCHAR NOT NULL,
-                from_user_name          VARCHAR NOT NULL,
-                subject, /* FTS @ message_fts */
-                message, /* FTS @ message_fts */
-                modified_timestamp      DATETIME NOT NULL,
-                view_count              INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(message_uuid)
-            );
-
-            CREATE INDEX IF NOT EXISTS message_by_area_tag_index
-                ON message (area_tag);
-
-            CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (
-                content="message",
-                subject,
-                message
-            );
-
-            CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
-                DELETE FROM message_fts WHERE docid=old.rowid;
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
-                DELETE FROM message_fts WHERE docid=old.rowid;
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
-                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
-                INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-            END;
-
-            CREATE TABLE IF NOT EXISTS message_meta (
-                message_id      INTEGER NOT NULL,
-                meta_category   INTEGER NOT NULL,
-                meta_name       VARCHAR NOT NULL,
-                meta_value      VARCHAR NOT NULL,
-                UNIQUE(message_id, meta_category, meta_name, meta_value),
-                FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS user_message_area_last_read (
-                user_id     INTEGER NOT NULL,
-                area_tag    VARCHAR NOT NULL,
-                message_id  INTEGER NOT NULL,
-                UNIQUE(user_id, area_tag)
-            );
-
-            CREATE TABLE IF NOT EXISTS message_area_last_scan (
-                scan_toss       VARCHAR NOT NULL,
-                area_tag        VARCHAR NOT NULL,
-                message_id      INTEGER NOT NULL,
-                UNIQUE(scan_toss, area_tag)
-            );
-        `);
+        initMessageDatabase(dbs.message);
     },
 
     file: () => {
@@ -874,6 +1319,8 @@ const DB_INIT_TABLE = {
             dbs.activitypub.pragma('user_version = 1');
         }
 
+        migrateActivityPubActorCachePurge(dbs.activitypub);
+
         //
         //  One-time migration: backfill note_reactions from legacy meta-based storage.
         //  Guard: only runs when note_reactions is empty AND legacy reaction meta exists.
@@ -960,4 +1407,172 @@ function scheduledEventOptimizeDatabases(args, cb) {
     } catch (err) {
         return cb(err);
     }
+}
+
+//
+//  Checkpoint the WAL of each database in |handles| ({ name: Database }),
+//  truncating the -wal file to zero bytes. A checkpoint cannot finish while
+//  a reader holds an older snapshot; SQLite then reports it busy and the
+//  WAL simply keeps its contents until the next one. Synchronous, and short:
+//  it copies only what is in the WAL.
+//
+//  Returns [ { database, busy, logFrames, checkpointedFrames } ]
+//
+function checkpointDatabases(handles) {
+    return Object.entries(handles).map(([database, db]) => {
+        const [row] = db.pragma('wal_checkpoint(TRUNCATE)');
+        return {
+            database,
+            busy: 0 !== row.busy,
+            logFrames: row.log,
+            checkpointedFrames: row.checkpointed,
+        };
+    });
+}
+
+function scheduledEventCheckpointDatabases(args, cb) {
+    let results;
+    try {
+        results = checkpointDatabases(dbs);
+    } catch (err) {
+        return cb(err);
+    }
+
+    const log = Logger.log;
+    results.forEach(result => {
+        log.info(result, 'Database WAL checkpoint');
+    });
+
+    const busy = results.filter(r => r.busy).map(r => r.database);
+    if (busy.length > 0) {
+        log.warn(
+            { databases: busy },
+            'Database WAL checkpoint could not complete (database busy); it will catch up next time'
+        );
+    }
+
+    return cb(null);
+}
+
+//
+//  A completed backup set: <paths.db>/backup/YYYYMMDD-HHmmssZ[-n]/
+//
+//  The stamp is UTC, so the names sort by time: in local time the hour
+//  repeated when the clocks go back would make a newer set sort before an
+//  older one, and pruning would delete the wrong one. -n separates sets
+//  made in the same second.
+//
+const BACKUP_SET_REGEXP = /^\d{8}-\d{6}Z(?:-\d+)?$/;
+const BACKUP_PARTIAL_SUFFIX = '.partial';
+const BACKUP_PARTIAL_REGEXP = /^\d{8}-\d{6}Z(?:-\d+)?\.partial$/;
+const BACKUP_KEEP_DEFAULT = 3;
+
+//
+//  Back up each database in |handles| ({ name: Database }) into a new
+//  timestamped directory under |dir|, then delete all but the newest |keep|
+//  sets.
+//
+//  better-sqlite3's backup() copies a few pages at a time and yields to the
+//  event loop between steps, so the BBS keeps running while it works, and
+//  writes made meanwhile by this process are carried into the copy. The set
+//  is written to "<stamp>.partial" and renamed once every database is in,
+//  so a directory without the suffix is always complete.
+//
+//  Resolves to { dir: <set directory>, files: [ ... ], pruned: [ ... ] }
+//
+//  Only one backup runs at a time: the scheduler guards each event by name,
+//  but two events can name this same action, and a second run would delete
+//  the first one's .partial set out from under it.
+//
+let backupInProgress = false;
+
+async function backupDatabases(handles, options) {
+    if (backupInProgress) {
+        throw new Error('A database backup is already running');
+    }
+
+    backupInProgress = true;
+    try {
+        return await runBackup(handles, options);
+    } finally {
+        backupInProgress = false;
+    }
+}
+
+//  The names sort by time, except that "-10" must follow "-2".
+function compareBackupSetNames(a, b) {
+    const stamp = name => name.slice(0, 16);
+    const seq = name => (name.length > 16 ? parseInt(name.slice(17), 10) : 1);
+    return stamp(a) < stamp(b) ? -1 : stamp(a) > stamp(b) ? 1 : seq(a) - seq(b);
+}
+
+async function runBackup(handles, options) {
+    const dir = options.dir;
+    const keep = options.keep || BACKUP_KEEP_DEFAULT;
+
+    await fse.ensureDir(dir);
+
+    //  A crash mid-backup leaves its .partial set (a full copy) behind; only
+    //  one backup runs at a time, so any found now is stale.
+    for (const entry of await fse.readdir(dir)) {
+        if (BACKUP_PARTIAL_REGEXP.test(entry)) {
+            await fse.remove(paths.join(dir, entry));
+        }
+    }
+
+    const stamp = moment.utc().format('YYYYMMDD-HHmmss[Z]');
+    let setName = stamp;
+    for (let n = 2; await fse.pathExists(paths.join(dir, setName)); ++n) {
+        setName = `${stamp}-${n}`;
+    }
+
+    const setDir = paths.join(dir, setName);
+    const partialDir = setDir + BACKUP_PARTIAL_SUFFIX;
+    await fse.ensureDir(partialDir);
+
+    const files = [];
+    try {
+        for (const [name, db] of Object.entries(handles)) {
+            const file = `${name}.sqlite3`;
+            await db.backup(paths.join(partialDir, file));
+            files.push(file);
+        }
+        await fse.rename(partialDir, setDir);
+    } catch (err) {
+        await fse.remove(partialDir).catch(() => {});
+        throw err;
+    }
+
+    //  The set just written always stays, even if older sets sort after it
+    //  (the clock was stepped back, or sets were restored from elsewhere).
+    const others = (await fse.readdir(dir))
+        .filter(entry => entry !== setName && BACKUP_SET_REGEXP.test(entry))
+        .sort(compareBackupSetNames);
+
+    const pruned = others.slice(0, Math.max(0, others.length - (keep - 1)));
+    for (const entry of pruned) {
+        await fse.remove(paths.join(dir, entry));
+    }
+
+    return { dir: setDir, files, pruned };
+}
+
+//
+//  args[0]: how many backup sets to keep (default 3)
+//
+function scheduledEventBackupDatabases(args, cb) {
+    const keepArg = parseInt(Array.isArray(args) ? args[0] : undefined, 10);
+    const keep = keepArg > 0 ? keepArg : BACKUP_KEEP_DEFAULT;
+    const dir = paths.join(conf.get().paths.db, 'backup');
+
+    backupDatabases(dbs, { dir, keep }).then(
+        result => {
+            Logger.log.info(
+                { dir: result.dir, files: result.files, pruned: result.pruned, keep },
+                'Database backup complete'
+            );
+            return cb(null);
+        },
+        err => cb(err)
+    );
 }

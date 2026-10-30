@@ -1,5 +1,8 @@
 # ngrok config for tunnelling ENiGMA's web server port.
-# Add your authtoken here (ngrok dashboard → Your Authtoken).
+# Do NOT put your authtoken in this file - it is tracked in git. Either export
+# NGROK_AUTHTOKEN, or put it in enigma.local.yml (gitignored) next to this file:
+#   agent:
+#       authtoken: '<your token>'
 #
 # Usage:
 #   ./start.sh
@@ -14,9 +17,6 @@
 # request time, so existing DB records retain old IDs until actors are re-fetched.
 
 version: '3'
-
-agent:
-    authtoken: '2JyPhGIEJwpGs2G8UIQFGrCMvqO_iwTTdcqZU7d1drJKuFS6'
 
 tunnels:
     enigma-web:

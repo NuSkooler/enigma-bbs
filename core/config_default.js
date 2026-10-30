@@ -1646,12 +1646,21 @@ module.exports = () => {
         },
 
         eventScheduler: {
+            //
+            //  Each entry: { schedule, action, args, desc, confirm, manual,
+            //  enabled, timeout }. Only |action| is required; an entry with no
+            //  |schedule| is manual-only: listed and runnable on demand (e.g.
+            //  from the WFC), never run on its own. See event-scheduler.md.
+            //
             events: {
                 dailyMaintenance: {
+                    desc: "Daily maintenance (resets today's stats)",
                     schedule: 'at 11:59pm',
                     action: '@method:core/misc_scheduled_events.js:dailyMaintenanceScheduledEvent',
+                    confirm: true, //  run by hand, it zeroes today's counters
                 },
                 trimMessageAreas: {
+                    desc: 'Trim message areas',
                     //  may optionally use [or ]@watch:/path/to/file
                     schedule: 'every 24 hours',
 
@@ -1662,25 +1671,30 @@ module.exports = () => {
                     //  - @execute:/path/to/something/executable.sh
                     //
                     action: '@method:core/message_area.js:trimMessageAreasScheduledEvent',
+                    confirm: true, //  deletes messages
                 },
 
                 nntpMaintenance: {
+                    desc: 'NNTP maintenance',
                     schedule: 'every 12 hours', //  should generally be < trimMessageAreas interval
                     action: '@method:core/servers/content/nntp.js:performMaintenanceTask',
                 },
 
                 updateFileAreaStats: {
+                    desc: 'Update file area stats',
                     schedule: 'every 1 hours',
                     action: '@method:core/file_base_area.js:updateAreaStatsScheduledEvent',
                 },
 
                 forgotPasswordMaintenance: {
+                    desc: 'Expire password reset tokens',
                     schedule: 'every 24 hours',
                     action: '@method:core/web_password_reset.js:performMaintenanceTask',
                     args: ['24 hours'], //  items older than this will be removed
                 },
 
                 twoFactorRegisterTokenMaintenance: {
+                    desc: 'Expire 2FA registration tokens',
                     schedule: 'every 24 hours',
                     action: '@method:core/user_temp_token.js:temporaryTokenMaintenanceTask',
                     args: [
@@ -1691,14 +1705,45 @@ module.exports = () => {
 
                 //  Removes old Actor records
                 activityPubActorCacheMaintenance: {
+                    desc: 'Trim ActivityPub actor cache',
                     schedule: 'every 24 hours',
                     action: '@method:/core/activitypub/actor.js:actorCacheMaintenanceTask',
                 },
 
                 //  Trims sharedInbox by age (default 90 days) and count (default 10000)
                 activityPubSharedInboxMaintenance: {
+                    desc: 'Trim ActivityPub shared inbox',
                     schedule: 'every 24 hours',
                     action: '@method:/core/activitypub/collection.js:sharedInboxMaintenanceTask',
+                },
+
+                //
+                //  Manual-only tasks: no schedule. Add one in your config.hjson
+                //  to also run any of these on its own, e.g.
+                //  backupDatabases: { schedule: 'at 4:00 am' }
+                //
+                optimizeDatabases: {
+                    desc: 'Optimize databases',
+                    action: '@method:core/database.js:scheduledEventOptimizeDatabases',
+                },
+
+                //  Folds each database's -wal file back in and truncates it
+                checkpointDatabases: {
+                    desc: 'Checkpoint database WAL files',
+                    action: '@method:core/database.js:scheduledEventCheckpointDatabases',
+                },
+
+                //  Copies the core databases into <paths.db>/backup/<UTC timestamp>/
+                //  while the BBS keeps running; args: [ <sets to keep, default 3> ]
+                backupDatabases: {
+                    desc: 'Back up databases',
+                    action: '@method:core/database.js:scheduledEventBackupDatabases',
+                },
+
+                //  Asks the FTN BSO scanner/tosser to import & toss its inbound now
+                tossInboundNow: {
+                    desc: 'Toss inbound FTN mail now',
+                    action: '@method:core/misc_scheduled_events.js:tossInboundNowScheduledEvent',
                 },
 
                 //
