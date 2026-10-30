@@ -58,6 +58,9 @@ const OUTPUT_TAIL_LINES = 20;
 //  ...and a bound on the raw buffer, for output that never sends a newline
 const OUTPUT_TAIL_MAX_CHARS = 8192;
 
+//  The longest delay setTimeout takes; above it the callback runs after 1 ms
+const MAX_TIMEOUT_MS = 2147483647;
+
 //  An @execute that ignores the hangup sent on timeout gets SIGKILL this much later
 const EXECUTE_KILL_GRACE_MS = 5000;
 
@@ -123,6 +126,21 @@ function userName(byUser) {
     return byUser.username || String(byUser);
 }
 
+//
+//  A listener that throws must not take the run with it: from the start of
+//  a run it would leave the event marked running for good.
+//
+function emitTaskEvent(eventName, payload) {
+    try {
+        Events.emit(eventName, payload);
+    } catch (e) {
+        Log().warn(
+            { eventName: payload.name, error: errorText(e) },
+            'A system event listener failed on a scheduled event'
+        );
+    }
+}
+
 function errorText(err) {
     if (!err) {
         return null;
@@ -153,7 +171,7 @@ class ScheduledEvent {
         this.enabled = false !== this.entry.enabled;
         this.timeout =
             _.isFinite(this.entry.timeout) && this.entry.timeout > 0
-                ? this.entry.timeout
+                ? Math.min(this.entry.timeout, MAX_TIMEOUT_MS)
                 : 0;
 
         //  state
@@ -630,7 +648,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             : `Running scheduled event "${name}"...`
     );
 
-    Events.emit(Events.getSystemEvents().TaskStarted, {
+    emitTaskEvent(Events.getSystemEvents().TaskStarted, {
         name,
         desc: schedEvent.desc,
         reason,
@@ -697,7 +715,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
 
         this._persistLastRun(schedEvent);
 
-        Events.emit(Events.getSystemEvents().TaskFinished, {
+        emitTaskEvent(Events.getSystemEvents().TaskFinished, {
             name,
             desc: schedEvent.desc,
             reason,

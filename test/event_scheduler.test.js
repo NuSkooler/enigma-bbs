@@ -461,6 +461,21 @@ describe('event scheduler', function () {
         });
     });
 
+    describe('timeout range', () => {
+        it('clamps a timeout setTimeout cannot hold, instead of firing at once', async () => {
+            //  above 2^31-1 ms (about 24.8 days) setTimeout runs the callback after 1 ms
+            await start({
+                t: { action: `@method:${METHODS}:hold`, timeout: 3000000000 },
+            });
+
+            assert.equal(scheduler.runNow('t'), 'started');
+            await wait(100);
+            assert.equal(scheduler.listTasks()[0].running, true);
+            assert.equal(scheduler.listTasks()[0].timeout, 2147483647);
+            methods.state.pending[0](null);
+        });
+    });
+
     describe('@execute', () => {
         it('keeps the last 20 lines of output and the exit code', async function () {
             if ('win32' === process.platform) {
@@ -522,6 +537,26 @@ describe('event scheduler', function () {
                 fakeStatLog({ task_last_run_t: '{not json' })
             );
             assert.equal(scheduler.listTasks()[0].lastRun, null);
+        });
+    });
+
+    describe('a throwing system event listener', () => {
+        it('does not leave the task marked running or stop it starting', async () => {
+            await start({ t: { action: `@method:${METHODS}:ok` } });
+
+            const boom = () => {
+                throw new Error('listener bug');
+            };
+            Events.on(SystemEvents.TaskStarted, boom);
+            try {
+                assert.equal(scheduler.runNow('t'), 'started');
+            } finally {
+                Events.removeListener(SystemEvents.TaskStarted, boom);
+            }
+
+            assert.equal(methods.state.calls.length, 1);
+            assert.equal(scheduler.listTasks()[0].running, false);
+            assert.equal(scheduler.runNow('t'), 'started');
         });
     });
 
