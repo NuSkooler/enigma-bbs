@@ -261,10 +261,10 @@
 					statusBarUserFormat: "|00|10{currentUserName}"
 					statusBarMailFormat: "|00|02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo}"
 					statusBarStatusFormat: "|00|02Avl|08:|10{availIndicator} |02Vis|08:|10{visIndicator}"
-					statusBarMessagesFormat: "|00|02MSG|08:|02{count}"
-					statusBarMessagesActiveFormat: "|00|14MSG|08:|15{count}"
-					statusBarPagesFormat: "|00|02PAGE|08:|02{count}"
-					statusBarPagesActiveFormat: "|00|13PAGE|08:|15{count}"
+					statusBarMessagesFormat: "|00|02Msg|08:|02{count}"
+					statusBarMessagesActiveFormat: "|00|14Msg|08:|15{count}"
+					statusBarPagesFormat: "|00|02Page|08:|02{count}"
+					statusBarPagesActiveFormat: "|00|13Page|08:|15{count}"
 
 					// activity ticker (TK6)
 					ticker: {
