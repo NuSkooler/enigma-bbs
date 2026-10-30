@@ -17,6 +17,7 @@ const sane = require('sane');
 const moment = require('moment');
 const paths = require('path');
 const fse = require('fs-extra');
+const os = require('os');
 
 //
 //  Both read late: config.js replaces |get| once the config is loaded (and
@@ -72,6 +73,18 @@ const MAX_TIMEOUT_MS = 2147483647;
 
 //  An @execute that ignores the hangup sent on timeout gets SIGKILL this much later
 const EXECUTE_KILL_GRACE_MS = 5000;
+
+//  The entry keys that make up an event; a reload re-arms an event when any
+//  of them changes. (enabled is handled on its own: false removes the event.)
+const CONFIG_KEYS = [
+    'schedule',
+    'action',
+    'args',
+    'timeout',
+    'desc',
+    'confirm',
+    'manual',
+];
 
 //  The running instance, set once startup() succeeds; see getInstance()
 let instance = null;
@@ -150,6 +163,15 @@ function emitTaskEvent(eventName, payload) {
     }
 }
 
+//  'SIGHUP' for 1, and so on; a number with no name stays a number
+function signalName(signal) {
+    if (_.isString(signal)) {
+        return signal;
+    }
+    const name = _.findKey(os.constants.signals, n => n === signal);
+    return name || signal;
+}
+
 function errorText(err) {
     if (!err) {
         return null;
@@ -159,9 +181,29 @@ function errorText(err) {
 
 class ScheduledEvent {
     constructor(events, name) {
-        const entry = events[name];
-
         this.name = name;
+        this.applyEntry(events[name]);
+
+        //  state
+        this.running = false;
+        this.startedAt = null;
+        this.lastRun = null;
+        this.runCount = 0;
+        //  the run in progress: { handle, overdueSince, stop(err, stoppedBy) }
+        this.currentRun = null;
+        //  gone from the config (or disabled) while running: listed until the
+        //  run finishes, then dropped; see EventSchedulerModule.reload()
+        this.removed = false;
+        //  what _arm() set up: { active, timer, watcher, watcherReady }
+        this.arming = null;
+    }
+
+    //
+    //  Everything taken from the config entry. A reload that changes the entry
+    //  calls this again on the same object, so the run state above -- a run
+    //  in progress, lastRun, runCount -- carries over.
+    //
+    applyEntry(entry) {
         this.isEntryObject = _.isPlainObject(entry);
         this.entry = this.isEntryObject ? entry : {};
 
@@ -174,7 +216,7 @@ class ScheduledEvent {
         }
 
         this.desc =
-            _.isString(this.entry.desc) && this.entry.desc ? this.entry.desc : name;
+            _.isString(this.entry.desc) && this.entry.desc ? this.entry.desc : this.name;
         this.confirm = true === this.entry.confirm;
         this.manual = false !== this.entry.manual;
         this.enabled = false !== this.entry.enabled;
@@ -183,13 +225,16 @@ class ScheduledEvent {
                 ? Math.min(this.entry.timeout, MAX_TIMEOUT_MS)
                 : 0;
 
-        //  state
-        this.running = false;
-        this.startedAt = null;
-        this.lastRun = null;
-        this.runCount = 0;
-        //  the run in progress: { handle, overdueSince, stop(err, stoppedBy) }
-        this.currentRun = null;
+        //  what a reload compares to tell a changed entry from an unchanged one
+        this.configKey = _.cloneDeep(_.pick(this.entry, CONFIG_KEYS));
+    }
+
+    sameConfig(other) {
+        return _.isEqual(this.configKey, other.configKey);
+    }
+
+    get watchFile() {
+        return (this.schedule && this.schedule.watchFile) || null;
     }
 
     get hasSchedule() {
@@ -354,12 +399,19 @@ class ScheduledEvent {
 
         proc.onExit(exitEvent => {
             exited = true;
+            //
+            //  node-pty reports a process ended by a signal as exitCode 0
+            //  plus the signal's number. It did not exit with 0, so record
+            //  no exit code (as Node's child_process does) and the signal.
+            //
+            if (exitEvent.signal) {
+                run.exitCode = null;
+                run.signal = signalName(exitEvent.signal);
+                return cb(Errors.ExternalProcess(`Killed by signal ${run.signal}`));
+            }
             run.exitCode = exitEvent.exitCode;
             if (exitEvent.exitCode) {
                 return cb(Errors.ExternalProcess(`Exit code ${exitEvent.exitCode}`));
-            }
-            if (exitEvent.signal) {
-                return cb(Errors.ExternalProcess(`Killed by signal ${exitEvent.signal}`));
             }
             return cb(null);
         });
@@ -437,123 +489,348 @@ EventSchedulerModule.prototype._statLog = function () {
 };
 
 EventSchedulerModule.prototype.startup = function (cb) {
-    this.eventTimers = [];
+    const { candidates, disabled } = this._parseEvents(
+        _.get(this.moduleConfig, 'events')
+    );
+
     this.events = new Map();
-    this.disabledEvents = new Set();
+    this.disabledEvents = disabled;
 
-    const self = this;
+    candidates.forEach(schedEvent => {
+        this.events.set(schedEvent.name, schedEvent);
+        this._loadLastRun(schedEvent);
+        this._arm(schedEvent, { initialWatchRun: true });
+    });
 
-    if (this.moduleConfig && _.has(this.moduleConfig, 'events')) {
-        const events = Object.keys(this.moduleConfig.events).map(name => {
-            return new ScheduledEvent(this.moduleConfig.events, name);
-        });
-
-        events.forEach(schedEvent => {
-            if (!schedEvent.enabled) {
-                this.disabledEvents.add(schedEvent.name);
-                Log().debug({ eventName: schedEvent.name }, 'Scheduled event disabled');
-                return;
-            }
-
-            if (!schedEvent.isValid) {
-                Log().warn(
-                    { eventName: schedEvent.name },
-                    'Invalid scheduled event entry'
-                );
-                return;
-            }
-
-            this.events.set(schedEvent.name, schedEvent);
-            this._loadLastRun(schedEvent);
-
-            const next = schedEvent.nextRun();
-            Log().debug(
-                {
-                    eventName: schedEvent.name,
-                    schedule: schedEvent.scheduleText,
-                    action: schedEvent.action,
-                    next: next
-                        ? moment(next).format('ddd, MMM Do, YYYY @ h:m:ss a')
-                        : 'N/A',
-                },
-                'Scheduled event loaded'
-            );
-
-            if (schedEvent.isManualOnly) {
-                if (!schedEvent.manual) {
-                    Log().warn(
-                        { eventName: schedEvent.name },
-                        'Scheduled event has no schedule and manual: false, so it can never run'
-                    );
-                }
-                return; //  listed and runnable, never armed
-            }
-
-            if (schedEvent.schedule.sched) {
-                this.eventTimers.push(
-                    later.setInterval(() => {
-                        self._runEvent(schedEvent, { reason: 'Schedule' });
-                    }, schedEvent.schedule.sched)
-                );
-            }
-
-            if (schedEvent.schedule.watchFile) {
-                const watcher = sane(paths.dirname(schedEvent.schedule.watchFile), {
-                    glob: `**/${paths.basename(schedEvent.schedule.watchFile)}`,
-                });
-
-                //  :TODO: should track watched files & stop watching @ shutdown?
-
-                ['change', 'add', 'delete'].forEach(event => {
-                    watcher.on(event, (fileName, fileRoot) => {
-                        const eventPath = paths.join(fileRoot, fileName);
-                        if (schedEvent.schedule.watchFile === eventPath) {
-                            self._runEvent(schedEvent, {
-                                reason: `Watch file: ${eventPath}`,
-                                watch: true,
-                            });
-                        }
-                    });
-                });
-
-                fse.exists(schedEvent.schedule.watchFile, exists => {
-                    if (exists) {
-                        self._runEvent(schedEvent, {
-                            reason: `Watch file: ${schedEvent.schedule.watchFile}`,
-                            watch: true,
-                        });
-                    }
-                });
-            }
-        });
-
-        //  so a forgotten 'schedule' stays visible
-        const manualOnly = [...this.events.values()]
-            .filter(e => e.isManualOnly)
-            .map(e => e.name);
-        if (manualOnly.length > 0) {
-            Log().info(
-                { events: manualOnly },
-                `Manual-only scheduled events (no schedule, run on demand): ${manualOnly.join(
-                    ', '
-                )}`
-            );
-        }
+    //  so a forgotten 'schedule' stays visible
+    const manualOnly = [...this.events.values()]
+        .filter(e => e.isManualOnly)
+        .map(e => e.name);
+    if (manualOnly.length > 0) {
+        Log().info(
+            { events: manualOnly },
+            `Manual-only scheduled events (no schedule, run on demand): ${manualOnly.join(
+                ', '
+            )}`
+        );
     }
+
+    //  config.hjson edits re-arm the events; see reload()
+    this.isShutDown = false;
+    this._stopConfigListener();
+    this._configChangedListener = () => this.reload();
+    Events.on(Events.getSystemEvents().ConfigChanged, this._configChangedListener);
 
     cb(null);
 };
 
 EventSchedulerModule.prototype.shutdown = function (cb) {
-    if (this.eventTimers) {
-        this.eventTimers.forEach(et => et.clear());
-    }
+    this.isShutDown = true; //  a ConfigChanged already being emitted still calls reload()
+    this._stopConfigListener();
+
+    //  timers and @watch watchers; a run in progress is left to finish
+    this.events.forEach(schedEvent => this._disarm(schedEvent));
 
     if (instance === this) {
         instance = null;
     }
 
     cb(null);
+};
+
+EventSchedulerModule.prototype._stopConfigListener = function () {
+    if (this._configChangedListener) {
+        Events.removeListener(
+            Events.getSystemEvents().ConfigChanged,
+            this._configChangedListener
+        );
+        this._configChangedListener = null;
+    }
+};
+
+//
+//  An eventScheduler.events object read into the events that can be armed,
+//  name -> ScheduledEvent, and the names of the disabled entries. Invalid
+//  entries are logged and left out.
+//
+EventSchedulerModule.prototype._parseEvents = function (eventsConfig) {
+    const candidates = new Map();
+    const disabled = new Set();
+
+    if (!_.isPlainObject(eventsConfig)) {
+        return { candidates, disabled };
+    }
+
+    Object.keys(eventsConfig).forEach(name => {
+        const schedEvent = new ScheduledEvent(eventsConfig, name);
+
+        if (!schedEvent.enabled) {
+            disabled.add(name);
+            Log().debug({ eventName: name }, 'Scheduled event disabled');
+            return;
+        }
+
+        if (!schedEvent.isValid) {
+            Log().warn({ eventName: name }, 'Invalid scheduled event entry');
+            return;
+        }
+
+        candidates.set(name, schedEvent);
+    });
+
+    return { candidates, disabled };
+};
+
+//
+//  Sets up |schedEvent|'s schedule timer and @watch watcher. Everything it
+//  sets up hangs off one |arming| object, and every callback checks that it
+//  is still active, so nothing of an event that has since been disarmed --
+//  a pending exists() check, a watcher still starting up -- can run it.
+//
+//  |initialWatchRun|: run it now if its watch file is already there, as at
+//  startup (the file may have arrived while nothing was watching).
+//
+EventSchedulerModule.prototype._arm = function (schedEvent, { initialWatchRun }) {
+    this._disarm(schedEvent);
+
+    const next = schedEvent.nextRun();
+    Log().debug(
+        {
+            eventName: schedEvent.name,
+            schedule: schedEvent.scheduleText,
+            action: schedEvent.action,
+            next: next ? moment(next).format('ddd, MMM Do, YYYY @ h:m:ss a') : 'N/A',
+        },
+        'Scheduled event loaded'
+    );
+
+    if (schedEvent.isManualOnly) {
+        if (!schedEvent.manual) {
+            Log().warn(
+                { eventName: schedEvent.name },
+                'Scheduled event has no schedule and manual: false, so it can never run'
+            );
+        }
+        return; //  listed and runnable, never armed
+    }
+
+    const arming = { active: true, timer: null, watcher: null, watcherReady: false };
+    schedEvent.arming = arming;
+
+    if (schedEvent.schedule.sched) {
+        arming.timer = later.setInterval(() => {
+            if (arming.active) {
+                this._runEvent(schedEvent, { reason: 'Schedule' });
+            }
+        }, schedEvent.schedule.sched);
+    }
+
+    const watchFile = schedEvent.watchFile;
+    if (!watchFile) {
+        return;
+    }
+
+    let watcher;
+    try {
+        watcher = sane(paths.dirname(watchFile), {
+            glob: `**/${paths.basename(watchFile)}`,
+        });
+    } catch (e) {
+        //  e.g. the directory does not exist; its timer, if any, still runs
+        Log().warn(
+            { eventName: schedEvent.name, watchFile, error: e.message },
+            'Cannot watch the file of a scheduled event'
+        );
+        return;
+    }
+    arming.watcher = watcher;
+
+    watcher.on('error', err => {
+        Log().warn(
+            { eventName: schedEvent.name, watchFile, error: errorText(err) },
+            'Error watching the file of a scheduled event'
+        );
+    });
+
+    //
+    //  A sane watcher closed before it is ready keeps walking the tree
+    //  and watching the directories it finds, so _disarm() leaves one
+    //  that is still starting up to close itself here.
+    //
+    watcher.on('ready', () => {
+        arming.watcherReady = true;
+        if (!arming.active) {
+            watcher.close();
+        }
+    });
+
+    ['change', 'add', 'delete'].forEach(event => {
+        watcher.on(event, (fileName, fileRoot) => {
+            const eventPath = paths.join(fileRoot, fileName);
+            if (arming.active && watchFile === eventPath) {
+                this._runEvent(schedEvent, {
+                    reason: `Watch file: ${eventPath}`,
+                    watch: true,
+                });
+            }
+        });
+    });
+
+    if (initialWatchRun) {
+        fse.exists(watchFile, exists => {
+            if (exists && arming.active) {
+                this._runEvent(schedEvent, {
+                    reason: `Watch file: ${watchFile}`,
+                    watch: true,
+                });
+            }
+        });
+    }
+};
+
+//  Clears |schedEvent|'s timer and closes its watcher; a run is left alone
+EventSchedulerModule.prototype._disarm = function (schedEvent) {
+    const arming = schedEvent.arming;
+    if (!arming) {
+        return;
+    }
+    schedEvent.arming = null;
+    arming.active = false;
+
+    if (arming.timer) {
+        arming.timer.clear();
+        arming.timer = null;
+    }
+
+    if (arming.watcher) {
+        //  one still starting up closes itself once ready; see _arm()
+        if (arming.watcherReady) {
+            arming.watcher.close();
+        }
+        arming.watcher = null;
+    }
+};
+
+//
+//  Brings the running scheduler in line with |config|'s eventScheduler.events
+//  (by default the current config; called on ConfigChanged):
+//
+//    added       armed as at startup
+//    removed     disarmed (as is one now enabled: false, or now invalid)
+//    changed     any of CONFIG_KEYS differs: disarmed and armed afresh
+//    unchanged   left alone
+//
+//  A run in progress is never interrupted. It finishes under the settings it
+//  started with, records its lastRun and emits TaskFinished as usual, and
+//  stop() still works on it. A changed event's next run uses the new
+//  settings. A removed event that is running stays in the list, marked
+//  removed: true, until its run finishes; then it is dropped.
+//
+//  The event objects are kept across a reload and only their config is
+//  replaced, so lastRun, runCount and the run in progress carry over.
+//
+//  Synchronous throughout, so two reloads can never interleave; each disarms
+//  before it arms, so nothing is armed twice.
+//
+//  Returns { added, removed, changed }, names in each.
+//
+EventSchedulerModule.prototype.reload = function (config) {
+    if (this.isShutDown) {
+        return { added: [], removed: [], changed: [] };
+    }
+
+    config = config || Config();
+    this.moduleConfig = _.get(config, 'eventScheduler');
+
+    const { candidates, disabled } = this._parseEvents(
+        _.get(this.moduleConfig, 'events')
+    );
+
+    const added = [];
+    const removed = [];
+    const changed = [];
+
+    this.events.forEach((schedEvent, name) => {
+        if (schedEvent.removed || candidates.has(name)) {
+            return;
+        }
+
+        this._disarm(schedEvent);
+        if (schedEvent.running) {
+            schedEvent.removed = true; //  dropped when the run finishes
+        } else {
+            this.events.delete(name);
+        }
+        removed.push(name);
+    });
+
+    const reconcile = (candidate, name) => {
+        const schedEvent = this.events.get(name);
+
+        if (!schedEvent) {
+            this.events.set(name, candidate);
+            this._loadLastRun(candidate);
+            this._arm(candidate, { initialWatchRun: true });
+            added.push(name);
+            return;
+        }
+
+        if (schedEvent.removed) {
+            //  back again while its old run is still going
+            schedEvent.removed = false;
+            schedEvent.applyEntry(candidate.entry);
+            this._arm(schedEvent, { initialWatchRun: true });
+            added.push(name);
+            return;
+        }
+
+        if (schedEvent.sameConfig(candidate)) {
+            return;
+        }
+
+        const prevWatchFile = schedEvent.watchFile;
+        schedEvent.applyEntry(candidate.entry);
+        //  a new watch file may already be there; the same one was handled
+        this._arm(schedEvent, {
+            initialWatchRun: schedEvent.watchFile !== prevWatchFile,
+        });
+        changed.push(name);
+    };
+
+    //  one entry that fails to arm must not leave the rest unarmed
+    candidates.forEach((candidate, name) => {
+        try {
+            reconcile(candidate, name);
+        } catch (e) {
+            Log().warn(
+                { eventName: name, error: errorText(e) },
+                'Failed to arm a scheduled event on reload'
+            );
+        }
+    });
+
+    this.disabledEvents = disabled;
+
+    const result = { added, removed, changed };
+    if (0 === added.length + removed.length + changed.length) {
+        return result;
+    }
+
+    const parts = [];
+    if (added.length > 0) {
+        parts.push(`added ${added.join(', ')}`);
+    }
+    if (removed.length > 0) {
+        parts.push(`removed ${removed.join(', ')}`);
+    }
+    if (changed.length > 0) {
+        parts.push(`changed ${changed.join(', ')}`);
+    }
+    Log().info(result, `Scheduled events reloaded: ${parts.join('; ')}`);
+
+    emitTaskEvent(Events.getSystemEvents().TasksReloaded, result);
+
+    return result;
 };
 
 //
@@ -642,9 +919,16 @@ EventSchedulerModule.prototype.stop = function (name, options) {
 //  Plain snapshot rows, one per event that may be run by hand (manual: false
 //  entries are left out). Safe to keep: nothing in a row is live state.
 //
-EventSchedulerModule.prototype.listTasks = function () {
+//  options: { all } -- true includes the manual: false entries, e.g. to count
+//  what is running.
+//
+//  A row with removed: true is an event a reload took away while it was
+//  running; it is listed until that run finishes.
+//
+EventSchedulerModule.prototype.listTasks = function (options) {
+    const all = !!(options && options.all);
     return [...this.events.values()]
-        .filter(e => e.manual)
+        .filter(e => all || e.manual)
         .map(e => {
             const current = e.running ? e.currentRun : null;
             const overdueSince = (current && current.overdueSince) || null;
@@ -660,7 +944,7 @@ EventSchedulerModule.prototype.listTasks = function () {
                 schedule: _.isString(e.scheduleText) ? e.scheduleText : null,
                 watchFile: (e.schedule && e.schedule.watchFile) || null,
                 manualOnly: e.isManualOnly,
-                nextRun: e.nextRun(),
+                nextRun: e.removed ? null : e.nextRun(),
                 actionType: e.action.type,
                 action: e.actionText,
                 args: _.clone(e.action.args),
@@ -673,6 +957,8 @@ EventSchedulerModule.prototype.listTasks = function () {
                 runCount: e.runCount,
                 confirm: e.confirm,
                 timeout: e.timeout || null,
+                manual: e.manual,
+                removed: e.removed,
             };
         });
 };
@@ -711,12 +997,15 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
         return RunStatus.AlreadyRunning;
     }
 
+    //  a reload may change the event while it runs; this run keeps these
+    const { desc, timeout } = schedEvent;
+
     const start = new Date();
     schedEvent.running = true;
     schedEvent.startedAt = start;
     schedEvent.runCount += 1;
 
-    const run = { exitCode: null, output: null };
+    const run = { exitCode: null, signal: null, output: null };
 
     //
     //  What this run's finish depends on beyond the action's own result.
@@ -776,6 +1065,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             error: errorText(err),
             reason,
             exitCode: run.exitCode,
+            signal: run.signal,
             outputTail: run.output ? run.output.toString() : null,
             byUser,
             overdue: !!current.overdueSince,
@@ -789,6 +1079,11 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             schedEvent.currentRun = null;
         }
 
+        //  taken out of the config while this run was going: gone now
+        if (schedEvent.removed && this.events.get(name) === schedEvent) {
+            this.events.delete(name);
+        }
+
         const endFields = {
             eventName: name,
             reason,
@@ -800,9 +1095,12 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
         if (null !== run.exitCode) {
             endFields.exitCode = run.exitCode;
         }
+        if (run.signal) {
+            endFields.signal = run.signal;
+        }
         if (lastRun.overdue) {
             endFields.overdue = true;
-            endFields.timeoutMs = schedEvent.timeout;
+            endFields.timeoutMs = timeout;
         }
         if (lastRun.stoppedBy) {
             endFields.stoppedBy = lastRun.stoppedBy;
@@ -819,13 +1117,16 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
 
         emitTaskEvent(Events.getSystemEvents().TaskFinished, {
             name,
-            desc: schedEvent.desc,
+            desc,
             reason,
             byUser,
             ok: lastRun.ok,
             error: lastRun.error,
             durationMs: lastRun.durationMs,
             overdue: lastRun.overdue,
+            stoppedBy: lastRun.stoppedBy,
+            exitCode: lastRun.exitCode,
+            signal: lastRun.signal,
         });
     };
 
@@ -854,7 +1155,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
     //  Emitted once stop() can act on the run; a listener may stop it here
     emitTaskEvent(Events.getSystemEvents().TaskStarted, {
         name,
-        desc: schedEvent.desc,
+        desc,
         reason,
         byUser,
     });
@@ -868,7 +1169,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
         finish(e);
     }
 
-    if (!done && schedEvent.timeout) {
+    if (!done && timeout) {
         timer = setTimeout(() => {
             timer = null;
             if (done) {
@@ -883,20 +1184,20 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
                     eventName: name,
                     reason,
                     byUser,
-                    timeoutMs: schedEvent.timeout,
+                    timeoutMs: timeout,
                     startedAt: start,
                 },
                 killing
-                    ? `Scheduled event "${name}" exceeded its timeout of ${schedEvent.timeout} ms; killing it`
-                    : `Scheduled event "${name}" exceeded its timeout of ${schedEvent.timeout} ms and is still running`
+                    ? `Scheduled event "${name}" exceeded its timeout of ${timeout} ms; killing it`
+                    : `Scheduled event "${name}" exceeded its timeout of ${timeout} ms and is still running`
             );
 
             emitTaskEvent(Events.getSystemEvents().TaskOverdue, {
                 name,
-                desc: schedEvent.desc,
+                desc,
                 reason,
                 byUser,
-                timeoutMs: schedEvent.timeout,
+                timeoutMs: timeout,
                 startedAt: start,
             });
 
@@ -908,7 +1209,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             if (killing) {
                 current.kill('timed out');
             }
-        }, schedEvent.timeout);
+        }, timeout);
         timer.unref();
     }
 
