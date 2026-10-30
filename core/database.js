@@ -1473,7 +1473,26 @@ const BACKUP_KEEP_DEFAULT = 3;
 //
 //  Resolves to { dir: <set directory>, files: [ ... ], pruned: [ ... ] }
 //
+//  Only one backup runs at a time: the scheduler guards each event by name,
+//  but two events can name this same action, and a second run would delete
+//  the first one's .partial set out from under it.
+//
+let backupInProgress = false;
+
 async function backupDatabases(handles, options) {
+    if (backupInProgress) {
+        throw new Error('A database backup is already running');
+    }
+
+    backupInProgress = true;
+    try {
+        return await runBackup(handles, options);
+    } finally {
+        backupInProgress = false;
+    }
+}
+
+async function runBackup(handles, options) {
     const dir = options.dir;
     const keep = options.keep || BACKUP_KEEP_DEFAULT;
 

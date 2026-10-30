@@ -120,6 +120,23 @@ describe('database maintenance tasks', () => {
             handles.beta = database.openDatabase(paths.join(tmpDir, 'beta.sqlite3'));
         });
 
+        it('refuses a second backup while one is running', async () => {
+            const dir = paths.join(tmpDir, 'backup');
+            const first = database.backupDatabases(handles, { dir, keep: 3 });
+
+            await assert.rejects(
+                database.backupDatabases(handles, { dir, keep: 3 }),
+                /already running/
+            );
+
+            const result = await first;
+            assert.ok(fs.existsSync(paths.join(result.dir, 'alpha.sqlite3')));
+            assert.ok(fs.existsSync(paths.join(result.dir, 'beta.sqlite3')));
+
+            //  and the guard is released afterwards
+            await database.backupDatabases(handles, { dir, keep: 3 });
+        });
+
         it('removes a .partial set a crashed backup left behind', async () => {
             const dir = paths.join(tmpDir, 'backup');
             fs.mkdirSync(paths.join(dir, '20200101-000000.partial'), { recursive: true });
