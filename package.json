@@ -52,7 +52,7 @@
         "follow-redirects": "^1.16.1",
         "fs-extra": "^11.3.5",
         "glkote-term": "^0.4.4",
-        "glob": "^13.0.6",
+        "glob": "^14.0.2",
         "graceful-fs": "^4.2.11",
         "hashids": "^2.3.0",
         "hjson": "3.2.2",
