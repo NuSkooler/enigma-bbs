@@ -406,15 +406,226 @@ function isBlockedAddress(ip) {
 exports.isBlockedAddress = isBlockedAddress;
 
 //
+//  Ranges that allowedPrivateAddresses can never unblock, whatever it lists:
+//  link-local (where cloud metadata services live), unspecified and
+//  multicast. The IPv4-mapped and NAT64 forms are judged by the IPv4
+//  address they carry.
+//
+const NEVER_ALLOWED_IPV4_CIDRS = [
+    ['0.0.0.0', 8, '"this" network'],
+    ['169.254.0.0', 16, 'link-local / cloud metadata'],
+    ['224.0.0.0', 4, 'multicast'],
+].map(([addr, prefix, label]) => [_ipv4ToInt(addr), _ipv4Mask(prefix), label]);
+
+const NEVER_ALLOWED_IPV6 = _toPrefixes([
+    ['::', 128, 'unspecified'],
+    ['fe80::', 10, 'link-local'],
+    ['ff00::', 8, 'multicast'],
+]);
+
+function _ipv4Mask(prefix) {
+    return prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
+}
+
+//
+//  |ip| (bare or bracketed) as { v4, v6 }: v4 is the IPv4 address as an int,
+//  for an IPv4 address or an IPv6 one that carries one (IPv4-mapped, NAT64);
+//  v6 is the 16 bytes of an IPv6 address. Both null when it is not an IP.
+//
+function _addressForms(ip) {
+    if (net.isIPv4(ip)) {
+        return { v4: _ipv4ToInt(ip), v6: null };
+    }
+    const v6 = typeof ip === 'string' ? _ipv6ToBytes(ip) : null;
+    if (!v6) {
+        return { v4: null, v6: null };
+    }
+    const carrier = IPV6_EMBEDDED_IPV4.find(([prefix, bits]) =>
+        _inIPv6Prefix(v6, prefix, bits)
+    );
+    return { v4: carrier ? v6.readUInt32BE(12) : null, v6 };
+}
+
+//
+//  Label of the never-allowable range |ip| is in, or null. An address that
+//  is not an IP at all is never allowable either.
+//
+function neverAllowedRange(ip) {
+    const { v4, v6 } = _addressForms(ip);
+    if (v4 === null && v6 === null) {
+        return 'not an IP address';
+    }
+    if (v4 !== null) {
+        const hit = NEVER_ALLOWED_IPV4_CIDRS.find(
+            ([network, mask]) => (v4 & mask) >>> 0 === network
+        );
+        if (hit) return hit[2];
+    }
+    if (v6 !== null) {
+        const hit = NEVER_ALLOWED_IPV6.find(([prefix, bits]) =>
+            _inIPv6Prefix(v6, prefix, bits)
+        );
+        if (hit) return hit[2];
+    }
+    return null;
+}
+exports.neverAllowedRange = neverAllowedRange;
+
+//
+//  One allowedPrivateAddresses entry: an IPv4 or IPv6 CIDR, or a bare
+//  address (/32 or /128). Host bits past the prefix are ignored. Returns
+//  { family, bits, network } (an int for IPv4, 16 bytes for IPv6), or null
+//  when it is not one.
+//
+function _parseCidr(entry) {
+    if (typeof entry !== 'string') return null;
+    const m = /^([0-9a-fA-F.:]+)(?:\/(\d{1,3}))?$/.exec(entry.trim());
+    if (!m) return null;
+    const [, addr, bitsStr] = m;
+
+    if (net.isIPv4(addr)) {
+        const bits = bitsStr === undefined ? 32 : Number(bitsStr);
+        if (bits > 32) return null;
+        const mask = _ipv4Mask(bits);
+        return { family: 4, bits, network: (_ipv4ToInt(addr) & mask) >>> 0 };
+    }
+
+    const bytes = _ipv6ToBytes(addr);
+    if (!bytes) return null;
+    const bits = bitsStr === undefined ? 128 : Number(bitsStr);
+    if (bits > 128) return null;
+    for (let i = 0, left = bits; i < 16; ++i, left -= 8) {
+        bytes[i] &= left >= 8 ? 0xff : left > 0 ? (0xff << (8 - left)) & 0xff : 0;
+    }
+    return { family: 6, bits, network: bytes };
+}
+
+//
+//  Parse contentServers.web.handlers.activityPub.allowedPrivateAddresses.
+//  Returns { entries, invalid }: the parsed entries, and those (as given)
+//  that are not an address or CIDR. Anything but an array is all invalid.
+//
+function parseAllowedAddresses(list) {
+    if (!Array.isArray(list)) {
+        return { entries: [], invalid: [list] };
+    }
+    const entries = [];
+    const invalid = [];
+    for (const item of list) {
+        const entry = _parseCidr(item);
+        entry ? entries.push(entry) : invalid.push(item);
+    }
+    return { entries, invalid };
+}
+exports.parseAllowedAddresses = parseAllowedAddresses;
+
+//
+//  True when |ip| (bare or bracketed) is in one of |entries| (from
+//  parseAllowedAddresses) and is not in a never-allowable range. An IPv4
+//  entry also covers that address's IPv4-mapped and NAT64 forms.
+//
+function isAllowedPrivateAddress(ip, entries) {
+    if (!entries || entries.length === 0 || neverAllowedRange(ip)) {
+        return false;
+    }
+    const { v4, v6 } = _addressForms(ip);
+    return entries.some(e => {
+        if (e.family === 4) {
+            return v4 !== null && (v4 & _ipv4Mask(e.bits)) >>> 0 === e.network;
+        }
+        return v6 !== null && _inIPv6Prefix(v6, e.network, e.bits);
+    });
+}
+exports.isAllowedPrivateAddress = isAllowedPrivateAddress;
+
+//
+//  Check a resolved address for an outbound connection: isBlockedAddress()
+//  with the operator's allowedPrivateAddresses |entries| applied. Returns
+//  null when it may be contacted, else { reason, allowable }, where
+//  allowable says whether listing it in allowedPrivateAddresses would do.
+//
+function checkResolvedAddress(ip, entries) {
+    //  through exports: tests stand in for the address table
+    const reason = exports.isBlockedAddress(ip);
+    if (!reason || isAllowedPrivateAddress(ip, entries)) {
+        return null;
+    }
+    return { reason, allowable: !neverAllowedRange(ip) };
+}
+exports.checkResolvedAddress = checkResolvedAddress;
+
+//
+//  The board's own origin (#966), from its base URL (web_util.getBaseUrl()):
+//  { protocol, hostname, port, origin }, the port given even when it is the
+//  scheme's default. Null when |baseUrl| does not parse as http(s).
+//
+//  Behind a reverse proxy with split-horizon DNS the board's own public
+//  name resolves, on its own host, to a private address, yet it fetches its
+//  own URLs (local actors, WebFinger for its own users, deliveries to its
+//  own inbox). A URL at exactly this origin is therefore exempt from the
+//  address and name checks; the same hostname on another scheme or port
+//  is refused outright.
+//
+function parseOrigin(baseUrl) {
+    let parsed;
+    try {
+        parsed = new URL(baseUrl);
+    } catch {
+        return null;
+    }
+    if (!['https:', 'http:'].includes(parsed.protocol) || !parsed.hostname) {
+        return null;
+    }
+    return {
+        protocol: parsed.protocol,
+        hostname: parsed.hostname.toLowerCase(),
+        port: _effectivePort(parsed),
+        origin: parsed.origin,
+    };
+}
+exports.parseOrigin = parseOrigin;
+
+function _effectivePort(parsed) {
+    return parsed.port ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
+}
+
+//  True when |urlString| has exactly |ownOrigin|'s (from parseOrigin())
+//  scheme, hostname and port
+function isOwnOrigin(urlString, ownOrigin) {
+    if (!ownOrigin) return false;
+    try {
+        return _isOwnOrigin(new URL(urlString), ownOrigin);
+    } catch {
+        return false;
+    }
+}
+exports.isOwnOrigin = isOwnOrigin;
+
+function _isOwnOrigin(parsed, ownOrigin) {
+    return (
+        parsed.protocol === ownOrigin.protocol &&
+        parsed.hostname.toLowerCase() === ownOrigin.hostname &&
+        _effectivePort(parsed) === ownOrigin.port
+    );
+}
+
+//
 //  Check whether a URL is safe to fetch as an outbound ActivityPub request.
 //
 //  allowHttp  — when true, http:// URLs are permitted (dev/test only);
 //               defaults to false (https:// only)
+//  options    — ownOrigin: the board's own origin (parseOrigin()); a URL
+//                 at exactly that origin skips the name and address checks,
+//                 and its hostname on any other scheme or port is refused
+//               allowedPrivateAddresses: parsed entries (see
+//                 parseAllowedAddresses()) a literal address may be in
 //
 //  Returns null when the URL is safe to fetch, or a human-readable reason
 //  string when it must be blocked.
 //
-function isSafeOutboundUrl(urlString, allowHttp = false) {
+function isSafeOutboundUrl(urlString, allowHttp = false, options = {}) {
+    const { ownOrigin = null, allowedPrivateAddresses = [] } = options;
+
     let parsed;
     try {
         parsed = new URL(urlString);
@@ -441,6 +652,16 @@ function isSafeOutboundUrl(urlString, allowHttp = false) {
 
     const hostname = parsed.hostname.toLowerCase();
 
+    //  The board's own origin. The connect-time lookup only sees a hostname,
+    //  so this is where the port is pinned: the own hostname on another
+    //  port or scheme is refused here, not left to the lookup.
+    if (ownOrigin && hostname === ownOrigin.hostname) {
+        if (_isOwnOrigin(parsed, ownOrigin)) {
+            return null;
+        }
+        return `"${parsed.host}" is this board's own hostname; only ${ownOrigin.origin} may be fetched from it`;
+    }
+
     // Blocked named hosts
     if (
         BLOCKED_HOST_SUFFIXES.some(
@@ -451,15 +672,16 @@ function isSafeOutboundUrl(urlString, allowHttp = false) {
     }
 
     // IPv4 literal
+    //  (either kind may be one the operator allows: allowedPrivateAddresses)
     const ipv4Range = _isBlockedIPv4(hostname);
-    if (ipv4Range) {
+    if (ipv4Range && !isAllowedPrivateAddress(hostname, allowedPrivateAddresses)) {
         return `IPv4 address "${hostname}" is in a blocked range (${ipv4Range})`;
     }
 
     // IPv6 literal (WHATWG URL normalises these, e.g. [::ffff:127.0.0.1]
     // becomes [::ffff:7f00:1], so the embedded IPv4 forms must be decoded)
     const ipv6Range = _isBlockedIPv6(hostname);
-    if (ipv6Range) {
+    if (ipv6Range && !isAllowedPrivateAddress(hostname, allowedPrivateAddresses)) {
         return `IPv6 address "${hostname}" is in a blocked range (${ipv6Range})`;
     }
 

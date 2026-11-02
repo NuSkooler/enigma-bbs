@@ -455,6 +455,11 @@ module.exports = () => {
                             globalConcurrency: 32,
                             globalPerMinute: 600,
                         },
+                        //  IPv4/IPv6 CIDRs outbound requests may reach despite
+                        //  being private, e.g. a fediverse server on your own
+                        //  network (#966). Link-local, unspecified and
+                        //  multicast addresses stay refused regardless.
+                        allowedPrivateAddresses: [],
                     },
                 },
 

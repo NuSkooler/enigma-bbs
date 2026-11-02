@@ -47,6 +47,7 @@ contentServers: {
 | `enabled` | Boolean. Set to `true` to enable ActivityPub services |
 | `selfTemplate` | String. Provide a fully qualified, or relative to [static root](./web-server.md#static-root) path to a template file for fetching profile information. Defaults to the same file used for [WebFinger](./webfinger-handler.md) queries; See [WebFinger](./webfinger-handler.md#profile-template) for more information. |
 | `allowInsecureHttp` | Boolean. Allow plain `http://` requests to remote servers. For local development and testing only; see [Outbound Requests and Limits](#outbound-requests-and-limits). Defaults to `false`. |
+| `allowedPrivateAddresses` | Array of strings. IPv4 or IPv6 addresses or CIDRs (`10.0.0.0/8`, `fd00::/8`; a bare address is just that address) that remote servers may be reached at although they are private, such as a fediverse server on your own network; see [Servers on your own network](#servers-on-your-own-network). Link-local, unspecified and multicast addresses are never allowed. Defaults to `[]`. |
 | `maxInboxBodyBytes` | Number. Largest inbox request body accepted, in bytes. A larger request is refused with `413`. Defaults to `1048576` (1 MiB). |
 | `maxResponseBodyBytes` | Number. Largest response accepted from a remote server (an actor, a Note, a WebFinger lookup, a delivery's answer), in bytes. Defaults to `524288` (512 KiB). |
 | `outboundFetchLimits` | Object. Limits on the fetches an incoming inbox request may cause; see [Outbound Requests and Limits](#outbound-requests-and-limits). Members: `perHostConcurrency` (fetches from one remote host at once, default `4`), `perHostPerMinute` (fetches from one remote host per minute, default `60`), `globalConcurrency` (fetches at once, board wide, default `32`) and `globalPerMinute` (fetches per minute, board wide, default `600`). A value below `1`, or not a number, uses its default. |
@@ -75,6 +76,32 @@ ENiGMA½ contacts remote servers to look up actors (including the key that signe
 
 ### Address Checks
 ENiGMA½ will not connect to a remote server whose name resolves to a loopback, private, link-local (including cloud metadata), shared (CGNAT), multicast, documentation or otherwise reserved address, IPv4 or IPv6. The same applies to the IPv4-mapped and NAT64 forms of those addresses, to addresses given literally in a URL, and to names such as `localhost` or anything under `.local`, `.internal` or `.lan`. Every address a name resolves to is checked, at the moment of connecting, and again for each redirect; at most 3 redirects are followed. A name refused for the address it resolves to is logged as a warning, with the host and the address.
+
+Your board's own address is the exception. Behind a reverse proxy, the board's public name often resolves, on the machine ENiGMA½ runs on, to a private address (split-horizon DNS), and ENiGMA½ fetches its own URLs too: its local users' actors, WebFinger for its own users, deliveries to its own inbox. A URL with exactly the scheme, host name and port of your board's base URL (`overrideUrlPrefix` if set, otherwise built from `domain` and the web server's port) is therefore not checked. The same host name on any other port or scheme is refused outright, so the exception reaches nothing but the board itself. The `http://`/`https://` rules still apply: an `http://` base URL is only fetched with `allowInsecureHttp`. Nothing needs configuring for this, but the board's own address is never taken from the placeholder `domain` a new install ships with.
+
+#### Servers on your own network
+A fediverse server on your own network whose name resolves, for ENiGMA½, to a private address is refused like any other. List its address, or a range that holds it, in `allowedPrivateAddresses`:
+
+```hjson
+contentServers: {
+    web: {
+        handlers: {
+            activityPub: {
+                enabled: true
+                //  a GoToSocial box on the LAN, and an IPv6 ULA prefix
+                allowedPrivateAddresses: [
+                    "192.168.1.20"
+                    "fd12:3456:789a::/48"
+                ]
+            }
+        }
+    }
+}
+```
+
+This applies to the addresses a name resolves to and to addresses written in a URL; names such as `localhost` or anything under `.local`, `.internal` or `.lan` are still refused, so use a name that resolves to the address. Link-local addresses (`169.254.0.0/16` and `fe80::/10`, where cloud metadata services live), unspecified (`0.0.0.0/8`, `::`) and multicast addresses, and their IPv4-mapped and NAT64 forms, can never be allowed: an entry that covers them, even `0.0.0.0/0`, leaves them refused. An entry that is not an address or CIDR is ignored with a warning in the log. When a connection is refused for an address that listing would allow, the warning names `allowedPrivateAddresses`.
+
+A refused lookup is remembered for 15 minutes (see [Failed Lookups](#failed-lookups)); saving `config.hjson` forgets every remembered failure, so a change here takes effect at once.
 
 ### allowInsecureHttp
 `allowInsecureHttp: true` is for local development and testing only, such as federating with a test server on your LAN that has no TLS. It allows `http://` URLs and skips the address checks for them, and a WebFinger lookup whose `https://` attempt fails falls back to `http://` only while it is set. `https://` URLs are always checked. While it is set, ENiGMA½ logs a warning when ActivityPub starts.

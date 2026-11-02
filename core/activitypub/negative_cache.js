@@ -11,6 +11,10 @@
 //  refused by the fetch budget says nothing about the remote and is never
 //  remembered. Each cache holds at most maxEntries, the oldest dropped first.
 //
+//  A config reload forgets everything: a lookup refused for an address the
+//  operator has just listed in allowedPrivateAddresses (or for the board's
+//  own URL, just changed) should be tried again now, not in 15 minutes.
+//
 
 const { EnigError, ErrorCodes } = require('../enig_error.js');
 const { isBudgetError } = require('./fetch_budget.js');
@@ -44,11 +48,25 @@ function failureTtlMs(err) {
 let now = () => Date.now();
 const instances = [];
 
+let listeningForConfigChanges = false;
+function listenForConfigChanges() {
+    if (listeningForConfigChanges) {
+        return;
+    }
+    listeningForConfigChanges = true;
+    const Events = require('../events.js');
+    Events.on(Events.getSystemEvents().ConfigChanged, onConfigChanged);
+}
+function onConfigChanged() {
+    resetAll();
+}
+
 class NegativeCache {
     constructor(maxEntries = DefaultMaxEntries) {
         this.maxEntries = maxEntries;
         this.entries = new Map(); // key -> { expiresAt, message, code, reasonCode, statusCode, responseUrl }
         instances.push(this);
+        listenForConfigChanges();
     }
 
     //  A copy of the remembered error for |key|, or null
@@ -110,8 +128,13 @@ exports.failureTtlMs = failureTtlMs;
 exports.DefiniteTtlMs = DefiniteTtlMs;
 exports.TransientTtlMs = TransientTtlMs;
 
-//  for tests: forget every cache's entries, and a stand-in clock
-exports.resetAll = () => instances.forEach(c => c.clear());
+//  forget every cache's entries (on a config reload; and for tests), and,
+//  for tests, a stand-in clock
+function resetAll() {
+    instances.forEach(c => c.clear());
+}
+exports.resetAll = resetAll;
+exports._onConfigChanged = onConfigChanged; // exported for tests
 exports._setClock = fn => {
     now = fn || (() => Date.now());
 };

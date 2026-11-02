@@ -200,15 +200,124 @@ describe('http_util _checkedLookup()', function () {
             return done();
         });
     });
+
+    describe('allowedPrivateAddresses', function () {
+        const apConfig = {};
+        let savedConfig;
+        const lookup = host =>
+            new Promise(resolve =>
+                HttpUtil._checkedLookup(true, host, { all: true }, (err, addrs) =>
+                    resolve({ err, addrs })
+                )
+            );
+        const KeyRe =
+            /contentServers\.web\.handlers\.activityPub\.allowedPrivateAddresses/;
+
+        beforeEach(() => {
+            savedConfig = configModule.get;
+            Object.keys(apConfig).forEach(k => delete apConfig[k]);
+            configModule.get = () => ({
+                contentServers: { web: { handlers: { activityPub: apConfig } } },
+            });
+            hosts['lan.example.com'] = ['10.0.3.5'];
+            hosts['ula.example.com'] = ['fd12:3456::5'];
+            hosts['meta.example.com'] = ['169.254.169.254'];
+        });
+        afterEach(() => {
+            configModule.get = savedConfig;
+        });
+
+        it('refuses a host resolving to 10.x by default, naming the setting in the warning', async () => {
+            const { err } = await lookup('lan.example.com');
+            assertRefused(err);
+            assert.equal(warns.length, 1);
+            assert.match(warns[0][1], KeyRe);
+            assert.equal(warns[0][0].refused[0].allowable, true);
+            assert.ok(!KeyRe.test(err.message), 'only the log says how to fix it');
+        });
+
+        it('allows it once its range, or the address itself, is listed', async () => {
+            apConfig.allowedPrivateAddresses = ['10.0.0.0/8'];
+            let { err, addrs } = await lookup('lan.example.com');
+            assert.ifError(err);
+            assert.deepEqual(addrs, [{ address: '10.0.3.5', family: 4 }]);
+
+            apConfig.allowedPrivateAddresses = ['10.0.3.5'];
+            ({ err } = await lookup('lan.example.com'));
+            assert.ifError(err);
+
+            apConfig.allowedPrivateAddresses = ['10.0.3.6'];
+            ({ err } = await lookup('lan.example.com'));
+            assertRefused(err);
+        });
+
+        it('likewise for an IPv6 unique local address', async () => {
+            let { err } = await lookup('ula.example.com');
+            assertRefused(err);
+            apConfig.allowedPrivateAddresses = ['fd00::/8'];
+            ({ err } = await lookup('ula.example.com'));
+            assert.ifError(err);
+        });
+
+        it('still refuses when only some of the addresses are listed', async () => {
+            hosts['mixed.example.com'] = ['10.0.3.5', '192.168.1.5'];
+            apConfig.allowedPrivateAddresses = ['10.0.0.0/8'];
+            const { err } = await lookup('mixed.example.com');
+            assertRefused(err);
+            assert.deepEqual(
+                warns[0][0].refused.map(r => r.address),
+                ['192.168.1.5']
+            );
+        });
+
+        it('never allows link-local (cloud metadata), even with everything listed', async () => {
+            apConfig.allowedPrivateAddresses = ['0.0.0.0/0', '::/0'];
+            for (const address of [
+                '169.254.169.254',
+                '::ffff:169.254.169.254',
+                'fe80::1',
+                '0.0.0.0',
+                '224.0.0.1',
+                'ff02::1',
+            ]) {
+                hosts['meta.example.com'] = [address];
+                warns.length = 0;
+                const { err } = await lookup('meta.example.com');
+                assertRefused(err);
+                assert.equal(warns[0][0].refused[0].allowable, false, address);
+                assert.ok(!KeyRe.test(warns[0][1]), 'listing it would not help');
+            }
+        });
+
+        it('ignores invalid entries, with one warning per value of the setting', async () => {
+            apConfig.allowedPrivateAddresses = ['bogus', '10.0.0.0/8', '10.0.0.0/33'];
+            for (let i = 0; i < 3; ++i) {
+                const { err } = await lookup('lan.example.com');
+                assert.ifError(err);
+            }
+            const invalidWarns = () => warns.filter(w => /Ignoring invalid/.test(w[1]));
+            assert.equal(invalidWarns().length, 1);
+            assert.deepEqual(invalidWarns()[0][0].invalid, ['bogus', '10.0.0.0/33']);
+            assert.match(invalidWarns()[0][1], KeyRe);
+
+            //  a new value is reported afresh; a list that is not a list is
+            //  ignored as a whole
+            apConfig.allowedPrivateAddresses = '10.0.0.0/8';
+            const { err } = await lookup('lan.example.com');
+            assertRefused(err);
+            assert.equal(invalidWarns().length, 2);
+        });
+    });
 });
 
 describe('http_util connect-time SSRF checks (real sockets)', function () {
     const mutableApConfig = { allowInsecureHttp: false };
+    const mutableWebConfig = { handlers: { activityPub: mutableApConfig } };
     const TEST_CONFIG = {
         debug: { assertsEnabled: false },
         menus: { cls: false },
         general: { boardName: 'TestBoard' },
-        contentServers: { web: { handlers: { activityPub: mutableApConfig } } },
+        contentServers: { web: mutableWebConfig },
     };
 
     const hosts = {};
@@ -366,6 +475,10 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
 
     beforeEach(() => {
         mutableApConfig.allowInsecureHttp = false;
+        delete mutableApConfig.allowedPrivateAddresses;
+        Object.keys(mutableWebConfig)
+            .filter(k => k !== 'handlers')
+            .forEach(k => delete mutableWebConfig[k]);
         Object.keys(hosts).forEach(h => delete hosts[h]);
         hosts['ok.ssrf-fixture.net'] = [ALLOWED_ADDR];
         hosts['evil.ssrf-fixture.net'] = [BLOCKED_ADDR];
@@ -735,6 +848,215 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
                     return done();
                 }
             );
+        });
+    });
+
+    //  #966: behind a reverse proxy with split-horizon DNS the board's own
+    //  name resolves privately; "self" resolves to the blocked address here
+    describe("the board's own origin (#966)", function () {
+        const selfUrl = (p = '/thing', port = ports.https) =>
+            `https://self.ssrf-fixture.net:${port}${p}`;
+        const get = (u, opts = {}) =>
+            new Promise(resolve =>
+                HttpUtil.getJson(u, Object.assign({}, tls, opts), (err, json) =>
+                    resolve({ err, json })
+                )
+            );
+        const redirectTo = location => ({ headers: { 'X-Redirect-To': location } });
+        const OwnHostRe =
+            /own hostname; only https:\/\/self\.ssrf-fixture\.net:\d+ may be fetched/;
+
+        beforeEach(() => {
+            hosts['self.ssrf-fixture.net'] = [BLOCKED_ADDR];
+            mutableWebConfig.overrideUrlPrefix = `https://self.ssrf-fixture.net:${ports.https}`;
+        });
+
+        it('control: refused when it is not the own origin', async () => {
+            delete mutableWebConfig.overrideUrlPrefix;
+            const { err } = await get(selfUrl());
+            assertRefused(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 0);
+        });
+
+        it('fetches the own origin (overrideUrlPrefix) though it resolves to a blocked address', async () => {
+            const { err, json } = await get(selfUrl());
+            assert.ifError(err);
+            assert.equal(json.ok, true);
+            assert.equal(seen.https[BLOCKED_ADDR], 1);
+            assert.equal(warns.length, 0);
+        });
+
+        it('fetches the own origin built from domain and the https port', async () => {
+            delete mutableWebConfig.overrideUrlPrefix;
+            Object.assign(mutableWebConfig, {
+                domain: 'SELF.ssrf-fixture.net',
+                https: { enabled: true, port: ports.https },
+                http: { port: 8080 },
+            });
+            const { err } = await get(selfUrl());
+            assert.ifError(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 1);
+        });
+
+        it('never treats the placeholder domain a board ships with as its own', async () => {
+            delete mutableWebConfig.overrideUrlPrefix;
+            Object.assign(mutableWebConfig, {
+                domain: 'another-fine-enigma-bbs.org',
+                https: { enabled: true, port: ports.https },
+                http: { port: 8080 },
+            });
+            hosts['another-fine-enigma-bbs.org'] = [BLOCKED_ADDR];
+            const { err } = await get(
+                `https://another-fine-enigma-bbs.org:${ports.https}/x`
+            );
+            assertRefused(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 0);
+        });
+
+        it('POSTs and signed GETs to the own origin too', async () => {
+            const posted = await new Promise(resolve =>
+                HttpUtil.postJson(
+                    selfUrl('/inbox'),
+                    { hello: 'world' },
+                    Object.assign({}, tls, { headers: {} }),
+                    (err, body) => resolve({ err, body })
+                )
+            );
+            assert.ifError(posted.err);
+
+            const { privateKey } = crypto.generateKeyPairSync('rsa', {
+                modulusLength: 2048,
+            });
+            const { err } = await get(selfUrl(), {
+                headers: { Date: new Date().toUTCString() },
+                sign: {
+                    key: privateKey.export({ type: 'pkcs8', format: 'pem' }),
+                    keyId: `${selfUrl('/users/sysop')}#main-key`,
+                    authorizationHeaderName: 'Signature',
+                    headers: ['(request-target)', 'host', 'date'],
+                },
+            });
+            assert.ifError(err);
+        });
+
+        it('refuses the own hostname on another port, before any lookup', async () => {
+            //  the HTTP server's port, spoken to over TLS: anything that is
+            //  not the own origin's port
+            const { err } = await get(selfUrl('/thing', ports.http));
+            assert.ok(err);
+            assert.match(err.message, OwnHostRe);
+            assert.equal(lookupCalls.length, 0);
+            assert.equal(seen.http[BLOCKED_ADDR], 0);
+
+            const posted = await new Promise(resolve =>
+                HttpUtil.postJson(
+                    selfUrl('/inbox', ports.http),
+                    {},
+                    Object.assign({}, tls, { headers: {} }),
+                    err => resolve(err)
+                )
+            );
+            assert.match(posted.message, OwnHostRe);
+        });
+
+        it('only the own-origin agents exempt it: the regular ones refuse it on any port', done => {
+            //  as if a request skipped the URL check altogether
+            const req = https.get(
+                selfUrl('/thing', ports.https),
+                Object.assign({}, tls, { agent: HttpUtil._agents.https }),
+                () => done(new Error('connected'))
+            );
+            req.on('error', err => {
+                assertRefused(err);
+                assert.equal(seen.https[BLOCKED_ADDR], 0);
+                return done();
+            });
+        });
+
+        it('the own-origin lookup checks every other name, and the scheme', done => {
+            hosts['other.ssrf-fixture.net'] = [BLOCKED_ADDR];
+            HttpUtil._ownOriginLookup(true, 'other.ssrf-fixture.net', {}, err => {
+                assertRefused(err);
+                //  the http:// agent's lookup never exempts an https:// origin
+                HttpUtil._ownOriginLookup(false, 'self.ssrf-fixture.net', {}, err => {
+                    assertRefused(err);
+                    HttpUtil._ownOriginLookup(
+                        true,
+                        'self.ssrf-fixture.net',
+                        {},
+                        (err, address) => {
+                            assert.ifError(err);
+                            assert.equal(address, BLOCKED_ADDR);
+                            return done();
+                        }
+                    );
+                });
+            });
+        });
+
+        it('follows a redirect from elsewhere to the own origin', async () => {
+            const { err, json } = await get(url('ok', '/redir'), redirectTo(selfUrl()));
+            assert.ifError(err);
+            assert.equal(json.url, '/thing');
+            assert.equal(seen.https[ALLOWED_ADDR], 1);
+            assert.equal(seen.https[BLOCKED_ADDR], 1);
+        });
+
+        it('refuses a redirect to the own hostname on another port', async () => {
+            const { err } = await get(
+                url('ok', '/redir'),
+                redirectTo(selfUrl('/thing', ports.http))
+            );
+            assert.ok(err);
+            assert.match(err.message, OwnHostRe);
+            assert.equal(seen.http[BLOCKED_ADDR], 0);
+        });
+
+        it('a redirect from the own origin to elsewhere is checked as usual', async () => {
+            const { err } = await get(selfUrl('/redir'), redirectTo(url('evil')));
+            assertRefused(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 1, 'only the own-origin hop');
+        });
+    });
+
+    describe('allowedPrivateAddresses (#966)', function () {
+        //  "lan" resolves to 127.0.0.2, blocked as loopback
+        beforeEach(() => {
+            hosts['lan.ssrf-fixture.net'] = [BLOCKED_ADDR];
+        });
+        const get = u =>
+            new Promise(resolve =>
+                HttpUtil.getJson(u, tls, (err, json) => resolve({ err, json }))
+            );
+
+        it('refuses a host resolving to a private address by default', async () => {
+            const { err } = await get(url('lan'));
+            assertRefused(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 0);
+            assert.match(warns[0][1], /allowedPrivateAddresses/);
+        });
+
+        it('fetches it once its range is listed', async () => {
+            mutableApConfig.allowedPrivateAddresses = ['127.0.0.0/8'];
+            const { err, json } = await get(url('lan'));
+            assert.ifError(err);
+            assert.equal(json.ok, true);
+            assert.equal(seen.https[BLOCKED_ADDR], 1);
+        });
+
+        it('fetches a literal address in a listed range', async () => {
+            mutableApConfig.allowedPrivateAddresses = [BLOCKED_ADDR];
+            const { err } = await new Promise(resolve =>
+                //  the certificate is for names: this checks the address
+                //  was let through, not TLS
+                HttpUtil.getJson(
+                    `https://${BLOCKED_ADDR}:${ports.https}/thing`,
+                    Object.assign({}, tls, { rejectUnauthorized: false }),
+                    err => resolve({ err })
+                )
+            );
+            assert.ifError(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 1);
         });
     });
 

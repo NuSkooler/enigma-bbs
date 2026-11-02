@@ -1003,3 +1003,198 @@ describe('readInboxBody()', function () {
         req.emit('error', new Error('secondary error'));
     });
 });
+
+// ─── allowedPrivateAddresses / own origin (#966) ─────────────────────────────
+
+describe('allowedPrivateAddresses (#966)', function () {
+    const {
+        parseAllowedAddresses,
+        isAllowedPrivateAddress,
+        checkResolvedAddress,
+        neverAllowedRange,
+    } = require('../core/activitypub/security.js');
+
+    const entries = list => {
+        const { entries, invalid } = parseAllowedAddresses(list);
+        assert.deepEqual(invalid, [], 'all valid');
+        return entries;
+    };
+
+    it('parses CIDRs and bare addresses, ignoring host bits', () => {
+        const parsed = entries([
+            '10.0.0.0/8',
+            '192.168.1.5',
+            'fd00::/8',
+            '::1',
+            '10.1.2.3/8',
+        ]);
+        assert.deepEqual(
+            parsed.map(e => `${e.family}/${e.bits}`),
+            ['4/8', '4/32', '6/8', '6/128', '4/8']
+        );
+        assert.equal(parsed[4].network, parsed[0].network);
+    });
+
+    it('reports entries that are not an address or CIDR, and anything not a list', () => {
+        const bad = [
+            'bogus',
+            '10.0.0.0/33',
+            'fd00::/129',
+            'fe80::1%eth0',
+            '[::1]',
+            '10.0.0',
+            '010.0.0.1',
+            '10.0.0.0/',
+            '',
+            42,
+            null,
+        ];
+        const { entries: good, invalid } = parseAllowedAddresses(['10.0.0.0/8', ...bad]);
+        assert.equal(good.length, 1);
+        assert.deepEqual(invalid, bad);
+        assert.deepEqual(parseAllowedAddresses('10.0.0.0/8').invalid, ['10.0.0.0/8']);
+    });
+
+    it('allows an address in a listed range, and only there', () => {
+        const list = entries(['10.0.0.0/8', 'fd12:3456::/32', '192.168.1.5']);
+        assert.equal(isAllowedPrivateAddress('10.200.0.1', list), true);
+        assert.equal(isAllowedPrivateAddress('11.0.0.1', list), false);
+        assert.equal(isAllowedPrivateAddress('192.168.1.5', list), true);
+        assert.equal(isAllowedPrivateAddress('192.168.1.6', list), false);
+        assert.equal(isAllowedPrivateAddress('fd12:3456::7', list), true);
+        assert.equal(isAllowedPrivateAddress('[fd12:3456::7]', list), true);
+        assert.equal(isAllowedPrivateAddress('fd12:3457::7', list), false);
+        //  an IPv4 entry covers that address's IPv4-mapped form
+        assert.equal(isAllowedPrivateAddress('::ffff:10.0.0.1', list), true);
+        assert.equal(isAllowedPrivateAddress('10.0.0.1', []), false);
+    });
+
+    //  even with everything listed
+    const everything = () => entries(['0.0.0.0/0', '::/0']);
+    const neverAllowed = [
+        '169.254.169.254',
+        '169.254.0.1',
+        '::ffff:169.254.169.254',
+        '64:ff9b::a9fe:a9fe', // NAT64 of 169.254.169.254
+        'fe80::1',
+        'febf::1',
+        '0.0.0.0',
+        '0.1.2.3',
+        '::',
+        '::ffff:0.0.0.0',
+        '224.0.0.1',
+        '239.255.255.250',
+        '::ffff:224.0.0.1',
+        'ff02::1',
+    ];
+    neverAllowed.forEach(ip => {
+        it(`never allows ${ip}, whatever is listed`, () => {
+            assert.ok(neverAllowedRange(ip));
+            assert.equal(isAllowedPrivateAddress(ip, everything()), false);
+            const refusal = checkResolvedAddress(ip, everything());
+            assert.ok(refusal, 'refused');
+            assert.equal(refusal.allowable, false);
+        });
+    });
+
+    it('lets everything else that is blocked be listed', () => {
+        ['10.0.0.1', '127.0.0.1', '192.168.1.1', '100.64.0.1', 'fd00::1', '::1'].forEach(
+            ip => {
+                assert.equal(neverAllowedRange(ip), null, ip);
+                const refusal = checkResolvedAddress(ip, []);
+                assert.ok(refusal && refusal.allowable, `${ip} refused, but allowable`);
+                assert.equal(checkResolvedAddress(ip, everything()), null, ip);
+            }
+        );
+        assert.equal(checkResolvedAddress('93.184.216.34', []), null, 'public');
+        assert.equal(checkResolvedAddress('example.com', everything()).allowable, false);
+    });
+
+    it('applies to literal addresses in URLs; reserved names stay refused', () => {
+        const allowed = entries(['10.0.0.0/8', 'fd00::/8', '0.0.0.0/0', '::/0']);
+        const check = u =>
+            isSafeOutboundUrl(u, false, { allowedPrivateAddresses: allowed });
+        assert.equal(check('https://10.1.2.3/users/a'), null);
+        assert.equal(check('https://[fd12::1]:8443/users/a'), null);
+        assert.ok(isSafeOutboundUrl('https://10.1.2.3/users/a'), 'refused by default');
+        assert.ok(check('https://169.254.169.254/latest/meta-data/'));
+        assert.ok(check('https://[::ffff:169.254.169.254]/'));
+        assert.ok(check('https://[fe80::1]/'));
+        assert.ok(check('https://0.0.0.0/'));
+        assert.ok(check('https://224.0.0.1/'));
+        assert.ok(check('https://[ff02::1]/'));
+        assert.ok(check('https://localhost/'));
+        assert.ok(check('https://bbs.lan/'));
+        assert.ok(check('https://bbs.internal/'));
+        assert.ok(check('https://bbs.local/'));
+        assert.ok(check('http://10.1.2.3/'), 'the scheme rule is unchanged');
+    });
+});
+
+describe('own origin in isSafeOutboundUrl() (#966)', function () {
+    const { parseOrigin, isOwnOrigin } = require('../core/activitypub/security.js');
+
+    it('parses an origin, normalising the default port', () => {
+        assert.deepEqual(parseOrigin('https://BBS.Example.com/prefix'), {
+            protocol: 'https:',
+            hostname: 'bbs.example.com',
+            port: 443,
+            origin: 'https://bbs.example.com',
+        });
+        assert.equal(parseOrigin('http://bbs.example.com').port, 80);
+        assert.equal(parseOrigin('https://bbs.example.com:8443').port, 8443);
+        assert.equal(parseOrigin('ftp://bbs.example.com'), null);
+        assert.equal(parseOrigin('not a url'), null);
+    });
+
+    it('matches only the same scheme, hostname and port', () => {
+        const own = parseOrigin('https://bbs.example.com');
+        assert.equal(isOwnOrigin('https://bbs.example.com/x', own), true);
+        assert.equal(isOwnOrigin('https://BBS.EXAMPLE.COM:443/x', own), true);
+        assert.equal(isOwnOrigin('https://bbs.example.com:8443/x', own), false);
+        assert.equal(isOwnOrigin('http://bbs.example.com/x', own), false);
+        assert.equal(isOwnOrigin('https://sub.bbs.example.com/x', own), false);
+        assert.equal(isOwnOrigin('https://bbs.example.com/x', null), false);
+    });
+
+    it('skips the name and address checks for exactly the own origin', () => {
+        const check = (u, base) =>
+            isSafeOutboundUrl(u, false, { ownOrigin: parseOrigin(base) });
+        assert.equal(check('https://bbs.lan/users/a', 'https://bbs.lan'), null);
+        assert.equal(check('https://bbs.lan:443/users/a', 'https://BBS.lan/'), null);
+        assert.equal(check('https://10.0.0.5:8443/x', 'https://10.0.0.5:8443'), null);
+        assert.equal(check('https://[fd00::5]/x', 'https://[fd00::5]'), null);
+        //  without it, all of these are refused
+        assert.ok(isSafeOutboundUrl('https://bbs.lan/users/a'));
+        assert.ok(isSafeOutboundUrl('https://10.0.0.5:8443/x'));
+    });
+
+    it('refuses the own hostname on another port or scheme', () => {
+        const opts = { ownOrigin: parseOrigin('https://bbs.example.com') };
+        assert.match(
+            isSafeOutboundUrl('https://bbs.example.com:6379/', false, opts),
+            /own hostname; only https:\/\/bbs\.example\.com may be fetched/
+        );
+        assert.match(
+            isSafeOutboundUrl('https://10.0.0.5/x', false, {
+                ownOrigin: parseOrigin('https://10.0.0.5:8443'),
+            }),
+            /own hostname/
+        );
+        assert.ok(isSafeOutboundUrl('http://bbs.example.com/', false, opts));
+        //  a public name that is not the board's own is unaffected
+        assert.equal(isSafeOutboundUrl('https://example.org:6379/', false, opts), null);
+    });
+
+    it('leaves the scheme rules alone: an http:// own origin needs allowInsecureHttp', () => {
+        const opts = { ownOrigin: parseOrigin('http://bbs.example.com:8080') };
+        assert.match(
+            isSafeOutboundUrl('http://bbs.example.com:8080/x', false, opts),
+            /http:\/\/ not permitted/
+        );
+        assert.equal(
+            isSafeOutboundUrl('http://bbs.example.com:8080/x', true, opts),
+            null
+        );
+    });
+});

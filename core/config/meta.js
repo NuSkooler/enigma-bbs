@@ -571,6 +571,12 @@ module.exports = {
         min: 1,
         description: 'Fetches triggered by inbox requests allowed per minute, board wide.',
     },
+    'contentServers.web.handlers.*.allowedPrivateAddresses': {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+            'IPv4/IPv6 addresses or CIDRs that outbound ActivityPub requests may reach despite being private, e.g. a server on your own network. Link-local, unspecified and multicast addresses are never allowed.',
+    },
 
     'contentServers.web.http.port': PORT,
     'contentServers.web.https.port': PORT,

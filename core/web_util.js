@@ -19,8 +19,7 @@ function getWebDomain(config = Config()) {
     return config.contentServers.web.domain;
 }
 
-function getBaseUrl() {
-    const config = Config();
+function getBaseUrl(config = Config()) {
     const overridePrefix = get(config, 'contentServers.web.overrideUrlPrefix');
     if (overridePrefix) {
         return overridePrefix;

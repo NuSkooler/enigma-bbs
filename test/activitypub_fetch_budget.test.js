@@ -582,6 +582,21 @@ describe('negative cache (#966)', function () {
         assert.equal(cache.size, 0);
     });
 
+    it('a config reload empties every cache (allowedPrivateAddresses may have changed)', () => {
+        const Events = require('../core/events.js');
+        const cache = new NegCache.NegativeCache();
+        cache.set('k', Errors.AccessDenied('x', ErrorReasons.BlockedAddress));
+        assert.ok(
+            Events.listeners(Events.getSystemEvents().ConfigChanged).includes(
+                NegCache._onConfigChanged
+            ),
+            'listening for ConfigChanged'
+        );
+        //  called directly: emitting it would reach every other listener too
+        NegCache._onConfigChanged();
+        assert.equal(cache.size, 0);
+    });
+
     describe('WebFinger', function () {
         //  https to a loopback literal is refused before any connection
         //  (AccessDenied), which makes a definite failure with no network
@@ -692,5 +707,34 @@ describe('outboundFetchLimits in the config schema (#966)', function () {
                 'valueOutOfRange:perHostPerMinute',
             ]
         );
+    });
+});
+
+describe('allowedPrivateAddresses in the config schema (#966)', function () {
+    const _ = require('lodash');
+    const { buildSchema } = require('../core/config/schema.js');
+    const { validateConfig } = require('../core/config/validate.js');
+
+    const issues = value => {
+        const user = {
+            contentServers: {
+                web: { handlers: { activityPub: { allowedPrivateAddresses: value } } },
+            },
+        };
+        const merged = _.merge({}, require('../core/config_default.js')(), user);
+        return validateConfig(user, merged, buildSchema()).map(i => i.code);
+    };
+
+    it('defaults to an empty list, and accepts a list of strings', () => {
+        assert.deepEqual(
+            require('../core/config_default.js')().contentServers.web.handlers.activityPub
+                .allowedPrivateAddresses,
+            []
+        );
+        assert.deepEqual(issues(['10.0.0.0/8', 'fd00::/8', '192.168.1.5']), []);
+    });
+
+    it('reports a value that is not a list', () => {
+        assert.deepEqual(issues('10.0.0.0/8'), ['typeMismatch']);
     });
 });
