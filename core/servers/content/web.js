@@ -18,33 +18,64 @@ const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
 const WebLog = require('../../web_log.js');
 const { getUrlPath } = require('../../web_util.js');
+const { getRequestClientAddress } = require('../../client_address.js');
+
+//  How often, at most, RateLimiter drops keys that have gone quiet
+const RateLimiterSweepIntervalMs = 60 * 1000;
 
 class RateLimiter {
-    constructor() {
-        //  ip+key -> array of timestamps (ms)
+    constructor({ sweepIntervalMs = RateLimiterSweepIntervalMs } = {}) {
+        //  ip+key -> { windowMs, timestamps: [ ms, ... ] }
         this._windows = new Map();
+        this._sweepIntervalMs = sweepIntervalMs;
+        this._lastSweep = Date.now();
+    }
+
+    get size() {
+        return this._windows.size;
     }
 
     //  Returns true if the request is allowed, false if it exceeds the limit.
     //  opts: { windowMs, maxRequests }
     check(ip, key, opts) {
         const now = Date.now();
+        this._sweep(now);
+
         const mapKey = `${ip}:${key}`;
-        let timestamps = this._windows.get(mapKey) || [];
+        const entry = this._windows.get(mapKey) || { timestamps: [] };
+        entry.windowMs = opts.windowMs;
 
         //  Prune entries outside the current window
-        timestamps = timestamps.filter(t => now - t < opts.windowMs);
+        entry.timestamps = entry.timestamps.filter(t => now - t < opts.windowMs);
 
-        if (timestamps.length >= opts.maxRequests) {
-            this._windows.set(mapKey, timestamps);
+        if (entry.timestamps.length >= opts.maxRequests) {
+            this._windows.set(mapKey, entry);
             return false;
         }
 
-        timestamps.push(now);
-        this._windows.set(mapKey, timestamps);
+        entry.timestamps.push(now);
+        this._windows.set(mapKey, entry);
         return true;
     }
+
+    //  Drop keys whose window has passed; otherwise every address ever seen
+    //  stays in the map for the life of the process.
+    _sweep(now) {
+        if (now - this._lastSweep < this._sweepIntervalMs) {
+            return;
+        }
+        this._lastSweep = now;
+
+        for (const [mapKey, entry] of this._windows) {
+            const newest = entry.timestamps[entry.timestamps.length - 1];
+            if (undefined === newest || now - newest >= entry.windowMs) {
+                this._windows.delete(mapKey);
+            }
+        }
+    }
 }
+
+exports.RateLimiter = RateLimiter;
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
@@ -264,7 +295,13 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     routeRequest(req, resp) {
-        this.log.trace({ req }, 'Request');
+        if (this.log.trace()) {
+            //  behind a proxy, req's own remoteAddress is the proxy's
+            this.log.trace(
+                { req, clientAddress: getRequestClientAddress(req) },
+                'Request'
+            );
+        }
 
         let route = _.find(this.routes, r => r.matchesRequest(req));
 
@@ -284,8 +321,9 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     //  Returns true if the request is within limits; false (and sends 429) if not.
+    //  Limits are per client: behind a trusted proxy, the forwarded address.
     checkRateLimit(req, resp, key, opts) {
-        const ip = req.socket.remoteAddress || 'unknown';
+        const ip = getRequestClientAddress(req) || 'unknown';
         if (this._rateLimiter.check(ip, key, opts)) {
             return true;
         }
