@@ -952,16 +952,24 @@
                                         "type": "object",
                                         "properties": {
                                             "perHostConcurrency": {
-                                                "type": "number"
+                                                "description": "Fetches from one remote host, triggered by inbox requests, that may run at once.",
+                                                "type": "integer",
+                                                "minimum": 1
                                             },
                                             "perHostPerMinute": {
-                                                "type": "number"
+                                                "description": "Fetches from one remote host, triggered by inbox requests, allowed per minute.",
+                                                "type": "number",
+                                                "minimum": 1
                                             },
                                             "globalConcurrency": {
-                                                "type": "number"
+                                                "description": "Fetches triggered by inbox requests that may run at once, board wide.",
+                                                "type": "integer",
+                                                "minimum": 1
                                             },
                                             "globalPerMinute": {
-                                                "type": "number"
+                                                "description": "Fetches triggered by inbox requests allowed per minute, board wide.",
+                                                "type": "number",
+                                                "minimum": 1
                                             }
                                         }
                                     }

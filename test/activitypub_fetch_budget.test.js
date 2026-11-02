@@ -641,3 +641,43 @@ describe('negative cache (#966)', function () {
         });
     });
 });
+
+describe('outboundFetchLimits in the config schema (#966)', function () {
+    const _ = require('lodash');
+    const { buildSchema } = require('../core/config/schema.js');
+    const { validateConfig } = require('../core/config/validate.js');
+
+    const issues = limits => {
+        const user = {
+            contentServers: {
+                web: { handlers: { activityPub: { outboundFetchLimits: limits } } },
+            },
+        };
+        const merged = _.merge({}, require('../core/config_default.js')(), user);
+        return validateConfig(user, merged, buildSchema()).map(
+            i => `${i.code}:${i.path.split('.').pop()}`
+        );
+    };
+
+    it('accepts the defaults, a rate of 1 and a fractional rate', () => {
+        assert.deepEqual(issues(FetchBudget.DefaultLimits), []);
+        assert.deepEqual(issues({ perHostPerMinute: 1, globalPerMinute: 1.5 }), []);
+    });
+
+    it('reports a fractional concurrency and anything below 1', () => {
+        assert.deepEqual(
+            issues({
+                perHostConcurrency: 2.5,
+                perHostPerMinute: 0,
+                globalConcurrency: 0,
+                globalPerMinute: 0.5,
+            }).sort(),
+            [
+                'typeMismatch:perHostConcurrency',
+                'valueOutOfRange:globalConcurrency',
+                'valueOutOfRange:globalPerMinute',
+                'valueOutOfRange:perHostPerMinute',
+            ]
+        );
+    });
+});

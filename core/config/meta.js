@@ -543,6 +543,35 @@ module.exports = {
     //
     'contentServers.web.handlers': { openMap: true },
 
+    //  activityPub's inbox-triggered fetch limits (#966); "*" because the
+    //  handlers block is an open map. A rate is a bucket of that many
+    //  tokens, one per fetch, so it may be fractional but below 1 would
+    //  admit nothing.
+    'contentServers.web.handlers.*.outboundFetchLimits.perHostConcurrency': {
+        type: 'number',
+        integer: true,
+        min: 1,
+        description:
+            'Fetches from one remote host, triggered by inbox requests, that may run at once.',
+    },
+    'contentServers.web.handlers.*.outboundFetchLimits.perHostPerMinute': {
+        type: 'number',
+        min: 1,
+        description:
+            'Fetches from one remote host, triggered by inbox requests, allowed per minute.',
+    },
+    'contentServers.web.handlers.*.outboundFetchLimits.globalConcurrency': {
+        type: 'number',
+        integer: true,
+        min: 1,
+        description: 'Fetches triggered by inbox requests that may run at once, board wide.',
+    },
+    'contentServers.web.handlers.*.outboundFetchLimits.globalPerMinute': {
+        type: 'number',
+        min: 1,
+        description: 'Fetches triggered by inbox requests allowed per minute, board wide.',
+    },
+
     'contentServers.web.http.port': PORT,
     'contentServers.web.https.port': PORT,
     'contentServers.web.domain': {
