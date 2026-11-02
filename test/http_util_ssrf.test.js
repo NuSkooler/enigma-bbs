@@ -14,8 +14,10 @@
 
 const { strict: assert } = require('assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 const dns = require('node:dns');
 const https = require('node:https');
 const http = require('node:http');
@@ -26,14 +28,47 @@ const Security = require('../core/activitypub/security.js');
 const HttpUtil = require('../core/http_util.js');
 const { ErrorReasons } = require('../core/enig_error.js');
 
-//  Self-signed for ssrf-fixture.net and *.ssrf-fixture.net, valid to 2126.
-//  Named .crt/.key because .gitignore drops *.pem. Regenerate with:
-//    openssl req -x509 -newkey rsa:2048 -nodes -days 36500 \
-//      -keyout ssrf-fixture.key -out ssrf-fixture.crt -subj /CN=ssrf-fixture.net \
-//      -addext subjectAltName=DNS:ssrf-fixture.net,DNS:*.ssrf-fixture.net
-const FixtureDir = path.join(__dirname, 'fixtures', 'http_util_ssrf');
-const CERT = fs.readFileSync(path.join(FixtureDir, 'ssrf-fixture.crt'));
-const KEY = fs.readFileSync(path.join(FixtureDir, 'ssrf-fixture.key'));
+//
+//  A fresh key and self-signed cert for ssrf-fixture.net and
+//  *.ssrf-fixture.net, valid for a day, made with the openssl binary in
+//  |dir|. Throws, rather than letting the tests be skipped, when openssl
+//  is missing.
+//
+function makeFixtureCert(dir) {
+    const keyPath = path.join(dir, 'ssrf-fixture.key');
+    const certPath = path.join(dir, 'ssrf-fixture.crt');
+    try {
+        execFileSync(
+            'openssl',
+            [
+                'req',
+                '-x509',
+                '-newkey',
+                'ec',
+                '-pkeyopt',
+                'ec_paramgen_curve:prime256v1',
+                '-nodes',
+                '-days',
+                '1',
+                '-keyout',
+                keyPath,
+                '-out',
+                certPath,
+                '-subj',
+                '/CN=ssrf-fixture.net',
+                '-addext',
+                'subjectAltName=DNS:ssrf-fixture.net,DNS:*.ssrf-fixture.net',
+            ],
+            { stdio: 'pipe' }
+        );
+    } catch (e) {
+        const why = e.code === 'ENOENT' ? 'not found' : (e.stderr || e).toString();
+        throw new Error(
+            `these tests need the openssl binary for a test TLS certificate: ${why}`
+        );
+    }
+    return { cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) };
+}
 
 const ALLOWED_ADDR = '127.0.0.1';
 const BLOCKED_ADDR = '127.0.0.2';
@@ -187,6 +222,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
     let savedIsBlocked;
     let savedLog;
     let warns;
+    let certDir;
 
     const handler = (req, res) => {
         const hop = /^\/hop\/(\d+)\/([a-z]+)$/.exec(req.url);
@@ -253,7 +289,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
         }
     };
 
-    const tls = { ca: CERT };
+    const tls = {}; // { ca }, once before() has made the cert
     const url = (host, p = '/thing', proto = 'https') =>
         `${proto}://${host}.ssrf-fixture.net:${ports[proto]}${p}`;
 
@@ -270,9 +306,14 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
             warn: (...args) => warns.push(args),
         });
 
+        //  after the saves above: after() restores them even if this throws
+        certDir = fs.mkdtempSync(path.join(os.tmpdir(), 'enigma-ssrf-test-'));
+        const { cert, key } = makeFixtureCert(certDir);
+        tls.ca = cert;
+
         //  each protocol's servers share a port across both addresses, so a
         //  name's URL reaches whichever address it resolves to
-        const opts = { key: KEY, cert: CERT };
+        const opts = { key, cert };
         const pair = (proto, make, cb) => {
             listen(make(), proto, ALLOWED_ADDR, 0, (err, p) => {
                 if (err) return cb(err);
@@ -307,6 +348,9 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
         Security.isBlockedAddress = savedIsBlocked;
         loggerModule.log = savedLog;
         dropSockets();
+        if (certDir) {
+            fs.rmSync(certDir, { recursive: true, force: true });
+        }
 
         let pending = servers.length;
         if (!pending) return done();
@@ -573,6 +617,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
                 });
             });
         });
+
         it('checks a redirect to an IPv6 literal as that address, not as unparseable', done => {
             const opts = Object.assign({}, tls, {
                 headers: { 'X-Redirect-To': `https://[::1]:${ports.https}/thing` },
