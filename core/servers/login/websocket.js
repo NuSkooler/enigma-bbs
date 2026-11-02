@@ -8,6 +8,11 @@ const Log = require('../../logger.js').log;
 const LoginServerModule = require('../../login_server_module.js');
 const { Errors } = require('../../enig_error.js');
 const { listenServer } = require('../../server_listen.js');
+const {
+    getClientAddress,
+    hasForwardedHeaders,
+    headerValue,
+} = require('../../client_address.js');
 
 //  deps
 const _ = require('lodash');
@@ -25,6 +30,62 @@ const ModuleInfo = (exports.moduleInfo = {
     packageName: 'codes.l33t.enigma.websocket.server',
 });
 
+//
+//  Work out a connection's client address and whether it is secure, from the
+//  upgrade request. With |proxied| set, forwarded headers are read, but only
+//  from a peer in |trustedProxies|:
+//
+//  |remoteAddress|         the client's address
+//  |forwardedSecure|       a trusted proxy said the client used https
+//  |remoteAddressIsProxy|  a trusted proxy forwarded no client address, so
+//                          |remoteAddress| is the proxy's own
+//  |ignoredHeaders|        forwarded headers came from an untrusted peer
+//
+function resolveConnection({ peerAddress, headers, proxied, trustedProxies }) {
+    const resolved = {
+        remoteAddress: peerAddress,
+        forwardedSecure: false,
+        remoteAddressIsProxy: false,
+        ignoredHeaders: false,
+    };
+
+    if (!proxied) {
+        return resolved;
+    }
+
+    const { address, forwarded, peerTrusted } = getClientAddress({
+        peerAddress,
+        headers,
+        trustedProxies,
+    });
+
+    if (!peerTrusted) {
+        resolved.ignoredHeaders = hasForwardedHeaders(headers);
+        return resolved;
+    }
+
+    resolved.remoteAddress = address;
+    resolved.remoteAddressIsProxy = !forwarded;
+    resolved.forwardedSecure =
+        'https' === headerValue(headers, 'x-forwarded-proto').trim().toLowerCase();
+    return resolved;
+}
+
+exports.resolveConnection = resolveConnection;
+
+//  Each of these is logged once per peer address, up to a limit
+const MaxLoggedPeers = 256;
+const loggedIgnoredHeaders = new Set();
+const loggedNoClientAddress = new Set();
+
+function logOncePerPeer(logged, peerAddress, logFn) {
+    if (logged.has(peerAddress) || logged.size >= MaxLoggedPeers) {
+        return;
+    }
+    logged.add(peerAddress);
+    return logFn();
+}
+
 class WebSocketClient extends TelnetClient {
     constructor(ws, req, serverType) {
         //  allow WebSocket to act like a Duplex (socket)
@@ -36,17 +97,6 @@ class WebSocketClient extends TelnetClient {
                 this.ws.on('close', err => this.emit('close', err));
                 this.ws.on('error', err => this.emit('error', err));
                 this.ws.on('message', data => this._data(data));
-            }
-
-            setClient(client, httpRequest) {
-                this.client = client;
-
-                //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
-                this.resolvedRemoteAddress =
-                    (this.client.proxied &&
-                        (httpRequest.headers['x-forwarded-for'] ||
-                            httpRequest.headers['x-real-ip'])) ||
-                    httpRequest.connection.remoteAddress;
             }
 
             get remoteAddress() {
@@ -75,23 +125,38 @@ class WebSocketClient extends TelnetClient {
 
         Log.trace({ headers: req.headers }, 'WebSocket connection headers');
 
-        //
-        //  If the config allows it, look for 'x-forwarded-proto' as "https"
-        //  to override |isSecure|
-        //
-        if (
-            true === _.get(Config(), 'loginServers.webSocket.proxied') &&
-            'https' === req.headers['x-forwarded-proto']
-        ) {
-            Log.debug(
-                `Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`
+        const peerAddress = req.socket.remoteAddress;
+        const resolved = resolveConnection({
+            peerAddress,
+            headers: req.headers,
+            proxied: true === _.get(Config(), 'loginServers.webSocket.proxied'),
+        });
+
+        if (resolved.ignoredHeaders) {
+            logOncePerPeer(loggedIgnoredHeaders, peerAddress, () =>
+                Log.warn(
+                    { peerAddress },
+                    'Ignoring forwarded headers from a WebSocket peer not in trustedProxies; if this is your reverse proxy, add its address to trustedProxies'
+                )
             );
-            this.proxied = true;
-        } else {
-            this.proxied = false;
         }
 
-        wsDuplex.setClient(this, req);
+        if (resolved.remoteAddressIsProxy) {
+            this.remoteAddressIsProxy = true; //  see Client.isLocal()
+            logOncePerPeer(loggedNoClientAddress, peerAddress, () =>
+                Log.warn(
+                    { proxyAddress: peerAddress },
+                    'WebSocket connection from a trusted proxy carried no client address; configure the proxy to send X-Forwarded-For'
+                )
+            );
+        }
+
+        if (resolved.forwardedSecure) {
+            Log.debug('Assuming secure connection due to X-Forwarded-Proto of "https"');
+        }
+        this.forwardedSecure = resolved.forwardedSecure;
+
+        wsDuplex.resolvedRemoteAddress = resolved.remoteAddress;
 
         //  fudge remoteAddress on socket, which is now TelnetSocket
         this.socket.remoteAddress = wsDuplex.remoteAddress;
@@ -116,7 +181,7 @@ class WebSocketClient extends TelnetClient {
     }
 
     get isSecure() {
-        return 'secure' === this.serverType || true === this.proxied ? true : false;
+        return 'secure' === this.serverType || true === this.forwardedSecure;
     }
 }
 

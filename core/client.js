@@ -818,6 +818,12 @@ Client.prototype.waitForKeyPress = function (cb) {
 };
 
 Client.prototype.isLocal = function () {
+    //  The address is a reverse proxy's, not the client's (see websocket.js):
+    //  where the client really is, is not known.
+    if (true === this.remoteAddressIsProxy) {
+        return false;
+    }
+
     //  :TODO: Handle ipv6 better
     return ['127.0.0.1', '::ffff:127.0.0.1'].includes(this.remoteAddress);
 };

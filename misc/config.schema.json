@@ -843,7 +843,7 @@
                             "additionalProperties": false
                         },
                         "proxied": {
-                            "description": "Trust X-Forwarded-For when behind a reverse proxy.",
+                            "description": "Behind a reverse proxy: read forwarded headers (client address, X-Forwarded-Proto) from peers in trustedProxies.",
                             "type": "boolean"
                         }
                     },

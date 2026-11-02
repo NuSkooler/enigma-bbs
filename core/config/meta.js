@@ -631,7 +631,8 @@ module.exports = {
     'loginServers.webSocket.wss.port': PORT,
     'loginServers.webSocket.proxied': {
         type: 'boolean',
-        description: 'Trust X-Forwarded-For when behind a reverse proxy.',
+        description:
+            'Behind a reverse proxy: read forwarded headers (client address, X-Forwarded-Proto) from peers in trustedProxies.',
     },
 
     //  ── Reverse proxies ──────────────────────────────────────────────────
