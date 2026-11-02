@@ -219,7 +219,7 @@ describe('fetch budget (#966)', function () {
             perHostConcurrency: 'lots',
             perHostPerMinute: -1,
             globalConcurrency: 0,
-            globalPerMinute: null,
+            globalPerMinute: 0.5, // below 1: would admit nothing
         });
         FetchBudget.run(() => {
             const held = [];

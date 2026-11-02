@@ -76,7 +76,8 @@ function _refill(bucket, perMinute) {
 }
 
 //  The configured limits, read per acquire (config hot-reloads); anything
-//  that is not a positive number falls back to its default
+//  that is not a number of at least 1 falls back to its default (a rate
+//  below 1 would never hold a whole token, and so admit nothing)
 function _limits() {
     let configured;
     try {
@@ -88,7 +89,7 @@ function _limits() {
     const limits = {};
     for (const [name, def] of Object.entries(DefaultLimits)) {
         const v = configured[name];
-        limits[name] = typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : def;
+        limits[name] = typeof v === 'number' && Number.isFinite(v) && v >= 1 ? v : def;
     }
     return limits;
 }

@@ -49,7 +49,7 @@ contentServers: {
 | `allowInsecureHttp` | Boolean. Allow plain `http://` requests to remote servers. For local development and testing only; see [Outbound Requests and Limits](#outbound-requests-and-limits). Defaults to `false`. |
 | `maxInboxBodyBytes` | Number. Largest inbox request body accepted, in bytes. A larger request is refused with `413`. Defaults to `1048576` (1 MiB). |
 | `maxResponseBodyBytes` | Number. Largest response accepted from a remote server (an actor, a Note, a WebFinger lookup, a delivery's answer), in bytes. Defaults to `524288` (512 KiB). |
-| `outboundFetchLimits` | Object. Limits on the fetches an incoming inbox request may cause; see [Outbound Requests and Limits](#outbound-requests-and-limits). Members: `perHostConcurrency` (fetches from one remote host at once, default `4`), `perHostPerMinute` (fetches from one remote host per minute, default `60`), `globalConcurrency` (fetches at once, board wide, default `32`) and `globalPerMinute` (fetches per minute, board wide, default `600`). A value that is not a positive number uses its default. |
+| `outboundFetchLimits` | Object. Limits on the fetches an incoming inbox request may cause; see [Outbound Requests and Limits](#outbound-requests-and-limits). Members: `perHostConcurrency` (fetches from one remote host at once, default `4`), `perHostPerMinute` (fetches from one remote host per minute, default `60`), `globalConcurrency` (fetches at once, board wide, default `32`) and `globalPerMinute` (fetches per minute, board wide, default `600`). A value below `1`, or not a number, uses its default. |
 
 ### Configuring Defaults
 #### General
