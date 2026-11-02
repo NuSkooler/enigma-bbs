@@ -109,7 +109,7 @@ Point `wsConnect` in `vtxdata.js` to `wss://your-hostname.here/wss`.
 
 See [nginx WebSocket proxying](https://nginx.org/en/docs/http/websocket.html) for more detail.
 
-Caddy's `reverse_proxy` and Traefik send `X-Forwarded-For` and `X-Forwarded-Proto` by themselves.
+Caddy's `reverse_proxy` and Traefik set `X-Forwarded-For` and `X-Forwarded-Proto` by themselves.
 
 ### Trusted Proxies
 
@@ -124,6 +124,8 @@ trustedProxies: [
 ```
 
 Entries are IPv4 or IPv6 addresses or CIDRs. Setting `trustedProxies` replaces the default list, so keep the entries you still need.
+
+**The proxy must set `X-Forwarded-For` itself**, as in the nginx example above (`$proxy_add_x_forwarded_for` appends the address nginx sees, which is fine). A header the proxy passes through unchanged was written by the client.
 
 With `proxied: true`:
 
