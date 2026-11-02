@@ -284,16 +284,25 @@ const IPV6_EMBEDDED_IPV4_PREFIXES = [
     ['64:ff9b::', 96, 'NAT64'],
 ];
 
-//  IPv6 ranges that must never be contacted.
+//
+//  IPv6 ranges that must never be contacted. Only global unicast (2000::/3)
+//  is allowed at all (see GLOBAL_UNICAST_IPV6); the entries outside it are
+//  here for a more specific label, those inside it carve out the parts of
+//  2000::/3 that are not publicly routable.
+//
 const BLOCKED_IPV6_CIDRS = [
     ['::', 128, 'unspecified'],
     ['::1', 128, 'loopback'],
     ['::', 96, 'IPv4-compatible (deprecated)'],
+    ['::ffff:0:0:0', 96, 'IPv4-translated'],
     ['64:ff9b:1::', 48, 'local-use NAT64'],
     ['100::', 64, 'discard-only'],
     ['2001::', 32, 'Teredo'],
+    ['2001:10::', 28, 'ORCHID (deprecated)'],
+    ['2001:20::', 28, 'ORCHIDv2'],
     ['2001:db8::', 32, 'documentation'],
     ['2002::', 16, '6to4'],
+    ['3fff::', 20, 'documentation'],
     ['fc00::', 7, 'unique local'],
     ['fe80::', 10, 'link-local'],
     ['fec0::', 10, 'site-local (deprecated)'],
@@ -304,6 +313,7 @@ const _toPrefixes = list =>
     list.map(([addr, bits, label]) => [_ipv6ToBytes(addr), bits, label]);
 const IPV6_EMBEDDED_IPV4 = _toPrefixes(IPV6_EMBEDDED_IPV4_PREFIXES);
 const BLOCKED_IPV6 = _toPrefixes(BLOCKED_IPV6_CIDRS);
+const [GLOBAL_UNICAST_IPV6] = _toPrefixes([['2000::', 3, 'global unicast']]);
 
 function _inIPv6Prefix(bytes, prefixBytes, bits) {
     for (let i = 0; i < 16 && bits > 0; ++i, bits -= 8) {
@@ -354,7 +364,8 @@ function _ipv6ToBytes(str) {
 //
 //  Returns the label of the blocked range |hostname| is in when it is an
 //  IPv6 literal (bracketed or bare), else null (including when it is not
-//  IPv6 at all).
+//  IPv6 at all). The IPv4-mapped and NAT64 forms are judged by the IPv4
+//  address they carry; anything else outside 2000::/3 is refused.
 //
 function _isBlockedIPv6(hostname) {
     const bytes = _ipv6ToBytes(hostname);
@@ -368,7 +379,10 @@ function _isBlockedIPv6(hostname) {
     }
 
     const hit = BLOCKED_IPV6.find(([prefix, bits]) => _inIPv6Prefix(bytes, prefix, bits));
-    return hit ? hit[2] : null;
+    if (hit) return hit[2];
+
+    const [prefix, bits] = GLOBAL_UNICAST_IPV6;
+    return _inIPv6Prefix(bytes, prefix, bits) ? null : 'outside global unicast 2000::/3';
 }
 
 //

@@ -773,6 +773,16 @@ describe('isSafeOutboundUrl()', function () {
         assert.equal(isSafeOutboundUrl('https://[2a02:1234::1]/'), null);
     });
 
+    it('blocks IPv6 literals outside global unicast, as isBlockedAddress() does', () => {
+        assert.ok(isSafeOutboundUrl('https://[3fff::1]/'));
+        assert.ok(isSafeOutboundUrl('https://[::ffff:0:7f00:1]/'));
+        assert.ok(isSafeOutboundUrl('https://[2001:10::1]/'));
+        assert.ok(isSafeOutboundUrl('https://[2001:20::1]:8443/'));
+        assert.ok(isSafeOutboundUrl('https://[4000::1]/'));
+        assert.equal(isSafeOutboundUrl('https://[2606:4700::1111]/'), null);
+        assert.equal(isSafeOutboundUrl('https://[64:ff9b::808:808]/'), null);
+    });
+
     it('blocks TEST-NET-1 (192.0.2.0/24)', () => {
         assert.ok(isSafeOutboundUrl('https://192.0.2.1/'));
     });
@@ -805,15 +815,29 @@ describe('isBlockedAddress()', function () {
         'fd00::1',
         'ff02::1',
         '::7f00:1',
+        '3fff::1', // documentation, RFC 9637
+        '3fff:fff:ffff::1', // ...the last of 3fff::/20
+        '::ffff:0:7f00:1', // IPv4-translated
+        '::ffff:0:808:808', // ...even of a public address
+        '2001:10::1', // ORCHID
+        '2001:20::1', // ORCHIDv2
+        '2001:2f:ffff::1', // ...the last of 2001:20::/28
+        '4000::1', // outside 2000::/3: not allocated
+        '1::1', // ditto
+        '64:ff9c::808:808', // just past NAT64
     ];
     const allowed = [
         '8.8.8.8',
         '2a02:1234::1', // regression: 2002::/16 test matched X02::/16
+        '2a02::1',
         '2102::1', // ditto
         '64:ff9b::808:808', // NAT64 of a public address (DNS64 hosts need it)
         '::ffff:8.8.8.8',
         '2606:4700::1111',
         '2001:4860:4860::8888', // 2001::/32 is Teredo, 2001:4860:: is not
+        '2001:30::1', // just past ORCHIDv2
+        '3fff:1000::1', // just past 3fff::/20
+        '3ffe::1', // global unicast, outside the documentation prefix
     ];
 
     blocked.forEach(ip => {
@@ -827,6 +851,15 @@ describe('isBlockedAddress()', function () {
         it(`allows ${ip}`, () => {
             assert.equal(isBlockedAddress(ip), null);
         });
+    });
+
+    it('labels what it blocks', () => {
+        assert.match(isBlockedAddress('::1'), /\(loopback\)/);
+        assert.match(isBlockedAddress('3fff::1'), /\(documentation\)/);
+        assert.match(isBlockedAddress('::ffff:0:7f00:1'), /\(IPv4-translated\)/);
+        assert.match(isBlockedAddress('2001:20::1'), /\(ORCHIDv2\)/);
+        assert.match(isBlockedAddress('4000::1'), /outside global unicast/);
+        assert.match(isBlockedAddress('::ffff:127.0.0.1'), /IPv4-mapped loopback/);
     });
 
     it('refuses anything that is not an IP address', () => {
