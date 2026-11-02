@@ -68,11 +68,18 @@ describe('WebServerModule.checkRateLimit()', function () {
     const opts = { windowMs: 60000, maxRequests: 1 };
     let prevConfig;
 
+    function useConfig(proxied) {
+        configModule._pushTestConfig({
+            trustedProxies: DefaultTrusted,
+            contentServers: { web: { proxied } },
+        });
+    }
+
     before(() => {
-        prevConfig = configModule._pushTestConfig({ trustedProxies: DefaultTrusted });
+        prevConfig = configModule.get;
     });
 
-    after(() => {
+    afterEach(() => {
         configModule._popTestConfig(prevConfig);
     });
 
@@ -89,9 +96,11 @@ describe('WebServerModule.checkRateLimit()', function () {
         return { socket: { remoteAddress: peerAddress }, headers };
     }
 
-    it('gives each client behind a trusted proxy its own bucket', () => {
+    const viaProxy = client => request('127.0.0.1', { 'x-forwarded-for': client });
+
+    it('gives each client behind a trusted proxy its own bucket when proxied', () => {
+        useConfig(true);
         const web = makeWeb();
-        const viaProxy = client => request('127.0.0.1', { 'x-forwarded-for': client });
 
         assert.ok(web.checkRateLimit(viaProxy('1.2.3.4'), {}, 'k', opts));
         assert.ok(web.checkRateLimit(viaProxy('5.6.7.8'), {}, 'k', opts));
@@ -99,12 +108,33 @@ describe('WebServerModule.checkRateLimit()', function () {
         assert.deepEqual(web.warnings, [{ ip: '1.2.3.4', key: 'k' }]);
     });
 
-    it('keys an untrusted peer on its own address', () => {
+    it('keys an untrusted peer on its own address when proxied', () => {
+        useConfig(true);
         const web = makeWeb();
-        const spoofed = client => request('203.0.113.9', { 'x-forwarded-for': client });
+        const direct = client => request('203.0.113.9', { 'x-forwarded-for': client });
 
-        assert.ok(web.checkRateLimit(spoofed('1.2.3.4'), {}, 'k', opts));
-        assert.ok(!web.checkRateLimit(spoofed('5.6.7.8'), {}, 'k', opts));
+        assert.ok(web.checkRateLimit(direct('1.2.3.4'), {}, 'k', opts));
+        assert.ok(!web.checkRateLimit(direct('5.6.7.8'), {}, 'k', opts));
         assert.deepEqual(web.warnings, [{ ip: '203.0.113.9', key: 'k' }]);
+    });
+
+    it('uses the connecting address when not proxied, trusted peer or not', () => {
+        for (const proxied of [false, undefined]) {
+            useConfig(proxied);
+            const web = makeWeb();
+
+            assert.ok(web.checkRateLimit(viaProxy('1.2.3.4'), {}, 'k', opts));
+            assert.ok(!web.checkRateLimit(viaProxy('5.6.7.8'), {}, 'k', opts));
+            assert.deepEqual(web.warnings, [{ ip: '127.0.0.1', key: 'k' }]);
+            assert.equal(web.getClientAddress(viaProxy('1.2.3.4')), '127.0.0.1');
+        }
+    });
+
+    it('getClientAddress() follows a config reload', () => {
+        const web = makeWeb();
+        useConfig(true);
+        assert.equal(web.getClientAddress(viaProxy('1.2.3.4')), '1.2.3.4');
+        useConfig(false);
+        assert.equal(web.getClientAddress(viaProxy('1.2.3.4')), '127.0.0.1');
     });
 });

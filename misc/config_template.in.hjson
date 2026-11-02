@@ -247,6 +247,13 @@
             //  Standard issue "www" folder. Place static content here
             staticRoot: XXXXX
 
+            //  Set to true when a reverse proxy (nginx, Caddy, ...) forwards
+            //  requests to this server, so rate limits count each visitor
+            //  rather than the proxy. Visitor addresses are taken from the
+            //  X-Forwarded-For header, which the proxy must set itself, and
+            //  only from proxies in the top-level "trustedProxies" list.
+            //  proxied: true
+
             //  enig-term, the browser terminal, is served at /_enig/ws-term/
             //  once its files are copied into <install dir>/ws-term/. Set
             //  endpoint when a TLS proxy publishes a different port than

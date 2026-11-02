@@ -367,6 +367,7 @@ describe('config schema against config_default.js', () => {
             'contentServers.web.http.port',
             'contentServers.web.https.port',
             'contentServers.web.logging.rotatingFile.level',
+            'contentServers.web.proxied',
             'contentServers.web.wsTerm.client',
             'contentServers.web.wsTerm.endpoint',
             'contentServers.web.wsTerm.root',

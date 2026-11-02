@@ -297,10 +297,7 @@ exports.getModule = class WebServerModule extends ServerModule {
     routeRequest(req, resp) {
         if (this.log.trace()) {
             //  behind a proxy, req's own remoteAddress is the proxy's
-            this.log.trace(
-                { req, clientAddress: getRequestClientAddress(req) },
-                'Request'
-            );
+            this.log.trace({ req, clientAddress: this.getClientAddress(req) }, 'Request');
         }
 
         let route = _.find(this.routes, r => r.matchesRequest(req));
@@ -320,10 +317,22 @@ exports.getModule = class WebServerModule extends ServerModule {
         }
     }
 
+    //  The visitor's address. With contentServers.web.proxied set, a request
+    //  from a trusted proxy gives the address the proxy forwarded; otherwise,
+    //  and always when not proxied, it is the connecting address.
+    getClientAddress(req) {
+        //  read at call time: a reload, or a test config, is seen
+        const config = require('../../config.js').get();
+        if (true !== _.get(config, 'contentServers.web.proxied')) {
+            return req.socket.remoteAddress;
+        }
+        return getRequestClientAddress(req);
+    }
+
     //  Returns true if the request is within limits; false (and sends 429) if not.
-    //  Limits are per client: behind a trusted proxy, the forwarded address.
+    //  Limits are per client: see getClientAddress().
     checkRateLimit(req, resp, key, opts) {
-        const ip = getRequestClientAddress(req) || 'unknown';
+        const ip = this.getClientAddress(req) || 'unknown';
         if (this._rateLimiter.check(ip, key, opts)) {
             return true;
         }

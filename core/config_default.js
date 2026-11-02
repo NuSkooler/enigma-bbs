@@ -414,6 +414,12 @@ module.exports = () => {
 
                 staticRoot: paths.join(__dirname, './../www'),
 
+                //  Behind a reverse proxy: take a visitor's address from the
+                //  X-Forwarded-For / X-Real-IP headers sent by proxies in
+                //  trustedProxies, so rate limits are per visitor. The proxy
+                //  must set X-Forwarded-For itself.
+                proxied: false,
+
                 // Logging block works the same way the system logger does
                 logging: {
                     rotatingFile: {

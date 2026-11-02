@@ -583,6 +583,11 @@ module.exports = {
         description: 'Deprecated; use exposedConfAreas.',
     },
 
+    'contentServers.web.proxied': {
+        type: 'boolean',
+        description:
+            'Behind a reverse proxy: take visitor addresses (rate limits, logs) from forwarded headers sent by peers in trustedProxies.',
+    },
     'contentServers.web.overrideUrlPrefix': {
         type: 'string',
         description: 'Replaces the derived scheme://host prefix in generated URLs.',

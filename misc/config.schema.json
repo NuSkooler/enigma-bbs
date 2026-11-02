@@ -873,6 +873,11 @@
                             "type": "string",
                             "$comment": "Default: <installation directory>/www"
                         },
+                        "proxied": {
+                            "description": "Behind a reverse proxy: take visitor addresses (rate limits, logs) from forwarded headers sent by peers in trustedProxies.",
+                            "type": "boolean",
+                            "default": false
+                        },
                         "logging": {
                             "type": "object",
                             "properties": {
