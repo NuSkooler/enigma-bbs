@@ -204,6 +204,101 @@ describe('paths.config default (#927)', function () {
         }
     });
 
+    describe('oputil config new', function () {
+        it('writes absolute menu and achievements paths into the install config/', done => {
+            const { setInstallFilePaths } = require('../core/oputil/oputil_config.js');
+
+            const newConfig = { general: {} };
+            setInstallFilePaths(newConfig, 'myboard-main.hjson');
+
+            const installConfig = paths.join(REPO_ROOT, 'config');
+            assert.equal(
+                newConfig.general.menuFile,
+                paths.join(installConfig, 'menus', 'myboard-main.hjson')
+            );
+            assert.equal(
+                newConfig.general.achievementFile,
+                paths.join(installConfig, 'achievements.hjson')
+            );
+            //  the install ships this one
+            assert.ok(fs.existsSync(newConfig.general.achievementFile));
+
+            //  and a config.hjson written outside config/ still finds both
+            const configPath = writeConfig(tempDir, JSON.stringify(newConfig, null, 4));
+            create(configPath, (err, config) => {
+                assert.ifError(err);
+                assert.equal(config.paths.config, withSep(tempDir));
+                assert.equal(
+                    getConfigPath(config.general.achievementFile),
+                    paths.join(installConfig, 'achievements.hjson')
+                );
+                assert.equal(
+                    getConfigPath(config.general.menuFile),
+                    paths.join(installConfig, 'menus', 'myboard-main.hjson')
+                );
+                return done();
+            });
+        });
+    });
+
+    describe('a missing achievements file', function () {
+        let loggerModule;
+        let savedLog;
+        let warnings;
+        let prevGet;
+
+        beforeEach(() => {
+            loggerModule = require('../core/logger.js');
+            savedLog = loggerModule.log;
+            warnings = [];
+            const quiet = () => {};
+            loggerModule.log = {
+                trace: quiet,
+                debug: quiet,
+                info: quiet,
+                error: quiet,
+                fatal: quiet,
+                warn: (obj, msg) => warnings.push({ obj, msg }),
+                child() {
+                    return this;
+                },
+            };
+        });
+
+        afterEach(() => {
+            loggerModule.log = savedLog;
+            if (prevGet) {
+                configModule._popTestConfig(prevGet);
+                prevGet = undefined;
+            }
+        });
+
+        it('leaves achievements off and says where it looked, and why', done => {
+            prevGet = configModule._pushTestConfig({
+                debug: { assertsEnabled: false },
+                general: { achievementFile: 'achievements.hjson' },
+                paths: { config: withSep(tempDir) },
+            });
+
+            const { Achievements } = require('../core/achievement.js');
+            const achievements = new Achievements({});
+
+            achievements.init(err => {
+                //  not a startup failure: achievements are just disabled
+                assert.ifError(err);
+                assert.equal(achievements.isEnabled(), false);
+
+                const expectedPath = paths.join(tempDir, 'achievements.hjson');
+                assert.equal(warnings.length, 1, JSON.stringify(warnings));
+                assert.equal(warnings[0].obj.path, expectedPath);
+                assert.equal(warnings[0].obj.configDir, withSep(tempDir));
+                assert.match(warnings[0].msg, /not found/);
+                assert.match(warnings[0].msg, /paths\.config/);
+                return done();
+            });
+        });
+    });
+
     describe('oputil --config', function () {
         //  a real oputil process: --config is parsed there, not here
         this.timeout(20000);

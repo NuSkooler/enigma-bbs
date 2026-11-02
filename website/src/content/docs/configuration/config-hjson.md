@@ -20,6 +20,8 @@ paths: {
 
 Set it in `config.hjson` itself: like any setting that has a default, `paths.config` in an included file does not replace it.
 
+`oputil.js config new` writes `menuFile` and `achievementFile` as absolute paths into the install's `config/`, so a configuration it creates finds them wherever `config.hjson` is kept. If the achievements file cannot be found, achievements are switched off and the log says `Achievements file not found`, with the path it tried.
+
 :::note
 Before 0.6.0-beta, `paths.config` defaulted to the install's `config/` directory even when `--config` named another. See [UPGRADE](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md).
 :::

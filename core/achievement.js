@@ -7,6 +7,11 @@ const AchievementTypes = require('./achievement_types.js');
 const Config = require('./config.js').get;
 const ConfigLoader = require('./config_loader');
 const { getConfigPath } = require('./config_util');
+
+//  Where the achievements file is: read when it is needed, not through the
+//  Config captured above, which is bound to whatever config.js exported when
+//  this module was first required. config_util.getConfigPath() does the same.
+const systemConfig = () => require('./config.js').get();
 const UserDb = require('./database.js').dbs.user;
 const { getISOTimestampString, coerceToText } = require('./database.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
@@ -219,6 +224,27 @@ class Achievements {
         });
 
         this.config.init(configPath, err => {
+            if (err && 'ENOENT' === err.code && configPath === err.configPath) {
+                //
+                //  Not an error worth failing over -- achievements just stay
+                //  off, as they always did here -- but say which file and why
+                //  it was looked for there. Since #927 a relative name such as
+                //  the default "achievements.hjson" resolves beside
+                //  config.hjson, so a --config board that used to find the
+                //  install's copy no longer does. Logger looked up now, not at
+                //  load time.
+                //
+                require('./logger.js').log.warn(
+                    {
+                        path: configPath,
+                        achievementFile: _.get(systemConfig(), 'general.achievementFile'),
+                        configDir: _.get(systemConfig(), 'paths.config'),
+                    },
+                    'Achievements file not found; achievements are disabled. A relative achievementFile resolves against paths.config (by default the directory holding config.hjson)'
+                );
+                return cb(null);
+            }
+
             if (err) {
                 return cb(err);
             }
@@ -229,7 +255,7 @@ class Achievements {
     }
 
     _getConfigPath() {
-        const path = _.get(Config(), 'general.achievementFile');
+        const path = _.get(systemConfig(), 'general.achievementFile');
         if (!path) {
             return;
         }
