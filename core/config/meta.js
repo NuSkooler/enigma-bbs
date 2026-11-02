@@ -575,7 +575,7 @@ module.exports = {
         type: 'array',
         items: { type: 'string' },
         description:
-            'IPv4/IPv6 addresses or CIDRs that outbound ActivityPub requests may reach despite being private, e.g. a server on your own network. Link-local, unspecified and multicast addresses are never allowed.',
+            'IPv4/IPv6 addresses or CIDRs that outbound ActivityPub requests may reach despite being private, e.g. a server on your own network. Link-local, unspecified, multicast and IPv6 transition addresses are never allowed.',
     },
 
     'contentServers.web.http.port': PORT,

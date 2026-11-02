@@ -35,6 +35,7 @@ exports.allowInsecureHttp = () => _allowHttp();
 exports._checkedLookup = _checkedLookup; // exported for tests
 exports._redirectUrl = _redirectUrl; // exported for tests
 exports._ownOriginLookup = _ownOriginLookup; // exported for tests
+exports._checkUrl = _checkUrl; // exported for tests
 
 //
 //  SSRF protection at connect time (#966). isSafeOutboundUrl() only sees the
@@ -178,19 +179,25 @@ const AllowedPrivateAddressesKey =
 //
 let defaultWebDomain;
 function _ownOrigin() {
+    //  case and a trailing dot do not make it another name
+    const bareName = name => String(name).toLowerCase().replace(/\.$/, '');
     try {
         const config = Config();
         const web = config.contentServers.web;
-        if (!web.overrideUrlPrefix) {
-            if (undefined === defaultWebDomain) {
-                defaultWebDomain =
-                    require('./config_default.js')().contentServers.web.domain;
-            }
-            if (!web.domain || web.domain === defaultWebDomain) {
-                return null;
-            }
+        if (!web.overrideUrlPrefix && !web.domain) {
+            return null;
         }
-        return Security.parseOrigin(require('./web_util.js').getBaseUrl(config));
+        const own = Security.parseOrigin(require('./web_util.js').getBaseUrl(config));
+        if (!own) {
+            return null;
+        }
+        //  whether it came from overrideUrlPrefix or domain
+        if (undefined === defaultWebDomain) {
+            defaultWebDomain = bareName(
+                require('./config_default.js')().contentServers.web.domain
+            );
+        }
+        return bareName(own.hostname) === defaultWebDomain ? null : own;
     } catch {
         return null;
     }
@@ -325,8 +332,33 @@ function _redirectUrl(reqOptions) {
     return `${protocol}//${host}${port ? `:${port}` : ''}${path}`;
 }
 
+//
+//  Request options that pick where the connection goes. http.request() and
+//  follow-redirects both let these override the URL, and so connect
+//  somewhere _checkUrl() never looked at (the own hostname on another port,
+//  through the agents that exempt it, say), so a caller's are dropped:
+//  the URL alone names the destination. defaultPort applies when the URL
+//  has no port; lookup, family and createConnection would bypass or steer
+//  the agent's checked lookup. A mismatched protocol is refused by both
+//  libraries, but it goes too. Options that do not move the connection,
+//  e.g. servername (TLS SNI), auth, localAddress or a Host header, are kept:
+//  the request still goes to the checked host and port.
+//
+const ConnectionTargetOptions = [
+    'host',
+    'hostname',
+    'port',
+    'defaultPort',
+    'protocol',
+    'socketPath',
+    'lookup',
+    'family',
+    'createConnection',
+];
+
 function _makeRequest(url, options, cb) {
     options = Object.assign({}, { timeout: DefaultTimeoutMilliseconds }, options);
+    ConnectionTargetOptions.forEach(k => delete options[k]);
 
     //  SSRF protection: reject private/loopback/reserved URLs before connecting.
     const { reason: ssrfReason, agents } = _checkUrl(url);

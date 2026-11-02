@@ -403,6 +403,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
     };
 
     const tls = {}; // { ca }, once before() has made the cert
+    const serverTls = {}; // { key, cert }, likewise
     const url = (host, p = '/thing', proto = 'https') =>
         `${proto}://${host}.ssrf-fixture.net:${ports[proto]}${p}`;
 
@@ -423,6 +424,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
         certDir = fs.mkdtempSync(path.join(os.tmpdir(), 'enigma-ssrf-test-'));
         const { cert, key } = makeFixtureCert(certDir);
         tls.ca = cert;
+        Object.assign(serverTls, { key, cert });
 
         //  each protocol's servers share a port across both addresses, so a
         //  name's URL reaches whichever address it resolves to
@@ -1016,6 +1018,158 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
             const { err } = await get(selfUrl('/redir'), redirectTo(url('evil')));
             assertRefused(err);
             assert.equal(seen.https[BLOCKED_ADDR], 1, 'only the own-origin hop');
+        });
+
+        it('follows a redirect from the own origin to the own origin', async () => {
+            const { err, json } = await get(selfUrl('/redir'), redirectTo(selfUrl()));
+            assert.ifError(err);
+            assert.equal(json.url, '/thing');
+            assert.ok(seen.https[BLOCKED_ADDR] >= 1);
+            assert.equal(seen.https[ALLOWED_ADDR], 0);
+        });
+
+        it('takes the own hostname in any case', async () => {
+            const { err } = await get(
+                `https://SELF.ssrf-fixture.NET:${ports.https}/thing`
+            );
+            assert.ifError(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 1);
+        });
+
+        it('does not take the own hostname with a trailing dot', async () => {
+            hosts['self.ssrf-fixture.net.'] = [BLOCKED_ADDR];
+            const { err } = await get(
+                `https://self.ssrf-fixture.net.:${ports.https}/thing`
+            );
+            assertRefused(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 0);
+        });
+
+        it("takes a URL spelling out the scheme's default port", () => {
+            const own = () => HttpUtil._agents.ownHttps;
+            mutableWebConfig.overrideUrlPrefix = 'https://self.ssrf-fixture.net';
+            let checked = HttpUtil._checkUrl('https://self.ssrf-fixture.net:443/x');
+            assert.equal(checked.reason, null);
+            assert.equal(checked.agents.https, own());
+
+            mutableWebConfig.overrideUrlPrefix = 'https://self.ssrf-fixture.net:443/';
+            checked = HttpUtil._checkUrl('https://self.ssrf-fixture.net/x');
+            assert.equal(checked.reason, null);
+            assert.equal(checked.agents.https, own());
+
+            checked = HttpUtil._checkUrl('https://self.ssrf-fixture.net:8443/x');
+            assert.match(checked.reason, /own hostname/);
+        });
+
+        it("ignores a caller's options that would move the connection", async () => {
+            //  the own URL, but the HTTP server's port: were it honoured,
+            //  the own-origin agent would connect the own hostname there
+            let r = await get(selfUrl(), { port: ports.http });
+            assert.ifError(r.err);
+            assert.equal(r.json.ok, true);
+            assert.equal(seen.http[BLOCKED_ADDR], 0);
+            assert.equal(seen.https[BLOCKED_ADDR], 1);
+
+            r = await get(selfUrl(), {
+                hostname: 'evil.ssrf-fixture.net',
+                host: 'evil.ssrf-fixture.net',
+                defaultPort: ports.http,
+                lookup: (h, o, cb) => cb(null, ALLOWED_ADDR, 4),
+                family: 6,
+            });
+            assert.ifError(r.err);
+            assert.equal(seen.http[BLOCKED_ADDR], 0);
+
+            //  and on the path without redirects (POST, signed GET)
+            const posted = await new Promise(resolve =>
+                HttpUtil.postJson(
+                    selfUrl('/inbox'),
+                    {},
+                    Object.assign({}, tls, { headers: {}, port: ports.http }),
+                    err => resolve(err)
+                )
+            );
+            assert.ifError(posted);
+            assert.equal(seen.http[BLOCKED_ADDR], 0);
+
+            //  nor can a lookup of the caller's reach a blocked host
+            const connections = seen.https[BLOCKED_ADDR];
+            r = await get(url('evil'), {
+                lookup: (h, o, cb) => cb(null, BLOCKED_ADDR, 4),
+            });
+            assertRefused(r.err);
+            assert.equal(seen.https[BLOCKED_ADDR], connections);
+        });
+
+        it('never takes the placeholder domain as its own, however it is given', async () => {
+            hosts['another-fine-enigma-bbs.org'] = [BLOCKED_ADDR];
+            const placeholder = `https://another-fine-enigma-bbs.org:${ports.https}/x`;
+            for (const prefix of [
+                `https://another-fine-enigma-bbs.org:${ports.https}`,
+                `https://Another-Fine-ENiGMA-BBS.org.:${ports.https}/`,
+            ]) {
+                mutableWebConfig.overrideUrlPrefix = prefix;
+                const { err } = await get(placeholder);
+                assertRefused(err);
+            }
+
+            delete mutableWebConfig.overrideUrlPrefix;
+            Object.assign(mutableWebConfig, {
+                domain: 'ANOTHER-FINE-ENIGMA-BBS.ORG.',
+                https: { enabled: true, port: ports.https },
+                http: { port: 8080 },
+            });
+            const { err } = await get(placeholder);
+            assertRefused(err);
+            assert.equal(seen.https[BLOCKED_ADDR], 0);
+        });
+
+        describe('an IPv6-literal own origin', function () {
+            let v6Port;
+            before(function (done) {
+                //  server.listen() looks its address up through the stub
+                hosts['::1'] = ['::1'];
+                const server = https.createServer(serverTls, handler);
+                server.once('error', () => {
+                    //  no IPv6 loopback here
+                    v6Port = null;
+                    return done();
+                });
+                listen(server, 'https', '::1', 0, (err, p) => {
+                    v6Port = err ? null : p;
+                    return done();
+                });
+            });
+            beforeEach(function () {
+                if (!v6Port) {
+                    this.skip();
+                }
+            });
+
+            //  the certificate is for names: these check the address check
+            const getV6 = () =>
+                new Promise(resolve =>
+                    HttpUtil.getJson(
+                        `https://[::1]:${v6Port}/thing`,
+                        Object.assign({}, tls, { rejectUnauthorized: false }),
+                        (err, json) => resolve({ err, json })
+                    )
+                );
+
+            it('control: ::1 is refused when it is not the own origin', async () => {
+                const { err } = await getV6();
+                assert.ok(err);
+                assert.match(err.message, /blocked range \(loopback\)/);
+                assert.equal(seen.https['::1'], 0);
+            });
+
+            it('fetches it', async () => {
+                mutableWebConfig.overrideUrlPrefix = `https://[::1]:${v6Port}`;
+                const { err, json } = await getV6();
+                assert.ifError(err);
+                assert.equal(json.ok, true);
+                assert.equal(seen.https['::1'], 1);
+            });
         });
     });
 

@@ -409,7 +409,10 @@ exports.isBlockedAddress = isBlockedAddress;
 //  Ranges that allowedPrivateAddresses can never unblock, whatever it lists:
 //  link-local (where cloud metadata services live), unspecified and
 //  multicast. The IPv4-mapped and NAT64 forms are judged by the IPv4
-//  address they carry.
+//  address they carry. The other IPv6 transition and translation ranges
+//  are never allowable themselves: each can carry an IPv4 address (cloud
+//  metadata included) in a form not decoded here, so listing ::/0 must not
+//  open them. Loopback ::1 sits inside ::/96 but stays allowable.
 //
 const NEVER_ALLOWED_IPV4_CIDRS = [
     ['0.0.0.0', 8, '"this" network'],
@@ -419,9 +422,15 @@ const NEVER_ALLOWED_IPV4_CIDRS = [
 
 const NEVER_ALLOWED_IPV6 = _toPrefixes([
     ['::', 128, 'unspecified'],
+    ['::', 96, 'IPv4-compatible (deprecated)'],
+    ['::ffff:0:0:0', 96, 'IPv4-translated'],
+    ['64:ff9b:1::', 48, 'local-use NAT64'],
+    ['2001::', 32, 'Teredo'],
+    ['2002::', 16, '6to4'],
     ['fe80::', 10, 'link-local'],
     ['ff00::', 8, 'multicast'],
 ]);
+const IPV6_LOOPBACK = _ipv6ToBytes('::1');
 
 function _ipv4Mask(prefix) {
     return prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
@@ -461,7 +470,7 @@ function neverAllowedRange(ip) {
         );
         if (hit) return hit[2];
     }
-    if (v6 !== null) {
+    if (v6 !== null && !v6.equals(IPV6_LOOPBACK)) {
         const hit = NEVER_ALLOWED_IPV6.find(([prefix, bits]) =>
             _inIPv6Prefix(v6, prefix, bits)
         );
