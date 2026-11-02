@@ -193,6 +193,50 @@ describe('getClientAddress()', function () {
         );
     });
 
+    it('rejects IPv6 zone ids', () => {
+        //  a zone id ends the walk like any other invalid entry
+        assert.equal(
+            resolve('127.0.0.1', { 'x-forwarded-for': '1.2.3.4, fe80::1%eth0' }).address,
+            '127.0.0.1'
+        );
+        assert.equal(
+            resolve('127.0.0.1', { 'x-forwarded-for': '[fe80::1%25eth0]:80' }).address,
+            '127.0.0.1'
+        );
+        assert.equal(
+            resolve('127.0.0.1', { 'x-real-ip': 'fe80::1%eth0' }).address,
+            '127.0.0.1'
+        );
+    });
+
+    it('returns a forwarded IPv4-mapped address as plain IPv4', () => {
+        assert.equal(
+            resolve('127.0.0.1', { 'x-forwarded-for': '::ffff:1.2.3.4' }).address,
+            '1.2.3.4'
+        );
+        assert.equal(
+            resolve('127.0.0.1', { 'x-forwarded-for': '[::FFFF:1.2.3.4]:443' }).address,
+            '1.2.3.4'
+        );
+        assert.equal(
+            resolve('127.0.0.1', { 'x-real-ip': '::ffff:5.6.7.8' }).address,
+            '5.6.7.8'
+        );
+    });
+
+    it('leaves the peer address as the socket gave it', () => {
+        assert.equal(resolve('::ffff:203.0.113.9', {}).address, '::ffff:203.0.113.9');
+        assert.equal(resolve('::ffff:127.0.0.1', {}).address, '::ffff:127.0.0.1');
+    });
+
+    it('treats a private address the proxy sees as another hop by default', () => {
+        //  the default list covers the private ranges, so 192.168.1.5 is
+        //  skipped as if it were a proxy; naming only the proxy stops that
+        const headers = { 'x-forwarded-for': '1.1.1.1, 192.168.1.5' };
+        assert.equal(resolve('127.0.0.1', headers).address, '1.1.1.1');
+        assert.equal(resolve('127.0.0.1', headers, ['127.0.0.1']).address, '192.168.1.5');
+    });
+
     it('falls back to a single X-Real-IP', () => {
         assert.deepEqual(resolve('127.0.0.1', { 'x-real-ip': ' 5.6.7.8 ' }), {
             address: '5.6.7.8',

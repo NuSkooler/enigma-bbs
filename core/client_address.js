@@ -145,18 +145,23 @@ function isTrustedProxy(address, trustedProxies) {
 }
 
 //  A single X-Forwarded-For / X-Real-IP entry -> a bare IP address, or null.
-//  Tolerates "[v6]", "[v6]:port" and "a.b.c.d:port".
+//  Tolerates "[v6]", "[v6]:port" and "a.b.c.d:port". IPv6 zone ids ("%eth0")
+//  are rejected. An IPv4-mapped address comes back as plain IPv4, so both
+//  spellings of one client are the same address.
 function normalizeAddress(value) {
     const s = value.trim();
+    if (s.includes('%')) {
+        return null;
+    }
 
     let m = /^\[([^\]]+)\](?::\d+)?$/.exec(s);
     if (m) {
-        return 6 === net.isIP(m[1]) ? m[1] : null;
+        return 6 === net.isIP(m[1]) ? unmapIPv4(m[1]) : null;
     }
 
     m = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(s);
     const address = m ? m[1] : s;
-    return net.isIP(address) ? address : null;
+    return net.isIP(address) ? unmapIPv4(address) : null;
 }
 
 //  A header's value as one string; repeated headers are joined
