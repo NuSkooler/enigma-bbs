@@ -125,6 +125,8 @@ trustedProxies: [
 
 Entries are IPv4 or IPv6 addresses or CIDRs. Setting `trustedProxies` replaces the default list, so keep the entries you still need.
 
+**`trustedProxies` should name your proxies.** The default covers the private ranges, so a client your proxy sees with a private address (a LAN user, or every user when a container setup hides client addresses and the proxy sees, say, the Docker gateway) is taken for another proxy hop and its own `X-Forwarded-For` entries are believed. If your proxy sees clients that way, set `trustedProxies` to the proxy's own address or addresses only.
+
 **The proxy must set `X-Forwarded-For` itself**, as in the nginx example above (`$proxy_add_x_forwarded_for` appends the address nginx sees, which is fine). A header the proxy passes through unchanged was written by the client.
 
 With `proxied: true`:

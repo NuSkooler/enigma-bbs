@@ -97,6 +97,8 @@ trustedProxies: [
 
 Entries are IPv4 or IPv6 addresses or CIDRs. Setting `trustedProxies` replaces the default list, so keep the entries you still need. The same setting applies to the [WebSocket login server](../loginservers/websocket.md#trusted-proxies). The `Forwarded` header (RFC 7239) is not read.
 
+**`trustedProxies` should name your proxies.** The default covers the private ranges, so a client your proxy sees with a private address (a LAN user, or every user when a container setup hides client addresses and the proxy sees, say, the Docker gateway) is taken for another proxy hop and its own `X-Forwarded-For` entries are believed. If your proxy sees clients that way, set `trustedProxies` to the proxy's own address or addresses only.
+
 ## Static Root
 Static files live relative to the `contentServers.web.staticRoot` path which defaults to `enigma-bbs/www`. This is also commonly known as your "public root" directory.
 
