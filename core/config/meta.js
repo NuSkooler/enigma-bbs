@@ -583,6 +583,11 @@ module.exports = {
         description: 'Deprecated; use exposedConfAreas.',
     },
 
+    'contentServers.web.proxied': {
+        type: 'boolean',
+        description:
+            'Behind a reverse proxy: take visitor addresses (rate limits, logs) from forwarded headers sent by peers in trustedProxies.',
+    },
     'contentServers.web.overrideUrlPrefix': {
         type: 'string',
         description: 'Replaces the derived scheme://host prefix in generated URLs.',
@@ -631,7 +636,16 @@ module.exports = {
     'loginServers.webSocket.wss.port': PORT,
     'loginServers.webSocket.proxied': {
         type: 'boolean',
-        description: 'Trust X-Forwarded-For when behind a reverse proxy.',
+        description:
+            'Behind a reverse proxy: read forwarded headers (client address, X-Forwarded-Proto) from peers in trustedProxies.',
+    },
+
+    //  ── Reverse proxies ──────────────────────────────────────────────────
+    'trustedProxies': {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+            'Reverse proxies whose X-Forwarded-For / X-Real-IP headers are believed, as IP addresses or CIDRs. Replaces the default (loopback and private ranges) when set.',
     },
     'loginServers.ssh.privateKeyPass': { type: 'string' },
 

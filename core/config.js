@@ -50,6 +50,8 @@ exports.Config = class Config extends ConfigLoader {
             'loginServers.ssh.algorithms.cipher',
             'loginServers.ssh.algorithms.hmac',
             'loginServers.ssh.algorithms.compress',
+            //  a merge could never narrow the default trusted ranges
+            'trustedProxies',
         ];
 
         const replaceKeys = ['args', 'sendArgs', 'recvArgs', 'recvArgsNonBatch'];

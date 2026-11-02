@@ -194,9 +194,15 @@
         webSocket: {
             //
             //  Setting "proxied" to true allows non-secure (ws://) WebSockets
-            //  to be considered secure when the X-Fowarded-Proto HTTP header
-            //  is set to "https". This is helpful when ENiGMA is running behind
+            //  to be considered secure when the X-Forwarded-Proto HTTP header
+            //  is set to "https", and takes the caller's address from
+            //  X-Forwarded-For. This is helpful when ENiGMA is running behind
             //  another web server doing SSL/TLS termination.
+            //
+            //  These headers are only believed from addresses in the top-level
+            //  "trustedProxies" list, which by default covers loopback and the
+            //  private (LAN, container) ranges. A proxy on any other address
+            //  must be added there.
             //
             proxied: false
 
@@ -240,6 +246,13 @@
 
             //  Standard issue "www" folder. Place static content here
             staticRoot: XXXXX
+
+            //  Set to true when a reverse proxy (nginx, Caddy, ...) forwards
+            //  requests to this server, so rate limits count each visitor
+            //  rather than the proxy. Visitor addresses are taken from the
+            //  X-Forwarded-For header, which the proxy must set itself, and
+            //  only from proxies in the top-level "trustedProxies" list.
+            //  proxied: true
 
             //  enig-term, the browser terminal, is served at /_enig/ws-term/
             //  once its files are copied into <install dir>/ws-term/. Set

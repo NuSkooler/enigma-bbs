@@ -271,6 +271,26 @@ module.exports = () => {
             emailInbound: paths.join(__dirname, './../mail/email/'),
         },
 
+        //
+        //  Reverse proxies (nginx, Caddy, Traefik, ...) whose X-Forwarded-For
+        //  and X-Real-IP headers are believed, as IP addresses or CIDRs. Used
+        //  by the web server and the WebSocket login server to find a client's
+        //  real address. Requests from anywhere else use the connecting
+        //  address and their forwarded headers are ignored.
+        //
+        //  The default covers a proxy on the same host, in another container
+        //  or on the LAN. Setting this replaces the list: keep the entries
+        //  you still need.
+        //
+        trustedProxies: [
+            '127.0.0.0/8',
+            '::1/128',
+            '10.0.0.0/8',
+            '172.16.0.0/12',
+            '192.168.0.0/16',
+            'fc00::/7',
+        ],
+
         loginServers: {
             telnet: {
                 port: 8888,
@@ -393,6 +413,12 @@ module.exports = () => {
                 domain: 'another-fine-enigma-bbs.org',
 
                 staticRoot: paths.join(__dirname, './../www'),
+
+                //  Behind a reverse proxy: take a visitor's address from the
+                //  X-Forwarded-For / X-Real-IP headers sent by proxies in
+                //  trustedProxies, so rate limits are per visitor. The proxy
+                //  must set X-Forwarded-For itself.
+                proxied: false,
 
                 // Logging block works the same way the system logger does
                 logging: {
