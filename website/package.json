@@ -24,7 +24,7 @@
         "@astrojs/starlight": "^0.42.0",
         "@redocly/cli": "^2.51.2",
         "astro": "^7.4.2",
-        "redoc": "^2.5.3",
+        "redoc": "^3.0.1",
         "sharp": "^0.35.5",
         "unist-util-visit": "^5.1.0"
     }
