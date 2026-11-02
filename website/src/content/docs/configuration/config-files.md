@@ -45,6 +45,8 @@ The `includes` directive may be used the top-level scope of a configuration file
 }
 ```
 
+Included files are read from the directory holding the file that lists them. For `config.hjson`, that is also where relative names such as `menuFile` are taken from by default; see [Relative Paths](config-hjson.md#relative-paths).
+
 ### References
 Often times in a configuration you will find that you're repeating yourself quite a bit. ENiGMA½ provides an `@reference` that can help with this in the form of `@reference:dot.path.to.section`.
 

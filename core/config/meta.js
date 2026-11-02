@@ -87,12 +87,12 @@ module.exports = {
     'general.menuFile': {
         type: 'string',
         description:
-            'Menu configuration file. Relative names resolve against the config directory.',
+            'Menu configuration file. Relative names resolve against paths.config.',
     },
     'general.achievementFile': {
         type: 'string',
         description:
-            'Achievement configuration file. Relative names resolve against the config directory.',
+            'Achievement configuration file. Relative names resolve against paths.config.',
     },
     'general.maxConnections': {
         type: 'number',
@@ -272,6 +272,13 @@ module.exports = {
         type: 'string',
         enum: LOG_LEVELS,
         description: 'Lowest severity written to the web server log.',
+    },
+
+    //  ── Paths ────────────────────────────────────────────────────────────
+    'paths.config': {
+        type: 'string',
+        description:
+            'Directory that relative file names in config.hjson (menuFile, achievementFile, offline mail bulletins) resolve against. Unset, it is the directory holding the loaded config.hjson -- where includes are read from too.',
     },
 
     //  ── Message area defaults ────────────────────────────────────────────
