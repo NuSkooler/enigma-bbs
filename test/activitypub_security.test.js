@@ -71,6 +71,7 @@ const {
     storedObjectOwnerIds,
     verifySignerOwnsObject,
     isSafeOutboundUrl,
+    isBlockedAddress,
     readInboxBody,
     MaxRequestAgeSecs,
 } = require('../core/activitypub/security.js');
@@ -755,6 +756,117 @@ describe('isSafeOutboundUrl()', function () {
         //  "localdomain" is blocked, but "local" as a substring in a real domain is fine
         assert.equal(isSafeOutboundUrl('https://localbitcoins.com/users/alice'), null);
     });
+
+    //  ── IPv6 forms WHATWG URL normalises (#966) ──────────────────────────
+
+    it('blocks IPv4-mapped IPv6 literals ([::ffff:127.0.0.1] -> [::ffff:7f00:1])', () => {
+        assert.ok(isSafeOutboundUrl('https://[::ffff:127.0.0.1]/'));
+        assert.ok(isSafeOutboundUrl('https://[::ffff:7f00:1]/'));
+        assert.ok(isSafeOutboundUrl('https://[::ffff:a9fe:a9fe]/'));
+    });
+
+    it('blocks a NAT64 literal embedding a blocked IPv4 address', () => {
+        assert.ok(isSafeOutboundUrl('https://[64:ff9b::7f00:1]/'));
+    });
+
+    it('allows a public IPv6 literal outside 2002::/16 (2a02::/16 regression)', () => {
+        assert.equal(isSafeOutboundUrl('https://[2a02:1234::1]/'), null);
+    });
+
+    it('blocks IPv6 literals outside global unicast, as isBlockedAddress() does', () => {
+        assert.ok(isSafeOutboundUrl('https://[3fff::1]/'));
+        assert.ok(isSafeOutboundUrl('https://[::ffff:0:7f00:1]/'));
+        assert.ok(isSafeOutboundUrl('https://[2001:10::1]/'));
+        assert.ok(isSafeOutboundUrl('https://[2001:20::1]:8443/'));
+        assert.ok(isSafeOutboundUrl('https://[4000::1]/'));
+        assert.equal(isSafeOutboundUrl('https://[2606:4700::1111]/'), null);
+        assert.equal(isSafeOutboundUrl('https://[64:ff9b::808:808]/'), null);
+    });
+
+    it('blocks TEST-NET-1 (192.0.2.0/24)', () => {
+        assert.ok(isSafeOutboundUrl('https://192.0.2.1/'));
+    });
+});
+
+// ─── isBlockedAddress ─────────────────────────────────────────────────────────
+
+describe('isBlockedAddress()', function () {
+    const blocked = [
+        '127.0.0.1',
+        '0.0.0.0',
+        '192.0.2.1',
+        '192.88.99.1',
+        '10.1.2.3',
+        '169.254.169.254',
+        '::1',
+        '::',
+        '::ffff:127.0.0.1',
+        '::ffff:7f00:1',
+        '::ffff:a9fe:a9fe',
+        '64:ff9b::7f00:1',
+        '64:ff9b:1::1',
+        '100::1',
+        '2001::1',
+        '2001:db8::1',
+        '2002:0808:0808::1',
+        'fe80::1',
+        'fe80::1%eth0',
+        'fec0::1',
+        'fd00::1',
+        'ff02::1',
+        '::7f00:1',
+        '3fff::1', // documentation, RFC 9637
+        '3fff:fff:ffff::1', // ...the last of 3fff::/20
+        '::ffff:0:7f00:1', // IPv4-translated
+        '::ffff:0:808:808', // ...even of a public address
+        '2001:10::1', // ORCHID
+        '2001:20::1', // ORCHIDv2
+        '2001:2f:ffff::1', // ...the last of 2001:20::/28
+        '4000::1', // outside 2000::/3: not allocated
+        '1::1', // ditto
+        '64:ff9c::808:808', // just past NAT64
+    ];
+    const allowed = [
+        '8.8.8.8',
+        '2a02:1234::1', // regression: 2002::/16 test matched X02::/16
+        '2a02::1',
+        '2102::1', // ditto
+        '64:ff9b::808:808', // NAT64 of a public address (DNS64 hosts need it)
+        '::ffff:8.8.8.8',
+        '2606:4700::1111',
+        '2001:4860:4860::8888', // 2001::/32 is Teredo, 2001:4860:: is not
+        '2001:30::1', // just past ORCHIDv2
+        '3fff:1000::1', // just past 3fff::/20
+        '3ffe::1', // global unicast, outside the documentation prefix
+    ];
+
+    blocked.forEach(ip => {
+        it(`blocks ${ip}`, () => {
+            const reason = isBlockedAddress(ip);
+            assert.equal(typeof reason, 'string', `${ip} should be blocked`);
+        });
+    });
+
+    allowed.forEach(ip => {
+        it(`allows ${ip}`, () => {
+            assert.equal(isBlockedAddress(ip), null);
+        });
+    });
+
+    it('labels what it blocks', () => {
+        assert.match(isBlockedAddress('::1'), /\(loopback\)/);
+        assert.match(isBlockedAddress('3fff::1'), /\(documentation\)/);
+        assert.match(isBlockedAddress('::ffff:0:7f00:1'), /\(IPv4-translated\)/);
+        assert.match(isBlockedAddress('2001:20::1'), /\(ORCHIDv2\)/);
+        assert.match(isBlockedAddress('4000::1'), /outside global unicast/);
+        assert.match(isBlockedAddress('::ffff:127.0.0.1'), /IPv4-mapped loopback/);
+    });
+
+    it('refuses anything that is not an IP address', () => {
+        assert.ok(isBlockedAddress('example.com'));
+        assert.ok(isBlockedAddress(''));
+        assert.ok(isBlockedAddress('1.2.3'));
+    });
 });
 
 // ─── readInboxBody ────────────────────────────────────────────────────────────
@@ -889,5 +1001,256 @@ describe('readInboxBody()', function () {
 
         req.emit('data', Buffer.from('x'.repeat(20)));
         req.emit('error', new Error('secondary error'));
+    });
+});
+
+// ─── allowedPrivateAddresses / own origin (#966) ─────────────────────────────
+
+describe('allowedPrivateAddresses (#966)', function () {
+    const {
+        parseAllowedAddresses,
+        isAllowedPrivateAddress,
+        checkResolvedAddress,
+        neverAllowedRange,
+    } = require('../core/activitypub/security.js');
+
+    const entries = list => {
+        const { entries, invalid } = parseAllowedAddresses(list);
+        assert.deepEqual(invalid, [], 'all valid');
+        return entries;
+    };
+
+    it('parses CIDRs and bare addresses, ignoring host bits', () => {
+        const parsed = entries([
+            '10.0.0.0/8',
+            '192.168.1.5',
+            'fd00::/8',
+            '::1',
+            '10.1.2.3/8',
+        ]);
+        assert.deepEqual(
+            parsed.map(e => `${e.family}/${e.bits}`),
+            ['4/8', '4/32', '6/8', '6/128', '4/8']
+        );
+        assert.equal(parsed[4].network, parsed[0].network);
+    });
+
+    it('reports entries that are not an address or CIDR, and anything not a list', () => {
+        const bad = [
+            'bogus',
+            '10.0.0.0/33',
+            'fd00::/129',
+            'fe80::1%eth0',
+            '[::1]',
+            '10.0.0',
+            '010.0.0.1',
+            '10.0.0.0/',
+            '',
+            42,
+            null,
+        ];
+        const { entries: good, invalid } = parseAllowedAddresses(['10.0.0.0/8', ...bad]);
+        assert.equal(good.length, 1);
+        assert.deepEqual(invalid, bad);
+        assert.deepEqual(parseAllowedAddresses('10.0.0.0/8').invalid, ['10.0.0.0/8']);
+    });
+
+    it('allows an address in a listed range, and only there', () => {
+        const list = entries(['10.0.0.0/8', 'fd12:3456::/32', '192.168.1.5']);
+        assert.equal(isAllowedPrivateAddress('10.200.0.1', list), true);
+        assert.equal(isAllowedPrivateAddress('11.0.0.1', list), false);
+        assert.equal(isAllowedPrivateAddress('192.168.1.5', list), true);
+        assert.equal(isAllowedPrivateAddress('192.168.1.6', list), false);
+        assert.equal(isAllowedPrivateAddress('fd12:3456::7', list), true);
+        assert.equal(isAllowedPrivateAddress('[fd12:3456::7]', list), true);
+        assert.equal(isAllowedPrivateAddress('fd12:3457::7', list), false);
+        //  an IPv4 entry covers that address's IPv4-mapped form
+        assert.equal(isAllowedPrivateAddress('::ffff:10.0.0.1', list), true);
+        assert.equal(isAllowedPrivateAddress('10.0.0.1', []), false);
+    });
+
+    //  even with everything listed
+    const everything = () => entries(['0.0.0.0/0', '::/0']);
+    const neverAllowed = [
+        '169.254.169.254',
+        '169.254.0.1',
+        '::ffff:169.254.169.254',
+        '64:ff9b::a9fe:a9fe', // NAT64 of 169.254.169.254
+        'fe80::1',
+        'febf::1',
+        '0.0.0.0',
+        '0.1.2.3',
+        '::',
+        '::ffff:0.0.0.0',
+        '224.0.0.1',
+        '239.255.255.250',
+        '::ffff:224.0.0.1',
+        'ff02::1',
+        //  IPv6 transition and translation ranges, whatever they carry
+        '::169.254.169.254', // IPv4-compatible
+        '::a9fe:a9fe',
+        '::10.0.0.1',
+        '::2',
+        '::ffff:0:a9fe:a9fe', // IPv4-translated
+        '2002:a9fe:a9fe::1', // 6to4
+        '2001:0:4136:e378:8000:63bf:3fff:fdd2', // Teredo
+        '64:ff9b:1::a9fe:a9fe', // local-use NAT64
+    ];
+    neverAllowed.forEach(ip => {
+        it(`never allows ${ip}, whatever is listed`, () => {
+            assert.ok(neverAllowedRange(ip));
+            assert.equal(isAllowedPrivateAddress(ip, everything()), false);
+            const refusal = checkResolvedAddress(ip, everything());
+            assert.ok(refusal, 'refused');
+            assert.equal(refusal.allowable, false);
+        });
+    });
+
+    it('keeps loopback ::1 allowable, though it is in ::/96', () => {
+        assert.equal(neverAllowedRange('::1'), null);
+        assert.equal(checkResolvedAddress('::1', entries(['::1/128'])), null);
+        assert.equal(checkResolvedAddress('::1', entries(['::1'])), null);
+        assert.equal(checkResolvedAddress('::1', []).allowable, true);
+        assert.equal(isAllowedPrivateAddress('::2', entries(['::/96'])), false);
+    });
+
+    it('judges the IPv4-mapped and NAT64 forms by the IPv4 address they carry', () => {
+        const list = entries(['10.0.0.0/8']);
+        assert.equal(checkResolvedAddress('::ffff:10.0.0.5', list), null);
+        assert.equal(checkResolvedAddress('64:ff9b::10.0.0.5', list), null);
+        assert.equal(checkResolvedAddress('::ffff:11.0.0.5', list), null, 'public');
+        assert.ok(checkResolvedAddress('::ffff:192.168.0.5', list).allowable);
+    });
+
+    it('lets everything else that is blocked be listed', () => {
+        ['10.0.0.1', '127.0.0.1', '192.168.1.1', '100.64.0.1', 'fd00::1', '::1'].forEach(
+            ip => {
+                assert.equal(neverAllowedRange(ip), null, ip);
+                const refusal = checkResolvedAddress(ip, []);
+                assert.ok(refusal && refusal.allowable, `${ip} refused, but allowable`);
+                assert.equal(checkResolvedAddress(ip, everything()), null, ip);
+            }
+        );
+        assert.equal(checkResolvedAddress('93.184.216.34', []), null, 'public');
+        assert.equal(checkResolvedAddress('example.com', everything()).allowable, false);
+    });
+
+    it('applies to literal addresses in URLs; reserved names stay refused', () => {
+        const allowed = entries(['10.0.0.0/8', 'fd00::/8', '0.0.0.0/0', '::/0']);
+        const check = u =>
+            isSafeOutboundUrl(u, false, { allowedPrivateAddresses: allowed });
+        assert.equal(check('https://10.1.2.3/users/a'), null);
+        assert.equal(check('https://[fd12::1]:8443/users/a'), null);
+        assert.ok(isSafeOutboundUrl('https://10.1.2.3/users/a'), 'refused by default');
+        assert.ok(check('https://169.254.169.254/latest/meta-data/'));
+        assert.ok(check('https://[::ffff:169.254.169.254]/'));
+        assert.ok(check('https://[fe80::1]/'));
+        assert.ok(check('https://0.0.0.0/'));
+        assert.ok(check('https://224.0.0.1/'));
+        assert.ok(check('https://[ff02::1]/'));
+        assert.ok(check('https://[::169.254.169.254]/'));
+        assert.ok(check('https://[::ffff:0:a9fe:a9fe]/'));
+        assert.ok(check('https://[2002:a9fe:a9fe::1]/'));
+        assert.ok(check('https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/'));
+        assert.ok(check('https://[64:ff9b:1::a9fe:a9fe]/'));
+        assert.equal(
+            isSafeOutboundUrl('https://[::1]:8443/', false, {
+                allowedPrivateAddresses: entries(['::1/128']),
+            }),
+            null
+        );
+        assert.ok(check('https://localhost/'));
+        assert.ok(check('https://bbs.lan/'));
+        assert.ok(check('https://bbs.internal/'));
+        assert.ok(check('https://bbs.local/'));
+        assert.ok(check('http://10.1.2.3/'), 'the scheme rule is unchanged');
+    });
+});
+
+describe('own origin in isSafeOutboundUrl() (#966)', function () {
+    const { parseOrigin, isOwnOrigin } = require('../core/activitypub/security.js');
+
+    it('parses an origin, normalising the default port', () => {
+        assert.deepEqual(parseOrigin('https://BBS.Example.com/prefix'), {
+            protocol: 'https:',
+            hostname: 'bbs.example.com',
+            port: 443,
+            origin: 'https://bbs.example.com',
+        });
+        assert.equal(parseOrigin('http://bbs.example.com').port, 80);
+        assert.equal(parseOrigin('https://bbs.example.com:8443').port, 8443);
+        assert.equal(parseOrigin('ftp://bbs.example.com'), null);
+        assert.equal(parseOrigin('not a url'), null);
+    });
+
+    it('matches only the same scheme, hostname and port', () => {
+        const own = parseOrigin('https://bbs.example.com');
+        assert.equal(isOwnOrigin('https://bbs.example.com/x', own), true);
+        assert.equal(isOwnOrigin('https://BBS.EXAMPLE.COM:443/x', own), true);
+        assert.equal(isOwnOrigin('https://bbs.example.com:8443/x', own), false);
+        assert.equal(isOwnOrigin('http://bbs.example.com/x', own), false);
+        assert.equal(isOwnOrigin('https://sub.bbs.example.com/x', own), false);
+        assert.equal(isOwnOrigin('https://bbs.example.com/x', null), false);
+        //  a trailing dot makes it another name as far as this goes
+        assert.equal(isOwnOrigin('https://bbs.example.com./x', own), false);
+    });
+
+    it('handles an IPv6-literal own origin', () => {
+        const own = parseOrigin('https://[::1]:8443/');
+        assert.equal(own.hostname, '[::1]');
+        assert.equal(own.port, 8443);
+        assert.equal(isOwnOrigin('https://[::1]:8443/x', own), true);
+        assert.equal(isOwnOrigin('https://[0:0::1]:8443/x', own), true);
+        assert.equal(isOwnOrigin('https://[::1]/x', own), false);
+        assert.equal(isOwnOrigin('https://[::2]:8443/x', own), false);
+        assert.equal(
+            isSafeOutboundUrl('https://[::1]:8443/x', false, { ownOrigin: own }),
+            null
+        );
+        assert.match(
+            isSafeOutboundUrl('https://[::1]:22/', false, { ownOrigin: own }),
+            /own hostname/
+        );
+    });
+
+    it('skips the name and address checks for exactly the own origin', () => {
+        const check = (u, base) =>
+            isSafeOutboundUrl(u, false, { ownOrigin: parseOrigin(base) });
+        assert.equal(check('https://bbs.lan/users/a', 'https://bbs.lan'), null);
+        assert.equal(check('https://bbs.lan:443/users/a', 'https://BBS.lan/'), null);
+        assert.equal(check('https://10.0.0.5:8443/x', 'https://10.0.0.5:8443'), null);
+        assert.equal(check('https://[fd00::5]/x', 'https://[fd00::5]'), null);
+        //  without it, all of these are refused
+        assert.ok(isSafeOutboundUrl('https://bbs.lan/users/a'));
+        assert.ok(isSafeOutboundUrl('https://10.0.0.5:8443/x'));
+    });
+
+    it('refuses the own hostname on another port or scheme', () => {
+        const opts = { ownOrigin: parseOrigin('https://bbs.example.com') };
+        assert.match(
+            isSafeOutboundUrl('https://bbs.example.com:6379/', false, opts),
+            /own hostname; only https:\/\/bbs\.example\.com may be fetched/
+        );
+        assert.match(
+            isSafeOutboundUrl('https://10.0.0.5/x', false, {
+                ownOrigin: parseOrigin('https://10.0.0.5:8443'),
+            }),
+            /own hostname/
+        );
+        assert.ok(isSafeOutboundUrl('http://bbs.example.com/', false, opts));
+        //  a public name that is not the board's own is unaffected
+        assert.equal(isSafeOutboundUrl('https://example.org:6379/', false, opts), null);
+    });
+
+    it('leaves the scheme rules alone: an http:// own origin needs allowInsecureHttp', () => {
+        const opts = { ownOrigin: parseOrigin('http://bbs.example.com:8080') };
+        assert.match(
+            isSafeOutboundUrl('http://bbs.example.com:8080/x', false, opts),
+            /http:\/\/ not permitted/
+        );
+        assert.equal(
+            isSafeOutboundUrl('http://bbs.example.com:8080/x', true, opts),
+            null
+        );
     });
 });

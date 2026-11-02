@@ -349,14 +349,18 @@ exports.getModule = class WebServerModule extends ServerModule {
         );
     }
 
-    respondWithError(resp, code, bodyText, title) {
+    //  extraHeaders: sent along with the Content-Type
+    respondWithError(resp, code, bodyText, title, extraHeaders = {}) {
         const customErrorPage = paths.join(
             Config().contentServers.web.staticRoot,
             `${code}.html`
         );
 
         fs.readFile(customErrorPage, 'utf8', (err, data) => {
-            resp.writeHead(code, { 'Content-Type': 'text/html' });
+            resp.writeHead(
+                code,
+                Object.assign({ 'Content-Type': 'text/html' }, extraHeaders)
+            );
 
             if (err) {
                 return resp.end(`<!doctype html>
@@ -431,6 +435,18 @@ exports.getModule = class WebServerModule extends ServerModule {
 
     notImplemented(resp) {
         return this.respondWithError(resp, 501, 'Not implemented.', 'Not Implemented');
+    }
+
+    //  try again in |retryAfterSecs|: senders such as Mastodon and
+    //  GoToSocial retry a 5xx
+    serviceUnavailable(resp, retryAfterSecs) {
+        return this.respondWithError(
+            resp,
+            503,
+            'Service unavailable.',
+            'Service Unavailable',
+            retryAfterSecs ? { 'Retry-After': String(retryAfterSecs) } : {}
+        );
     }
 
     requestEntityTooLarge(resp) {

@@ -29,6 +29,11 @@ const moment = require('moment');
 const paths = require('path');
 const Collection = require('./collection.js');
 const { actorIdFromKeyId, sameHost, verifyFetchedActorId } = require('./security.js');
+const FetchBudget = require('./fetch_budget.js');
+const { NegativeCache } = require('./negative_cache.js');
+
+//  failed remote lookups, by (id, keyId, ...): see _fromIdOrKeyId
+const ActorLookupFailures = new NegativeCache();
 
 const ActorCacheExpiration = moment.duration(15, 'days');
 const ActorCacheMaxAgeDays = 125; // hasn't been used in >= 125 days, nuke it.
@@ -206,14 +211,21 @@ module.exports = class Actor extends ActivityPubObject {
 
     //  fromUser is optional; when supplied the remote actor fetch is HTTP-signed.
     //  Some strict servers (e.g. GoToSocial) require signatures on GET requests.
-    static fromId(id, fromUser, cb) {
+    //
+    //  options.deferCache: a fresh fetch is not written to the actor cache;
+    //  cb(err, actor, subject, fresh) gets fresh = true and the caller
+    //  writes it (Collection.addActor) once it trusts it. The inbox does so
+    //  only after the signature checks out (#966).
+    //
+    static fromId(id, fromUser, cb, options) {
         //  Support legacy two-arg call: fromId(id, cb)
         if (typeof fromUser === 'function') {
+            options = cb;
             cb = fromUser;
             fromUser = null;
         }
 
-        return Actor._fromIdOrKeyId(id, null, fromUser, cb);
+        return Actor._fromIdOrKeyId(id, null, fromUser, cb, options);
     }
 
     //  For a search a user typed: a URL may be a profile page (say
@@ -227,20 +239,22 @@ module.exports = class Actor extends ActivityPubObject {
     //  The actor that owns an HTTP signature's |keyId|. Fetches the actor id
     //  derived from the keyId; a server that answers with an actor of another
     //  id only points at it (see _fromRemoteQuery).
-    static fromKeyId(keyId, cb) {
+    //  options as for fromId()
+    static fromKeyId(keyId, cb, options) {
         const id = actorIdFromKeyId(keyId);
         if (!id) {
             return cb(Errors.Invalid(`Invalid keyId "${keyId}"`));
         }
-        return Actor._fromIdOrKeyId(id, keyId, null, cb);
+        return Actor._fromIdOrKeyId(id, keyId, null, cb, options);
     }
 
-    static _fromIdOrKeyId(id, keyId, fromUser, cb, options = {}) {
+    static _fromIdOrKeyId(id, keyId, fromUser, cb, options) {
+        options = options || {};
         let delivered = false;
-        const callback = (e, a, s) => {
+        const callback = (e, a, s, fresh) => {
             if (!delivered) {
                 delivered = true;
-                return cb(e, a, s);
+                return cb(e, a, s, fresh);
             }
         };
 
@@ -258,23 +272,49 @@ module.exports = class Actor extends ActivityPubObject {
             (keyId && _.get(actor, 'publicKey.id') === keyId) ||
             (options.alias && sameHost(actor.id, id));
 
+        //  A failed remote lookup is not repeated for a while (#966). Keyed
+        //  by everything that changes what is fetched or accepted: a
+        //  failure for one keyId must not block a plain fromId(id) or
+        //  another keyId, and an unsigned fetch a strict server refuses
+        //  must not block a signed one.
+        const failureKey = JSON.stringify([
+            id,
+            keyId || null,
+            !!fromUser,
+            !!options.alias,
+        ]);
+        //  taken before anything is looked up, so a refusal made under a
+        //  config that was reloaded meanwhile is not remembered; a refresh
+        //  of a cached actor is covered too
+        const failureToken = ActorLookupFailures.token();
+        const failed = err => {
+            ActorLookupFailures.set(failureKey, err, failureToken);
+            return callback(err);
+        };
+
         Actor._fromCache(id, (err, actor, subject, needsRefresh) => {
             if (!err && !isActorFor(actor)) {
                 err = Errors.DoesNotExist(`No cached Actor at ${id}`);
             }
-            if (!err) {
+            const cacheHit = !err;
+            if (cacheHit) {
                 // cache hit
                 callback(null, actor, subject);
 
                 if (!needsRefresh) {
                     return;
                 }
+            } else {
+                const remembered = ActorLookupFailures.get(failureKey);
+                if (remembered) {
+                    return callback(remembered);
+                }
             }
 
             //  Cache miss or needs refreshed; Try to do so now
-            Actor._fromWebFinger(id, fromUser, keyId, (err, actor, webFingerRes) => {
+            const onFetched = (err, actor, webFingerRes) => {
                 if (err) {
-                    return callback(err);
+                    return failed(err);
                 }
 
                 if (!isActorFor(actor)) {
@@ -282,20 +322,34 @@ module.exports = class Actor extends ActivityPubObject {
                         { requested: id, actorId: actor.id },
                         'Refusing an actor found for another URL'
                     );
-                    return callback(
+                    return failed(
                         Errors.ValidationFailed(
                             `The actor found for ${id} is ${actor.id}`
                         )
                     );
                 }
+                ActorLookupFailures.delete(failureKey);
 
                 //  a handle only once confirmed; otherwise the actor's id,
                 //  as when there is no subject at all
                 Actor._confirmedHandle(actor, id, webFingerRes, handle => {
                     const subject = handle ? `@${handle}` : actor.id; // e.g. @Username@host.com
 
+                    //  a fresh fetch the caller will cache itself, once it
+                    //  trusts it; a refresh of a cached actor is written now
+                    if (options.deferCache && !cacheHit) {
+                        return callback(null, actor, subject, true);
+                    }
+
                     // deliver result to caller
                     callback(null, actor, subject);
+
+                    //  nothing fetched while handling an inbox POST that ran
+                    //  over its fetch budget is cached: a refused lookup (a
+                    //  WebFinger, say) may have left it incomplete
+                    if (FetchBudget.exceeded()) {
+                        return;
+                    }
 
                     // cache our entry
                     Collection.addActor(actor, subject, err => {
@@ -304,7 +358,17 @@ module.exports = class Actor extends ActivityPubObject {
                         }
                     });
                 });
-            });
+            };
+
+            //  A refresh is background work: the caller has its answer
+            //  already, so an inbox POST is not failed by a refresh the
+            //  fetch budget refuses (it is still budgeted)
+            if (cacheHit) {
+                return FetchBudget.background(() =>
+                    Actor._fromWebFinger(id, fromUser, keyId, onFetched)
+                );
+            }
+            return Actor._fromWebFinger(id, fromUser, keyId, onFetched);
         });
     }
 

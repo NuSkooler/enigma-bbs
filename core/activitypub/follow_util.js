@@ -7,6 +7,7 @@ const Collection = require('./collection');
 const Actor = require('./actor');
 const Activity = require('./activity');
 const Endpoints = require('./endpoint');
+const { isBudgetError } = require('./fetch_budget');
 const Logger = require('../logger');
 
 const async = require('async');
@@ -379,7 +380,11 @@ function collectFollowerInboxes(localUser, cb) {
             misses.forEach(actorId => {
                 lookUpFollower(actorId, localUser, (err, actor) => {
                     if (err || !actor) {
-                        noteFollowerFailure(actorId);
+                        //  a fetch refused by the inbox fetch budget says
+                        //  nothing about the follower (#966)
+                        if (!isBudgetError(err)) {
+                            noteFollowerFailure(actorId);
+                        }
                         Logger.log &&
                             Logger.log.warn(
                                 { actorId, error: err && err.message },

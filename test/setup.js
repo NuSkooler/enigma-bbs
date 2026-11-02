@@ -66,3 +66,13 @@ configModule._pushTestConfig = function (cfg) {
 configModule._popTestConfig = function (previous) {
     configModule.get = previous;
 };
+
+//  The ActivityPub negative caches (failed actor and WebFinger lookups) and
+//  the inbox fetch budget are process-wide, by design: start every test
+//  without what an earlier one left there.
+exports.mochaHooks = {
+    beforeEach() {
+        require('../core/activitypub/negative_cache.js').resetAll();
+        require('../core/activitypub/fetch_budget.js')._reset();
+    },
+};

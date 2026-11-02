@@ -947,6 +947,38 @@
                                     },
                                     "maxResponseBodyBytes": {
                                         "type": "number"
+                                    },
+                                    "outboundFetchLimits": {
+                                        "type": "object",
+                                        "properties": {
+                                            "perHostConcurrency": {
+                                                "description": "Fetches from one remote host, triggered by inbox requests, that may run at once.",
+                                                "type": "integer",
+                                                "minimum": 1
+                                            },
+                                            "perHostPerMinute": {
+                                                "description": "Fetches from one remote host, triggered by inbox requests, allowed per minute.",
+                                                "type": "number",
+                                                "minimum": 1
+                                            },
+                                            "globalConcurrency": {
+                                                "description": "Fetches triggered by inbox requests that may run at once, board wide.",
+                                                "type": "integer",
+                                                "minimum": 1
+                                            },
+                                            "globalPerMinute": {
+                                                "description": "Fetches triggered by inbox requests allowed per minute, board wide.",
+                                                "type": "number",
+                                                "minimum": 1
+                                            }
+                                        }
+                                    },
+                                    "allowedPrivateAddresses": {
+                                        "description": "IPv4/IPv6 addresses or CIDRs that outbound ActivityPub requests may reach despite being private, e.g. a server on your own network. Link-local, unspecified, multicast and IPv6 transition addresses are never allowed.",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
                                     }
                                 }
                             }

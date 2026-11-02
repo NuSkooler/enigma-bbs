@@ -1083,8 +1083,9 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                     responseUrl: hit.responseUrl || url,
                 });
             if (hit.defer) {
-                //  answers when the test calls release()
-                hit.release = respond;
+                //  answers when the test calls release(), in the context
+                //  the request was made in, as a real response is
+                hit.release = require('async_hooks').AsyncResource.bind(respond);
                 return;
             }
             return respond();
@@ -1294,6 +1295,167 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
 
         assert.ifError(err);
         assert.equal(actor.id, social);
+    });
+
+    describe('failed lookups are remembered (#966)', function () {
+        const { Errors, ErrorReasons } = require('../core/enig_error.js');
+        const FetchBudget = require('../core/activitypub/fetch_budget.js');
+        const kim = `${GOOD}/users/kim`;
+        const tries = () => fetched.filter(u => String(u) === kim).length;
+
+        it('does not fetch a failed actor again, and keeps the message', async () => {
+            const first = await fromId(kim);
+            assert.ok(first.err);
+            served.set(kim, { doc: actorDoc(kim) });
+
+            const again = await fromId(kim);
+            assert.equal(tries(), 1, 'not fetched again');
+            assert.equal(again.err.message, first.err.message);
+            assert.equal(again.err.negativeCached, true);
+        });
+
+        it('keys a failure by keyId: it blocks neither fromId() nor another keyId', async () => {
+            const keyA = `${kim}#main-key`;
+            const keyB = `${kim}/main-key`;
+            assert.ok((await fromKeyId(keyA)).err);
+            assert.equal(tries(), 1);
+
+            served.set(kim, { doc: actorDoc(kim, { id: keyB }) });
+            assert.ok((await fromKeyId(keyA)).err, 'keyA is remembered');
+            assert.equal(tries(), 1);
+
+            const b = await fromKeyId(keyB);
+            assert.ifError(b.err);
+            assert.equal(tries(), 2, 'keyB was fetched');
+        });
+
+        it('a keyId failure does not block a plain fromId()', async () => {
+            assert.ok((await fromKeyId(`${kim}#main-key`)).err);
+            served.set(kim, { doc: actorDoc(kim) });
+            const { err, actor } = await fromId(kim);
+            assert.ifError(err);
+            assert.equal(actor.id, kim);
+        });
+
+        it('a success clears a failure recorded by a lookup racing it', async () => {
+            //  two lookups in flight: the first fails, then the second succeeds
+            const pending = [];
+            const stand = HttpUtil.getJson;
+            HttpUtil.getJson = (url, opts, cb) => {
+                if (String(url) !== kim) {
+                    return stand(url, opts, cb);
+                }
+                fetched.push(url);
+                pending.push(cb);
+            };
+            try {
+                const one = fromId(kim);
+                const two = fromId(kim);
+                await new Promise(resolve => setImmediate(resolve));
+                assert.equal(pending.length, 2);
+                pending[0](new Error('connection reset'));
+                pending[1](null, actorDoc(kim), {
+                    statusCode: 200,
+                    headers: { 'content-type': 'application/activity+json' },
+                });
+                assert.ok((await one).err);
+                assert.ifError((await two).err);
+            } finally {
+                HttpUtil.getJson = stand;
+            }
+
+            //  not remembered: with the actor cache emptied, the next
+            //  lookup fetches again rather than being refused
+            _apDb.prepare(`DELETE FROM collection WHERE name = 'actors';`).run();
+            served.set(kim, { doc: actorDoc(kim) });
+            const { err } = await fromId(kim);
+            assert.ifError(err);
+            assert.equal(tries(), 3);
+        });
+
+        //  a refusal made under the config a reload replaced (an address
+        //  just added to allowedPrivateAddresses, say) is not remembered
+        describe('a lookup in flight across a config reload', function () {
+            const NegCache = require('../core/activitypub/negative_cache.js');
+            let pending;
+            let stand;
+            beforeEach(() => {
+                pending = [];
+                stand = HttpUtil.getJson;
+                HttpUtil.getJson = (url, opts, cb) => {
+                    if (String(url) !== kim) {
+                        return stand(url, opts, cb);
+                    }
+                    fetched.push(url);
+                    pending.push(cb);
+                };
+            });
+            afterEach(() => {
+                HttpUtil.getJson = stand;
+            });
+
+            const refuse = () =>
+                pending.shift()(
+                    Errors.AccessDenied('blocked address', ErrorReasons.BlockedAddress)
+                );
+            //  { lookup }: a lookup that has reached the network
+            const inFlight = async () => {
+                let answered;
+                const lookup = fromId(kim).then(res => (answered = res));
+                while (!pending.length) {
+                    assert.ok(
+                        !answered,
+                        `answered without a fetch: ${answered && answered.err}`
+                    );
+                    await new Promise(resolve => setImmediate(resolve));
+                }
+                return { lookup };
+            };
+
+            it('does not remember its failure', async () => {
+                const { lookup } = await inFlight();
+                NegCache._onConfigChanged();
+                refuse();
+                assert.ok((await lookup).err);
+
+                //  fetched again, not refused from the negative cache
+                const again = await inFlight();
+                assert.equal(tries(), 2);
+                refuse();
+                assert.ok(!(await again.lookup).err.negativeCached);
+            });
+
+            it('remembers it without a reload, as before', async () => {
+                const { lookup } = await inFlight();
+                refuse();
+                assert.ok((await lookup).err);
+
+                const again = await fromId(kim);
+                assert.equal(again.err.negativeCached, true);
+                assert.equal(tries(), 1, 'not fetched again');
+            });
+        });
+
+        it('never remembers a fetch the budget refused', async () => {
+            const stand = HttpUtil.getJson;
+            HttpUtil.getJson = (url, opts, cb) => {
+                if (String(url) === kim) {
+                    fetched.push(url);
+                    return cb(Errors.General('refused', ErrorReasons.FetchBudget));
+                }
+                return stand(url, opts, cb);
+            };
+            try {
+                const { err } = await fromId(kim);
+                assert.ok(FetchBudget.isBudgetError(err));
+            } finally {
+                HttpUtil.getJson = stand;
+            }
+            served.set(kim, { doc: actorDoc(kim) });
+            const { err } = await fromId(kim);
+            assert.ifError(err);
+            assert.equal(tries(), 2);
+        });
     });
 
     describe('WebFinger subjects (handles)', function () {
@@ -1783,10 +1945,40 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             await settle();
             assert.equal(tries(), 1, 'not fetched again');
 
+            //  expired: the follower's, and the failed actor lookup's (#966)
             resetFollowerFailures();
+            require('../core/activitypub/negative_cache.js').resetAll();
             await collect();
             await settle();
             assert.equal(tries(), 2, 'tried again once it has expired');
+        });
+
+        it('tries a follower again whose lookup the fetch budget refused (#966)', async () => {
+            const { Errors, ErrorReasons } = require('../core/enig_error.js');
+            const busy = 'https://busy.example/users/bea';
+            await addFollower(busy);
+            const stand = HttpUtil.getJson;
+            HttpUtil.getJson = (url, opts, cb) => {
+                if (String(url) === busy) {
+                    fetched.push(url);
+                    return cb(Errors.General('refused', ErrorReasons.FetchBudget));
+                }
+                return stand(url, opts, cb);
+            };
+            const tries = () => fetched.filter(u => String(u) === busy).length;
+            try {
+                await collect();
+                await settle();
+                assert.equal(tries(), 1);
+
+                //  neither the 6 hour follower failure list nor the actor
+                //  negative cache remembered it
+                await collect();
+                await settle();
+                assert.equal(tries(), 2);
+            } finally {
+                HttpUtil.getJson = stand;
+            }
         });
 
         it('reads a follower list longer than SQLite allows in one statement', async () => {
@@ -1874,6 +2066,8 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                     badRequest: respond('badRequest'),
                     notImplemented: respond('notImplemented'),
                     internalServerError: respond('internalServerError'),
+                    serviceUnavailable: (resp, retryAfterSecs) =>
+                        resolve(`serviceUnavailable ${retryAfterSecs}`),
                 };
                 const req = signedRequest(activity, keyId, privateKey);
                 const signature = handler._parseAndValidateSignature(req);
@@ -2253,6 +2447,423 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             const rows = _msgDb.prepare('SELECT message FROM message;').all();
             assert.equal(rows.length, 1, 'the message survives');
             assert.match(rows[0].message, /victim original/);
+        });
+
+        //
+        //  #966: each POST runs in a fetch budget; the actors it fetches are
+        //  cached only once its signature checks out. The stand-in network
+        //  above replaces HttpUtil.getJson whole, which skips the budget in
+        //  _makeRequest, so here each fetch takes a slot as _makeRequest does.
+        //
+        describe('fetch budget and deferred actor caching (#966)', function () {
+            const FetchBudget = require('../core/activitypub/fetch_budget.js');
+            const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+            const createBy = (actor, object) => ({
+                id: `${new URL(actor).origin}/activities/c-${Math.random()}`,
+                type: 'Create',
+                actor,
+                to: [PUBLIC],
+                object,
+            });
+
+            let unbudgetedGetJson;
+            let savedConfig;
+            let savedAddActor;
+            let added;
+
+            //  one fetch a minute per host
+            const onePerHost = () => {
+                const limits = { perHostPerMinute: 1 };
+                const cfg = Object.assign({}, TEST_CONFIG, {
+                    contentServers: {
+                        web: Object.assign({}, TEST_CONFIG.contentServers.web, {
+                            handlers: { activityPub: { outboundFetchLimits: limits } },
+                        }),
+                    },
+                });
+                savedConfig = configModule._pushTestConfig(cfg);
+            };
+            //  ... and that one spent already
+            const exhaust = url => {
+                onePerHost();
+                FetchBudget.run(() => FetchBudget.acquire(url).release());
+            };
+
+            beforeEach(() => {
+                savedConfig = null;
+                unbudgetedGetJson = HttpUtil.getJson;
+                HttpUtil.getJson = (url, opts, cb) => {
+                    const slot = FetchBudget.acquire(url);
+                    if (slot.error) {
+                        return cb(slot.error);
+                    }
+                    return unbudgetedGetJson(url, opts, (...args) => {
+                        slot.release();
+                        return cb(...args);
+                    });
+                };
+                added = [];
+                savedAddActor = Collection.addActor;
+                Collection.addActor = (actor, subject, cb) => {
+                    added.push(actor.id);
+                    return savedAddActor(actor, subject, cb);
+                };
+            });
+
+            afterEach(() => {
+                HttpUtil.getJson = unbudgetedGetJson;
+                Collection.addActor = savedAddActor;
+                if (savedConfig) {
+                    configModule._popTestConfig(savedConfig);
+                }
+            });
+
+            it('answers 503 with Retry-After when the budget refuses the actor fetch, and caches nothing', async () => {
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                exhaust(`${GOOD}/`);
+
+                const result = await post(
+                    createBy(VICTIM, noteJson('<p>later</p>')),
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+
+                assert.equal(result, 'serviceUnavailable 60');
+                assert.ok(!wasFetched(VICTIM), 'refused before fetching');
+                assert.deepEqual(added, []);
+                assert.equal(cachedJson(VICTIM), undefined);
+            });
+
+            it('answers 503 for a refusal swallowed on the way (a handle WebFinger), and caches nothing', async () => {
+                served.set(VICTIM, {
+                    doc: actorDoc(VICTIM, {}, { webfinger: 'alice@handles.example' }),
+                });
+                const fingered = [];
+                const realWebFinger = WebFinger.queryWebFinger;
+                WebFinger.queryWebFinger = (query, cb) => {
+                    fingered.push(query);
+                    if (String(query).includes('handles.example')) {
+                        const slot = FetchBudget.acquire('https://handles.example/');
+                        if (slot.error) {
+                            return cb(slot.error);
+                        }
+                        slot.release();
+                    }
+                    return realWebFinger(query, cb);
+                };
+                exhaust('https://handles.example/');
+
+                let result;
+                try {
+                    result = await post(
+                        createBy(VICTIM, noteJson('<p>later</p>')),
+                        `${VICTIM}#main-key`,
+                        realKey.privateKey
+                    );
+                } finally {
+                    WebFinger.queryWebFinger = realWebFinger;
+                }
+
+                assert.ok(
+                    fingered.some(q => q.includes('handles.example')),
+                    'the handle was looked up'
+                );
+                assert.equal(result, 'serviceUnavailable 60');
+                assert.deepEqual(added, []);
+                assert.equal(cachedJson(VICTIM), undefined);
+            });
+
+            it('answers an Announce 503, not 202, when the budget refuses the Note fetch', async () => {
+                //  the actor takes good.example's one fetch; the Note needs another
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                served.set(NOTE, { doc: noteJson('<p>boosted</p>') });
+                onePerHost();
+
+                const result = await post(
+                    {
+                        id: `${GOOD}/activities/a-${Math.random()}`,
+                        type: 'Announce',
+                        actor: VICTIM,
+                        to: [PUBLIC],
+                        object: NOTE,
+                    },
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+
+                assert.ok(wasFetched(VICTIM));
+                assert.ok(!wasFetched(NOTE), 'the Note fetch was refused');
+                assert.equal(result, 'serviceUnavailable 60');
+            });
+
+            //  The body of a real request is read in the HTTP parser's async
+            //  context, not the store's; Readable.from() above hides that
+            it('answers 503 for a POST over a real socket when the budget refuses', async () => {
+                const http = require('node:http');
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                exhaust(`${GOOD}/`);
+
+                const activity = createBy(VICTIM, noteJson('<p>later</p>'));
+                const signed = signedRequest(
+                    activity,
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+                const body = Buffer.from(JSON.stringify(activity));
+
+                const handler = new ActivityPubWebHandler();
+                const noop = () => {};
+                handler.log = {
+                    trace: noop,
+                    debug: noop,
+                    info: noop,
+                    warn: noop,
+                    error: noop,
+                };
+                handler.sysLog = handler.log;
+
+                let server;
+                const result = await new Promise((resolve, reject) => {
+                    server = http.createServer((req, res) => {
+                        const answer = name => () => {
+                            res.end();
+                            resolve(name);
+                        };
+                        handler.webServer = {
+                            accepted: answer('accepted'),
+                            accessDenied: answer('accessDenied'),
+                            resourceNotFound: answer('resourceNotFound'),
+                            badRequest: answer('badRequest'),
+                            notImplemented: answer('notImplemented'),
+                            internalServerError: answer('internalServerError'),
+                            serviceUnavailable: (resp, secs) =>
+                                answer(`serviceUnavailable ${secs}`)(),
+                        };
+                        const signature = handler._parseAndValidateSignature(req);
+                        if (!signature) {
+                            return reject(new Error('the test request does not parse'));
+                        }
+                        handler._inboxPostHandler(req, res, signature, 'sharedInbox');
+                    });
+                    server.listen(0, '127.0.0.1', () => {
+                        const req = http.request({
+                            host: '127.0.0.1',
+                            port: server.address().port,
+                            method: 'POST',
+                            path: signed.url,
+                            headers: Object.assign({}, signed.headers, {
+                                'content-length': body.length,
+                            }),
+                        });
+                        req.on('error', reject);
+                        req.on('response', res => res.resume());
+                        //  the body in its own packet, after the headers
+                        req.flushHeaders();
+                        setTimeout(() => req.end(body), 30);
+                    });
+                });
+                server.close();
+
+                assert.equal(result, 'serviceUnavailable 60');
+                assert.equal(cachedJson(VICTIM), undefined);
+            });
+
+            it('stores nothing, and answers 503, when the author lookup for the message is refused', async () => {
+                //  as in the Update/Delete suite: a boost records a reaction
+                _apDb.exec(`
+                    CREATE TABLE IF NOT EXISTS note_reactions (
+                        note_id         VARCHAR NOT NULL,
+                        actor_id        VARCHAR NOT NULL,
+                        reaction_type   VARCHAR NOT NULL,
+                        activity_id     VARCHAR NOT NULL,
+                        timestamp       DATETIME NOT NULL,
+                        UNIQUE(note_id, actor_id, reaction_type)
+                    );
+                `);
+                //  carol wrote the Note alice boosts; her handle is on a host
+                //  with no fetches to spare
+                const carol = `${GOOD}/users/carol`;
+                const carolsNote = Object.assign(noteJson('<p>by carol</p>'), {
+                    attributedTo: carol,
+                });
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                served.set(NOTE, { doc: carolsNote });
+                served.set(carol, {
+                    doc: actorDoc(carol, {}, { webfinger: 'carol@handles.example' }),
+                });
+                served.set('webfinger:@carol@handles.example', {
+                    json: {
+                        subject: 'acct:carol@handles.example',
+                        links: [
+                            {
+                                rel: 'self',
+                                type: 'application/activity+json',
+                                href: carol,
+                            },
+                        ],
+                    },
+                    answeredBy: 'https://handles.example/.well-known/webfinger',
+                });
+                const realWebFinger = WebFinger.queryWebFinger;
+                WebFinger.queryWebFinger = (query, cb) => {
+                    if (String(query).includes('handles.example')) {
+                        const slot = FetchBudget.acquire('https://handles.example/');
+                        if (slot.error) {
+                            return cb(slot.error);
+                        }
+                        slot.release();
+                    }
+                    return realWebFinger(query, cb);
+                };
+                //  every handles.example slot held by other POSTs
+                const held = [];
+                FetchBudget.run(() => {
+                    for (
+                        let i = 0;
+                        i < FetchBudget.DefaultLimits.perHostConcurrency;
+                        ++i
+                    ) {
+                        held.push(FetchBudget.acquire('https://handles.example/'));
+                    }
+                });
+                const announce = () => ({
+                    id: `${GOOD}/activities/a-1`,
+                    type: 'Announce',
+                    actor: VICTIM,
+                    to: [PUBLIC],
+                    object: NOTE,
+                });
+                const names = () =>
+                    _msgDb
+                        .prepare('SELECT from_user_name FROM message;')
+                        .all()
+                        .map(r => r.from_user_name);
+
+                try {
+                    const first = await post(
+                        announce(),
+                        `${VICTIM}#main-key`,
+                        realKey.privateKey
+                    );
+                    assert.equal(first, 'serviceUnavailable 60');
+                    assert.deepEqual(names(), [], 'nothing stored under the URL');
+
+                    //  the sender retries once the host has slots again
+                    held.forEach(slot => slot.release());
+                    const retry = await post(
+                        announce(),
+                        `${VICTIM}#main-key`,
+                        realKey.privateKey
+                    );
+                    assert.equal(retry, 'accepted');
+                    assert.deepEqual(names(), ['@carol@handles.example']);
+                } finally {
+                    WebFinger.queryWebFinger = realWebFinger;
+                    held.forEach(slot => slot.release());
+                }
+            });
+
+            it('does not answer 503 when only the refresh of a cached actor is refused', async () => {
+                _apDb.exec(`
+                    CREATE TABLE IF NOT EXISTS note_reactions (
+                        note_id         VARCHAR NOT NULL,
+                        actor_id        VARCHAR NOT NULL,
+                        reaction_type   VARCHAR NOT NULL,
+                        activity_id     VARCHAR NOT NULL,
+                        timestamp       DATETIME NOT NULL,
+                        UNIQUE(note_id, actor_id, reaction_type)
+                    );
+                `);
+                //  alice is cached, long enough ago to need a refresh
+                await new Promise((resolve, reject) =>
+                    savedAddActor(actorDoc(VICTIM), VICTIM, err =>
+                        err ? reject(err) : resolve()
+                    )
+                );
+                _apDb
+                    .prepare(
+                        `UPDATE collection SET timestamp = '2020-01-01T00:00:00.000Z' WHERE name = 'actors' AND object_id = ?;`
+                    )
+                    .run(VICTIM);
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                //  her boosted Note answers late, so the POST is still being
+                //  handled when the refresh, which runs after the cache
+                //  answers, is refused: the Note took good.example's one fetch
+                served.set(NOTE, { doc: noteJson('<p>boosted</p>'), defer: true });
+                onePerHost();
+
+                const pending = post(
+                    {
+                        id: `${GOOD}/activities/a-${Math.random()}`,
+                        type: 'Announce',
+                        actor: VICTIM,
+                        to: [PUBLIC],
+                        object: NOTE,
+                    },
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+                await new Promise(resolve => setImmediate(resolve));
+                assert.ok(served.get(NOTE).release, 'the Note is being fetched');
+                served.get(NOTE).release();
+
+                assert.equal(await pending, 'accepted');
+                assert.ok(!wasFetched(VICTIM), 'the refresh was refused');
+            });
+
+            it('does not cache an actor whose signature fails', async () => {
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+
+                const result = await post(
+                    createBy(VICTIM, noteJson('<p>forged</p>')),
+                    `${VICTIM}#main-key`,
+                    attackerKey.privateKey
+                );
+
+                assert.equal(result, 'accessDenied');
+                assert.ok(wasFetched(VICTIM), 'the actor was fetched');
+                assert.deepEqual(added, []);
+                assert.equal(cachedJson(VICTIM), undefined);
+            });
+
+            it('does not cache a signer whose id fails the domain binding', async () => {
+                //  the key URL on evil.example answers with good.example's actor
+                const keyId = 'https://evil.example/users/mallory#main-key';
+                served.set('https://evil.example/users/mallory', {
+                    doc: actorDoc(VICTIM, { id: keyId }),
+                });
+                served.set(EVIL, { doc: actorDoc(EVIL) });
+
+                const result = await post(
+                    createBy(EVIL, noteJson('<p>x</p>')),
+                    keyId,
+                    attackerKey.privateKey
+                );
+
+                assert.equal(result, 'accessDenied');
+                assert.deepEqual(added, []);
+            });
+
+            it('caches the fresh actors once the signature passes, and not a cached one', async () => {
+                //  alice is cached; the forwarder signing is fetched fresh
+                await new Promise((resolve, reject) =>
+                    savedAddActor(actorDoc(VICTIM), '@alice@good.example', err =>
+                        err ? reject(err) : resolve()
+                    )
+                );
+                served.set(EVIL, {
+                    doc: actorDoc(EVIL, { publicKeyPem: pem(attackerKey.publicKey) }),
+                });
+
+                await post(
+                    createBy(VICTIM, noteJson('<p>forwarded</p>')),
+                    `${EVIL}#main-key`,
+                    attackerKey.privateKey
+                );
+
+                assert.deepEqual(added, [EVIL]);
+                assert.equal(cachedJson(EVIL).id, EVIL);
+            });
         });
     });
 });

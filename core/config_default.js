@@ -448,6 +448,18 @@ module.exports = () => {
                         allowInsecureHttp: false, // set true only for local dev/test (no TLS)
                         maxInboxBodyBytes: 1048576, // 1 MiB; ActivityPub activities are JSON
                         maxResponseBodyBytes: 524288, // 512 KiB; remote actor/note fetch responses
+                        //  inbox-triggered fetches: fail fast past these (#966)
+                        outboundFetchLimits: {
+                            perHostConcurrency: 4,
+                            perHostPerMinute: 60,
+                            globalConcurrency: 32,
+                            globalPerMinute: 600,
+                        },
+                        //  IPv4/IPv6 CIDRs outbound requests may reach despite
+                        //  being private, e.g. a fediverse server on your own
+                        //  network (#966). Link-local, unspecified, multicast
+                        //  and IPv6 transition addresses stay refused regardless.
+                        allowedPrivateAddresses: [],
                     },
                 },
 

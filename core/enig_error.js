@@ -108,4 +108,10 @@ exports.ErrorReasons = {
 
     NotAvailable: 'NOT_AVAILABLE',
     DoesNotExist: 'EEXIST',
+
+    //  an outbound connection refused because the host resolves to a
+    //  blocked (loopback, private, ...) address
+    BlockedAddress: 'EBLOCKEDADDR',
+    //  an inbox-triggered outbound fetch refused by the fetch budget
+    FetchBudget: 'EFETCHBUDGET',
 };
