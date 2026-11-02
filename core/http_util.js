@@ -1,6 +1,9 @@
-const { Errors } = require('./enig_error.js');
-const { isSafeOutboundUrl } = require('./activitypub/security.js');
-const Config = require('./config').get;
+const { Errors, ErrorReasons } = require('./enig_error.js');
+const Security = require('./activitypub/security.js');
+const { isSafeOutboundUrl } = Security;
+//  read through the module each time: tests swap config.get and the logger
+const Config = () => require('./config').get();
+const Log = () => require('./logger.js').log;
 
 // deps
 const { isString, isObject, truncate } = require('lodash');
@@ -12,11 +15,92 @@ const {
 } = require('follow-redirects');
 const httpSignature = require('http-signature');
 const crypto = require('crypto');
+const dns = require('node:dns');
 
 const DefaultTimeoutMilliseconds = 5000;
 
 exports.getJson = getJson;
 exports.postJson = postJson;
+exports._checkedLookup = _checkedLookup; // exported for tests
+
+//
+//  SSRF protection at connect time (#966). isSafeOutboundUrl() only sees the
+//  name in a URL; a public name can resolve to a private address, or resolve
+//  differently a moment later (DNS rebinding). Every outbound socket is
+//  therefore made by one of these agents, whose lookup resolves the host and
+//  refuses the connection if ANY of its addresses is blocked.
+//
+//  They are dedicated rather than the global agents: a reused keep-alive
+//  socket skips lookup, so the pool must only ever hold sockets that were
+//  checked here.
+//
+//  https:// is always checked. http:// is only possible with
+//  allowInsecureHttp, which is an "I know what I'm doing" override for local
+//  dev/test, so the HTTP agent skips the check while it is set (read per
+//  lookup: config hot-reloads).
+//
+const AgentOptions = { keepAlive: true, scheduling: 'lifo', timeout: 5000 };
+const httpsAgent = new httpsNoRedirects.Agent(
+    Object.assign({}, AgentOptions, {
+        lookup: (hostname, opts, cb) => _checkedLookup(true, hostname, opts, cb),
+    })
+);
+const httpAgent = new httpNoRedirects.Agent(
+    Object.assign({}, AgentOptions, {
+        lookup: (hostname, opts, cb) => _checkedLookup(false, hostname, opts, cb),
+    })
+);
+exports._agents = { http: httpAgent, https: httpsAgent }; // exported for tests
+
+//
+//  A net/tls lookup function. |strict| is false only for the HTTP agent,
+//  which honours allowInsecureHttp. Node may ask for one address
+//  (cb(err, address, family)) or all of them (opts.all: cb(err, [{address,
+//  family}])); every address is resolved and checked either way.
+//
+function _checkedLookup(strict, hostname, opts, cb) {
+    if (typeof opts === 'function') {
+        cb = opts;
+        opts = {};
+    } else if (typeof opts === 'number') {
+        opts = { family: opts };
+    }
+
+    if (!strict && _allowHttp()) {
+        return dns.lookup(hostname, opts, cb);
+    }
+
+    dns.lookup(hostname, Object.assign({}, opts, { all: true }), (err, addresses) => {
+        if (err) {
+            return cb(err);
+        }
+
+        const refused = addresses
+            .map(a => ({
+                address: a.address,
+                reason: Security.isBlockedAddress(a.address),
+            }))
+            .filter(r => r.reason);
+        if (refused.length > 0) {
+            Log().warn(
+                { hostname, refused },
+                'Outbound connection refused: host resolves to a blocked address'
+            );
+            //  no addresses in the error: it may find its way back to a remote
+            return cb(
+                Errors.AccessDenied(
+                    `Outbound connection to "${hostname}" refused: it resolves to a blocked address`,
+                    ErrorReasons.BlockedAddress
+                )
+            );
+        }
+
+        if (opts.all) {
+            return cb(null, addresses);
+        }
+        return cb(null, addresses[0].address, addresses[0].family);
+    });
+}
 
 function getJson(url, options, cb) {
     options = Object.assign({}, { method: 'GET' }, options);
@@ -126,6 +210,8 @@ function _makeRequest(url, options, cb) {
     let httpLib;
     if (options.method === 'POST' || options.sign) {
         httpLib = isHttp ? httpNoRedirects : httpsNoRedirects;
+        //  always ours, even over a caller's: see the agents above
+        options.agent = isHttp ? httpAgent : httpsAgent;
     } else {
         //  For unsigned GETs we use follow-redirects, but we must check each
         //  redirect target for SSRF before following it.
@@ -139,6 +225,9 @@ function _makeRequest(url, options, cb) {
             },
         };
         options = Object.assign({}, redirectOpts, options);
+        //  follow-redirects picks the agent per hop by protocol
+        options.agents = { http: httpAgent, https: httpsAgent };
+        delete options.agent;
         httpLib = isHttp ? httpWithRedirects : httpsWithRedirects;
     }
 

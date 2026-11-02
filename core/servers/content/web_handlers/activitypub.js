@@ -121,6 +121,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return cb(null);
         }
 
+        if (
+            _.get(Config(), 'contentServers.web.handlers.activityPub.allowInsecureHttp')
+        ) {
+            this.sysLog.warn(
+                'allowInsecureHttp is enabled: outbound http:// requests skip all SSRF address checks (local dev/test only)'
+            );
+        }
+
         Events.addListener(Events.getSystemEvents().NewUserPrePersist, eventInfo => {
             const { user, callback } = eventInfo;
             return this._prepareNewUserAsActor(user, callback);

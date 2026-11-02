@@ -71,6 +71,7 @@ const {
     storedObjectOwnerIds,
     verifySignerOwnsObject,
     isSafeOutboundUrl,
+    isBlockedAddress,
     readInboxBody,
     MaxRequestAgeSecs,
 } = require('../core/activitypub/security.js');
@@ -754,6 +755,84 @@ describe('isSafeOutboundUrl()', function () {
     it('does not block a real public domain that happens to contain "local"', () => {
         //  "localdomain" is blocked, but "local" as a substring in a real domain is fine
         assert.equal(isSafeOutboundUrl('https://localbitcoins.com/users/alice'), null);
+    });
+
+    //  ── IPv6 forms WHATWG URL normalises (#966) ──────────────────────────
+
+    it('blocks IPv4-mapped IPv6 literals ([::ffff:127.0.0.1] -> [::ffff:7f00:1])', () => {
+        assert.ok(isSafeOutboundUrl('https://[::ffff:127.0.0.1]/'));
+        assert.ok(isSafeOutboundUrl('https://[::ffff:7f00:1]/'));
+        assert.ok(isSafeOutboundUrl('https://[::ffff:a9fe:a9fe]/'));
+    });
+
+    it('blocks a NAT64 literal embedding a blocked IPv4 address', () => {
+        assert.ok(isSafeOutboundUrl('https://[64:ff9b::7f00:1]/'));
+    });
+
+    it('allows a public IPv6 literal outside 2002::/16 (2a02::/16 regression)', () => {
+        assert.equal(isSafeOutboundUrl('https://[2a02:1234::1]/'), null);
+    });
+
+    it('blocks TEST-NET-1 (192.0.2.0/24)', () => {
+        assert.ok(isSafeOutboundUrl('https://192.0.2.1/'));
+    });
+});
+
+// ─── isBlockedAddress ─────────────────────────────────────────────────────────
+
+describe('isBlockedAddress()', function () {
+    const blocked = [
+        '127.0.0.1',
+        '0.0.0.0',
+        '192.0.2.1',
+        '192.88.99.1',
+        '10.1.2.3',
+        '169.254.169.254',
+        '::1',
+        '::',
+        '::ffff:127.0.0.1',
+        '::ffff:7f00:1',
+        '::ffff:a9fe:a9fe',
+        '64:ff9b::7f00:1',
+        '64:ff9b:1::1',
+        '100::1',
+        '2001::1',
+        '2001:db8::1',
+        '2002:0808:0808::1',
+        'fe80::1',
+        'fe80::1%eth0',
+        'fec0::1',
+        'fd00::1',
+        'ff02::1',
+        '::7f00:1',
+    ];
+    const allowed = [
+        '8.8.8.8',
+        '2a02:1234::1', // regression: 2002::/16 test matched X02::/16
+        '2102::1', // ditto
+        '64:ff9b::808:808', // NAT64 of a public address (DNS64 hosts need it)
+        '::ffff:8.8.8.8',
+        '2606:4700::1111',
+        '2001:4860:4860::8888', // 2001::/32 is Teredo, 2001:4860:: is not
+    ];
+
+    blocked.forEach(ip => {
+        it(`blocks ${ip}`, () => {
+            const reason = isBlockedAddress(ip);
+            assert.equal(typeof reason, 'string', `${ip} should be blocked`);
+        });
+    });
+
+    allowed.forEach(ip => {
+        it(`allows ${ip}`, () => {
+            assert.equal(isBlockedAddress(ip), null);
+        });
+    });
+
+    it('refuses anything that is not an IP address', () => {
+        assert.ok(isBlockedAddress('example.com'));
+        assert.ok(isBlockedAddress(''));
+        assert.ok(isBlockedAddress('1.2.3'));
     });
 });
 

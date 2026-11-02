@@ -215,89 +215,175 @@ const BLOCKED_HOST_SUFFIXES = [
 
 //
 //  IPv4 CIDR ranges that must never be contacted.
-//  Each entry is [networkInt, maskInt].
+//  Each entry is [networkInt, maskInt, label].
 //
 const BLOCKED_IPV4_CIDRS = [
-    ['0.0.0.0', 8], // "this" network
-    ['10.0.0.0', 8], // RFC-1918
-    ['100.64.0.0', 10], // CGNAT shared address
-    ['127.0.0.0', 8], // loopback
-    ['169.254.0.0', 16], // link-local / cloud metadata
-    ['172.16.0.0', 12], // RFC-1918
-    ['192.0.0.0', 24], // IETF protocol assignments
-    ['192.168.0.0', 16], // RFC-1918
-    ['198.18.0.0', 15], // benchmarking
-    ['198.51.100.0', 24], // RFC 5737 TEST-NET-2
-    ['203.0.113.0', 24], // RFC 5737 TEST-NET-3
-    ['224.0.0.0', 4], // multicast
-    ['240.0.0.0', 4], // reserved / experimental
-    ['255.255.255.255', 32], // broadcast
-].map(([addr, prefix]) => {
-    const parts = addr.split('.').map(Number);
-    const network =
-        ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+    ['0.0.0.0', 8, '"this" network'],
+    ['10.0.0.0', 8, 'RFC-1918 private'],
+    ['100.64.0.0', 10, 'CGNAT shared address'],
+    ['127.0.0.0', 8, 'loopback'],
+    ['169.254.0.0', 16, 'link-local / cloud metadata'],
+    ['172.16.0.0', 12, 'RFC-1918 private'],
+    ['192.0.0.0', 24, 'IETF protocol assignments'],
+    ['192.0.2.0', 24, 'RFC 5737 TEST-NET-1'],
+    ['192.88.99.0', 24, '6to4 relay anycast (deprecated)'],
+    ['192.168.0.0', 16, 'RFC-1918 private'],
+    ['198.18.0.0', 15, 'benchmarking'],
+    ['198.51.100.0', 24, 'RFC 5737 TEST-NET-2'],
+    ['203.0.113.0', 24, 'RFC 5737 TEST-NET-3'],
+    ['224.0.0.0', 4, 'multicast'],
+    ['240.0.0.0', 4, 'reserved / experimental'],
+    ['255.255.255.255', 32, 'broadcast'],
+].map(([addr, prefix, label]) => {
+    const network = _ipv4ToInt(addr);
     const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
-    return [network, mask];
+    return [network, mask, label];
 });
 
-function _isBlockedIPv4(hostname) {
-    // hostname may be a bare IPv4 literal
-    const parts = hostname.split('.');
-    if (parts.length !== 4) return false;
+//  Dotted-quad IPv4 string -> unsigned 32-bit int, or null if it is not one.
+function _ipv4ToInt(str) {
+    const parts = str.split('.');
+    if (parts.length !== 4 || parts.some(p => !/^\d{1,3}$/.test(p))) return null;
     const nums = parts.map(Number);
-    if (nums.some(n => isNaN(n) || n < 0 || n > 255)) return false;
-    const addr = ((nums[0] << 24) | (nums[1] << 16) | (nums[2] << 8) | nums[3]) >>> 0;
+    if (nums.some(n => n > 255)) return null;
+    return ((nums[0] << 24) | (nums[1] << 16) | (nums[2] << 8) | nums[3]) >>> 0;
+}
+
+//  Label of the blocked range an IPv4 int falls in, or null.
+function _ipv4BlockedRange(addr) {
     // `&` operates on signed int32; `>>> 0` converts back to unsigned for comparison.
-    return BLOCKED_IPV4_CIDRS.some(([network, mask]) => (addr & mask) >>> 0 === network);
-}
-
-function _isBlockedIPv6(hostname) {
-    // strip brackets if present: [::1] → ::1
-    const raw =
-        hostname.startsWith('[') && hostname.endsWith(']')
-            ? hostname.slice(1, -1)
-            : hostname;
-
-    if (!net.isIPv6(raw)) return false;
-
-    // Expand to full form for prefix matching
-    const buf = _ipv6ToBuffer(raw);
-    if (!buf) return false;
-
-    const first = buf[0];
-    const firstTwo = (buf[0] << 8) | buf[1];
-
-    return (
-        raw === '::' || // unspecified
-        raw === '::1' || // loopback
-        ((first & 0xe0) === 0x20 && buf[1] === 0x02) || // 2002::/16 6to4
-        (firstTwo & 0xffc0) === 0xfe80 || // fe80::/10 link-local
-        (firstTwo & 0xffc0) === 0xfec0 || // fec0::/10 site-local (deprecated)
-        (first & 0xfe) === 0xfc || // fc00::/7  unique local
-        (first & 0xff) === 0xff // ff00::/8  multicast
+    const hit = BLOCKED_IPV4_CIDRS.find(
+        ([network, mask]) => (addr & mask) >>> 0 === network
     );
+    return hit ? hit[2] : null;
 }
 
-function _ipv6ToBuffer(addr) {
-    try {
-        // Node's dns module isn't available here; do a simple expansion.
-        // We only need the first two bytes for our prefix checks.
-        const groups = addr.split(':');
-        const expanded = [];
-        for (const g of groups) {
-            if (g === '') {
-                // double-colon — fill with zeros
-                const missing = 8 - groups.filter(x => x !== '').length;
-                for (let i = 0; i <= missing; i++) expanded.push(0);
-            } else {
-                expanded.push(parseInt(g, 16));
-            }
-        }
-        return expanded.map(g => [(g >> 8) & 0xff, g & 0xff]).flat();
-    } catch {
+//
+//  Returns the label of the blocked range |hostname| is in when it is a
+//  bare IPv4 literal, else null (including when it is not IPv4 at all).
+//
+function _isBlockedIPv4(hostname) {
+    const addr = _ipv4ToInt(hostname);
+    return addr === null ? null : _ipv4BlockedRange(addr);
+}
+
+//
+//  IPv6 prefixes whose last 32 bits are an IPv4 address: the embedded
+//  address is checked against the IPv4 table rather than blocking (or
+//  allowing) the prefix as a whole. 64:ff9b::/96 is how an IPv6-only host
+//  behind DNS64 reaches every IPv4 server, so it cannot simply be blocked.
+//
+const IPV6_EMBEDDED_IPV4_PREFIXES = [
+    ['::ffff:0:0', 96, 'IPv4-mapped'],
+    ['64:ff9b::', 96, 'NAT64'],
+];
+
+//  IPv6 ranges that must never be contacted.
+const BLOCKED_IPV6_CIDRS = [
+    ['::', 128, 'unspecified'],
+    ['::1', 128, 'loopback'],
+    ['::', 96, 'IPv4-compatible (deprecated)'],
+    ['64:ff9b:1::', 48, 'local-use NAT64'],
+    ['100::', 64, 'discard-only'],
+    ['2001::', 32, 'Teredo'],
+    ['2001:db8::', 32, 'documentation'],
+    ['2002::', 16, '6to4'],
+    ['fc00::', 7, 'unique local'],
+    ['fe80::', 10, 'link-local'],
+    ['fec0::', 10, 'site-local (deprecated)'],
+    ['ff00::', 8, 'multicast'],
+];
+
+const _toPrefixes = list =>
+    list.map(([addr, bits, label]) => [_ipv6ToBytes(addr), bits, label]);
+const IPV6_EMBEDDED_IPV4 = _toPrefixes(IPV6_EMBEDDED_IPV4_PREFIXES);
+const BLOCKED_IPV6 = _toPrefixes(BLOCKED_IPV6_CIDRS);
+
+function _inIPv6Prefix(bytes, prefixBytes, bits) {
+    for (let i = 0; i < 16 && bits > 0; ++i, bits -= 8) {
+        const mask = bits >= 8 ? 0xff : (0xff << (8 - bits)) & 0xff;
+        if ((bytes[i] & mask) !== prefixBytes[i]) return false;
+    }
+    return true;
+}
+
+//
+//  Parse an IPv6 address (brackets and a %zone allowed) into its 16 bytes.
+//  Handles "::" in any position and an embedded dotted-quad tail
+//  (::ffff:1.2.3.4). Returns null when it is not an IPv6 address.
+//
+function _ipv6ToBytes(str) {
+    let addr = str.startsWith('[') && str.endsWith(']') ? str.slice(1, -1) : str;
+    addr = addr.replace(/%.*$/, '');
+    if (!net.isIPv6(addr)) return null;
+
+    //  rewrite a dotted-quad tail as two hex groups
+    const lastColon = addr.lastIndexOf(':');
+    const tail = addr.slice(lastColon + 1);
+    if (tail.includes('.')) {
+        const v4 = _ipv4ToInt(tail);
+        if (v4 === null) return null;
+        addr = `${addr.slice(0, lastColon + 1)}${(v4 >>> 16).toString(16)}:${(
+            v4 & 0xffff
+        ).toString(16)}`;
+    }
+
+    const halves = addr.split('::');
+    if (halves.length > 2) return null;
+    const groupsOf = s => (s === '' ? [] : s.split(':'));
+    const head = groupsOf(halves[0]);
+    const rest = halves.length === 2 ? groupsOf(halves[1]) : [];
+    const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
+    if (fill < 0) return null;
+    const groups = [...head, ...new Array(fill).fill('0'), ...rest];
+    if (groups.length !== 8 || groups.some(g => !/^[0-9a-f]{1,4}$/i.test(g))) {
         return null;
     }
+
+    const bytes = Buffer.alloc(16);
+    groups.forEach((g, i) => bytes.writeUInt16BE(parseInt(g, 16), i * 2));
+    return bytes;
 }
+
+//
+//  Returns the label of the blocked range |hostname| is in when it is an
+//  IPv6 literal (bracketed or bare), else null (including when it is not
+//  IPv6 at all).
+//
+function _isBlockedIPv6(hostname) {
+    const bytes = _ipv6ToBytes(hostname);
+    if (!bytes) return null;
+
+    for (const [prefix, bits, label] of IPV6_EMBEDDED_IPV4) {
+        if (_inIPv6Prefix(bytes, prefix, bits)) {
+            const range = _ipv4BlockedRange(bytes.readUInt32BE(12));
+            return range ? `${label} ${range}` : null;
+        }
+    }
+
+    const hit = BLOCKED_IPV6.find(([prefix, bits]) => _inIPv6Prefix(bytes, prefix, bits));
+    return hit ? hit[2] : null;
+}
+
+//
+//  Check a bare IP address (v4 or v6, as dns.lookup() returns them) against
+//  the blocked ranges. Anything that is not an IP address is refused.
+//
+//  Returns null when the address may be contacted, or a human-readable
+//  reason string when it must not be.
+//
+function isBlockedAddress(ip) {
+    if (net.isIPv4(ip)) {
+        const range = _isBlockedIPv4(ip);
+        return range ? `IPv4 address "${ip}" is in a blocked range (${range})` : null;
+    }
+    if (_ipv6ToBytes(ip)) {
+        const range = _isBlockedIPv6(ip);
+        return range ? `IPv6 address "${ip}" is in a blocked range (${range})` : null;
+    }
+    return `"${ip}" is not an IP address`;
+}
+exports.isBlockedAddress = isBlockedAddress;
 
 //
 //  Check whether a URL is safe to fetch as an outbound ActivityPub request.
@@ -345,13 +431,16 @@ function isSafeOutboundUrl(urlString, allowHttp = false) {
     }
 
     // IPv4 literal
-    if (_isBlockedIPv4(hostname)) {
-        return `IPv4 address "${hostname}" is in a blocked range`;
+    const ipv4Range = _isBlockedIPv4(hostname);
+    if (ipv4Range) {
+        return `IPv4 address "${hostname}" is in a blocked range (${ipv4Range})`;
     }
 
-    // IPv6 literal
-    if (_isBlockedIPv6(hostname)) {
-        return `IPv6 address "${hostname}" is in a blocked range`;
+    // IPv6 literal (WHATWG URL normalises these, e.g. [::ffff:127.0.0.1]
+    // becomes [::ffff:7f00:1], so the embedded IPv4 forms must be decoded)
+    const ipv6Range = _isBlockedIPv6(hostname);
+    if (ipv6Range) {
+        return `IPv6 address "${hostname}" is in a blocked range (${ipv6Range})`;
     }
 
     return null; // safe
