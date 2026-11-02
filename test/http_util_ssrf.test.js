@@ -29,8 +29,9 @@ const HttpUtil = require('../core/http_util.js');
 const { ErrorReasons } = require('../core/enig_error.js');
 
 //
-//  A fresh key and self-signed cert for ssrf-fixture.net and
-//  *.ssrf-fixture.net, valid for a day, made with the openssl binary in
+//  A fresh key and self-signed cert for ssrf-fixture.net, *.ssrf-fixture.net
+//  and the literal addresses 127.0.0.2 and ::1 (the tests that fetch a
+//  literal), valid for a day, made with the openssl binary in
 //  |dir|. Throws, rather than letting the tests be skipped, when openssl
 //  is missing.
 //
@@ -57,7 +58,7 @@ function makeFixtureCert(dir) {
                 '-subj',
                 '/CN=ssrf-fixture.net',
                 '-addext',
-                'subjectAltName=DNS:ssrf-fixture.net,DNS:*.ssrf-fixture.net',
+                'subjectAltName=DNS:ssrf-fixture.net,DNS:*.ssrf-fixture.net,IP:127.0.0.2,IP:::1',
             ],
             { stdio: 'pipe' }
         );
@@ -1146,13 +1147,10 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
                 }
             });
 
-            //  the certificate is for names: these check the address check
             const getV6 = () =>
                 new Promise(resolve =>
-                    HttpUtil.getJson(
-                        `https://[::1]:${v6Port}/thing`,
-                        Object.assign({}, tls, { rejectUnauthorized: false }),
-                        (err, json) => resolve({ err, json })
+                    HttpUtil.getJson(`https://[::1]:${v6Port}/thing`, tls, (err, json) =>
+                        resolve({ err, json })
                     )
                 );
 
@@ -1201,11 +1199,9 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
         it('fetches a literal address in a listed range', async () => {
             mutableApConfig.allowedPrivateAddresses = [BLOCKED_ADDR];
             const { err } = await new Promise(resolve =>
-                //  the certificate is for names: this checks the address
-                //  was let through, not TLS
                 HttpUtil.getJson(
                     `https://${BLOCKED_ADDR}:${ports.https}/thing`,
-                    Object.assign({}, tls, { rejectUnauthorized: false }),
+                    tls,
                     err => resolve({ err })
                 )
             );
