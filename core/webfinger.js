@@ -1,5 +1,6 @@
 const { Errors } = require('./enig_error');
-const { getJson } = require('./http_util');
+const { getJson, allowInsecureHttp } = require('./http_util');
+const { ErrorReasons } = require('./enig_error');
 const { NegativeCache } = require('./activitypub/negative_cache.js');
 
 // deps
@@ -94,14 +95,21 @@ function queryWebFinger(query, cb) {
         return cb(null, json, answeredBy);
     };
 
-    //  Try HTTPS first (required by the WebFinger spec). If the connection is
-    //  refused fall back to HTTP — useful for local dev servers (e.g. GoToSocial
-    //  running without TLS) and instances behind a plain-HTTP proxy.
+    //  Try HTTPS first (required by the WebFinger spec). With
+    //  allowInsecureHttp (local dev/test only), fall back to HTTP when the
+    //  connection is refused, or when the host resolves to a private address
+    //  (https:// refuses those; e.g. GoToSocial without TLS on a LAN name).
+    //  Without it there is no point: http:// would be refused anyway, and
+    //  that refusal, not the https error, would be what is remembered.
     tryFetch('https', (err, json, answeredBy) => {
         if (!err) {
             return done(null, json, answeredBy);
         }
-        if (!['ECONNREFUSED', 'ECONNRESET', 'EPROTO'].includes(err.code)) {
+        const fallBack =
+            allowInsecureHttp() &&
+            (['ECONNREFUSED', 'ECONNRESET', 'EPROTO'].includes(err.code) ||
+                err.reasonCode === ErrorReasons.BlockedAddress);
+        if (!fallBack) {
             return done(err);
         }
         tryFetch('http', done);

@@ -36,7 +36,7 @@ const Message = require('../../../message');
 const HttpUtil = require('../../../http_util');
 const FetchBudget = require('../../../activitypub/fetch_budget');
 const Events = require('../../../events');
-const { Errors } = require('../../../enig_error');
+const { Errors, ErrorReasons } = require('../../../enig_error');
 const { getFullUrl } = require('../../../web_util');
 
 const {
@@ -2039,6 +2039,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         note.toMessage(messageOpts, (err, message) => {
             if (err) {
                 return cb(err);
+            }
+
+            //  The author lookup (or its handle's WebFinger) may have been
+            //  refused by the fetch budget, leaving the actor URL as the
+            //  name. Store nothing: the sender is answered 503 and retries,
+            //  where a stored message would make the retry a duplicate.
+            if (FetchBudget.exceeded()) {
+                return cb(
+                    Errors.General(
+                        'Fetch budget exceeded; not storing',
+                        ErrorReasons.FetchBudget
+                    )
+                );
             }
 
             message.persist((err, messageId) => {

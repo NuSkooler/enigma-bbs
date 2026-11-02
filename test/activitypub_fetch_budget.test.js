@@ -59,8 +59,12 @@ describe('fetch budget (#966)', function () {
         }
     };
 
+    //  moved on ten minutes per test: a test that calls done() inside run()
+    //  hands mocha's next step that store, which must be stale by then
+    let testStart = 1000000;
     beforeEach(() => {
-        clock = 1000000;
+        testStart += 10 * 60 * 1000;
+        clock = testStart;
         FetchBudget._setClock(() => clock);
         savedConfig = configModule.get;
         useLimits({});
@@ -150,9 +154,10 @@ describe('fetch budget (#966)', function () {
         FetchBudget.run(store => {
             const held = FetchBudget.acquire('https://a.example/');
             budgetError(FetchBudget.acquire('https://b.example/'), 'global concurrency');
-            const b = FetchBudget._state().hosts.get('b.example');
-            assert.equal(b.tokens, 5, 'no host token spent');
-            assert.equal(b.inFlight, 0);
+            assert.ok(
+                !FetchBudget._state().hosts.has('b.example'),
+                'no entry, so no host token spent'
+            );
             assert.equal(FetchBudget._state().boardBucket.inFlight, 1);
             assert.equal(store.fetches, 1, 'not counted against the POST');
             held.release();
@@ -232,6 +237,71 @@ describe('fetch budget (#966)', function () {
             useLimits({ perHostConcurrency: 10 });
             assert.ok(!FetchBudget.acquire('https://a.example/').error);
         });
+    });
+
+    it('keeps no entry for a host it refuses', () => {
+        FetchBudget.run(store => {
+            store.fetches = FetchBudget.MaxFetchesPerPost;
+            for (let i = 0; i < 100; ++i) {
+                budgetError(FetchBudget.acquire(`https://h${i}.example/`), 'per-POST');
+            }
+        });
+        assert.equal(FetchBudget._state().hosts.size, 0);
+    });
+
+    it('charges a redirect hop a host rate token and a POST fetch', () => {
+        useLimits({ perHostPerMinute: 2 });
+        FetchBudget.run(store => {
+            assert.equal(FetchBudget.chargeRedirect('https://v.example/1'), null);
+            assert.equal(FetchBudget._state().hosts.get('v.example').inFlight, 0);
+            assert.equal(FetchBudget.chargeRedirect('https://v.example/2'), null);
+            budgetError(
+                { error: FetchBudget.chargeRedirect('https://v.example/3') },
+                'per-host rate'
+            );
+            assert.equal(store.fetches, 2);
+
+            store.fetches = FetchBudget.MaxFetchesPerPost;
+            budgetError(
+                { error: FetchBudget.chargeRedirect('https://w.example/') },
+                'per-POST'
+            );
+            assert.ok(!FetchBudget._state().hosts.has('w.example'));
+        });
+        assert.equal(
+            FetchBudget.chargeRedirect('https://v.example/4'),
+            null,
+            'unbudgeted'
+        );
+    });
+
+    it('budgets background work without marking the POST exceeded', () => {
+        useLimits({ perHostConcurrency: 1 });
+        FetchBudget.run(store => {
+            const held = FetchBudget.acquire('https://a.example/');
+            FetchBudget.background(() => {
+                assert.ok(!FetchBudget.acquire('https://b.example/').error);
+                budgetError(
+                    FetchBudget.acquire('https://a.example/'),
+                    'per-host concurrency'
+                );
+                assert.equal(
+                    FetchBudget.exceeded(),
+                    true,
+                    "the background work's own flag"
+                );
+            });
+            assert.equal(store.exceeded, false, 'the POST is not exceeded');
+            assert.equal(FetchBudget.exceeded(), false);
+            assert.equal(store.fetches, 2, 'background fetches count against the POST');
+            held.release();
+        });
+        //  outside a store, just runs
+        let ran = false;
+        FetchBudget.background(() => {
+            ran = true;
+        });
+        assert.ok(ran);
     });
 
     it('forgets idle hosts', () => {

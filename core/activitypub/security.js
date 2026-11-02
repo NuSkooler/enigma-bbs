@@ -7,6 +7,7 @@
 
 const crypto = require('crypto');
 const net = require('net');
+const { AsyncResource } = require('async_hooks');
 
 //
 //  Read an HTTP request body up to maxBytes, accumulating chunks as they arrive.
@@ -16,7 +17,12 @@ const net = require('net');
 //  cb       — callback(err, rawBody: Buffer)
 //               err.code === 'ENTITY_TOO_LARGE' when the limit is exceeded
 //
+//  cb is called in the caller's async context. A server request's events
+//  run in the HTTP parser's, so without this anything after the body read
+//  would lose the inbox POST's fetch budget (see fetch_budget.js).
+//
 function readInboxBody(req, maxBytes, cb) {
+    cb = AsyncResource.bind(cb);
     const chunks = [];
     let totalBytes = 0;
     let done = false;

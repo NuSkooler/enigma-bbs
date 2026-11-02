@@ -1083,8 +1083,9 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                     responseUrl: hit.responseUrl || url,
                 });
             if (hit.defer) {
-                //  answers when the test calls release()
-                hit.release = respond;
+                //  answers when the test calls release(), in the context
+                //  the request was made in, as a real response is
+                hit.release = require('async_hooks').AsyncResource.bind(respond);
                 return;
             }
             return respond();
@@ -2530,6 +2531,221 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                 assert.ok(wasFetched(VICTIM));
                 assert.ok(!wasFetched(NOTE), 'the Note fetch was refused');
                 assert.equal(result, 'serviceUnavailable 60');
+            });
+
+            //  The body of a real request is read in the HTTP parser's async
+            //  context, not the store's; Readable.from() above hides that
+            it('answers 503 for a POST over a real socket when the budget refuses', async () => {
+                const http = require('node:http');
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                exhaust(`${GOOD}/`);
+
+                const activity = createBy(VICTIM, noteJson('<p>later</p>'));
+                const signed = signedRequest(
+                    activity,
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+                const body = Buffer.from(JSON.stringify(activity));
+
+                const handler = new ActivityPubWebHandler();
+                const noop = () => {};
+                handler.log = {
+                    trace: noop,
+                    debug: noop,
+                    info: noop,
+                    warn: noop,
+                    error: noop,
+                };
+                handler.sysLog = handler.log;
+
+                let server;
+                const result = await new Promise((resolve, reject) => {
+                    server = http.createServer((req, res) => {
+                        const answer = name => () => {
+                            res.end();
+                            resolve(name);
+                        };
+                        handler.webServer = {
+                            accepted: answer('accepted'),
+                            accessDenied: answer('accessDenied'),
+                            resourceNotFound: answer('resourceNotFound'),
+                            badRequest: answer('badRequest'),
+                            notImplemented: answer('notImplemented'),
+                            internalServerError: answer('internalServerError'),
+                            serviceUnavailable: (resp, secs) =>
+                                answer(`serviceUnavailable ${secs}`)(),
+                        };
+                        const signature = handler._parseAndValidateSignature(req);
+                        if (!signature) {
+                            return reject(new Error('the test request does not parse'));
+                        }
+                        handler._inboxPostHandler(req, res, signature, 'sharedInbox');
+                    });
+                    server.listen(0, '127.0.0.1', () => {
+                        const req = http.request({
+                            host: '127.0.0.1',
+                            port: server.address().port,
+                            method: 'POST',
+                            path: signed.url,
+                            headers: Object.assign({}, signed.headers, {
+                                'content-length': body.length,
+                            }),
+                        });
+                        req.on('error', reject);
+                        req.on('response', res => res.resume());
+                        //  the body in its own packet, after the headers
+                        req.flushHeaders();
+                        setTimeout(() => req.end(body), 30);
+                    });
+                });
+                server.close();
+
+                assert.equal(result, 'serviceUnavailable 60');
+                assert.equal(cachedJson(VICTIM), undefined);
+            });
+
+            it('stores nothing, and answers 503, when the author lookup for the message is refused', async () => {
+                //  as in the Update/Delete suite: a boost records a reaction
+                _apDb.exec(`
+                    CREATE TABLE IF NOT EXISTS note_reactions (
+                        note_id         VARCHAR NOT NULL,
+                        actor_id        VARCHAR NOT NULL,
+                        reaction_type   VARCHAR NOT NULL,
+                        activity_id     VARCHAR NOT NULL,
+                        timestamp       DATETIME NOT NULL,
+                        UNIQUE(note_id, actor_id, reaction_type)
+                    );
+                `);
+                //  carol wrote the Note alice boosts; her handle is on a host
+                //  with no fetches to spare
+                const carol = `${GOOD}/users/carol`;
+                const carolsNote = Object.assign(noteJson('<p>by carol</p>'), {
+                    attributedTo: carol,
+                });
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                served.set(NOTE, { doc: carolsNote });
+                served.set(carol, {
+                    doc: actorDoc(carol, {}, { webfinger: 'carol@handles.example' }),
+                });
+                served.set('webfinger:@carol@handles.example', {
+                    json: {
+                        subject: 'acct:carol@handles.example',
+                        links: [
+                            {
+                                rel: 'self',
+                                type: 'application/activity+json',
+                                href: carol,
+                            },
+                        ],
+                    },
+                    answeredBy: 'https://handles.example/.well-known/webfinger',
+                });
+                const realWebFinger = WebFinger.queryWebFinger;
+                WebFinger.queryWebFinger = (query, cb) => {
+                    if (String(query).includes('handles.example')) {
+                        const slot = FetchBudget.acquire('https://handles.example/');
+                        if (slot.error) {
+                            return cb(slot.error);
+                        }
+                        slot.release();
+                    }
+                    return realWebFinger(query, cb);
+                };
+                //  every handles.example slot held by other POSTs
+                const held = [];
+                FetchBudget.run(() => {
+                    for (
+                        let i = 0;
+                        i < FetchBudget.DefaultLimits.perHostConcurrency;
+                        ++i
+                    ) {
+                        held.push(FetchBudget.acquire('https://handles.example/'));
+                    }
+                });
+                const announce = () => ({
+                    id: `${GOOD}/activities/a-1`,
+                    type: 'Announce',
+                    actor: VICTIM,
+                    to: [PUBLIC],
+                    object: NOTE,
+                });
+                const names = () =>
+                    _msgDb
+                        .prepare('SELECT from_user_name FROM message;')
+                        .all()
+                        .map(r => r.from_user_name);
+
+                try {
+                    const first = await post(
+                        announce(),
+                        `${VICTIM}#main-key`,
+                        realKey.privateKey
+                    );
+                    assert.equal(first, 'serviceUnavailable 60');
+                    assert.deepEqual(names(), [], 'nothing stored under the URL');
+
+                    //  the sender retries once the host has slots again
+                    held.forEach(slot => slot.release());
+                    const retry = await post(
+                        announce(),
+                        `${VICTIM}#main-key`,
+                        realKey.privateKey
+                    );
+                    assert.equal(retry, 'accepted');
+                    assert.deepEqual(names(), ['@carol@handles.example']);
+                } finally {
+                    WebFinger.queryWebFinger = realWebFinger;
+                    held.forEach(slot => slot.release());
+                }
+            });
+
+            it('does not answer 503 when only the refresh of a cached actor is refused', async () => {
+                _apDb.exec(`
+                    CREATE TABLE IF NOT EXISTS note_reactions (
+                        note_id         VARCHAR NOT NULL,
+                        actor_id        VARCHAR NOT NULL,
+                        reaction_type   VARCHAR NOT NULL,
+                        activity_id     VARCHAR NOT NULL,
+                        timestamp       DATETIME NOT NULL,
+                        UNIQUE(note_id, actor_id, reaction_type)
+                    );
+                `);
+                //  alice is cached, long enough ago to need a refresh
+                await new Promise((resolve, reject) =>
+                    savedAddActor(actorDoc(VICTIM), VICTIM, err =>
+                        err ? reject(err) : resolve()
+                    )
+                );
+                _apDb
+                    .prepare(
+                        `UPDATE collection SET timestamp = '2020-01-01T00:00:00.000Z' WHERE name = 'actors' AND object_id = ?;`
+                    )
+                    .run(VICTIM);
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+                //  her boosted Note answers late, so the POST is still being
+                //  handled when the refresh, which runs after the cache
+                //  answers, is refused: the Note took good.example's one fetch
+                served.set(NOTE, { doc: noteJson('<p>boosted</p>'), defer: true });
+                onePerHost();
+
+                const pending = post(
+                    {
+                        id: `${GOOD}/activities/a-${Math.random()}`,
+                        type: 'Announce',
+                        actor: VICTIM,
+                        to: [PUBLIC],
+                        object: NOTE,
+                    },
+                    `${VICTIM}#main-key`,
+                    realKey.privateKey
+                );
+                await new Promise(resolve => setImmediate(resolve));
+                assert.ok(served.get(NOTE).release, 'the Note is being fetched');
+                served.get(NOTE).release();
+
+                assert.equal(await pending, 'accepted');
+                assert.ok(!wasFetched(VICTIM), 'the refresh was refused');
             });
 
             it('does not cache an actor whose signature fails', async () => {

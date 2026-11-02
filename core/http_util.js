@@ -20,8 +20,18 @@ const dns = require('node:dns');
 
 const DefaultTimeoutMilliseconds = 5000;
 
+//  |timeout| is an idle timeout: a host trickling a byte at a time never
+//  trips it. Every request is also cut off after this long overall: twice
+//  its timeout, and at least MinDeadlineMilliseconds.
+const MinDeadlineMilliseconds = 30000;
+let minDeadlineMs = MinDeadlineMilliseconds;
+
+//  follow-redirects allows 21 by default; each hop is another host to ask
+const MaxRedirects = 3;
+
 exports.getJson = getJson;
 exports.postJson = postJson;
+exports.allowInsecureHttp = () => _allowHttp();
 exports._checkedLookup = _checkedLookup; // exported for tests
 
 //
@@ -52,6 +62,10 @@ const httpAgent = new httpNoRedirects.Agent(
     })
 );
 exports._agents = { http: httpAgent, https: httpsAgent }; // exported for tests
+//  for tests: a shorter overall deadline floor (null restores it)
+exports._setMinDeadlineMs = ms => {
+    minDeadlineMs = ms || MinDeadlineMilliseconds;
+};
 
 //
 //  A net/tls lookup function. |strict| is false only for the HTTP agent,
@@ -83,8 +97,9 @@ function _checkedLookup(strict, hostname, opts, cb) {
             }))
             .filter(r => r.reason);
         if (refused.length > 0) {
+            //  not |hostname|: that is bunyan's field for this machine's name
             Log().warn(
-                { hostname, refused },
+                { host: hostname, refused },
                 'Outbound connection refused: host resolves to a blocked address'
             );
             //  no addresses in the error: it may find its way back to a remote
@@ -212,9 +227,11 @@ function _makeRequest(url, options, cb) {
     }
 
     let cbCalled = false;
+    let deadline;
     const cbWrapper = (e, b, r) => {
         if (!cbCalled) {
             cbCalled = true;
+            clearTimeout(deadline);
             release();
             return cb(e, b, r);
         }
@@ -236,9 +253,16 @@ function _makeRequest(url, options, cb) {
                 if (reason) {
                     throw new Error(`Redirect blocked: ${reason}`);
                 }
+                //  each hop of an inbox-triggered GET costs its host a rate
+                //  token and the POST a fetch (see fetch_budget.js)
+                const budgetErr = FetchBudget.chargeRedirect(redirectUrl);
+                if (budgetErr) {
+                    throw budgetErr;
+                }
             },
         };
         options = Object.assign({}, redirectOpts, options);
+        options.maxRedirects = MaxRedirects;
         //  follow-redirects picks the agent per hop by protocol
         options.agents = { http: httpAgent, https: httpsAgent };
         delete options.agent;
@@ -246,8 +270,10 @@ function _makeRequest(url, options, cb) {
     }
 
     let req;
+    let responded = false;
     try {
         req = httpLib.request(url, options, res => {
+            responded = true;
             const maxBytes = _maxResponseBodyBytes();
             let body = [];
             let totalBytes = 0;
@@ -282,6 +308,17 @@ function _makeRequest(url, options, cb) {
 
                 return cbWrapper(null, body, res);
             });
+
+            //  a response cut off part way (the socket closed, or was
+            //  destroyed) ends with neither 'end' nor a request 'error'
+            res.on('error', err => cbWrapper(err));
+            res.on('close', () => {
+                if (!res.complete) {
+                    return cbWrapper(
+                        Errors.HttpError(`Response from ${url} was cut off`)
+                    );
+                }
+            });
         });
     } catch (e) {
         return cbWrapper(e);
@@ -296,12 +333,37 @@ function _makeRequest(url, options, cb) {
     }
 
     req.on('error', err => {
+        //  follow-redirects wraps what beforeRedirect throws
+        if (err && err.cause && FetchBudget.isBudgetError(err.cause)) {
+            err = err.cause;
+        }
         return cbWrapper(err);
     });
 
-    req.on('timeout', () => {
-        req.destroy(Errors.Timeout('Timeout making HTTP request'));
+    //  closed with no response and no error: nothing else will call back
+    req.on('close', () => {
+        if (!responded) {
+            return cbWrapper(Errors.HttpError(`Connection for ${url} closed`));
+        }
     });
+
+    //  the error given first, as destroying may also report a cut-off
+    const giveUp = err => {
+        cbWrapper(err);
+        req.destroy(err);
+    };
+
+    req.on('timeout', () => {
+        giveUp(Errors.Timeout('Timeout making HTTP request'));
+    });
+
+    deadline = setTimeout(
+        () => giveUp(Errors.Timeout(`HTTP request to ${url} took too long`)),
+        Math.max(options.timeout * 2, minDeadlineMs)
+    );
+    if (deadline.unref) {
+        deadline.unref();
+    }
 
     if (options.body) {
         req.write(options.body);

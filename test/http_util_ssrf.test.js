@@ -175,6 +175,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
     };
 
     const hosts = {};
+    const hits = [];
     const lookupCalls = [];
     //  address -> connections seen, per protocol
     const seen = { https: {}, http: {} };
@@ -188,6 +189,40 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
     let warns;
 
     const handler = (req, res) => {
+        const hop = /^\/hop\/(\d+)\/([a-z]+)$/.exec(req.url);
+        if (hop) {
+            //  /hop/N/host: redirect to host's /hop/N-1/host, then answer
+            const n = Number(hop[1]);
+            hits.push(`${req.headers.host.split('.')[0]} ${req.url}`);
+            if (n > 0) {
+                res.writeHead(302, {
+                    Location: `https://${hop[2]}.ssrf-fixture.net:${ports.https}/hop/${
+                        n - 1
+                    }/${hop[2]}`,
+                });
+                return res.end();
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end('{"ok":true}');
+        }
+        if (req.url === '/cutoff') {
+            //  headers and part of the body, then the socket goes
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Content-Length': '1000',
+            });
+            res.write('{"partial":');
+            return setTimeout(() => req.socket.destroy(), 30);
+        }
+        if (req.url === '/trickle') {
+            //  a byte at a time, never finishing
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Content-Length': '1000',
+            });
+            const timer = setInterval(() => res.write(' '), 50);
+            return res.on('close', () => clearInterval(timer));
+        }
         if (req.url === '/redir') {
             res.writeHead(302, { Location: req.headers['x-redirect-to'] });
             return res.end();
@@ -286,6 +321,9 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
         Object.keys(hosts).forEach(h => delete hosts[h]);
         hosts['ok.ssrf-fixture.net'] = [ALLOWED_ADDR];
         hosts['evil.ssrf-fixture.net'] = [BLOCKED_ADDR];
+        hosts['attacker.ssrf-fixture.net'] = [ALLOWED_ADDR];
+        hosts['victim.ssrf-fixture.net'] = [ALLOWED_ADDR];
+        hits.length = 0;
         lookupCalls.length = 0;
         warns = [];
         dropSockets();
@@ -324,7 +362,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
             assertRefused(err);
             assert.equal(seen.https[BLOCKED_ADDR], 0, 'no connection was made');
             assert.equal(warns.length, 1, 'one warn per refusal');
-            assert.equal(warns[0][0].hostname, 'evil.ssrf-fixture.net');
+            assert.equal(warns[0][0].host, 'evil.ssrf-fixture.net');
             return done();
         });
     });
@@ -403,6 +441,189 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
                 assert.equal(seen.https[BLOCKED_ADDR], 0);
                 return done();
             });
+        });
+    });
+
+    //  #966 phase B review: a response cut off part way, or one that never
+    //  finishes, must still call back and free its fetch budget slot
+    describe('responses that never complete', function () {
+        const FetchBudget = require('../core/activitypub/fetch_budget.js');
+        const boardInFlight = () => {
+            const board = FetchBudget._state().boardBucket;
+            return board ? board.inFlight : 0;
+        };
+        const signedOpts = () => {
+            const { privateKey } = crypto.generateKeyPairSync('rsa', {
+                modulusLength: 1024,
+            });
+            return Object.assign({}, tls, {
+                headers: { Date: new Date().toUTCString() },
+                sign: {
+                    key: privateKey.export({ type: 'pkcs8', format: 'pem' }),
+                    keyId: 'https://ok.ssrf-fixture.net/users/alice#main-key',
+                    authorizationHeaderName: 'Signature',
+                    headers: ['(request-target)', 'host', 'date'],
+                },
+            });
+        };
+
+        //  done() inside run() hands mocha's next step the store: a moving
+        //  fake clock makes such a leftover store stale for later tests
+        let clock = 1e9;
+        beforeEach(() => {
+            clock += 10 * 60 * 1000;
+            FetchBudget._setClock(() => clock);
+        });
+        afterEach(() => {
+            HttpUtil._setMinDeadlineMs(null);
+            FetchBudget._setClock(null);
+        });
+
+        for (const signed of [false, true]) {
+            const kind = signed ? 'signed (node:https)' : 'unsigned (follow-redirects)';
+
+            it(`calls back and frees the slot when a response is cut off: ${kind}`, done => {
+                FetchBudget.run(() => {
+                    HttpUtil.getJson(
+                        url('ok', '/cutoff'),
+                        signed ? signedOpts() : tls,
+                        err => {
+                            assert.ok(err, 'an error');
+                            setImmediate(() => {
+                                assert.equal(boardInFlight(), 0);
+                                return done();
+                            });
+                        }
+                    );
+                });
+            });
+
+            it(`gives up on a response that trickles past the deadline: ${kind}`, done => {
+                HttpUtil._setMinDeadlineMs(300);
+                const opts = Object.assign(
+                    signed ? signedOpts() : Object.assign({}, tls),
+                    {
+                        timeout: 100, // idle: never trips, a byte comes every 50ms
+                    }
+                );
+                const started = Date.now();
+                FetchBudget.run(() => {
+                    HttpUtil.getJson(url('ok', '/trickle'), opts, err => {
+                        assert.ok(err);
+                        assert.match(err.message, /took too long/);
+                        assert.ok(Date.now() - started < 2000);
+                        setImmediate(() => {
+                            assert.equal(boardInFlight(), 0);
+                            return done();
+                        });
+                    });
+                });
+            });
+        }
+    });
+
+    describe('redirects (#966)', function () {
+        const FetchBudget = require('../core/activitypub/fetch_budget.js');
+        let savedLimits;
+
+        let clock = 2e9; // as above
+        beforeEach(() => {
+            savedLimits = mutableApConfig.outboundFetchLimits;
+            clock += 10 * 60 * 1000;
+            FetchBudget._setClock(() => clock);
+        });
+        afterEach(() => {
+            mutableApConfig.outboundFetchLimits = savedLimits;
+            FetchBudget._setClock(null);
+        });
+
+        it('follows at most 3 redirects', done => {
+            HttpUtil.getJson(url('ok', '/hop/5/ok'), tls, err => {
+                assert.ok(err, 'refused');
+                assert.equal(hits.length, 4, 'the first request and 3 hops');
+                return done();
+            });
+        });
+
+        it("charges each hop's host a rate token, refusing a hop it has none for", done => {
+            mutableApConfig.outboundFetchLimits = { perHostPerMinute: 1 };
+            FetchBudget.run(store => {
+                //  attacker -> victim -> victim: victim's second hop is refused
+                HttpUtil.getJson(url('attacker', '/hop/2/victim'), tls, err => {
+                    assert.ok(FetchBudget.isBudgetError(err), `err: ${err}`);
+                    assert.deepEqual(hits, [
+                        'attacker /hop/2/victim',
+                        'victim /hop/1/victim',
+                    ]);
+                    assert.equal(store.exceeded, true);
+                    assert.equal(store.fetches, 2, 'the first request and one hop');
+                    return done();
+                });
+            });
+        });
+
+        it('counts hops toward the per-POST cap', done => {
+            FetchBudget.run(store => {
+                store.fetches = FetchBudget.MaxFetchesPerPost - 2;
+                HttpUtil.getJson(url('attacker', '/hop/3/victim'), tls, err => {
+                    assert.ok(FetchBudget.isBudgetError(err), `err: ${err}`);
+                    assert.equal(hits.length, 2);
+                    assert.equal(store.fetches, FetchBudget.MaxFetchesPerPost);
+                    return done();
+                });
+            });
+        });
+    });
+
+    describe('WebFinger http:// fallback (#966)', function () {
+        const WebFinger = require('../core/webfinger.js');
+        const NegCache = require('../core/activitypub/negative_cache.js');
+        const net = require('node:net');
+        let clock;
+
+        beforeEach(() => {
+            clock = 1e9;
+            NegCache._setClock(() => clock);
+        });
+        afterEach(() => NegCache._setClock(null));
+
+        const freePort = cb => {
+            //  no host: listen() would resolve it through the stubbed lookup
+            const s = net.createServer().listen(0, () => {
+                const p = s.address().port;
+                s.close(() => cb(p));
+            });
+        };
+
+        it('does not fall back without allowInsecureHttp: a refused connection is transient', done => {
+            freePort(p => {
+                const query = `@alice@ok.ssrf-fixture.net:${p}`;
+                WebFinger.queryWebFinger(query, err => {
+                    assert.equal(err && err.code, 'ECONNREFUSED', `err: ${err}`);
+                    clock += NegCache.TransientTtlMs;
+                    WebFinger.queryWebFinger(query, err => {
+                        assert.ok(err);
+                        assert.ok(!err.negativeCached, 'forgotten after 2 minutes');
+                        return done();
+                    });
+                });
+            });
+        });
+
+        it('with allowInsecureHttp, falls back to http:// for a host https:// refuses as private', done => {
+            mutableApConfig.allowInsecureHttp = true;
+            //  evil resolves to the blocked address, where the HTTP server listens
+            WebFinger.queryWebFinger(
+                `@alice@evil.ssrf-fixture.net:${ports.http}`,
+                (err, json, by) => {
+                    assert.ifError(err);
+                    assert.equal(json.ok, true);
+                    assert.match(by, /^http:\/\/evil\.ssrf-fixture\.net/);
+                    assert.equal(seen.http[BLOCKED_ADDR], 1);
+                    assert.equal(seen.https[BLOCKED_ADDR], 0, 'https:// stayed strict');
+                    return done();
+                }
+            );
         });
     });
 

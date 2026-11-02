@@ -308,7 +308,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             //  Cache miss or needs refreshed; Try to do so now
-            Actor._fromWebFinger(id, fromUser, keyId, (err, actor, webFingerRes) => {
+            const onFetched = (err, actor, webFingerRes) => {
                 if (err) {
                     return failed(err);
                 }
@@ -354,7 +354,17 @@ module.exports = class Actor extends ActivityPubObject {
                         }
                     });
                 });
-            });
+            };
+
+            //  A refresh is background work: the caller has its answer
+            //  already, so an inbox POST is not failed by a refresh the
+            //  fetch budget refuses (it is still budgeted)
+            if (cacheHit) {
+                return FetchBudget.background(() =>
+                    Actor._fromWebFinger(id, fromUser, keyId, onFetched)
+                );
+            }
+            return Actor._fromWebFinger(id, fromUser, keyId, onFetched);
         });
     }
 
