@@ -633,6 +633,14 @@ module.exports = {
         type: 'boolean',
         description: 'Trust X-Forwarded-For when behind a reverse proxy.',
     },
+
+    //  ── Reverse proxies ──────────────────────────────────────────────────
+    'trustedProxies': {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+            'Reverse proxies whose X-Forwarded-For / X-Real-IP headers are believed, as IP addresses or CIDRs. Replaces the default (loopback and private ranges) when set.',
+    },
     'loginServers.ssh.privateKeyPass': { type: 'string' },
 
     //
