@@ -33,6 +33,7 @@ exports.getJson = getJson;
 exports.postJson = postJson;
 exports.allowInsecureHttp = () => _allowHttp();
 exports._checkedLookup = _checkedLookup; // exported for tests
+exports._redirectUrl = _redirectUrl; // exported for tests
 
 //
 //  SSRF protection at connect time (#966). isSafeOutboundUrl() only sees the
@@ -185,6 +186,17 @@ function _maxResponseBodyBytes() {
     }
 }
 
+//
+//  The URL of the hop follow-redirects is about to request, from the options
+//  it built for it: an IPv6 hostname comes without its brackets, and the
+//  port (empty or null for the protocol's default) separately.
+//
+function _redirectUrl(reqOptions) {
+    const { protocol, hostname, port, path } = reqOptions;
+    const host = hostname.includes(':') ? `[${hostname}]` : hostname;
+    return `${protocol}//${host}${port ? `:${port}` : ''}${path}`;
+}
+
 function _makeRequest(url, options, cb) {
     options = Object.assign({}, { timeout: DefaultTimeoutMilliseconds }, options);
 
@@ -248,7 +260,7 @@ function _makeRequest(url, options, cb) {
         //  redirect target for SSRF before following it.
         const redirectOpts = {
             beforeRedirect(reqOptions) {
-                const redirectUrl = `${reqOptions.protocol}//${reqOptions.hostname}${reqOptions.path}`;
+                const redirectUrl = _redirectUrl(reqOptions);
                 const reason = isSafeOutboundUrl(redirectUrl, _allowHttp());
                 if (reason) {
                     throw new Error(`Redirect blocked: ${reason}`);

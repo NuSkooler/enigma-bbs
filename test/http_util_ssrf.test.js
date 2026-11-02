@@ -573,6 +573,68 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
                 });
             });
         });
+        it('checks a redirect to an IPv6 literal as that address, not as unparseable', done => {
+            const opts = Object.assign({}, tls, {
+                headers: { 'X-Redirect-To': `https://[::1]:${ports.https}/thing` },
+            });
+            HttpUtil.getJson(url('ok', '/redir'), opts, err => {
+                assert.ok(err, 'refused');
+                assert.match(err.message, /IPv6 address "\[::1\]".*\(loopback\)/);
+                return done();
+            });
+        });
+    });
+
+    describe('_redirectUrl() (#966)', function () {
+        //  options as follow-redirects' spreadUrlObject() leaves them
+        const hop = location => {
+            const u = new URL(location);
+            return {
+                protocol: u.protocol,
+                hostname: u.hostname.replace(/^\[(.*)\]$/, '$1'),
+                port: u.port === '' ? '' : Number(u.port),
+                path: u.pathname + u.search,
+            };
+        };
+
+        it('brackets an IPv6 host and keeps the port', () => {
+            const built = HttpUtil._redirectUrl(
+                hop('https://[2606:4700::1111]:8443/x?y=1')
+            );
+            assert.equal(built, 'https://[2606:4700::1111]:8443/x?y=1');
+            assert.equal(Security.isSafeOutboundUrl(built), null);
+            //  what FetchBudget.chargeRedirect() keys the hop on
+            assert.equal(new URL(built).hostname, '[2606:4700::1111]');
+        });
+
+        it('leaves a name, and a default port, as they are', () => {
+            assert.equal(
+                HttpUtil._redirectUrl(hop('https://ok.ssrf-fixture.net:8443/a')),
+                'https://ok.ssrf-fixture.net:8443/a'
+            );
+            assert.equal(
+                HttpUtil._redirectUrl(hop('https://ok.ssrf-fixture.net/a')),
+                'https://ok.ssrf-fixture.net/a'
+            );
+            assert.equal(
+                HttpUtil._redirectUrl(hop('https://[2a02::1]/a')),
+                'https://[2a02::1]/a'
+            );
+        });
+
+        it('treats a null port as the default', () => {
+            //  url.parse()-style options, as follow-redirects builds them
+            //  without native URL support
+            assert.equal(
+                HttpUtil._redirectUrl({
+                    protocol: 'https:',
+                    hostname: '::1',
+                    port: null,
+                    path: '/',
+                }),
+                'https://[::1]/'
+            );
+        });
     });
 
     describe('WebFinger http:// fallback (#966)', function () {
