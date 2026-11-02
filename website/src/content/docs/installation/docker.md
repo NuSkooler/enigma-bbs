@@ -158,6 +158,11 @@ Then browse to `https://bbs.example.com/_enig/ws-term/`. `root` is read on each 
 needs no container restart. See [The endpoint](../servers/loginservers/enig-term.md#the-endpoint)
 for when ENiGMA½ can work the endpoint out itself.
 
+A proxy in another container connects from a private Docker network address, which the default
+[`trustedProxies`](../servers/loginservers/websocket.md#trusted-proxies) already covers; set
+`proxied: true` in `loginServers.webSocket` so the caller's address and `X-Forwarded-Proto` are
+read from it.
+
 The enig-term version is pinned to the image: `ENIG_TERM_VERSION` in `docker/Dockerfile` names
 the release, and `ENIG_TERM_SHA256` its checksum, which the build checks. It changes when the
 image does. To run a different release, mount your own copy and point `root` at it instead,

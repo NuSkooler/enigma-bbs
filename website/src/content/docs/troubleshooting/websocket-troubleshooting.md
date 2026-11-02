@@ -113,12 +113,31 @@ With `proxied: true` set and nginx forwarding connections, features that require
 
 ***Solutions:***
 
-1. **Missing `X-Forwarded-Proto` header.** ENiGMA trusts the proxy only when the connection carries `X-Forwarded-Proto: https`. Confirm your nginx config includes:
+1. **Missing `X-Forwarded-Proto` header.** ENiGMA treats a proxied connection as secure only when it carries `X-Forwarded-Proto: https`. Confirm your nginx config includes:
    ```nginx
    proxy_set_header X-Forwarded-Proto https;
    ```
 
-2. **`proxied: true` set but no proxy in use.** If ENiGMA is exposed directly to the internet (not behind nginx/Caddy), do not set `proxied: true`. Use the `wss:` block directly instead.
+2. **Proxy not in `trustedProxies`.** Forwarded headers are ignored unless the proxy's address is in `trustedProxies`, which by default covers loopback and the private ranges only. If the log shows `Ignoring forwarded headers from a WebSocket peer not in trustedProxies`, add that address. See [Trusted Proxies](../servers/loginservers/websocket.md#trusted-proxies).
+
+3. **`proxied: true` set but no proxy in use.** If ENiGMA is exposed directly to the internet (not behind nginx/Caddy), do not set `proxied: true`. Use the `wss:` block directly instead.
+
+---
+
+## Every Caller Shows the Proxy's Address
+
+***Symptom:***
+Behind a reverse proxy, every WebSocket caller is logged from the proxy's address (often `127.0.0.1`), and the log shows `WebSocket connection from a trusted proxy carried no client address`.
+
+***Solution:***
+Have the proxy send the caller's address, and set `proxied: true`. For nginx:
+
+```nginx
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Real-IP       $remote_addr;
+```
+
+If the proxy is not on the same host, in a container or on the LAN, also add its address to `trustedProxies`. See [Trusted Proxies](../servers/loginservers/websocket.md#trusted-proxies).
 
 ---
 

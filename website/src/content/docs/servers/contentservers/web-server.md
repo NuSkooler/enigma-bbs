@@ -64,6 +64,30 @@ If you don't have a TLS certificate for your domain, a good source for a certifi
 Keep in mind that the SSL certificate provided by Let's Encrypt's Certbot is by default stored in a privileged location; if your ENIGMA instance is not running as root (which it should not be!), you'll need to copy the SSL certificate somewhere else in order for ENIGMA to use it.
 :::
 
+## Reverse Proxies
+The web server is often run behind a reverse proxy such as nginx or [Caddy](https://caddyserver.com/), which then connects to ENiGMA½ in place of every visitor. To find a visitor's own address, ENiGMA½ reads `X-Forwarded-For` (right to left, skipping addresses that are themselves trusted proxies) or, failing that, `X-Real-IP`, but only on requests from an address in the top-level `trustedProxies` setting. Requests from anywhere else use the connecting address, and their forwarded headers are ignored.
+
+The default covers loopback and the private ranges (`127.0.0.0/8`, `::1/128`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`), so a proxy on the same host, in another Docker container or on the LAN needs no change. A proxy on any other address must be listed:
+
+```hjson
+trustedProxies: [
+    "127.0.0.0/8"
+    "::1/128"
+    "203.0.113.10"
+]
+```
+
+Entries are IPv4 or IPv6 addresses or CIDRs. Setting `trustedProxies` replaces the default list, so keep the entries you still need. The same setting applies to the [WebSocket login server](../loginservers/websocket.md#trusted-proxies). The `Forwarded` header (RFC 7239) is not read.
+
+Caddy's `reverse_proxy` sends `X-Forwarded-For` by itself. With nginx, add:
+
+```nginx
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Real-IP       $remote_addr;
+```
+
+The web server's rate limits (REST API login, password reset and 2FA/OTP registration pages) count requests per visitor address, so behind a trusted proxy each visitor has their own limit, and a `Rate limit exceeded` log line names the visitor rather than the proxy.
+
 ## Static Root
 Static files live relative to the `contentServers.web.staticRoot` path which defaults to `enigma-bbs/www`. This is also commonly known as your "public root" directory.
 

@@ -77,7 +77,7 @@ Enabling Two-Factor Authentication via One-Time-Password (2FA/OTP) on an account
 * The [web server](../servers/contentservers/web-server.md) enabled and exposed over TLS (HTTPS).
 
 :::note
-For WebSockets and the web server, ENiGMA½ _may_ listen on insecure channels if behind a secure web proxy.
+For WebSockets and the web server, ENiGMA½ _may_ listen on insecure channels if behind a secure web proxy. A proxy that is not on the same host, in a container or on the LAN must be listed in `trustedProxies`: see [Trusted Proxies](../servers/loginservers/websocket.md#trusted-proxies).
 :::
 
 ### User Registration Flow

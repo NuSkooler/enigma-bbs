@@ -43,10 +43,12 @@ loginServers: {
         }
 
         // Set proxied: true when a TLS-terminating reverse proxy (e.g. nginx)
-        // forwards connections to ENiGMA's plain ws:// port.  ENiGMA will treat
-        // any connection carrying the "X-Forwarded-Proto: https" header as
-        // secure, which is required for 2FA/OTP and other security-sensitive
-        // features.  Leave false (default) if ENiGMA is exposed directly.
+        // forwards connections to ENiGMA's plain ws:// port.  From a trusted
+        // proxy (see Trusted Proxies below), ENiGMA then takes the caller's
+        // address from X-Forwarded-For / X-Real-IP, and treats a connection
+        // carrying "X-Forwarded-Proto: https" as secure, which is required for
+        // 2FA/OTP and other security-sensitive features.  Leave false
+        // (default) if ENiGMA is exposed directly.
         proxied: true
     }
 }
@@ -83,7 +85,7 @@ loginServers: {
             enabled: true
             address: 127.0.0.1   // loopback only — nginx is the public face
         }
-        proxied: true            // trust X-Forwarded-Proto from the proxy
+        proxied: true            // read forwarded headers from the proxy
     }
 }
 ```
@@ -97,6 +99,8 @@ location /wss {
     proxy_set_header   Upgrade    $http_upgrade;
     proxy_set_header   Connection "Upgrade";
     proxy_set_header   Host       $host;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Real-IP         $remote_addr;
     proxy_set_header   X-Forwarded-Proto https;
 }
 ```
@@ -104,6 +108,31 @@ location /wss {
 Point `wsConnect` in `vtxdata.js` to `wss://your-hostname.here/wss`.
 
 See [nginx WebSocket proxying](https://nginx.org/en/docs/http/websocket.html) for more detail.
+
+Caddy's `reverse_proxy` and Traefik send `X-Forwarded-For` and `X-Forwarded-Proto` by themselves.
+
+### Trusted Proxies
+
+Forwarded headers are believed only from the addresses in the top-level `trustedProxies` setting, which the [web server](../contentservers/web-server.md#reverse-proxies) uses too. The default covers loopback and the private ranges (`127.0.0.0/8`, `::1/128`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`), so a proxy on the same host, in another Docker container or on the LAN needs no change. A proxy on any other address must be listed:
+
+```hjson
+trustedProxies: [
+    "127.0.0.0/8"
+    "::1/128"
+    "203.0.113.10"
+]
+```
+
+Entries are IPv4 or IPv6 addresses or CIDRs. Setting `trustedProxies` replaces the default list, so keep the entries you still need.
+
+With `proxied: true`:
+
+* The caller's address comes from `X-Forwarded-For`, read right to left, skipping addresses that are themselves trusted proxies; failing that, from `X-Real-IP`.
+* `X-Forwarded-Proto: https` marks the connection as secure.
+* Forwarded headers from a peer not in `trustedProxies` are ignored. The log says so once per address, naming `trustedProxies`: if that address is your proxy, add it.
+* If the proxy sends no client address, every caller appears to come from the proxy. Those callers are not treated as local, and the log suggests sending `X-Forwarded-For`.
+
+The `Forwarded` header (RFC 7239) is not read.
 
 ### Option B — ENiGMA handles TLS directly
 
@@ -211,4 +240,6 @@ ENiGMA supports the [VTX WebSocket client](https://github.com/codewar65/VTX_Clie
 | `wss.address` | | Bind address for `wss://`. |
 | `wss.certPem` | Yes (if wss enabled) | Path to TLS certificate in PEM format. |
 | `wss.keyPem` | Yes (if wss enabled) | Path to TLS private key in PEM format. |
-| `proxied` | | Set `true` when behind a TLS-terminating proxy. Trusts `X-Forwarded-Proto: https`. Default: `false`. |
+| `proxied` | | Set `true` when behind a TLS-terminating proxy. Reads the caller's address and `X-Forwarded-Proto: https` from proxies in `trustedProxies`. Default: `false`. |
+
+`trustedProxies` is a top-level setting, not part of the `webSocket` block: see [Trusted Proxies](#trusted-proxies).
