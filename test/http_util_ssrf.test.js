@@ -70,6 +70,8 @@ function makeFixtureCert(dir) {
     return { cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) };
 }
 
+const HopTargets = { ok: 'ok', victim: 'victim' };
+
 const ALLOWED_ADDR = '127.0.0.1';
 const BLOCKED_ADDR = '127.0.0.2';
 
@@ -229,12 +231,14 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
         if (hop) {
             //  /hop/N/host: redirect to host's /hop/N-1/host, then answer
             const n = Number(hop[1]);
+            //  only the hosts the tests name, not whatever the path says
+            const target = HopTargets[hop[2]];
             hits.push(`${req.headers.host.split('.')[0]} ${req.url}`);
-            if (n > 0) {
+            if (n > 0 && target) {
                 res.writeHead(302, {
-                    Location: `https://${hop[2]}.ssrf-fixture.net:${ports.https}/hop/${
+                    Location: `https://${target}.ssrf-fixture.net:${ports.https}/hop/${
                         n - 1
-                    }/${hop[2]}`,
+                    }/${target}`,
                 });
                 return res.end();
             }
@@ -498,7 +502,7 @@ describe('http_util connect-time SSRF checks (real sockets)', function () {
         };
         const signedOpts = () => {
             const { privateKey } = crypto.generateKeyPairSync('rsa', {
-                modulusLength: 1024,
+                modulusLength: 2048,
             });
             return Object.assign({}, tls, {
                 headers: { Date: new Date().toUTCString() },
