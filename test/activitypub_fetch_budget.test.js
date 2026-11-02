@@ -542,6 +542,19 @@ describe('negative cache (#966)', function () {
         assert.equal(cache.size, 0);
     });
 
+    it("gives back a redirected failure's responseUrl", () => {
+        const cache = new NegCache.NegativeCache();
+        const err = httpError(410);
+        err.responseUrl = 'https://other.ssrf-fixture.net/users/alice';
+        cache.set('redirected', err);
+        cache.set('direct', httpError(410));
+        assert.equal(
+            cache.get('redirected').responseUrl,
+            'https://other.ssrf-fixture.net/users/alice'
+        );
+        assert.ok(!('responseUrl' in cache.get('direct')), 'none made up');
+    });
+
     it('keeps at most maxEntries, dropping the oldest', () => {
         const cache = new NegCache.NegativeCache(3);
         ['a', 'b', 'c'].forEach(k => cache.set(k, httpError(404)));

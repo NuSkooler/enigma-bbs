@@ -47,7 +47,7 @@ const instances = [];
 class NegativeCache {
     constructor(maxEntries = DefaultMaxEntries) {
         this.maxEntries = maxEntries;
-        this.entries = new Map(); // key -> { expiresAt, message, code, reasonCode, statusCode }
+        this.entries = new Map(); // key -> { expiresAt, message, code, reasonCode, statusCode, responseUrl }
         instances.push(this);
     }
 
@@ -64,6 +64,9 @@ class NegativeCache {
         const err = new EnigError(entry.message, entry.code);
         err.reasonCode = entry.reasonCode;
         err.statusCode = entry.statusCode;
+        if (entry.responseUrl) {
+            err.responseUrl = entry.responseUrl;
+        }
         err.negativeCached = true;
         return err;
     }
@@ -85,6 +88,7 @@ class NegativeCache {
             code: err.code,
             reasonCode: err.reasonCode,
             statusCode: err.statusCode,
+            responseUrl: err.responseUrl, // where a redirected fetch ended up
         });
     }
 
