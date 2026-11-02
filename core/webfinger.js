@@ -86,9 +86,12 @@ function queryWebFinger(query, cb) {
     if (remembered) {
         return cb(remembered);
     }
+    //  taken before the https:// try, so that a config reload during it,
+    //  or during the http:// fallback, keeps a stale refusal out
+    const failureToken = lookupFailures.token();
     const done = (err, json, answeredBy) => {
         if (err) {
-            lookupFailures.set(failureKey, err);
+            lookupFailures.set(failureKey, err, failureToken);
             return cb(err);
         }
         lookupFailures.delete(failureKey);

@@ -1373,6 +1373,69 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
             assert.equal(tries(), 3);
         });
 
+        //  a refusal made under the config a reload replaced (an address
+        //  just added to allowedPrivateAddresses, say) is not remembered
+        describe('a lookup in flight across a config reload', function () {
+            const NegCache = require('../core/activitypub/negative_cache.js');
+            let pending;
+            let stand;
+            beforeEach(() => {
+                pending = [];
+                stand = HttpUtil.getJson;
+                HttpUtil.getJson = (url, opts, cb) => {
+                    if (String(url) !== kim) {
+                        return stand(url, opts, cb);
+                    }
+                    fetched.push(url);
+                    pending.push(cb);
+                };
+            });
+            afterEach(() => {
+                HttpUtil.getJson = stand;
+            });
+
+            const refuse = () =>
+                pending.shift()(
+                    Errors.AccessDenied('blocked address', ErrorReasons.BlockedAddress)
+                );
+            //  { lookup }: a lookup that has reached the network
+            const inFlight = async () => {
+                let answered;
+                const lookup = fromId(kim).then(res => (answered = res));
+                while (!pending.length) {
+                    assert.ok(
+                        !answered,
+                        `answered without a fetch: ${answered && answered.err}`
+                    );
+                    await new Promise(resolve => setImmediate(resolve));
+                }
+                return { lookup };
+            };
+
+            it('does not remember its failure', async () => {
+                const { lookup } = await inFlight();
+                NegCache._onConfigChanged();
+                refuse();
+                assert.ok((await lookup).err);
+
+                //  fetched again, not refused from the negative cache
+                const again = await inFlight();
+                assert.equal(tries(), 2);
+                refuse();
+                assert.ok(!(await again.lookup).err.negativeCached);
+            });
+
+            it('remembers it without a reload, as before', async () => {
+                const { lookup } = await inFlight();
+                refuse();
+                assert.ok((await lookup).err);
+
+                const again = await fromId(kim);
+                assert.equal(again.err.negativeCached, true);
+                assert.equal(tries(), 1, 'not fetched again');
+            });
+        });
+
         it('never remembers a fetch the budget refused', async () => {
             const stand = HttpUtil.getJson;
             HttpUtil.getJson = (url, opts, cb) => {

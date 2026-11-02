@@ -597,6 +597,19 @@ describe('negative cache (#966)', function () {
         assert.equal(cache.size, 0);
     });
 
+    it('drops a failure from a lookup that started before a config reload', () => {
+        const cache = new NegCache.NegativeCache();
+        const before = cache.token();
+        NegCache._onConfigChanged();
+        cache.set('stale', Errors.AccessDenied('x', ErrorReasons.BlockedAddress), before);
+        assert.equal(cache.get('stale'), null, 'made under the old config');
+
+        cache.set('fresh', httpError(404), cache.token());
+        assert.ok(cache.get('fresh'), 'started after the reload');
+        cache.set('untokened', httpError(404));
+        assert.ok(cache.get('untokened'), 'no token: as before');
+    });
+
     describe('WebFinger', function () {
         //  https to a loopback literal is refused before any connection
         //  (AccessDenied), which makes a definite failure with no network
@@ -626,6 +639,72 @@ describe('negative cache (#966)', function () {
             clock += NegCache.DefiniteTtlMs;
             const third = await finger();
             assert.ok(!third.negativeCached, 'asked again');
+        });
+
+        describe('in flight across a config reload', function () {
+            //  a name, so the lookup waits on DNS: held until the test
+            //  answers it with a loopback address (refused: AccessDenied)
+            const host = 'reload.ssrf-fixture.net';
+            const dns = require('node:dns');
+            let savedLookup;
+            let held;
+            beforeEach(() => {
+                held = [];
+                savedLookup = dns.lookup;
+                dns.lookup = (hostname, opts, cb) => held.push(cb);
+            });
+            afterEach(() => {
+                dns.lookup = savedLookup;
+            });
+
+            const answer = () => {
+                const cb = held.shift();
+                assert.ok(cb, 'a lookup is waiting');
+                cb(null, [{ address: '127.0.0.1', family: 4 }]);
+            };
+            //  { pending }: a lookup that has reached DNS
+            const started = async () => {
+                let answered;
+                const pending = new Promise(resolve =>
+                    WebFinger.queryWebFinger(`@alice@${host}`, err => {
+                        answered = err;
+                        resolve(err);
+                    })
+                );
+                while (!held.length) {
+                    assert.ok(!answered, `answered without a lookup: ${answered}`);
+                    await new Promise(resolve => setImmediate(resolve));
+                }
+                return { pending };
+            };
+
+            it('does not remember a refusal made under the old config', async () => {
+                const { pending } = await started();
+                NegCache._onConfigChanged();
+                answer();
+                const first = await pending;
+                assert.equal(first.code, ErrorCodes.AccessDenied);
+
+                //  not remembered: this one reaches DNS (started() waits for it)
+                const again = await started();
+                answer();
+                const second = await again.pending;
+                assert.equal(second.code, ErrorCodes.AccessDenied);
+                assert.ok(!second.negativeCached);
+            });
+
+            it('remembers it without a reload, as before', async () => {
+                const { pending } = await started();
+                answer();
+                const first = await pending;
+                assert.equal(first.code, ErrorCodes.AccessDenied);
+
+                const again = await new Promise(resolve =>
+                    WebFinger.queryWebFinger(`@alice@${host}`, err => resolve(err))
+                );
+                assert.equal(again.negativeCached, true);
+                assert.equal(held.length, 0, 'not asked again');
+            });
         });
 
         it('never remembers a lookup the budget refused', async () => {

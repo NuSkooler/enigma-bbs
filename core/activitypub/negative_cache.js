@@ -14,6 +14,9 @@
 //  A config reload forgets everything: a lookup refused for an address the
 //  operator has just listed in allowedPrivateAddresses (or for the board's
 //  own URL, just changed) should be tried again now, not in 15 minutes.
+//  A lookup already in flight then must not store a refusal made under the
+//  old config: callers take a token() when a lookup starts and pass it to
+//  set(), which drops the failure if the cache was cleared since.
 //
 
 const { EnigError, ErrorCodes } = require('../enig_error.js');
@@ -65,6 +68,7 @@ class NegativeCache {
     constructor(maxEntries = DefaultMaxEntries) {
         this.maxEntries = maxEntries;
         this.entries = new Map(); // key -> { expiresAt, message, code, reasonCode, statusCode, responseUrl }
+        this.generation = 0; // bumped by clear()
         instances.push(this);
         listenForConfigChanges();
     }
@@ -89,8 +93,18 @@ class NegativeCache {
         return err;
     }
 
-    //  Remember |err| for |key|, unless it is not worth remembering
-    set(key, err) {
+    //  Taken when a lookup starts (before any fetch), for set()
+    token() {
+        return this.generation;
+    }
+
+    //  Remember |err| for |key|, unless it is not worth remembering, or
+    //  |token| (optional, from token()) shows the cache was cleared while
+    //  the lookup was in flight: the failure may be stale (a config reload)
+    set(key, err, token) {
+        if (token !== undefined && token !== this.generation) {
+            return;
+        }
         const ttl = failureTtlMs(err);
         if (!ttl) {
             return;
@@ -116,6 +130,7 @@ class NegativeCache {
 
     clear() {
         this.entries.clear();
+        ++this.generation;
     }
 
     get size() {

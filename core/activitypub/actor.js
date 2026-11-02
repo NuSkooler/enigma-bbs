@@ -283,8 +283,12 @@ module.exports = class Actor extends ActivityPubObject {
             !!fromUser,
             !!options.alias,
         ]);
+        //  taken before anything is looked up, so a refusal made under a
+        //  config that was reloaded meanwhile is not remembered; a refresh
+        //  of a cached actor is covered too
+        const failureToken = ActorLookupFailures.token();
         const failed = err => {
-            ActorLookupFailures.set(failureKey, err);
+            ActorLookupFailures.set(failureKey, err, failureToken);
             return callback(err);
         };
 
