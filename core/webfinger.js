@@ -1,9 +1,14 @@
 const { Errors } = require('./enig_error');
 const { getJson } = require('./http_util');
+const { NegativeCache } = require('./activitypub/negative_cache.js');
 
 // deps
 
 exports.queryWebFinger = queryWebFinger;
+
+//  failed lookups, by the https:// URL asked (#966): not repeated for a
+//  while; see activitypub/negative_cache.js
+const lookupFailures = new NegativeCache();
 
 function queryWebFinger(query, cb) {
     if (typeof query !== 'string' || !query) {
@@ -75,16 +80,30 @@ function queryWebFinger(query, cb) {
         });
     };
 
+    const failureKey = `https://${host}/.well-known/webfinger?resource=${resource}`;
+    const remembered = lookupFailures.get(failureKey);
+    if (remembered) {
+        return cb(remembered);
+    }
+    const done = (err, json, answeredBy) => {
+        if (err) {
+            lookupFailures.set(failureKey, err);
+            return cb(err);
+        }
+        lookupFailures.delete(failureKey);
+        return cb(null, json, answeredBy);
+    };
+
     //  Try HTTPS first (required by the WebFinger spec). If the connection is
     //  refused fall back to HTTP — useful for local dev servers (e.g. GoToSocial
     //  running without TLS) and instances behind a plain-HTTP proxy.
     tryFetch('https', (err, json, answeredBy) => {
         if (!err) {
-            return cb(null, json, answeredBy);
+            return done(null, json, answeredBy);
         }
         if (!['ECONNREFUSED', 'ECONNRESET', 'EPROTO'].includes(err.code)) {
-            return cb(err);
+            return done(err);
         }
-        tryFetch('http', cb);
+        tryFetch('http', done);
     });
 }

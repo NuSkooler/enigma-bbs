@@ -947,6 +947,23 @@
                                     },
                                     "maxResponseBodyBytes": {
                                         "type": "number"
+                                    },
+                                    "outboundFetchLimits": {
+                                        "type": "object",
+                                        "properties": {
+                                            "perHostConcurrency": {
+                                                "type": "number"
+                                            },
+                                            "perHostPerMinute": {
+                                                "type": "number"
+                                            },
+                                            "globalConcurrency": {
+                                                "type": "number"
+                                            },
+                                            "globalPerMinute": {
+                                                "type": "number"
+                                            }
+                                        }
                                     }
                                 }
                             }

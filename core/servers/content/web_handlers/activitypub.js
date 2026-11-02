@@ -34,6 +34,7 @@ const EnigAssert = require('../../../enigma_assert');
 const Message = require('../../../message');
 //  called through the module, so tests can stand in for the network
 const HttpUtil = require('../../../http_util');
+const FetchBudget = require('../../../activitypub/fetch_budget');
 const Events = require('../../../events');
 const { Errors } = require('../../../enig_error');
 const { getFullUrl } = require('../../../web_util');
@@ -62,6 +63,9 @@ const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
+
+//  Retry-After for an inbox POST that ran over its fetch budget (#966)
+const FetchBudgetRetryAfterSecs = 60;
 
 //  collections whose rows are actors (the cache, follow lists), not Notes
 const ActorKeyedCollections = [
@@ -336,14 +340,34 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    //
+    //  cb(err, objectActor, signatureActor, fresh): fresh lists the actors
+    //  fetched now rather than read from the cache, as { actor, subject }.
+    //  They are not cached here: the inbox caches them once the signature
+    //  checks out (_cacheFreshActors), so a POST that fails it cannot plant
+    //  an actor in the cache.
+    //
     _getAssociatedActors(objectActorId, keyId, cb) {
         const signatureActorId = actorIdFromKeyId(keyId);
+        const fresh = [];
+        const noteFresh = (actor, subject, isFresh) => {
+            if (isFresh && actor && !fresh.some(f => f.actor.id === actor.id)) {
+                fresh.push({ actor, subject });
+            }
+        };
+        const deferCache = { deferCache: true };
         async.waterfall(
             [
                 callback => {
-                    Actor.fromId(objectActorId, (err, objectActor) => {
-                        return callback(err, objectActor);
-                    });
+                    Actor.fromId(
+                        objectActorId,
+                        null,
+                        (err, objectActor, subject, isFresh) => {
+                            noteFresh(objectActor, subject, isFresh);
+                            return callback(err, objectActor);
+                        },
+                        deferCache
+                    );
                 },
                 (objectActor, callback) => {
                     // shortcut
@@ -353,37 +377,84 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                     //  by keyId, so a key URL answered with its owning actor
                     //  is checked against that keyId
-                    Actor.fromKeyId(keyId, (err, signatureActor) => {
-                        if (err) {
-                            return callback(err);
-                        }
+                    Actor.fromKeyId(
+                        keyId,
+                        (err, signatureActor, subject, isFresh) => {
+                            if (err) {
+                                return callback(err);
+                            }
+                            noteFresh(signatureActor, subject, isFresh);
 
-                        //  Domain binding: the fetched actor's canonical id must belong
-                        //  to the same host as the keyId.  Without this check an attacker
-                        //  could host a key at evil.example and return an actor JSON
-                        //  claiming id: "https://good.example/users/victim".
-                        if (
-                            signatureActor &&
-                            !actorDomainMatchesKeyId(signatureActor.id, signatureActorId)
-                        ) {
-                            return callback(
-                                Errors.ValidationFailed(
-                                    `Actor id domain (${signatureActor.id}) does not match keyId domain (${signatureActorId})`
+                            //  Domain binding: the fetched actor's canonical id must belong
+                            //  to the same host as the keyId.  Without this check an attacker
+                            //  could host a key at evil.example and return an actor JSON
+                            //  claiming id: "https://good.example/users/victim".
+                            if (
+                                signatureActor &&
+                                !actorDomainMatchesKeyId(
+                                    signatureActor.id,
+                                    signatureActorId
                                 )
-                            );
-                        }
+                            ) {
+                                return callback(
+                                    Errors.ValidationFailed(
+                                        `Actor id domain (${signatureActor.id}) does not match keyId domain (${signatureActorId})`
+                                    )
+                                );
+                            }
 
-                        return callback(null, objectActor, signatureActor);
-                    });
+                            return callback(null, objectActor, signatureActor);
+                        },
+                        deferCache
+                    );
                 },
             ],
             (err, objectActor, signatureActor) => {
-                return cb(err, objectActor, signatureActor);
+                return cb(err, objectActor, signatureActor, err ? [] : fresh);
             }
         );
     }
 
+    //  Cache the actors _getAssociatedActors fetched, once trusted
+    _cacheFreshActors(fresh) {
+        (fresh || []).forEach(({ actor, subject }) => {
+            Collection.addActor(actor, subject, err => {
+                if (err) {
+                    this.log.warn(
+                        { actorId: actor.id, error: err.message },
+                        'Failed to cache remote actor'
+                    );
+                }
+            });
+        });
+    }
+
+    //
+    //  When a fetch made for this inbox POST was refused by the fetch budget
+    //  (#966), answer 503 with Retry-After and return true: the activity is
+    //  not refused, it is to be sent again later, as Mastodon and GoToSocial
+    //  do for a 5xx. Checked wherever the inbox answers after a fetch.
+    //
+    _overFetchBudget(resp, logInfo) {
+        if (!FetchBudget.exceeded()) {
+            return false;
+        }
+        this.log.warn(
+            logInfo,
+            'Inbox fetch budget exceeded — asking the sender to retry'
+        );
+        this.webServer.serviceUnavailable(resp, FetchBudgetRetryAfterSecs);
+        return true;
+    }
+
+    //  Each POST runs in its own fetch budget (see activitypub/fetch_budget.js)
     _inboxPostHandler(req, resp, signature, inboxType) {
+        return FetchBudget.run(() =>
+            this._handleInboxPost(req, resp, signature, inboxType)
+        );
+    }
+
+    _handleInboxPost(req, resp, signature, inboxType) {
         EnigAssert(signature, 'Called without signature!');
         EnigAssert(signature.keyId, 'No keyId in signature!');
 
@@ -472,7 +543,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             this._getAssociatedActors(
                 getActorId(activity),
                 signature.keyId,
-                (err, remoteActor, signatureActor) => {
+                (err, remoteActor, signatureActor, fresh) => {
+                    //  also catches a refused lookup that was swallowed on
+                    //  the way (a WebFinger for the handle, say)
+                    if (
+                        this._overFetchBudget(resp, {
+                            sigActorId,
+                            activityType: activity.type,
+                            inboxType,
+                        })
+                    ) {
+                        return;
+                    }
+
                     if (err) {
                         //  An actor that deleted itself may be gone from its
                         //  server before its Delete reaches us, so its key
@@ -509,6 +592,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         );
                         return this.webServer.accessDenied(resp);
                     }
+
+                    //  trusted now: the actors fetched for this POST may be cached
+                    this._cacheFreshActors(fresh);
 
                     //  Who signed: the actor whose key verified the signature.
                     //  Its id must be on the keyId's host, which
@@ -745,6 +831,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         verified((err, note, storedActivity) => {
             if (err) {
+                if (
+                    this._overFetchBudget(resp, {
+                        activityId: activity.id,
+                        noteId: received.id,
+                    })
+                ) {
+                    return;
+                }
                 this.log.warn(
                     {
                         error: err.message,
@@ -791,6 +885,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             err => {
                 //  a repeated delivery of the same Note is not an error
                 if (err && !isConstraintError(err)) {
+                    //  the author lookup for the message may have been refused
+                    if (this._overFetchBudget(resp, { activityId: activity.id })) {
+                        return;
+                    }
                     return this.webServer.internalServerError(resp, err);
                 }
 
@@ -815,6 +913,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 fetchUser,
                 (err, note) => {
                     if (err) {
+                        if (this._overFetchBudget(resp, { activityId: activity.id })) {
+                            return;
+                        }
                         this.log.warn(
                             {
                                 activityId: activity.id,
@@ -861,6 +962,16 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             note,
                             err => {
                                 if (err && !isConstraintError(err)) {
+                                    //  the author lookup may have been refused;
+                                    //  the boost record is idempotent on a retry
+                                    if (
+                                        this._overFetchBudget(resp, {
+                                            activityId: activity.id,
+                                            noteId: note.id,
+                                        })
+                                    ) {
+                                        return;
+                                    }
                                     this.log.error(
                                         {
                                             activityId: activity.id,
@@ -1340,6 +1451,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 err.statusCode === 410 &&
                 sameHost(err.responseUrl || actorId, actorId);
             if (!gone) {
+                if (this._overFetchBudget(resp, { actorId, inboxType })) {
+                    return;
+                }
                 this.log.warn(
                     {
                         actorId,
@@ -1467,6 +1581,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     opts.sign = sign;
                 }
                 HttpUtil.getJson(objectId, opts, (err, doc, res) => {
+                    //  this GET, or _forwardedDeleteViewer's actor lookup
+                    if (this._overFetchBudget(resp, { objectId, actorId, inboxType })) {
+                        return;
+                    }
                     const answeredBy = err
                         ? err.responseUrl || objectId
                         : (res && res.responseUrl) || objectId;

@@ -1,5 +1,6 @@
 const { Errors, ErrorReasons } = require('./enig_error.js');
 const Security = require('./activitypub/security.js');
+const FetchBudget = require('./activitypub/fetch_budget.js');
 const { isSafeOutboundUrl } = Security;
 //  read through the module each time: tests swap config.get and the logger
 const Config = () => require('./config').get();
@@ -198,10 +199,23 @@ function _makeRequest(url, options, cb) {
         }
     }
 
+    //  A GET made while handling an inbox POST is budgeted (#966): see
+    //  activitypub/fetch_budget.js. Outside one this admits everything.
+    //  POSTs (deliveries, Accept, ...) are never budgeted.
+    let release = () => {};
+    if (options.method === 'GET') {
+        const slot = FetchBudget.acquire(url);
+        if (slot.error) {
+            return cb(slot.error);
+        }
+        release = slot.release;
+    }
+
     let cbCalled = false;
     const cbWrapper = (e, b, r) => {
         if (!cbCalled) {
             cbCalled = true;
+            release();
             return cb(e, b, r);
         }
     };
@@ -231,42 +245,47 @@ function _makeRequest(url, options, cb) {
         httpLib = isHttp ? httpWithRedirects : httpsWithRedirects;
     }
 
-    const req = httpLib.request(url, options, res => {
-        const maxBytes = _maxResponseBodyBytes();
-        let body = [];
-        let totalBytes = 0;
+    let req;
+    try {
+        req = httpLib.request(url, options, res => {
+            const maxBytes = _maxResponseBodyBytes();
+            let body = [];
+            let totalBytes = 0;
 
-        res.on('data', d => {
-            totalBytes += d.length;
-            if (totalBytes > maxBytes) {
-                res.destroy();
-                return cbWrapper(
-                    Errors.HttpError(
-                        `Response from ${url} exceeds ${maxBytes} byte limit`
-                    )
-                );
-            }
-            body.push(d);
+            res.on('data', d => {
+                totalBytes += d.length;
+                if (totalBytes > maxBytes) {
+                    res.destroy();
+                    return cbWrapper(
+                        Errors.HttpError(
+                            `Response from ${url} exceeds ${maxBytes} byte limit`
+                        )
+                    );
+                }
+                body.push(d);
+            });
+
+            res.on('end', () => {
+                body = Buffer.concat(body).toString();
+
+                if (res.statusCode < 200 || res.statusCode > 299) {
+                    const err = Errors.HttpError(
+                        `URL ${url} HTTP error ${res.statusCode}: ${truncate(body, {
+                            length: 128,
+                        })}`
+                    );
+                    //  callers may need to know why, and who answered
+                    err.statusCode = res.statusCode;
+                    err.responseUrl = res.responseUrl || url;
+                    return cbWrapper(err);
+                }
+
+                return cbWrapper(null, body, res);
+            });
         });
-
-        res.on('end', () => {
-            body = Buffer.concat(body).toString();
-
-            if (res.statusCode < 200 || res.statusCode > 299) {
-                const err = Errors.HttpError(
-                    `URL ${url} HTTP error ${res.statusCode}: ${truncate(body, {
-                        length: 128,
-                    })}`
-                );
-                //  callers may need to know why, and who answered
-                err.statusCode = res.statusCode;
-                err.responseUrl = res.responseUrl || url;
-                return cbWrapper(err);
-            }
-
-            return cbWrapper(null, body, res);
-        });
-    });
+    } catch (e) {
+        return cbWrapper(e);
+    }
 
     if (isObject(options.sign)) {
         try {

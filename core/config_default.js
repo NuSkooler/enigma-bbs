@@ -448,6 +448,13 @@ module.exports = () => {
                         allowInsecureHttp: false, // set true only for local dev/test (no TLS)
                         maxInboxBodyBytes: 1048576, // 1 MiB; ActivityPub activities are JSON
                         maxResponseBodyBytes: 524288, // 512 KiB; remote actor/note fetch responses
+                        //  inbox-triggered fetches: fail fast past these (#966)
+                        outboundFetchLimits: {
+                            perHostConcurrency: 4,
+                            perHostPerMinute: 60,
+                            globalConcurrency: 32,
+                            globalPerMinute: 600,
+                        },
                     },
                 },
 
