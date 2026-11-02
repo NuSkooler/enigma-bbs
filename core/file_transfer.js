@@ -597,11 +597,17 @@ exports.getModule = class TransferFileModule extends MenuModule {
         //  Their ClientDisconnected has already been and gone, so nothing
         //  would ever kill a program started now.
         //
+        //  Called back on a later tick, as every other outcome is: a caller
+        //  may run the whole rest of the transfer from this callback, and
+        //  must not find itself still inside whatever try it called us from.
+        //
         if (this.client.clientEnded) {
-            return cb(
-                Errors.UnexpectedState(
-                    'Caller disconnected before the transfer started',
-                    'EDISCONNECTED'
+            return setImmediate(() =>
+                cb(
+                    Errors.UnexpectedState(
+                        'Caller disconnected before the transfer started',
+                        'EDISCONNECTED'
+                    )
                 )
             );
         }
@@ -746,13 +752,25 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
             Events.removeListener(disconnectEvent, onDisconnect);
             watch.hungUp = true;
+            this.callerHungUp = true;
 
             client.log.info(
                 { cmd, pid: externalProc.pid },
                 'Caller disconnected during a transfer; killing the protocol program'
             );
 
-            externalProc.kill(); //  SIGHUP
+            //  SIGHUP; on Windows, node-pty's agent ends the process outright
+            externalProc.kill();
+
+            //
+            //  No escalation on Windows: node-pty throws for any signal there
+            //  ("Signals not supported on windows."), possibly later rather
+            //  than from the call, so it cannot be caught here -- and the
+            //  kill() above has already done the job.
+            //
+            if ('win32' === process.platform) {
+                return;
+            }
 
             killTimer = setTimeout(() => {
                 killTimer = null;
@@ -1149,10 +1167,27 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 },
                 function updateUserAndSystemStats(callback) {
                     if (self.isSending()) {
+                        //  a download cut off by a hang-up fails above, and
+                        //  never gets here
                         return self.updateSendStats(callback);
-                    } else {
-                        return self.updateRecvStats(callback);
                     }
+
+                    //
+                    //  A caller who hung up during an upload is never
+                    //  credited for it, even for files its DSZLOG confirms:
+                    //  the upload module that would add them to the file
+                    //  base never runs, and the receive directory is removed
+                    //  with them in it.
+                    //
+                    if (self.callerHungUp || self.client.clientEnded) {
+                        self.client.log.info(
+                            { files: self.recvFilePaths },
+                            'Caller disconnected during the upload; not crediting it'
+                        );
+                        return callback(null);
+                    }
+
+                    return self.updateRecvStats(callback);
                 },
             ],
             err => {

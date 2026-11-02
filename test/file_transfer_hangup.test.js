@@ -55,6 +55,8 @@ function makeClient(uniqueId) {
         setTemporaryDirectDataHandler: noop,
         restoreDataHandler: noop,
         explicitActivityTimeUpdate: noop,
+        beginFreeTime: noop,
+        endFreeTime: noop,
         log: { warn: noop, debug: noop, info: noop, trace: noop, error: noop },
     };
     client.waitForOutput = text =>
@@ -222,6 +224,76 @@ describe('File transfer: kill the protocol program on hang-up', function () {
         assert.equal(Events.listenerCount(DisconnectEvent), baseline);
     });
 
+    it('calls back on a later tick for a caller who has already hung up', async () => {
+        //  no DSZLOG, so nothing on the way to the spawn is asynchronous
+        const client = makeClient('node1-session');
+        client.clientEnded = true;
+        const transfer = makeTransfer(
+            client,
+            { recvCmd: process.execPath, recvArgs: ['-e', LONG_RUNNER] },
+            { direction: 'recv' }
+        );
+
+        let calledBack = false;
+        const done = new Promise(resolve =>
+            transfer.executeExternalProtocolHandlerForRecv(err => {
+                calledBack = true;
+                resolve(err);
+            })
+        );
+        assert.equal(calledBack, false, 'called back from inside the call');
+
+        const err = await done;
+        assert.equal(err.reasonCode, 'EDISCONNECTED');
+        assert.equal(spawned.length, 0);
+    });
+
+    describe('on Windows', () => {
+        let platform;
+
+        beforeEach(() => {
+            platform = Object.getOwnPropertyDescriptor(process, 'platform');
+            Object.defineProperty(process, 'platform', { value: 'win32' });
+        });
+
+        afterEach(() => {
+            Object.defineProperty(process, 'platform', platform);
+        });
+
+        it('kills without a signal, and never escalates', async () => {
+            //  node-pty on Windows throws for any signal argument at all
+            const fake = {
+                pid: 4242,
+                kills: [],
+                kill: (...args) => fake.kills.push(args),
+                write: () => {},
+                onData: () => {},
+                onExit: handler => {
+                    fake.exit = () => handler({ exitCode: 1, signal: 0 });
+                },
+                removeAllListeners: () => {},
+            };
+            pty.spawn = () => fake;
+
+            const baseline = Events.listenerCount(DisconnectEvent);
+            const client = makeClient('node1-session');
+            const transfer = makeTransfer(client, sendExternal(LONG_RUNNER), {
+                protocolKillGraceMs: 20,
+            });
+
+            const done = run(transfer, ['-e', LONG_RUNNER]);
+            Events.emit(DisconnectEvent, { client, connectionCount: 0 });
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+            assert.deepEqual(fake.kills, [[]], 'expected one kill() with no signal');
+
+            fake.exit();
+            const { err } = await done;
+            assert.equal(err.reasonCode, 'EBADEXIT');
+            assert.equal(Events.listenerCount(DisconnectEvent), baseline);
+        });
+    });
+
     it('does not count a download killed by the hang-up as sent', async () => {
         const client = makeClient('node1-session');
         const transfer = makeTransfer(client, sendExternal(LONG_RUNNER), {
@@ -299,6 +371,94 @@ describe('File transfer: kill the protocol program on hang-up', function () {
             );
             assert.equal(err, null, 'expected the DSZLOG salvage to keep done.zip');
             assert.deepEqual(transfer.recvFilePaths, [paths.join(recvDir, 'done.zip')]);
+        });
+    });
+
+    describe('stats', () => {
+        let recvDir;
+
+        beforeEach(() => {
+            recvDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-ft-hangup-'));
+        });
+
+        afterEach(() => {
+            fs.rmSync(recvDir, { recursive: true, force: true });
+        });
+
+        //  the whole transfer, up to the menu it returns to
+        function runSequence(transfer) {
+            transfer.statsUpdated = [];
+            transfer.updateRecvStats = cb => {
+                transfer.statsUpdated.push('upload');
+                return cb(null);
+            };
+            transfer.updateSendStats = cb => {
+                transfer.statsUpdated.push('download');
+                return cb(null);
+            };
+            transfer.checkSendTimeRemaining = cb => cb(null);
+            transfer.temptmp = { cleanup: () => {} };
+            return new Promise(resolve => {
+                transfer.prevMenu = () => resolve();
+                transfer.initSequence();
+            });
+        }
+
+        function uploader(client, script) {
+            return makeTransfer(
+                client,
+                { recvCmd: process.execPath, recvArgs: ['-e', script], dszLog: true },
+                { direction: 'recv', recvDirectory: recvDir }
+            );
+        }
+
+        it('credits an upload that completes', async () => {
+            const script = "require('fs').writeFileSync('done.zip', Buffer.alloc(12));";
+            const transfer = uploader(makeClient('node1-session'), script);
+
+            await runSequence(transfer);
+            assert.deepEqual(transfer.recvFilePaths, [paths.join(recvDir, 'done.zip')]);
+            assert.deepEqual(transfer.statsUpdated, ['upload']);
+        });
+
+        it('credits nothing for an upload cut off by the hang-up', async () => {
+            const script = [
+                "const fs = require('fs');",
+                "fs.writeFileSync('done.zip', Buffer.alloc(12));",
+                'fs.appendFileSync(process.env.DSZLOG,',
+                "  'R      12 115200 bps   12 cps   0 errors     0 1024 done.zip 0\\n');",
+                "process.stdout.write('ready');",
+                'setInterval(() => {}, 1000);',
+            ].join('\n');
+            const client = makeClient('node1-session');
+            const transfer = uploader(client, script);
+
+            const done = runSequence(transfer);
+            await client.waitForOutput('ready');
+            Events.emit(DisconnectEvent, { client, connectionCount: 0 });
+
+            assert.notEqual(await withDeadline(done, 3000), TimedOut);
+            //  the salvage still ran; the files are just not credited
+            assert.deepEqual(transfer.recvFilePaths, [paths.join(recvDir, 'done.zip')]);
+            assert.deepEqual(transfer.statsUpdated, [], 'a cut-off upload was credited');
+        });
+
+        it('credits nothing for a download cut off by the hang-up', async () => {
+            const client = makeClient('node1-session');
+            const transfer = makeTransfer(client, sendExternal(LONG_RUNNER), {
+                sendQueue: [{ path: '/tmp/never-sent.zip', fileId: 1 }],
+            });
+
+            const done = runSequence(transfer);
+            await client.waitForOutput('ready');
+            Events.emit(DisconnectEvent, { client, connectionCount: 0 });
+
+            assert.notEqual(await withDeadline(done, 3000), TimedOut);
+            assert.deepEqual(
+                transfer.statsUpdated,
+                [],
+                'a cut-off download was credited'
+            );
         });
     });
 });
