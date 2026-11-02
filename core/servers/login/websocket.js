@@ -35,17 +35,19 @@ const ModuleInfo = (exports.moduleInfo = {
 //  upgrade request. With |proxied| set, forwarded headers are read, but only
 //  from a peer in |trustedProxies|:
 //
-//  |remoteAddress|         the client's address
-//  |forwardedSecure|       a trusted proxy said the client used https
-//  |remoteAddressIsProxy|  a trusted proxy forwarded no client address, so
-//                          |remoteAddress| is the proxy's own
-//  |ignoredHeaders|        forwarded headers came from an untrusted peer
+//  |remoteAddress|     the client's address
+//  |forwardedSecure|   a trusted proxy said the client used https
+//  |viaProxy|          the connection came through a trusted proxy
+//  |noClientAddress|   ...which forwarded no client address, so
+//                      |remoteAddress| is the proxy's own
+//  |ignoredHeaders|    forwarded headers came from an untrusted peer
 //
 function resolveConnection({ peerAddress, headers, proxied, trustedProxies }) {
     const resolved = {
         remoteAddress: peerAddress,
         forwardedSecure: false,
-        remoteAddressIsProxy: false,
+        viaProxy: false,
+        noClientAddress: false,
         ignoredHeaders: false,
     };
 
@@ -65,7 +67,8 @@ function resolveConnection({ peerAddress, headers, proxied, trustedProxies }) {
     }
 
     resolved.remoteAddress = address;
-    resolved.remoteAddressIsProxy = !forwarded;
+    resolved.viaProxy = true;
+    resolved.noClientAddress = !forwarded;
     resolved.forwardedSecure =
         'https' === headerValue(headers, 'x-forwarded-proto').trim().toLowerCase();
     return resolved;
@@ -141,8 +144,10 @@ class WebSocketClient extends TelnetClient {
             );
         }
 
-        if (resolved.remoteAddressIsProxy) {
-            this.remoteAddressIsProxy = true; //  see Client.isLocal()
+        //  see Client.isLocal()
+        this.viaProxy = resolved.viaProxy;
+
+        if (resolved.noClientAddress) {
             logOncePerPeer(loggedNoClientAddress, peerAddress, () =>
                 Log.warn(
                     { proxyAddress: peerAddress },

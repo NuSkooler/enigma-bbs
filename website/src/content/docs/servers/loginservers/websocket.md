@@ -130,7 +130,8 @@ With `proxied: true`:
 * The caller's address comes from `X-Forwarded-For`, read right to left, skipping addresses that are themselves trusted proxies; failing that, from `X-Real-IP`.
 * `X-Forwarded-Proto: https` marks the connection as secure.
 * Forwarded headers from a peer not in `trustedProxies` are ignored. The log says so once per address, naming `trustedProxies`: if that address is your proxy, add it.
-* If the proxy sends no client address, every caller appears to come from the proxy. Those callers are not treated as local, and the log suggests sending `X-Forwarded-For`.
+* Callers that come through the proxy are never treated as local, whatever address it forwards.
+* If the proxy sends no client address, every caller appears to come from the proxy, and the log suggests sending `X-Forwarded-For`.
 
 The `Forwarded` header (RFC 7239) is not read.
 

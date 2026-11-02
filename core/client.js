@@ -818,9 +818,9 @@ Client.prototype.waitForKeyPress = function (cb) {
 };
 
 Client.prototype.isLocal = function () {
-    //  The address is a reverse proxy's, not the client's (see websocket.js):
-    //  where the client really is, is not known.
-    if (true === this.remoteAddressIsProxy) {
+    //  Came through a reverse proxy (see websocket.js): the address is the
+    //  proxy's, or one the proxy passed on, and is no proof of a local caller.
+    if (true === this.viaProxy) {
         return false;
     }
 
