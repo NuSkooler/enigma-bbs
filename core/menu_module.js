@@ -383,8 +383,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     reload(cb) {
         const prevMenu = this.client.menuStack.pop();
+        //  so leave() can tell a reload from the caller leaving the menu
+        prevMenu.instance.reloading = true;
         prevMenu.instance.leave();
-        return this.client.menuStack.goto(prevMenu.name, cb);
+        return this.client.menuStack.goto(
+            prevMenu.name,
+            { extraArgs: prevMenu.extraArgs },
+            cb
+        );
     }
 
     prevMenuOnTimeout(timeout, cb) {

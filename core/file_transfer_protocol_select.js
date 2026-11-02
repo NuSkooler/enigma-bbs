@@ -5,6 +5,8 @@
 const MenuModule = require('./menu_module.js').MenuModule;
 const Config = require('./config.js').get;
 const ViewController = require('./view_controller.js').ViewController;
+const UploadTempDir = require('./upload_temp_dir.js');
+const { ErrorCodes } = require('./enig_error.js');
 
 //  deps
 const async = require('async');
@@ -34,7 +36,8 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 
         this.config.direction = this.config.direction || 'send';
 
-        this.extraArgs = options.extraArgs;
+        //  a menu entry may supply none
+        this.extraArgs = options.extraArgs || {};
 
         if (_.has(options, 'lastMenuResult.sentFileIds')) {
             this.sentFileIds = options.lastMenuResult.sentFileIds;
@@ -68,21 +71,44 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
                     extraArgs: finalExtraArgs,
                 };
 
+                //  the transfer takes it from here: see leave()
+                this.handedOff = true;
+                const done = err => {
+                    if (err) {
+                        this.handedOff = false;
+                    }
+                    return cb(err);
+                };
+
                 if ('send' === this.config.direction) {
                     return this.gotoMenu(
                         this.config.downloadFilesMenu || 'sendFilesToUser',
                         modOpts,
-                        cb
+                        done
                     );
                 } else {
                     return this.gotoMenu(
                         this.config.uploadFilesMenu || 'recvFilesFromUser',
                         modOpts,
-                        cb
+                        done
                     );
                 }
             },
         };
+    }
+
+    leave() {
+        //
+        //  Left without starting a transfer -- the caller backed out, here or
+        //  after a failed transfer -- so a file base upload's receive
+        //  directory will not be used. (Once the upload module has taken the
+        //  directory over, or for anyone else's directory, this does nothing.)
+        //
+        //  a reload() is this menu coming straight back, not the caller leaving
+        if (!this.handedOff && !this.reloading) {
+            UploadTempDir.abandon(this.client, this.extraArgs.recvDirectory);
+        }
+        return super.leave();
     }
 
     getMenuResult() {
@@ -108,14 +134,34 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
                     return this.prevMenu();
                 }
 
-                return this.gotoMenu('fileBaseUploadFiles', {
-                    lastMenuResult: {
-                        recvFilePaths: this.recvFilePaths,
-                        tempRecvDirectory: this.extraArgs.recvDirectory,
-                        areaInfo: this.extraArgs.uploadAreaInfo,
-                        uploadType: this.extraArgs.uploadType,
+                //
+                //  The upload module takes the receive directory over: see
+                //  leave(). Marked here, rather than relying on the menu stack
+                //  building the upload module before it leaves this one.
+                //
+                this.handedOff = true;
+                return this.gotoMenu(
+                    'fileBaseUploadFiles',
+                    {
+                        lastMenuResult: {
+                            recvFilePaths: this.recvFilePaths,
+                            tempRecvDirectory: this.extraArgs.recvDirectory,
+                            areaInfo: this.extraArgs.uploadAreaInfo,
+                            uploadType: this.extraArgs.uploadType,
+                        },
                     },
-                });
+                    err => {
+                        if (!err) {
+                            return;
+                        }
+                        //  still ours to abandon
+                        this.handedOff = false;
+                        //  as the menu stack does without a callback
+                        if (ErrorCodes.AccessDenied !== err.code) {
+                            return this.client.defaultHandlerMissingMod()(err);
+                        }
+                    }
+                );
             }
             this.prevMenu();
         } else {

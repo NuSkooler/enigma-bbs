@@ -73,7 +73,7 @@ describe('Temp files are per transfer, not shared between nodes', () => {
         //  done, with the receive directory handed back to it.
         function finishUpload(recvDirectory) {
             const mod = Object.create(UploadModule.prototype);
-            mod.tempRecvDirectory = recvDirectory;
+            mod.adoptTempRecvDirectory(recvDirectory); //  as the constructor does
             mod.cleanupTempFiles();
         }
 
