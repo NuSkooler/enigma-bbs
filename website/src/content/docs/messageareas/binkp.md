@@ -369,7 +369,7 @@ myBinkpPollMenu: {
 }
 ```
 
-Guard the entry that leads to it with a sysop ACS such as `SC`. The `!BINKP` main menu command earlier templates had for this never worked and has been removed.
+Guard the entry that leads to it with a sysop ACS such as `GM[sysops]` (members of the `sysops` group) or `ID1` (the root user only); the WFC's own default, `SCAF2ID1GM[wfc]`, also requires a secure connection and 2FA. Do not use `SC` alone: it only means a secure connection, so any caller on SSH or TLS would pass. The `!BINKP` main menu command earlier templates had for this never worked and has been removed.
 
 ---
 
