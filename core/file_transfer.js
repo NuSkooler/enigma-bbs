@@ -48,6 +48,15 @@ const crypto = require('crypto');
 const SYSTEM_EOL = require('os').EOL;
 const TEMP_SUFFIX = 'enigtf-'; //  temp CWD/etc.
 
+//  A protocol program that ignores the hangup sent when its caller
+//  disconnects gets SIGKILL this much later, as an @execute does on timeout
+//  (see event_scheduler.js)
+const PROTOCOL_KILL_GRACE_MS = 5000;
+
+//  'SIGHUP' for 1, and so on; a number with no name stays a number
+const signalName = signal =>
+    _.findKey(require('os').constants.signals, n => n === signal) || signal;
+
 /*
     Notes
     -----------------------------------------------------------------------------
@@ -304,6 +313,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
         const logInfo = {
             cmd: exitInfo && exitInfo.cmd,
             exitCode: exitInfo && exitInfo.exitCode,
+            signal: exitInfo && exitInfo.signal,
         };
 
         const { entries, malformed } = parseDszLog(dszLogText);
@@ -360,7 +370,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
                 this.client.log.warn(
                     Object.assign(logInfo, { files: result.confirmed }),
-                    `Protocol exited with code ${logInfo.exitCode}, but its DSZLOG confirms ${result.confirmed.length} file(s) received; keeping them`
+                    `Protocol ${
+                        logInfo.signal
+                            ? `was killed by ${signalName(logInfo.signal)}`
+                            : `exited with code ${logInfo.exitCode}`
+                    }, but its DSZLOG confirms ${result.confirmed.length} file(s) received; keeping them`
                 );
                 return cb(null);
             });
@@ -578,7 +592,28 @@ exports.getModule = class TransferFileModule extends MenuModule {
             spawnOpts.env = options.env;
         }
 
+        //
+        //  The caller may have hung up while the transfer was being set up.
+        //  Their ClientDisconnected has already been and gone, so nothing
+        //  would ever kill a program started now.
+        //
+        //  Called back on a later tick, as every other outcome is: a caller
+        //  may run the whole rest of the transfer from this callback, and
+        //  must not find itself still inside whatever try it called us from.
+        //
+        if (this.client.clientEnded) {
+            return setImmediate(() =>
+                cb(
+                    Errors.UnexpectedState(
+                        'Caller disconnected before the transfer started',
+                        'EDISCONNECTED'
+                    )
+                )
+            );
+        }
+
         const externalProc = pty.spawn(cmd, args, spawnOpts);
+        const hangupWatch = this.killProtocolOnHangup(externalProc, cmd);
 
         let dataHits = 0;
         const updateActivity = () => {
@@ -602,6 +637,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
         });
 
         externalProc.onData(data => {
+            //  nobody is there to read it
+            if (hangupWatch.hungUp) {
+                return;
+            }
+
             updateActivity();
 
             //  needed for things like sz/rz
@@ -610,6 +650,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
         externalProc.onExit(exitEvent => {
             const { exitCode, signal } = exitEvent;
+            hangupWatch.stop();
 
             //
             //  A still-pending IAC means the client's stream ended mid-sequence: a
@@ -634,16 +675,116 @@ exports.getModule = class TransferFileModule extends MenuModule {
             this.restorePipeAfterExternalProc();
             externalProc.removeAllListeners();
 
-            return cb(
-                exitCode
-                    ? Errors.ExternalProcess(
-                          `Process exited with exit code ${exitCode}`,
-                          'EBADEXIT'
-                      )
-                    : null,
-                { cmd, exitCode, signal }
-            );
+            //
+            //  node-pty reports a process ended by a signal as exitCode 0 plus
+            //  the signal's number. That is not a clean exit: a program killed
+            //  mid-transfer -- by us on a hangup, or by anyone else -- must not
+            //  mark its files sent, nor credit whatever partial files are in
+            //  the receive directory. Same reason code as a non-zero exit, so a
+            //  receive still keeps what its DSZLOG confirms.
+            //
+            //  lrzsz catches the hangup and exits 129 instead: either way it is
+            //  noted that the caller had gone.
+            //
+            let reason = null;
+            if (signal) {
+                reason = `Process killed by ${signalName(signal)}`;
+            } else if (exitCode) {
+                reason = `Process exited with exit code ${exitCode}`;
+            }
+
+            let err = null;
+            if (reason) {
+                if (hangupWatch.hungUp) {
+                    reason += ' after the caller disconnected';
+                }
+                err = Errors.ExternalProcess(reason, 'EBADEXIT');
+            }
+
+            return cb(err, { cmd, exitCode, signal });
         });
+    }
+
+    //
+    //  Kill |externalProc| if this caller hangs up while it runs: otherwise a
+    //  protocol program keeps going until its own timeout, which can be long,
+    //  writing to nobody -- and an upload's receive directory waits for it.
+    //  A program that ignores the hangup gets SIGKILL after a grace period.
+    //
+    //  ClientDisconnected rather than the client's own 'end' or 'close':
+    //  removeClient() raises it exactly once for every disconnect, whatever
+    //  the transport or the cause (including a kick or a shutdown, which do
+    //  not wait on the socket), whereas the transports emit 'end' and 'close'
+    //  differently. It is the same event door.js kills a door on.
+    //
+    //  Every node's hang-up raises it, so this listens -- with on(), not
+    //  once() -- until the program exits, ignoring other callers.
+    //
+    //  Returns { hungUp, stop() }. stop() must be called when the program
+    //  exits; it removes the listener and any pending SIGKILL.
+    //
+    killProtocolOnHangup(externalProc, cmd) {
+        const disconnectEvent = Events.getSystemEvents().ClientDisconnected;
+        const client = this.client;
+        const uniqueId = _.get(client, 'session.uniqueId');
+        const graceMs = this.protocolKillGraceMs || PROTOCOL_KILL_GRACE_MS;
+        let killTimer = null;
+
+        const watch = {
+            hungUp: false,
+            stop: () => {
+                Events.removeListener(disconnectEvent, onDisconnect);
+                if (killTimer) {
+                    clearTimeout(killTimer);
+                    killTimer = null;
+                }
+            },
+        };
+
+        const onDisconnect = evt => {
+            const evtClient = _.get(evt, 'client');
+            const isThisCaller =
+                evtClient === client ||
+                (!_.isNil(uniqueId) && uniqueId === _.get(evtClient, 'session.uniqueId'));
+            if (!isThisCaller) {
+                return;
+            }
+
+            Events.removeListener(disconnectEvent, onDisconnect);
+            watch.hungUp = true;
+            this.callerHungUp = true;
+
+            client.log.info(
+                { cmd, pid: externalProc.pid },
+                'Caller disconnected during a transfer; killing the protocol program'
+            );
+
+            //  SIGHUP; on Windows, node-pty's agent ends the process outright
+            externalProc.kill();
+
+            //
+            //  No escalation on Windows: node-pty throws for any signal there
+            //  ("Signals not supported on windows."), possibly later rather
+            //  than from the call, so it cannot be caught here -- and the
+            //  kill() above has already done the job.
+            //
+            if ('win32' === process.platform) {
+                return;
+            }
+
+            killTimer = setTimeout(() => {
+                killTimer = null;
+                client.log.warn(
+                    { cmd, pid: externalProc.pid, graceMs },
+                    'Protocol program ignored the hangup; sending SIGKILL'
+                );
+                externalProc.kill('SIGKILL');
+            }, graceMs);
+            killTimer.unref();
+        };
+
+        Events.on(disconnectEvent, onDisconnect);
+        return watch;
     }
 
     executeExternalProtocolHandlerForSend(filePaths, cb) {
@@ -1026,10 +1167,27 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 },
                 function updateUserAndSystemStats(callback) {
                     if (self.isSending()) {
+                        //  a download cut off by a hang-up fails above, and
+                        //  never gets here
                         return self.updateSendStats(callback);
-                    } else {
-                        return self.updateRecvStats(callback);
                     }
+
+                    //
+                    //  A caller who hung up during an upload is never
+                    //  credited for it, even for files its DSZLOG confirms:
+                    //  the upload module that would add them to the file
+                    //  base never runs, and the receive directory is removed
+                    //  with them in it.
+                    //
+                    if (self.callerHungUp || self.client.clientEnded) {
+                        self.client.log.info(
+                            { files: self.recvFilePaths },
+                            'Caller disconnected during the upload; not crediting it'
+                        );
+                        return callback(null);
+                    }
+
+                    return self.updateRecvStats(callback);
                 },
             ],
             err => {
