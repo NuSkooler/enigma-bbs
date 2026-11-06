@@ -41,7 +41,7 @@ An area tag reaches the packet as an echotag, which is what a reply is routed by
 ```
 
 ### Bulletins
-Files named in the `messageNetworks.offlineMail` block of `config.hjson` are packed into every Blue Wave and QWK packet a caller downloads, for the reader to show them. Packets exported with `oputil.js` for a network hub do not carry them. All keys are optional, and each takes the path of a text or ANSI file; a relative path is taken from the config directory (`paths.config`).
+Files named in the `messageNetworks.offlineMail` block of `config.hjson` are packed into every Blue Wave and QWK packet a caller downloads, for the reader to show them. Packets exported with `oputil.js` for a network hub do not carry them. All keys are optional, and each takes the path of a text or ANSI file; a relative path is taken from `paths.config`, by default the directory holding `config.hjson` (see [Relative Paths](../configuration/config-hjson.md#relative-paths)).
 
 ```hjson
 {

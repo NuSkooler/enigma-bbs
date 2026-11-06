@@ -43,12 +43,12 @@
                     "default": false
                 },
                 "menuFile": {
-                    "description": "Menu configuration file. Relative names resolve against the config directory.",
+                    "description": "Menu configuration file. Relative names resolve against paths.config.",
                     "type": "string",
                     "default": "menu.hjson"
                 },
                 "achievementFile": {
-                    "description": "Achievement configuration file. Relative names resolve against the config directory.",
+                    "description": "Achievement configuration file. Relative names resolve against paths.config.",
                     "type": "string",
                     "default": "achievements.hjson"
                 },
@@ -542,6 +542,7 @@
             "type": "object",
             "properties": {
                 "config": {
+                    "description": "Directory that relative file names in config.hjson (menuFile, achievementFile, offline mail bulletins) resolve against. Unset, it is the directory holding the loaded config.hjson -- where includes are read from too.",
                     "type": "string",
                     "$comment": "Default: <installation directory>/config/"
                 },

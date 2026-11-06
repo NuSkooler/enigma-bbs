@@ -6,7 +6,25 @@ sidebar:
 ---
 The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. Defaults lived in `core/config_default.js`.
 
-The default path is `/enigma-bbs/config/config.hjson` though this can be overridden using the `--config` parameter when invoking `main.js`.
+The default path is `/enigma-bbs/config/config.hjson` though this can be overridden using the `--config` parameter when invoking `main.js` (and `oputil.js`). `--config` takes the directory holding `config.hjson`, with a trailing slash: `./main.js --config /srv/bbs/`.
+
+### Relative Paths
+Relative file names in `config.hjson`, such as `general.menuFile`, `general.achievementFile` and the [offline mail bulletins](../messageareas/bluewave.md#bulletins), are taken from `paths.config`. Unless you set it, `paths.config` is the directory your `config.hjson` was loaded from, which is also where files listed in [`includes`](config-files.md#includes) are read from. With the stock layout that is `/enigma-bbs/config/`; with `--config /srv/bbs/` it is `/srv/bbs/`, so `menuFile: menu.hjson` reads `/srv/bbs/menu.hjson`.
+
+To take them from somewhere else, set `paths.config` in `config.hjson`:
+```hjson
+paths: {
+    config: /enigma-bbs/config/
+}
+```
+
+Set it in `config.hjson` itself: like any setting that has a default, `paths.config` in an included file does not replace it.
+
+`oputil.js config new` writes `menuFile` and `achievementFile` as absolute paths into the install's `config/`, so a configuration it creates finds them wherever `config.hjson` is kept. If the achievements file cannot be found, achievements are switched off and the log says `Achievements file not found`, with the path it tried.
+
+:::note
+Before 0.6.0-beta, `paths.config` defaulted to the install's `config/` directory even when `--config` named another. See [UPGRADE](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md).
+:::
 
 :::note
 See also [Configuration Files](config-files.md). Additionally [HJSON General Information](hjson.md) may be helpful for more information on the HJSON format.

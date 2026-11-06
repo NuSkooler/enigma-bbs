@@ -418,6 +418,7 @@ describe('config schema against config_default.js', () => {
             'messageAreaDefaults.maxAgeDays',
             'messageAreaDefaults.maxMessages',
             'messageConferences',
+            'paths.config',
             'scannerTossers.ftn_bso.binkp.inbound.enabled',
             'scannerTossers.ftn_bso.binkp.inbound.port',
             'scannerTossers.ftn_bso.binkp.pullSchedule',

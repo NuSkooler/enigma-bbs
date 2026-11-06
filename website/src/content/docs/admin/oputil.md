@@ -40,7 +40,7 @@ Commands break up operations by groups:
 | `amiga-door` | Build and inspect Amiga door images (FFS) |
 
 Global arguments apply to most commands and actions:
-* `--config`: Specify configuration directory if it is not the default of `./config/`.
+* `--config`: Specify configuration directory if it is not the default of `./config/`. Relative paths in that `config.hjson` resolve as they do for `main.js`; see [Relative Paths](../configuration/config-hjson.md#relative-paths).
 * `--no-prompt`: Assume defaults and do not prompt when possible.
 
 Type `./oputil.js <command> --help` for additional help on a particular command. The following sections will describe them.

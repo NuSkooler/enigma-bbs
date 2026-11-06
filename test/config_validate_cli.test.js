@@ -34,11 +34,10 @@ function runValidate(config, args = [], achievements) {
 
     if (achievements) {
         //
-        //  general.achievementFile is resolved against paths.config, not
-        //  against wherever config.hjson happens to live -- that is what the
-        //  running board does, and oputil has to agree with it. So a temporary
-        //  achievements file needs paths.config pointed here too, exactly as a
-        //  sysop with a relocated config directory would.
+        //  general.achievementFile is resolved against paths.config, as the
+        //  running board does it. paths.config now defaults to the directory
+        //  holding config.hjson (#927), so this would find the file anyway;
+        //  setting it explicitly also keeps an explicit paths.config covered.
         //
         config = Object.assign({}, config, {
             paths: Object.assign({}, config.paths, { config: dir }),

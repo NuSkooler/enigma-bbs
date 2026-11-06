@@ -26,6 +26,11 @@ const _ = require('lodash');
 const sanatizeFilename = require('sanitize-filename');
 
 exports.handleConfigCommand = handleConfigCommand;
+exports.setInstallFilePaths = setInstallFilePaths;
+
+//  The install's own config/: where `config new` writes the menus, and where
+//  the shipped achievements.hjson lives.
+const InstallConfigDir = paths.join(__dirname, '../../config');
 
 //
 //  Settings taken verbatim from config_default.js rather than left as a
@@ -239,6 +244,19 @@ const copyFileSyncSilent = (to, from, flags) => {
     }
 };
 
+//
+//  Point a new config at the files `config new` uses in the install's
+//  config/, by absolute path. A relative name resolves against paths.config,
+//  which is the directory holding config.hjson (#927): written relative, a
+//  config.hjson created anywhere but the install's config/ would look for
+//  them beside itself instead, and the achievements default
+//  ("achievements.hjson") would quietly switch achievements off.
+//
+function setInstallFilePaths(config, menuFile) {
+    config.general.menuFile = paths.join(InstallConfigDir, 'menus', menuFile);
+    config.general.achievementFile = paths.join(InstallConfigDir, 'achievements.hjson');
+}
+
 function buildNewConfig() {
     askNewConfigQuestions((err, configPath, config) => {
         if (err) {
@@ -246,7 +264,7 @@ function buildNewConfig() {
         }
 
         //  ensure 'menus' exists
-        mkdirsSync(paths.join(__dirname, '../../config/menus'));
+        mkdirsSync(paths.join(InstallConfigDir, 'menus'));
 
         const boardName = sanatizeFilename(config.general.boardName)
             .replace(/[^a-z0-9_-]/gi, '_')
@@ -270,7 +288,7 @@ function buildNewConfig() {
 
             copyFileSyncSilent(
                 paths.join(__dirname, '../../misc/menu_templates', incFile),
-                paths.join(__dirname, '../../config/menus', outName),
+                paths.join(InstallConfigDir, 'menus', outName),
                 fs.constants.COPYFILE_EXCL
             );
         });
@@ -285,12 +303,12 @@ function buildNewConfig() {
 
         const menuFile = `${boardName}-main.hjson`;
         fs.writeFileSync(
-            paths.join(__dirname, '../../config/menus', menuFile),
+            paths.join(InstallConfigDir, 'menus', menuFile),
             mainTemplate,
             'utf8'
         );
 
-        config.general.menuFile = paths.join(__dirname, '../../config/menus/', menuFile);
+        setInstallFilePaths(config, menuFile);
 
         if (writeConfig(config, configPath)) {
             console.info('Configuration generated');

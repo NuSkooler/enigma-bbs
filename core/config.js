@@ -4,6 +4,7 @@ const ConfigLoader = require('./config_loader');
 const { routeArchiversToUnarc } = require('./config/unarc_archivers');
 
 const _ = require('lodash');
+const paths = require('path');
 
 //  Global system configuration instance; see Config.create()
 let systemConfigInstance;
@@ -24,15 +25,39 @@ function getSchema() {
 
 //
 //  The defaults as this process runs them: config_default.js with
-//  ENIGMA_UNARC_ARCHIVERS applied. It is applied here and never in
-//  config_default.js itself, which the schema, `oputil.js config new` and the
-//  reference checks are built from and which must not vary with the
-//  environment. See config/unarc_archivers.js.
+//  ENIGMA_UNARC_ARCHIVERS applied and, given the config.hjson being loaded,
+//  paths.config pointed at the directory holding it. Both are applied here
+//  and never in config_default.js itself, which the schema, `oputil.js config
+//  new` and the reference checks are built from and which must not vary with
+//  the environment or the command line. See config/unarc_archivers.js.
 //
-function effectiveDefaults() {
-    return routeArchiversToUnarc(DefaultConfig());
+//  paths.config (#927): relative names such as general.menuFile, the
+//  achievements file and the offline mail bulletins resolve against it, while
+//  "includes" always resolved beside config.hjson. Defaulting it to that same
+//  directory gives both one rule, so a board started with --config elsewhere
+//  finds its files next to its config.hjson. For the stock layout the two are
+//  the same directory and nothing changes.
+//
+//  It is a *default*: the operator's config.hjson is merged over it, so a
+//  paths.config written there always wins, whatever its value -- including
+//  the old install directory default, which after the merge would be
+//  indistinguishable from it. Nothing has to tell the two apart afterwards.
+//
+function effectiveDefaults({ baseConfigPath } = {}) {
+    const defaults = routeArchiversToUnarc(DefaultConfig());
+    if (_.isString(baseConfigPath) && baseConfigPath) {
+        defaults.paths.config = configDirOf(baseConfigPath);
+    }
+    return defaults;
 }
 exports.effectiveDefaults = effectiveDefaults;
+
+//  The directory holding |baseConfigPath|, absolute, with a trailing separator
+//  as config_default.js writes it. Absolute because oputil passes the path as
+//  given on its command line, which may be relative to wherever it was run.
+function configDirOf(baseConfigPath) {
+    return paths.join(paths.resolve(paths.dirname(baseConfigPath)), paths.sep);
+}
 
 exports.Config = class Config extends ConfigLoader {
     constructor(options) {
@@ -66,7 +91,9 @@ exports.Config = class Config extends ConfigLoader {
         const reportValidation = false !== options.reportValidation;
 
         const configOptions = Object.assign({}, _.omit(options, 'reportValidation'), {
-            defaultConfig: effectiveDefaults,
+            //  called afresh on every load, hot reloads included, so the
+            //  derived paths.config default is never lost
+            defaultConfig: () => effectiveDefaults({ baseConfigPath }),
             defaultsCustomizer: (defaultVal, configVal, key, path) => {
                 if (Array.isArray(defaultVal) && Array.isArray(configVal)) {
                     if (replacePaths.includes(path) || replaceKeys.includes(key)) {
