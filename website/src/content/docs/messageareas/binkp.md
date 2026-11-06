@@ -344,7 +344,7 @@ Systems upgraded from before 0.5.1-beta may still have mail queued under the pre
 2. `ftn_bso` emits a `NewOutboundBSO` event with the destination address
 3. The BinkP module receives the event, debounces briefly (`crashmailDebounceMs`), then dials the destination
 4. After a successful send, the flow file entry is rewritten as `~`-prefixed and the packet file is deleted; once every line in a flow file is `~`-prefixed the flow file itself is removed
-5. Independently, the pull-cycle timer dials every configured peer on `pullSchedule` so quiet hubs get periodic touches even when we have nothing for them
+5. Independently, the pull-cycle timer dials every configured peer on `pullSchedule` so quiet hubs get periodic touches even when we have nothing for them (the `binkpPullNow` task runs the same cycle on demand)
 
 **Inbound flow:**
 1. A remote node connects on port 24554 (or ENiGMA½ calls out and receives files in return)
@@ -356,20 +356,20 @@ If you use an external mailer (`binkd`, etc.) instead of or alongside the native
 
 ---
 
-## Sysop poll command
+## Pulling now
 
-Once BinkP is configured, sysops can trigger an immediate outbound poll from the main menu by typing `!BINKP`. The system dials every node that has pending mail and reports the result. The default menu template wires this for the sysop ACS group automatically; a fresh install gets the command for free.
+To run the pull cycle now, run the `binkpPullNow` task from the [WFC's task screen](../modules/wfc.md#tasks) (<kbd>T</kbd> on the WFC dashboard). It dials the same nodes as `pullSchedule`, plus any with mail waiting, and works whether or not a `pullSchedule` is set. `exportOutboundNow` next to it asks `ftn_bso` to export new mail first; anything it queues is dialed by crashmail as usual. See [Event Scheduler: Built-in Events](../configuration/event-scheduler.md#built-in-events).
 
-To expose a poll option in a custom menu entry, point it to the `binkp_poll` module:
+A custom menu can offer the same thing with the `binkp/binkp_poll_module` module, which runs the pull cycle and reports the result:
 
 ```hjson
 myBinkpPollMenu: {
     desc: "BinkP Poll"
-    module: binkp_poll
+    module: binkp/binkp_poll_module
 }
 ```
 
-Pre-existing custom menus that don't include this entry will need it added manually.
+Guard the entry that leads to it with a sysop ACS such as `SC`. The `!BINKP` main menu command earlier templates had for this never worked and has been removed.
 
 ---
 

@@ -105,7 +105,7 @@ Just like with methods, any supplied `args` will be passed along.
 An event with an `action` and no `schedule` is never run on its own. It is listed with the other events and can be run on demand, for example from the [WFC's task screen](../modules/wfc.md#tasks). At startup ENiGMA½ logs one line naming every manual-only event, so an event whose `schedule` was left out by mistake stays visible:
 
 ```
-Manual-only scheduled events (no schedule, run on demand): optimizeDatabases, checkpointDatabases, backupDatabases, tossInboundNow
+Manual-only scheduled events (no schedule, run on demand): optimizeDatabases, checkpointDatabases, backupDatabases, tossInboundNow, exportOutboundNow, binkpPullNow
 ```
 
 A `schedule` that is there but cannot be parsed is still an error: the event is logged as an `Invalid scheduled event entry` and dropped, as before.
@@ -127,6 +127,8 @@ ENiGMA½ ships with these events. Each can be switched off with `enabled: false`
 | `checkpointDatabases` | manual-only | Folds each database's write-ahead log (`*.sqlite3-wal`) back into the database and truncates it. If a reader is busy the checkpoint cannot finish; this is logged and the next checkpoint catches up. |
 | `backupDatabases` | manual-only | Copies the core databases (`system`, `user`, `message`, `file`, `activitypub`) into a new directory, `backup/YYYYMMDD-HHmmssZ/` under `paths.db` (named in UTC, so the names sort by time), while the BBS keeps running, then deletes all but the newest backups. `args: [ "N" ]` sets how many to keep (default 3), counting the new one, which is never deleted. Old backups are deleted only after the new one is complete, so allow disk space for one more set than you keep. A backup is written to a `.partial` directory first and renamed when complete, so a directory without that suffix is always a full set. Databases kept by mods are not included. |
 | `tossInboundNow` | manual-only | Asks the FTN BSO scanner/tosser to import and toss its inbound directories now. It finishes as soon as the request is made (the toss is logged by the tosser), and fails if the FTN BSO scanner/tosser is not running. |
+| `exportOutboundNow` | manual-only | Asks the FTN BSO scanner/tosser to scan the FTN message areas and export new mail to the outbound now, as its `schedule.export` does. It finishes when the export does, and fails if the export fails. If an export is already running, or FTN is not configured (no `scannerTossers.ftn_bso.nodes` or `messageNetworks.ftn.areas`), or the scanner/tosser is not running, nothing is exported, the log says why, and the task still succeeds. |
+| `binkpPullNow` | manual-only | Runs the native [BinkP](../messageareas/binkp.md#binkppullschedule) mailer's pull cycle now: dials every node `binkp.pullSchedule` would (each concrete address in `binkp.nodes` without `pull: false`), plus any node with mail waiting, whether or not a `pullSchedule` is set. It finishes once every call has ended. A node already in a session is skipped (its `.bsy` lock is held), and a pull cycle already running, from the schedule or by hand, is not started again. If FTN is not configured or the mailer is not running, nothing is dialed, the log says why, and the task still succeeds. |
 
 :::note
 There is deliberately no `VACUUM` task: SQLite rebuilds the whole database during a VACUUM and the BBS would be frozen until it finished.
