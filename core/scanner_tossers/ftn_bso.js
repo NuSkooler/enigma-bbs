@@ -2896,6 +2896,40 @@ function FTNMessageScanTossModule() {
         }
     };
 
+    //
+    //  Run a full scan/export now unless one is already running, logging
+    //  |reasonDesc| as it starts. Returns false, without calling |cb|, if one
+    //  is; otherwise |cb(err)| is called once the export is done. Used by the
+    //  export schedule and by an ExportBSORequested request.
+    //
+    this.tryExportNow = function (reasonDesc, cb) {
+        if (!this.exportingStart()) {
+            return false;
+        }
+
+        Log.info({ module: exports.moduleInfo.name }, reasonDesc);
+
+        this.performExport(err => {
+            this.exportingEnd();
+            if (err) {
+                Log.warn(
+                    { module: exports.moduleInfo.name, error: err.message },
+                    'Message scan/export failed'
+                );
+            } else {
+                Log.debug(
+                    { module: exports.moduleInfo.name },
+                    'Message scan/export finished'
+                );
+            }
+            if (cb) {
+                return cb(err || null);
+            }
+        });
+
+        return true;
+    };
+
     this.copyTicAttachment = function (src, dst, isUpdate, cb) {
         if (isUpdate) {
             safeCopyFile(src, dst, { overwrite: true }, err => {
@@ -5936,6 +5970,30 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
     };
     Events.on(Events.getSystemEvents().NewInboundBSO, this._onNewInboundBSO);
 
+    //  Scan/export when asked to (the exportOutboundNow task). Reports back
+    //  through |callback| once the export has finished, or at once if there
+    //  is nothing to do.
+    this._onExportBSORequested = ({ reason, callback } = {}) => {
+        const done = _.isFunction(callback) ? callback : () => {};
+
+        if (!this.hasValidConfiguration()) {
+            const message = 'FTN BSO is not configured; nothing to export';
+            Log.info({ module: exports.moduleInfo.name }, message);
+            return done(null, { ran: false, message });
+        }
+
+        const started = this.tryExportNow(
+            reason || 'Performing requested message scan/export...',
+            err => done(err, { ran: true, message: 'Export complete' })
+        );
+        if (!started) {
+            const message = 'An export is already running; not starting another';
+            Log.info({ module: exports.moduleInfo.name }, message);
+            return done(null, { ran: false, message });
+        }
+    };
+    Events.on(Events.getSystemEvents().ExportBSORequested, this._onExportBSORequested);
+
     this.createTempDirectories(err => {
         if (err) {
             Log.warn({ error: err.message }, 'Failed creating temporary directories!');
@@ -5977,15 +6035,11 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 
                 if (exportSchedule.sched) {
                     this.exportTimer = later.setInterval(() => {
-                        if (this.exportingStart()) {
-                            Log.info(
-                                { module: exports.moduleInfo.name },
+                        //  unconfigured: said once at startup, not every run
+                        if (this.hasValidConfiguration()) {
+                            this.tryExportNow(
                                 'Performing scheduled message scan/export...'
                             );
-
-                            this.performExport(() => {
-                                this.exportingEnd();
-                            });
                         }
                     }, exportSchedule.sched);
                 }
@@ -6083,6 +6137,13 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
         Events.removeListener(
             Events.getSystemEvents().NewInboundBSO,
             this._onNewInboundBSO
+        );
+    }
+
+    if (this._onExportBSORequested) {
+        Events.removeListener(
+            Events.getSystemEvents().ExportBSORequested,
+            this._onExportBSORequested
         );
     }
 

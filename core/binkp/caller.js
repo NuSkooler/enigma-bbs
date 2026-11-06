@@ -130,14 +130,12 @@ async function callNode(addr, nodeConf, spool) {
 //     node to keep quiet peers' echo mail flowing in.
 //   - scanner_tossers/binkp.js NewOutboundBSO listener (crashmail): passes the
 //     single just-queued destination so we ship within hundreds of milliseconds.
-//   - binkp/binkp_poll_module.js (sysop "poll now" menu): passes [].
+//   - the same pull cycle on demand (the binkpPullNow scheduler task, and the
+//     binkp/binkp_poll_module.js menu module), via a BinkpPullRequested event.
 async function pollNodes(forceAddrs, cb) {
     const config = Config();
 
-    if (
-        !_.isString(_.get(config, 'scannerTossers.ftn_bso.paths.outbound')) ||
-        _.isEmpty(_.get(config, 'messageNetworks.ftn.networks'))
-    ) {
+    if (!isPollConfigured(config)) {
         Log.debug('[BinkP/Caller] Not configured, skipping poll');
         return cb(null);
     }
@@ -190,6 +188,15 @@ async function pollNodes(forceAddrs, cb) {
     }
 
     return cb(null);
+}
+
+//  Is there anything for pollNodes() to do with |config|: an outbound spool
+//  and at least one FTN network.
+function isPollConfigured(config) {
+    return (
+        _.isString(_.get(config, 'scannerTossers.ftn_bso.paths.outbound')) &&
+        !_.isEmpty(_.get(config, 'messageNetworks.ftn.networks'))
+    );
 }
 
 // ── Private ───────────────────────────────────────────────────────────────────
@@ -261,4 +268,4 @@ function _connect(host, port, tlsOpts) {
     });
 }
 
-module.exports = { callNode, pollNodes };
+module.exports = { callNode, pollNodes, isPollConfigured };
