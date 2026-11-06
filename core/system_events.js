@@ -42,6 +42,15 @@ module.exports = {
     //  for the periodic pull cycle.  Crashmail semantics — see scanner_tossers/binkp.js.
     NewOutboundBSO: 'codes.l33t.enigma.system.new_outbound_bso',
 
+    //  Requests to the FTN modules to do now what they otherwise do on their
+    //  own schedules. Emitted by the exportOutboundNow and binkpPullNow
+    //  scheduler tasks (and the BinkP poll menu module). Payload:
+    //  { reason, callback }, where the listener calls callback(err, { ran,
+    //  message }) once the work is done, or at once if it did nothing (not
+    //  configured, or a run already in progress).
+    ExportBSORequested: 'codes.l33t.enigma.system.export_bso_requested', //  ftn_bso: scan & export now
+    BinkpPullRequested: 'codes.l33t.enigma.system.binkp_pull_requested', //  BinkP: run the pull cycle now
+
     //  Emitted by the event scheduler as an eventScheduler.events entry starts
     //  and finishes, whether it ran on schedule, on a watch file or by hand.
     TaskStarted: 'codes.l33t.enigma.system.task_started', //  { name, desc, reason, byUser }

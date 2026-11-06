@@ -1784,6 +1784,19 @@ module.exports = () => {
                     action: '@method:core/misc_scheduled_events.js:tossInboundNowScheduledEvent',
                 },
 
+                //  Asks the FTN BSO scanner/tosser to scan & export outbound now
+                exportOutboundNow: {
+                    desc: 'Export outbound FTN mail now',
+                    action: '@method:core/misc_scheduled_events.js:exportOutboundNowScheduledEvent',
+                },
+
+                //  Runs the native BinkP mailer's pull cycle now: dials every
+                //  node binkp.pullSchedule would, plus any with mail waiting
+                binkpPullNow: {
+                    desc: 'BinkP pull from all nodes now',
+                    action: '@method:core/misc_scheduled_events.js:binkpPullNowScheduledEvent',
+                },
+
                 //
                 //  Enable the following entry in your config.hjson to periodically create/update
                 //  DESCRIPT.ION files for your file base

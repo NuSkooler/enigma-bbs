@@ -16,7 +16,8 @@ const Address = require('../ftn_address.js');
 const { MessageScanTossModule } = require('../msg_scan_toss_module.js');
 const { BinkpSession } = require('../binkp/session.js');
 const { attachSpoolToSession } = require('../binkp/bso_spool.js');
-const { pollNodes } = require('../binkp/caller.js');
+//  called through the module object so a test can stand in for it
+const caller = require('../binkp/caller.js');
 const {
     localAddresses,
     addressKey,
@@ -107,6 +108,8 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         this._configChangedListener = null;
         this._listenerConfig = null; // boot-time LISTENER_BOUND_KEYS snapshot
         this._pullSchedule = null;
+        this._pulling = false; // a pull cycle is running
+        this._pullRequestListener = null;
     }
 
     startup(cb) {
@@ -124,6 +127,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
                 callback => this._startInbound(binkpCfg, callback),
                 callback => this._startPullSchedule(binkpCfg, callback),
                 callback => this._startCrashmailListener(callback),
+                callback => this._startPullRequestListener(callback),
                 callback => this._startConfigWatch(binkpCfg, callback),
             ],
             cb
@@ -153,6 +157,13 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
                 this._crashmailListener
             );
             this._crashmailListener = null;
+        }
+        if (this._pullRequestListener) {
+            Events.removeListener(
+                Events.getSystemEvents().BinkpPullRequested,
+                this._pullRequestListener
+            );
+            this._pullRequestListener = null;
         }
         const closePlain = done => {
             if (this._server) {
@@ -326,15 +337,12 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             return cb(null);
         }
 
-        let polling = false;
         this._pullTimer = later.setInterval(() => {
-            if (polling) return;
-            polling = true;
-            const addrs = this._pullAddresses();
-            Log.info({ count: addrs.length }, '[BinkP] Scheduled pull cycle starting');
-            pollNodes(addrs, () => {
-                polling = false;
-            });
+            this._runPullCycle(
+                '[BinkP] Scheduled pull cycle starting',
+                { scheduled: true },
+                () => {}
+            );
         }, sched);
 
         Log.debug({ schedule: scheduleStr }, '[BinkP] Pull schedule set');
@@ -382,7 +390,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
                     },
                     '[BinkP] Crashmail dispatch'
                 );
-                pollNodes(addrs, () => {});
+                caller.pollNodes(addrs, () => {});
             }, debounceMs);
         };
 
@@ -391,6 +399,81 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             this._crashmailListener
         );
         return cb(null);
+    }
+
+    //
+    //  The pull cycle, on demand: the binkpPullNow task (and the BinkP poll
+    //  menu module) emit BinkpPullRequested with { reason, callback }. Works
+    //  whether or not a pullSchedule is set.
+    //
+    _startPullRequestListener(cb) {
+        this._pullRequestListener = ({ reason, callback } = {}) => {
+            const done = _.isFunction(callback) ? callback : () => {};
+            this._runPullCycle(
+                reason || '[BinkP] Requested pull cycle starting',
+                { scheduled: false },
+                done
+            );
+        };
+
+        Events.addListener(
+            Events.getSystemEvents().BinkpPullRequested,
+            this._pullRequestListener
+        );
+        return cb(null);
+    }
+
+    //
+    //  One pull cycle: dial every node _pullAddresses() selects, plus any with
+    //  mail waiting (pollNodes adds those). Both the schedule and a request
+    //  come through here, so they dial the same set. |cb(err, { ran, message })|
+    //  is called once every call has ended, or at once when nothing is done:
+    //  a cycle already running is not started twice. A node already in a
+    //  session (crashmail, an inbound call) is skipped by its .bsy lock.
+    //  |scheduled| runs say why they did nothing at debug, not every time at
+    //  info: the default pullSchedule fires on boards with no FTN set up.
+    //
+    _runPullCycle(reason, { scheduled = false } = {}, cb) {
+        const quietLog = scheduled ? Log.debug.bind(Log) : Log.info.bind(Log);
+
+        if (!caller.isPollConfigured(Config())) {
+            const message =
+                'FTN is not configured (no outbound path or networks); nothing to pull';
+            quietLog(`[BinkP] ${message}`);
+            return cb(null, { ran: false, message });
+        }
+
+        if (this._pulling) {
+            const message = 'A pull cycle is already running; not starting another';
+            quietLog(`[BinkP] ${message}`);
+            return cb(null, { ran: false, message });
+        }
+
+        const addrs = this._pullAddresses();
+        if (0 === addrs.length) {
+            quietLog(
+                '[BinkP] No nodes to pull from in binkp.nodes; dialing only nodes with mail waiting'
+            );
+        }
+
+        this._pulling = true;
+        Log.info({ count: addrs.length, addrs: addrs.map(a => a.toString()) }, reason);
+        let finished = false;
+        const finish = err => {
+            if (finished) return;
+            finished = true;
+            this._pulling = false;
+            if (err) {
+                Log.warn({ error: err.message }, '[BinkP] Pull cycle failed');
+                return cb(err);
+            }
+            quietLog({ count: addrs.length }, '[BinkP] Pull cycle finished');
+            return cb(null, { ran: true, message: 'Pull cycle complete' });
+        };
+
+        //  pollNodes is async: a throw it does not catch would otherwise
+        //  leave _pulling set, and no pull cycle would run again
+        Promise.resolve(caller.pollNodes(addrs, finish)).catch(finish);
     }
 
     //
