@@ -884,7 +884,7 @@
                             argName: publicKey
                             focus: true
                         }
-                        TM3: {
+                        HM3: {
                             argName: submit
                             items: [
                                 "save/update key"
