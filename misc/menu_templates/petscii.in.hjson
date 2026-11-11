@@ -1,0 +1,331 @@
+{
+    /*
+        PETSCII starter menus (#593)
+        ------------------------------- -   -
+        A small menu tree for Commodore 64/128 style callers (PETSCII
+        terminals), laid out for a 40x25 screen. It goes with the starter
+        theme in misc/petscii_starter/, which holds the art (.seq files) and
+        the view layouts for exactly these menus. "oputil.js config new" can
+        set both up; see the PETSCII page in the documentation.
+
+        A caller reaches this tree in one of two ways:
+
+        *   The stock connect menu, telnetConnected, branches on the
+            session's terminal emulation (the TE ACS code): a PETSCII caller
+            goes on to petsciiMatrix, everyone else to the stock matrix.
+            "config new" writes that branch; on an existing board, change
+            telnetConnected's "next" by hand (see the documentation). The
+            starter theme has CONNECT art, so the connect screen is PETSCII.
+        *   A telnet listener of its own (loginServers.telnet.listeners in
+            config.hjson) with "emulation: petscii" and
+            "firstMenu: petsciiConnected".
+
+        Every menu here is named "petscii..." and leads only to other menus
+        in this file, or ends the session: a PETSCII caller never lands on a
+        stock (80 column ANSI) menu, which a PETSCII theme has no art for.
+
+        New user applications are not offered here yet: "apply" tells the
+        caller to apply from an ANSI terminal.
+
+        Extend it the same way as the stock menus: add a menu here, its art
+        to the theme as a .seq file, and its view layout to the theme.
+    */
+    menus: {
+        petsciiConnected: {
+            desc: Connected
+            art: CONNECT
+            next: petsciiMatrix
+            config: {
+                nextTimeout: 2500
+            }
+        }
+
+        petsciiMatrix: {
+            desc: Login Matrix
+            art: PMATRIX
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            submit: true
+                            focus: true
+                            argName: navSelect
+                            hotKeys: {
+                                L: 0
+                                A: 1
+                                G: 2
+                            }
+                            hotKeySubmit: true
+                            items: [
+                                {
+                                    text: "[L] login"
+                                    data: login
+                                }
+                                {
+                                    text: "[A] apply"
+                                    data: apply
+                                }
+                                {
+                                    text: "[G] log off"
+                                    data: logoff
+                                }
+                            ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: "login" }
+                                action: @menu:petsciiLogin
+                            }
+                            {
+                                value: { navSelect: "apply" }
+                                action: @menu:petsciiApply
+                            }
+                            {
+                                value: { navSelect: "logoff" }
+                                action: @menu:petsciiLogoff
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        //
+        //  No new user application for PETSCII callers yet: say where to
+        //  apply, then go back to the matrix.
+        //
+        petsciiApply: {
+            desc: Apply
+            art: PAPPLY
+            config: {
+                pause: petsciiPause
+            }
+        }
+
+        petsciiLogin: {
+            desc: Login
+            art: PLOGIN
+            next: [
+                {
+                    //  users with 2FA/OTP enabled *must* go through it
+                    acs: AR2
+                    next: petsciiLoginTwoFactorAuthOTPLoop
+                }
+                {
+                    next: petsciiLoginLastCallers
+                }
+            ]
+            config: {
+                tooNodeMenu: petsciiLoginTooNode
+                inactive: petsciiLoginAccountInactive
+                disabled: petsciiLoginAccountDisabled
+                locked: petsciiLoginAccountLocked
+            }
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            maxLength: @config:users.usernameMax
+                            argName: username
+                            focus: true
+                        }
+                        ET2: {
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            argName: password
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { password: null }
+                                action: @systemMethod:login
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        petsciiLoginTooNode: {
+            desc: Already Logged In
+            art: PTOONODE
+            config: {
+                pause: petsciiPause
+            }
+            next: petsciiLogoff
+        }
+
+        petsciiLoginAccountLocked: {
+            desc: Account Locked
+            art: PLOCKED
+            config: {
+                pause: petsciiPause
+            }
+            next: petsciiLogoff
+        }
+
+        petsciiLoginAccountDisabled: {
+            desc: Account Disabled
+            art: PDISABLED
+            config: {
+                pause: petsciiPause
+            }
+            next: petsciiLogoff
+        }
+
+        petsciiLoginAccountInactive: {
+            desc: Inactive Account
+            art: PINACTIVE
+            config: {
+                pause: petsciiPause
+            }
+            next: petsciiLogoff
+        }
+
+        //
+        //  Empty menu to hold a 2FA/OTP login in a loop until the user
+        //  authenticates or the system boots them, as the stock login does.
+        //
+        petsciiLoginTwoFactorAuthOTPLoop: {
+            next: petsciiLoginTwoFactorAuthOTP
+        }
+
+        petsciiLoginTwoFactorAuthOTP: {
+            desc: 2FA
+            art: P2FAOTP
+            next: petsciiLoginLastCallers
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: token
+                            focus: true
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { token: null }
+                                action: @systemMethod:login2FA_OTP
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            //  no turning back at this point...
+                            keys: [ "escape" ]
+                            action: @systemMethod:logoff
+                        }
+                    ]
+                }
+            }
+        }
+
+        petsciiLoginLastCallers: {
+            desc: Last Callers
+            module: last_callers
+            art: PLASTCALL
+            config: {
+                pause: petsciiPause
+            }
+            next: petsciiMainMenu
+        }
+
+        petsciiMainMenu: {
+            desc: Main Menu
+            art: PMAIN
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            submit: true
+                            focus: true
+                            argName: navSelect
+                            hotKeys: {
+                                W: 0
+                                L: 1
+                                G: 2
+                            }
+                            hotKeySubmit: true
+                            items: [
+                                {
+                                    text: "[W] who's online"
+                                    data: whosOnline
+                                }
+                                {
+                                    text: "[L] last callers"
+                                    data: lastCallers
+                                }
+                                {
+                                    text: "[G] log off"
+                                    data: logoff
+                                }
+                            ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: "whosOnline" }
+                                action: @menu:petsciiWhosOnline
+                            }
+                            {
+                                value: { navSelect: "lastCallers" }
+                                action: @menu:petsciiLastCallers
+                            }
+                            {
+                                value: { navSelect: "logoff" }
+                                action: @menu:petsciiLogoff
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        petsciiWhosOnline: {
+            desc: Who's Online
+            module: whos_online
+            art: PWHOSON
+            config: {
+                pause: petsciiPause
+            }
+        }
+
+        petsciiLastCallers: {
+            desc: Last Callers
+            module: last_callers
+            art: PLASTCALL
+            config: {
+                pause: petsciiPause
+            }
+        }
+
+        petsciiLogoff: {
+            desc: Logging Off
+            art: PLOGOFF
+            next: @systemMethod:logoff
+        }
+    }
+
+    prompts: {
+        //  The pause prompt for this tree; the stock one is drawn for ANSI
+        petsciiPause: {
+            art: PPAUSE
+            config: {
+                trailingLF: no
+            }
+        }
+    }
+}

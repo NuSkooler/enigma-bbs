@@ -40,6 +40,9 @@ You will be asked a series of questions to create an initial configuration, whic
 written to `config/config.hjson`. The same run also produces your menu files under
 `config/menus/` — see [Menu HJSON](menu-hjson.md).
 
+The last question offers starter menus and a theme for PETSCII (Commodore 64/128)
+callers; it defaults to no. See [Starter menus and theme](../servers/loginservers/petscii.md#starter-menus-and-theme).
+
 ## Overriding Defaults
 The file `core/config_default.js` provides various defaults to the system that you can override via `config.hjson`. For example, the default system name is defined as follows:
 ```javascript

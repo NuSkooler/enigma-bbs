@@ -24,13 +24,16 @@ const hjson = require('hjson');
 const paths = require('path');
 const _ = require('lodash');
 const sanatizeFilename = require('sanitize-filename');
+const copySync = require('fs-extra').copySync;
 
 exports.handleConfigCommand = handleConfigCommand;
 exports.setInstallFilePaths = setInstallFilePaths;
+exports.buildNewConfig = buildNewConfig;
 
 //  The install's own config/: where `config new` writes the menus, and where
 //  the shipped achievements.hjson lives.
 const InstallConfigDir = paths.join(__dirname, '../../config');
+exports.InstallConfigDir = InstallConfigDir;
 
 //
 //  Settings taken verbatim from config_default.js rather than left as a
@@ -54,6 +57,107 @@ const ConfigIncludeKeys = [
 ];
 
 exports.ConfigIncludeKeys = ConfigIncludeKeys;
+
+//
+//  The PETSCII starter (#593): a small menu tree and a theme for Commodore
+//  style callers, offered by "config new" and off unless asked for. The
+//  theme ships outside art/themes/ and is only copied in on request: any
+//  PETSCII theme in the themes directory is given to PETSCII callers, which
+//  on a board without these menus would strand them on the stock tree.
+//
+//  A PETSCII caller on the main telnet port is sent into the starter menus by
+//  an ACS branch on the stock connect menu (see addPetsciiConnectBranch()); a
+//  dedicated listener can name |firstMenu| instead.
+//
+const PetsciiStarter = Object.freeze({
+    menuTemplate: 'petscii.in.hjson',
+    themeSourceDir: paths.join(__dirname, '../../misc/petscii_starter'),
+    themeId: 'petscii_starter',
+    firstMenu: 'petsciiConnected',
+    afterConnectMenu: 'petsciiMatrix',
+});
+
+exports.PetsciiStarter = PetsciiStarter;
+
+//  The config.hjson setting that gives PETSCII sessions the starter theme
+function applyPetsciiStarterConfig(config) {
+    _.set(config, ['theme', 'emulations'], {
+        petscii: {
+            default: PetsciiStarter.themeId,
+            preLogin: PetsciiStarter.themeId,
+        },
+    });
+}
+
+exports.applyPetsciiStarterConfig = applyPetsciiStarterConfig;
+
+//
+//  The stock telnetConnected menu in login.in.hjson, exactly as shipped, and
+//  the same menu with its |next| branched on the session's terminal
+//  emulation: a PETSCII caller goes on to the starter matrix, everyone else
+//  to the stock one. Its CONNECT art is in the starter theme too, so a
+//  PETSCII caller sees PETSCII art from the first screen.
+//
+const StockTelnetConnected = `        telnetConnected: {
+            desc: Telnet Connect
+            art: CONNECT
+            next: matrix
+            config: { nextTimeout: 1500 }
+        }`;
+
+const PetsciiTelnetConnected = `        telnetConnected: {
+            desc: Telnet Connect
+            art: CONNECT
+            next: [
+                {
+                    //  PETSCII (Commodore) callers: the PETSCII starter menus
+                    acs: TE[petscii]
+                    next: ${PetsciiStarter.afterConnectMenu}
+                }
+                {
+                    next: matrix
+                }
+            ]
+            config: { nextTimeout: 1500 }
+        }`;
+
+//
+//  |loginMenuText| (login.in.hjson's text) with the PETSCII branch added to
+//  telnetConnected. Throws when the stock entry is not there exactly once:
+//  better no file than one that silently lacks the way in.
+//
+function addPetsciiConnectBranch(loginMenuText) {
+    //  a checkout with CRLF line endings has them in the template too
+    const eol = loginMenuText.includes('\r\n') ? '\r\n' : '\n';
+    const parts = loginMenuText.split(StockTelnetConnected.replace(/\n/g, eol));
+    if (2 !== parts.length) {
+        throw new Error(
+            'telnetConnected in login.in.hjson is not as expected; PETSCII branch not added'
+        );
+    }
+    return parts.join(PetsciiTelnetConnected.replace(/\n/g, eol));
+}
+
+exports.addPetsciiConnectBranch = addPetsciiConnectBranch;
+
+//
+//  Copy the starter theme into |themesDir|. An existing theme directory of
+//  that name is left alone (it may have been customised): returns false
+//  then, true when copied.
+//
+function copyPetsciiStarterTheme(themesDir) {
+    const dest = paths.join(themesDir, PetsciiStarter.themeId);
+    if (fs.existsSync(dest)) {
+        return false;
+    }
+    copySync(PetsciiStarter.themeSourceDir, dest, {
+        overwrite: false,
+        errorOnExist: true,
+    });
+    return true;
+}
+
+exports.copyPetsciiStarterTheme = copyPetsciiStarterTheme;
 
 const QUESTIONS = {
     Intro: [
@@ -121,6 +225,16 @@ const QUESTIONS = {
             default: 'General chit-chat',
         },
     ],
+
+    Petscii: [
+        {
+            name: 'includePetscii',
+            message:
+                'Include starter menus and theme for PETSCII (Commodore 64/128) callers?',
+            type: 'confirm',
+            default: false,
+        },
+    ],
 };
 
 function makeMsgConfAreaName(s) {
@@ -132,6 +246,7 @@ function askNewConfigQuestions(cb) {
 
     let configPath;
     let config;
+    const options = {};
 
     async.waterfall(
         [
@@ -228,12 +343,41 @@ function askNewConfigQuestions(cb) {
                     return callback(null);
                 });
             },
+            function petscii(callback) {
+                getAnswers(QUESTIONS.Petscii, answers => {
+                    options.includePetscii = true === answers.includePetscii;
+                    return callback(null);
+                });
+            },
         ],
         err => {
-            return cb(err, configPath, config);
+            return cb(err, configPath, config, options);
         }
     );
 }
+
+//
+//  login.in.hjson with the PETSCII branch, never over an existing file (as
+//  copyFileSyncSilent() with COPYFILE_EXCL). If the branch cannot be added
+//  the stock file is copied as it is: a board without the branch works, one
+//  without its login menus does not.
+//
+const writePetsciiLoginMenu = (from, to) => {
+    let text;
+    try {
+        text = addPetsciiConnectBranch(fs.readFileSync(from, 'utf8'));
+    } catch (e) {
+        console.error(
+            `${e.message}: PETSCII callers on the main port are not sent to the PETSCII menus; see the PETSCII documentation to add the branch to telnetConnected in ${to}`
+        );
+        return copyFileSyncSilent(from, to, fs.constants.COPYFILE_EXCL);
+    }
+    try {
+        fs.writeFileSync(to, text, { encoding: 'utf8', flag: 'wx' });
+    } catch (e) {
+        console.error(e);
+    }
+};
 
 const copyFileSyncSilent = (to, from, flags) => {
     try {
@@ -252,14 +396,23 @@ const copyFileSyncSilent = (to, from, flags) => {
 //  them beside itself instead, and the achievements default
 //  ("achievements.hjson") would quietly switch achievements off.
 //
-function setInstallFilePaths(config, menuFile) {
-    config.general.menuFile = paths.join(InstallConfigDir, 'menus', menuFile);
-    config.general.achievementFile = paths.join(InstallConfigDir, 'achievements.hjson');
+function setInstallFilePaths(config, menuFile, installConfigDir = InstallConfigDir) {
+    config.general.menuFile = paths.join(installConfigDir, 'menus', menuFile);
+    config.general.achievementFile = paths.join(installConfigDir, 'achievements.hjson');
 }
 
-function buildNewConfig() {
-    askNewConfigQuestions((err, configPath, config) => {
+//
+//  |dirs| is for tests only: { installConfigDir, themesDir }, defaulting to
+//  the install's config/ and the default themes directory.
+//
+function buildNewConfig(dirs = {}, done = _.noop) {
+    const InstallConfigDir = dirs.installConfigDir || exports.InstallConfigDir;
+    const themesDir =
+        dirs.themesDir || require('../../core/config_default')().paths.themes;
+
+    askNewConfigQuestions((err, configPath, config, options) => {
         if (err) {
+            done(err);
             return err;
         }
 
@@ -286,12 +439,47 @@ function buildNewConfig() {
             const outName = `${boardName}-${incFile.replace('.in', '')}`;
             includeFiles.push(outName);
 
+            //  with the PETSCII starter, the connect menu branches to it (#593)
+            if (options.includePetscii && 'login.in.hjson' === incFile) {
+                return writePetsciiLoginMenu(
+                    paths.join(__dirname, '../../misc/menu_templates', incFile),
+                    paths.join(InstallConfigDir, 'menus', outName)
+                );
+            }
+
             copyFileSyncSilent(
                 paths.join(__dirname, '../../misc/menu_templates', incFile),
                 paths.join(InstallConfigDir, 'menus', outName),
                 fs.constants.COPYFILE_EXCL
             );
         });
+
+        //  PETSCII starter menus and theme, only when asked for (#593)
+        if (options.includePetscii) {
+            const outName = `${boardName}-${PetsciiStarter.menuTemplate.replace('.in', '')}`;
+            includeFiles.push(outName);
+
+            copyFileSyncSilent(
+                paths.join(
+                    __dirname,
+                    '../../misc/menu_templates',
+                    PetsciiStarter.menuTemplate
+                ),
+                paths.join(InstallConfigDir, 'menus', outName),
+                fs.constants.COPYFILE_EXCL
+            );
+
+            const themeDest = paths.join(themesDir, PetsciiStarter.themeId);
+            try {
+                if (!copyPetsciiStarterTheme(themesDir)) {
+                    console.info(`${themeDest} exists; left as it is`);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+
+            applyPetsciiStarterConfig(config);
+        }
 
         //  We really only need includes to be replaced
         const mainTemplate = fs
@@ -308,13 +496,14 @@ function buildNewConfig() {
             'utf8'
         );
 
-        setInstallFilePaths(config, menuFile);
+        setInstallFilePaths(config, menuFile, InstallConfigDir);
 
         if (writeConfig(config, configPath)) {
             console.info('Configuration generated');
         } else {
             console.error('Failed writing configuration');
         }
+        return done(null, configPath);
     });
 }
 

@@ -7,6 +7,15 @@
 //  (loginServers.telnet.listeners), entering secondFirstMenu (default "login",
 //  the stock login prompt) instead of telnetConnected.
 //  Refuses to write into a non-empty directory it did not create (marker file).
+//
+//  Flags (anywhere on the line):
+//    --petscii                 opt in to the PETSCII starter menus and theme,
+//                              as "config new" does on Yes (#593). The instance
+//                              then gets a themes directory of its own
+//                              (<instanceDir>/themes: the stock theme and
+//                              the starter theme copied), so nothing is added
+//                              to the checkout's art/themes.
+//    --second-emulation=NAME   give the second listener "emulation: NAME"
 const fs = require('fs');
 const paths = require('path');
 const hjson = require('hjson');
@@ -14,12 +23,17 @@ const _ = require('lodash');
 
 const root = paths.resolve(__dirname, '../..');
 const MARKER = '.term_harness_instance';
+const args = process.argv.slice(2);
+const flags = args.filter(a => a.startsWith('--'));
+const petscii = flags.includes('--petscii');
+const secondEmulationFlag = flags.find(f => f.startsWith('--second-emulation='));
+const secondEmulation = secondEmulationFlag && secondEmulationFlag.split('=')[1];
 const [
     instDir = paths.join(__dirname, '.work', 'instance'),
     portArg = '47991',
     secondPortArg,
     secondFirstMenu = 'login',
-] = process.argv.slice(2);
+] = args.filter(a => !a.startsWith('--'));
 const inst = paths.resolve(instDir);
 const parsePort = arg => {
     const p = parseInt(arg, 10);
@@ -67,7 +81,13 @@ for (const d of [
     fs.mkdirSync(paths.join(inst, d), { recursive: true });
 }
 
-const { ConfigIncludeKeys } = require(paths.join(root, 'core/oputil/oputil_config.js'));
+const {
+    ConfigIncludeKeys,
+    PetsciiStarter,
+    applyPetsciiStarterConfig,
+    copyPetsciiStarterTheme,
+    addPetsciiConnectBranch,
+} = require(paths.join(root, 'core/oputil/oputil_config.js'));
 const defaultConfig = require(paths.join(root, 'core/config_default'))();
 const template = hjson.rt.parse(
     fs.readFileSync(paths.join(root, 'misc/config_template.in.hjson'), 'utf8')
@@ -93,6 +113,9 @@ if (undefined !== secondPort) {
     config.loginServers.telnet.listeners = {
         second: { port: secondPort, address: '127.0.0.1', firstMenu: secondFirstMenu },
     };
+    if (secondEmulation) {
+        config.loginServers.telnet.listeners.second.emulation = secondEmulation;
+    }
 }
 config.loginServers.ssh.enabled = false;
 config.loginServers.webSocket.ws.enabled = false;
@@ -128,12 +151,40 @@ const includes = [
     'activitypub',
 ].map(n => {
     const out = `harness-${n}.hjson`;
-    fs.copyFileSync(
-        paths.join(root, 'misc/menu_templates', `${n}.in.hjson`),
-        paths.join(inst, 'menus', out)
-    );
+    const from = paths.join(root, 'misc/menu_templates', `${n}.in.hjson`);
+    if (petscii && 'login' === n) {
+        fs.writeFileSync(
+            paths.join(inst, 'menus', out),
+            addPetsciiConnectBranch(fs.readFileSync(from, 'utf8'))
+        );
+    } else {
+        fs.copyFileSync(from, paths.join(inst, 'menus', out));
+    }
     return out;
 });
+if (petscii) {
+    const out = `harness-${PetsciiStarter.menuTemplate.replace('.in', '')}`;
+    fs.copyFileSync(
+        paths.join(root, 'misc/menu_templates', PetsciiStarter.menuTemplate),
+        paths.join(inst, 'menus', out)
+    );
+    includes.push(out);
+
+    const themesDir = paths.join(inst, 'themes');
+    fs.mkdirSync(themesDir, { recursive: true });
+    const stock = paths.join(themesDir, 'luciano_blocktronics');
+    fs.rmSync(stock, { recursive: true, force: true });
+    fs.cpSync(paths.join(root, 'art/themes/luciano_blocktronics'), stock, {
+        recursive: true,
+    });
+    fs.rmSync(paths.join(themesDir, PetsciiStarter.themeId), {
+        recursive: true,
+        force: true,
+    });
+    copyPetsciiStarterTheme(themesDir);
+    config.paths.themes = themesDir + '/';
+    applyPetsciiStarterConfig(config);
+}
 const main = fs
     .readFileSync(paths.join(root, 'misc/menu_templates/main.in.hjson'), 'utf8')
     .replace(/%INCLUDE_FILES%/g, includes.join('\n\t\t'));
@@ -150,4 +201,8 @@ const second =
     undefined === secondPort
         ? ''
         : `, second listener 127.0.0.1:${secondPort} -> ${secondFirstMenu}`;
-console.log(`instance written to ${inst} (telnet 127.0.0.1:${port}${second})`);
+console.log(
+    `instance written to ${inst} (telnet 127.0.0.1:${port}${second}${
+        petscii ? ', PETSCII starter' : ''
+    })`
+);

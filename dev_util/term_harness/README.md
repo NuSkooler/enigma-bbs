@@ -41,6 +41,27 @@ Logs are in `<instanceDir>/logs`, process output in `<instanceDir>/enigma.out`.
 `make_instance.js` on its own directory rewrites config and menus but keeps the
 user database, so for a clean slate stop the instance and delete `.work/instance`.
 
+### PETSCII starter instance
+
+    node dev_util/term_harness/make_instance.js .work/pet 48901 48902 petsciiConnected --petscii --second-emulation=petscii
+
+`--petscii` opts the instance in to the PETSCII starter menus and theme the way
+`oputil.js config new` does on Yes (#593): the PETSCII menu file is included,
+`telnetConnected` branches on `TE[petscii]`, and `theme.emulations.petscii` is
+set. The instance gets its own `themes/` directory (copies of the stock and
+starter themes), so the checkout's `art/themes/` is not touched.
+`--second-emulation=NAME` marks the second listener `emulation: NAME`.
+
+`petscii_walk.js` is a PETSCII caller for such an instance (Node, no pyte): it
+answers TTYPE with `PETSCII` and NAWS with 40x25, renders on the PETSCII screen
+model from `test/term_petscii_screens.js` (which rejects bytes a Commodore
+terminal must never get), walks the starter tree and prints every screen:
+
+    node dev_util/term_harness/petscii_walk.js --port 48901 --user tester
+    node dev_util/term_harness/petscii_walk.js --port 48902 --term ''   # the listener route
+
+It exits non-zero on any ESC byte or screen-model error.
+
 ## Run a walk
 
 The new-user walk creates the user; the main walk logs that user in, so run them

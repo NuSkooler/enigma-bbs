@@ -149,7 +149,7 @@ cat arguments:
 
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
-| `new`     | Generates a new/initial configuration | `./oputil.js config new` (follow the prompts) |
+| `new`     | Generates a new/initial configuration. The last question offers the [PETSCII starter menus and theme](../servers/loginservers/petscii.md#starter-menus-and-theme) for Commodore 64/128 callers (default no; no leaves the output exactly as before). | `./oputil.js config new` (follow the prompts) |
 | `cat` | Pretty prints current `config.hjson` configuration to stdout. | `./oputil.js config cat` |
 
 ## File Base Management
