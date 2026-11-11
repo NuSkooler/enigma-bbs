@@ -1210,3 +1210,38 @@ describe('MultiLineEditTextView — setPipeText', () => {
         assert.equal(stripAnsi(v.buffer.lines[0].chars).trimEnd(), text.slice(0, 20));
     });
 });
+
+// ─── setWidth on a narrow terminal (#991) ─────────────────────────────────────
+
+describe('MultiLineEditTextView — setWidth on a narrow terminal', () => {
+    function makeNarrowMltev(termWidth) {
+        const client = makeClient();
+        client.term.termWidth = termWidth;
+        return new MultiLineEditTextView({ client, position: { row: 10, col: 1 } });
+    }
+
+    it('wraps the buffer at the clamped view width, not the requested one', () => {
+        //  the shipped FSE body asks for width: 79
+        const v = makeNarrowMltev(40);
+        v.setWidth(79);
+
+        assert.strictEqual(v.dimens.width, 39);
+        assert.strictEqual(v.buffer.width, 39);
+    });
+
+    it('keeps text inside the view on a 40-column terminal', () => {
+        const v = makeNarrowMltev(40);
+        v.setWidth(79);
+        v.setText('word '.repeat(20).trim(), { scrollMode: 'top' });
+
+        for (const line of v.buffer.lines) {
+            assert.ok(line.chars.length <= 39, `line too long: ${line.chars.length}`);
+        }
+    });
+
+    it('leaves an 80-column terminal at the requested width', () => {
+        const v = makeNarrowMltev(80);
+        v.setWidth(79);
+        assert.strictEqual(v.buffer.width, 79);
+    });
+});

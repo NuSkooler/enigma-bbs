@@ -1797,7 +1797,8 @@ class MultiLineEditTextView extends View {
 
         this.calculateTabStops();
         if (this.buffer) {
-            this.buffer.setWidth(width);
+            //  the clamped width: text must wrap where the view ends
+            this.buffer.setWidth(this.dimens.width);
         }
     }
 
