@@ -140,8 +140,9 @@ exports.getModule = class PageSysopModule extends MenuModule {
     _showArtAndExit(artSpec, fallbackText, cb) {
         this.displayAsset(artSpec, { clearScreen: true }, err => {
             if (err && fallbackText) {
-                this.client.term.rawWrite(
-                    ansi.resetScreen() + pipeToAnsi(fallbackText, this.client) + '\r\n'
+                this.client.term.write(
+                    ansi.resetScreen() + pipeToAnsi(fallbackText, this.client) + '\r\n',
+                    false
                 );
             }
             this.pausePrompt({ row: this.client.term.termHeight }, () =>

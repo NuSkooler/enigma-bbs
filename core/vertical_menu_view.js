@@ -132,10 +132,11 @@ class VerticalMenuView extends MenuView {
             return;
         }
         const row = this.position.row + index * (this.itemSpacing + 1);
-        this.client.term.rawWrite(
+        this.client.term.write(
             `${ansi.goto(row, this.position.col)}${ansi.normal()}${this.fillChar.repeat(
                 this.dimens.width
-            )}`
+            )}`,
+            false
         );
     }
 
