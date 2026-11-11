@@ -17,6 +17,7 @@ const _ = require('lodash');
 
 exports.getArt = getArt;
 exports.getArtFromPath = getArtFromPath;
+exports.getArtTypePolicy = getArtTypePolicy;
 exports.display = display;
 exports.paginate = paginate;
 exports.defaultEncodingFromExtension = defaultEncodingFromExtension;
@@ -154,10 +155,85 @@ function getArtFromPath(path, options, cb) {
     });
 }
 
+//
+//  What the terminal itself says about art types, before the caller's request
+//  is taken into account:
+//
+//      allowed     array of types the terminal can be sent at all, or
+//                  undefined for "any type"
+//      preferred   array of tiers (arrays of types), best first. Types not
+//                  in any tier rank after all of them.
+//
+//  |term.artTypes|, when present, supplies this as-is. Nothing sets it yet; it
+//  is the seam the terminal emulation object will fill (#593), e.g. PETSCII
+//  allowing only '.seq', or a RIP layer preferring '.rip' over '.ans'.
+//
+//  Until then it is derived from the output encoding: a UTF-8 terminal prefers
+//  '.utf8ans', and every terminal accepts every type.
+//
+function termArtTypePreferences(term) {
+    if (term && term.artTypes) {
+        return term.artTypes;
+    }
+
+    if (term && 'utf8' === term.outputEncoding) {
+        return { preferred: [['.utf8ans']] };
+    }
+
+    return { preferred: [] };
+}
+
+//
+//  Resolve the art type policy for |client| (which may be absent) and the
+//  requested |types| (in the caller's order of priority):
+//
+//      {
+//          allowed:    [ ...types ],                   //  the only types that may be picked
+//          preferred:  [ [ tier 1 ], [ tier 2 ], ... ] //  best first; non-empty; covers |allowed|
+//      }
+//
+//  A candidate whose type is not in |allowed| is never chosen, whatever else is
+//  missing. getArt() takes the first tier that has a matching file as its pool.
+//  Within a tier, types keep the order the terminal gave them; types the
+//  terminal did not rank form the last tier, in the caller's order.
+//
+function getArtTypePolicy(client, types) {
+    const prefs = termArtTypePreferences(_.get(client, 'term'));
+
+    const allowed = Array.isArray(prefs.allowed)
+        ? types.filter(t => prefs.allowed.includes(t))
+        : types.slice();
+
+    const ranked = new Set();
+    const preferred = [];
+    (prefs.preferred || []).forEach(tier => {
+        const t = [];
+        tier.forEach(type => {
+            if (allowed.includes(type) && !ranked.has(type)) {
+                ranked.add(type);
+                t.push(type);
+            }
+        });
+        if (t.length > 0) {
+            preferred.push(t);
+        }
+    });
+
+    const rest = allowed.filter(t => !ranked.has(t));
+    if (rest.length > 0) {
+        preferred.push(rest);
+    }
+
+    return { allowed, preferred };
+}
+
 function getArt(name, options, cb) {
     const ext = paths.extname(name);
 
-    options.basePath = miscUtil.valueWithDefault(options.basePath, Config().paths.art);
+    //  Only consult Config when no base path was given.
+    if (undefined === options.basePath) {
+        options.basePath = Config().paths.art;
+    }
     options.asAnsi = miscUtil.valueWithDefault(options.asAnsi, true);
 
     //  :TODO: make use of asAnsi option and convert from supported -> ansi
@@ -185,19 +261,11 @@ function getArt(name, options, cb) {
             return cb(err);
         }
 
-        //
-        //  For UTF-8 capable terminals, move '.utf8ans' to the front of the
-        //  candidate type list so it is preferred over '.ans' when both exist.
-        //  Falls back to '.ans' (etc.) transparently when no '.utf8ans' file is found.
-        //
-        const clientIsUtf8 = _.get(options, 'client.term.outputEncoding') === 'utf8';
-        if (clientIsUtf8 && options.types.includes('.utf8ans')) {
-            options.types = ['.utf8ans', ...options.types.filter(t => t !== '.utf8ans')];
-        }
+        const policy = getArtTypePolicy(options.client, options.types);
 
         const filtered = files.filter(file => {
             //
-            //  Ignore anything not allowed in |options.types|
+            //  Ignore any type the policy does not allow.
             //
             //  Keep the original-case ext for paths.basename() (which is case-sensitive
             //  when stripping the suffix), and use the lowercase form only for the
@@ -205,7 +273,7 @@ function getArt(name, options, cb) {
             //
             const fextOrig = paths.extname(file);
             const fext = fextOrig.toLowerCase();
-            if (!options.types.includes(fext)) {
+            if (!policy.allowed.includes(fext)) {
                 return false;
             }
 
@@ -245,39 +313,44 @@ function getArt(name, options, cb) {
             return true;
         });
 
-        if (filtered.length > 0) {
-            //
-            //  For UTF-8 clients prefer the .utf8ans subset of candidates when
-            //  available; for all others (or when no .utf8ans exists) use the
-            //  full filtered set.
-            //
-            const utf8Pool = clientIsUtf8
-                ? filtered.filter(f => paths.extname(f).toLowerCase() === '.utf8ans')
-                : [];
-            const pool = utf8Pool.length > 0 ? utf8Pool : filtered;
-
-            let readPath;
-            if (options.random) {
-                readPath = paths.join(
-                    options.basePath,
-                    pool[Math.floor(Math.random() * pool.length)]
-                );
-            } else {
-                //
-                //  Non-random: pick by type priority (earlier index in options.types wins).
-                //
-                const best = pool.reduce((winner, file) => {
-                    const wi = options.types.indexOf(paths.extname(winner).toLowerCase());
-                    const fi = options.types.indexOf(paths.extname(file).toLowerCase());
-                    return fi < wi ? file : winner;
-                });
-                readPath = paths.join(options.basePath, best);
+        //
+        //  The pool is the candidates of the first preference tier that has any.
+        //
+        const typeOf = f => paths.extname(f).toLowerCase();
+        let tier = [];
+        let pool = [];
+        for (tier of policy.preferred) {
+            pool = filtered.filter(f => tier.includes(typeOf(f)));
+            if (pool.length > 0) {
+                break;
             }
-
-            return getArtFromPath(readPath, options, cb);
         }
 
-        return cb(Errors.DoesNotExist(`No matching art for supplied criteria: ${name}`));
+        if (0 === pool.length) {
+            return cb(
+                Errors.DoesNotExist(`No matching art for supplied criteria: ${name}`)
+            );
+        }
+
+        let readPath;
+        if (options.random) {
+            readPath = paths.join(
+                options.basePath,
+                pool[Math.floor(Math.random() * pool.length)]
+            );
+        } else {
+            //
+            //  Non-random: pick by type order within the tier (earlier wins).
+            //
+            const best = pool.reduce((winner, file) => {
+                return tier.indexOf(typeOf(file)) < tier.indexOf(typeOf(winner))
+                    ? file
+                    : winner;
+            });
+            readPath = paths.join(options.basePath, best);
+        }
+
+        return getArtFromPath(readPath, options, cb);
     });
 }
 
