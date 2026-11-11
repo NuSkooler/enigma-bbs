@@ -71,6 +71,11 @@ function ClientTerminal(output) {
             return outputEncoding;
         },
         set: function (enc) {
+            //  Store one canonical name: 'utf-8', 'UTF8' etc. all become 'utf8',
+            //  which is what ACS "EC1" and art selection compare against.
+            if (_.isString(enc) && /^utf-?8$/i.test(enc.trim())) {
+                enc = 'utf8';
+            }
             if (iconv.encodingExists(enc)) {
                 Log.info(
                     { encoding: enc, currentEncoding: outputEncoding },
