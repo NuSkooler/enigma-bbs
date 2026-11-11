@@ -34,7 +34,9 @@ function createEmulation(name = DEFAULT_EMULATION) {
 //
 //  The emulation of |term|. A ClientTerminal always has one; anything else
 //  handed around as a term (tests, modules that build a stand-in) is treated
-//  as ANSI, which is what it was before emulations existed.
+//  as ANSI, which is what it was before emulations existed. Those all share
+//  one instance: use it to read ANSI's parts, never to store per-client state
+//  (a stand-in term keeps its own termCapabilities).
 //
 let fallback;
 function emulationOf(term) {

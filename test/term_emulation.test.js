@@ -276,6 +276,16 @@ describe('terminal emulation', () => {
             ]);
         });
 
+        it('getKeyComponentsFromCode() hands out a copy, not the table entry', () => {
+            const first = AnsiInput.getKeyComponentsFromCode('[A');
+            assert.deepEqual(first, { name: 'up arrow' });
+            first.name = 'changed';
+            assert.deepEqual(AnsiInput.getKeyComponentsFromCode('[A'), {
+                name: 'up arrow',
+            });
+            assert.equal(AnsiInput.getKeyComponentsFromCode('nope'), undefined);
+        });
+
         it('a chunk holding a mouse report is dropped whole', () => {
             assert.deepEqual(decode('a\x1b[<0;10;5Mb'), []);
         });

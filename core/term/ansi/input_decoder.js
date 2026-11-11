@@ -218,8 +218,10 @@ const KeyComponentsByCode = {
     '[Z': { name: 'tab', shift: true },
 };
 
+//  a fresh object per call, as callers have always been handed
 function getKeyComponentsFromCode(code) {
-    return KeyComponentsByCode[code];
+    const components = KeyComponentsByCode[code];
+    return components ? Object.assign({}, components) : undefined;
 }
 
 function decode(data, host, emit) {
