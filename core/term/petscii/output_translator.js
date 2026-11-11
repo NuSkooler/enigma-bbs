@@ -217,8 +217,24 @@ function checkCharset(charset) {
     return charset;
 }
 
+//
+//  The largest screen accepted. A size comes from the terminal (telnet NAWS
+//  lets a caller claim 65535 x 65535), and an erase writes one space per
+//  cell, so an unbounded size would let a caller ask for gigabytes of output.
+//  Real PETSCII screens are 40x25, 80x25 and 22x23.
+//
+const MAX_COLS = 160;
+const MAX_ROWS = 100;
+
 function checkSize(cols, rows) {
-    if (!Number.isInteger(cols) || cols < 2 || !Number.isInteger(rows) || rows < 2) {
+    if (
+        !Number.isInteger(cols) ||
+        cols < 2 ||
+        cols > MAX_COLS ||
+        !Number.isInteger(rows) ||
+        rows < 2 ||
+        rows > MAX_ROWS
+    ) {
         throw new RangeError(`Bad PETSCII screen size: ${cols}x${rows}`);
     }
 }
@@ -968,6 +984,10 @@ function createPetsciiTranslator({
         out = [];
         sendCharsetIfNeeded();
 
+        //  nothing to write is nothing to write, not the text "null"
+        if (undefined === data || null === data) {
+            data = '';
+        }
         const buf = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
         const text = st.decoder.write(buf);
         for (const ch of text) {
@@ -1050,4 +1070,4 @@ function createPetsciiTranslator({
     };
 }
 
-module.exports = { createPetsciiTranslator };
+module.exports = { createPetsciiTranslator, MAX_COLS, MAX_ROWS };

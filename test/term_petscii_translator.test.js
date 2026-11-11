@@ -790,4 +790,36 @@ describe('PETSCII output translator', function () {
             });
         }
     });
+    describe('review fixes', () => {
+        it('refuses a screen larger than any real one', () => {
+            const t = createPetsciiTranslator();
+            for (const [c, r] of [
+                [65535, 65535],
+                [161, 25],
+                [40, 101],
+                [1e9, 1e9],
+            ]) {
+                assert.throws(() => t.setSize(c, r), RangeError);
+                assert.throws(
+                    () => createPetsciiTranslator({ cols: c, rows: r }),
+                    RangeError
+                );
+            }
+            t.setSize(160, 100);
+            assert.equal(t.state().cols, 160);
+        });
+
+        it('an erase on the largest screen stays small', () => {
+            const t = createPetsciiTranslator({ cols: 160, rows: 100 });
+            t.translate('\x1b[2J\x1b[H');
+            assert.ok(t.translate('\x1b[J').length <= 160 * 100 + 64);
+        });
+
+        it('null and undefined write nothing', () => {
+            const t = createPetsciiTranslator();
+            t.translate('a');
+            assert.equal(t.translate(null).length, 0);
+            assert.equal(t.translate(undefined).length, 0);
+        });
+    });
 });
