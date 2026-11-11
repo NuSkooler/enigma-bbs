@@ -15,6 +15,7 @@ const Errors = require('./enig_error.js').Errors;
 const Events = require('./events.js');
 const AnsiPrep = require('./ansi_prep.js');
 const UserProps = require('./user_property.js');
+const { emulationOf, DEFAULT_EMULATION } = require('./term');
 
 const ConfigLoader = require('./config_loader');
 const { getConfigPath } = require('./config_util');
@@ -31,6 +32,16 @@ exports.getAvailableThemes = getAvailableThemes;
 exports.getMenuNames = getMenuNames;
 exports.getRandomTheme = getRandomTheme;
 exports.setClientTheme = setClientTheme;
+exports.getThemeEmulation = getThemeEmulation;
+exports.getThemeEmulationById = getThemeEmulationById;
+exports.getSessionEmulation = getSessionEmulation;
+exports.getThemeIdsForEmulation = getThemeIdsForEmulation;
+exports.getThemeSetting = getThemeSetting;
+exports.getEmulationDefaultThemeId = getEmulationDefaultThemeId;
+exports.isThemeCompatible = isThemeCompatible;
+exports.getSessionThemeId = getSessionThemeId;
+exports.getSelectableThemes = getSelectableThemes;
+exports.getThemeIdToPersist = getThemeIdToPersist;
 exports.displayPreparedArt = displayPreparedArt;
 exports.displayThemeArt = displayThemeArt;
 exports.displayThemedPause = displayThemedPause;
@@ -57,7 +68,13 @@ exports.ThemeManager = class ThemeManager {
                     .forEach((themeConfig, themeId) => {
                         const { name, author, group } = themeConfig.get().info;
                         Log.info(
-                            { themeId, themeName: name, author, group },
+                            {
+                                themeId,
+                                themeName: name,
+                                author,
+                                group,
+                                emulation: getThemeEmulation(themeConfig.get()),
+                            },
                             'Theme loaded'
                         );
                     });
@@ -551,30 +568,199 @@ function getMenuNames() {
     return _.isPlainObject(menus) ? Object.keys(menus) : undefined;
 }
 
-function getRandomTheme() {
-    const avail = getAvailableThemes();
-    if (avail.size > 0) {
-        const themeIds = [...avail.keys()];
+//
+//  Themes and terminal emulations (#593)
+//
+//  A theme is drawn for one emulation, named by |info.emulation| in its
+//  theme.hjson; a theme that does not say is ANSI, which every theme was
+//  before emulations existed. A session only ever gets a theme of its own
+//  emulation (core/term/, |client.term.emulation.name|): handing a PETSCII
+//  caller an ANSI theme would send it art and layout it cannot show.
+//
+//  On a board where every theme and every session is ANSI -- every board so
+//  far -- each check below passes and each list below is the full list, so
+//  nothing changes.
+//
+
+//  the emulation |theme| (a finalized theme or a raw theme.hjson) is for
+function getThemeEmulation(theme) {
+    const emulation = _.get(theme, 'info.emulation');
+    if (_.isString(emulation) && emulation.trim().length > 0) {
+        return emulation.trim().toLowerCase();
+    }
+    return DEFAULT_EMULATION;
+}
+
+function themeManagerReady() {
+    return undefined !== themeManagerInstance;
+}
+
+//
+//  The emulation of the theme called |themeId|. A theme that loaded but is
+//  disabled or was rejected still answers from its theme.hjson. An id that
+//  names no theme at all is taken to be ANSI: that is what such an id meant
+//  before emulations existed (an ANSI session asking for it falls back to
+//  the default theme exactly as before), and it keeps a stale id from
+//  steering a non-ANSI session.
+//
+function getThemeEmulationById(themeId) {
+    if (!themeManagerReady() || !_.isString(themeId)) {
+        return DEFAULT_EMULATION;
+    }
+
+    const themeConfig =
+        themeManagerInstance.availableThemes.get(themeId) ||
+        themeManagerInstance.loadedThemeConfigs.get(themeId);
+    if (!themeConfig) {
+        return DEFAULT_EMULATION;
+    }
+
+    //  available themes answer from the finalized theme, others from the file
+    const theme = themeManagerInstance.availableThemes.has(themeId)
+        ? themeConfig.get()
+        : themeConfig.getRaw();
+    return getThemeEmulation(theme);
+}
+
+//  the emulation of |client|'s session; ANSI for a stand-in without a term
+function getSessionEmulation(client) {
+    return emulationOf(_.get(client, 'term')).name;
+}
+
+function isThemeCompatible(themeId, emulation) {
+    return getThemeEmulationById(themeId) === emulation;
+}
+
+//  ids of the available themes for |emulation|, in load order
+function getThemeIdsForEmulation(emulation) {
+    if (!themeManagerReady()) {
+        return [];
+    }
+
+    const themeIds = [];
+    getAvailableThemes().forEach((themeConfig, themeId) => {
+        if (getThemeEmulation(themeConfig.get()) === emulation) {
+            themeIds.push(themeId);
+        }
+    });
+    return themeIds;
+}
+
+//
+//  A theme setting ('default' or 'preLogin') for |emulation|:
+//  theme.emulations.<emulation>.<key> when set, otherwise theme.<key>. With no
+//  theme.emulations block -- every existing config -- this is theme.<key>,
+//  read exactly as before. The value may be "*" or name a theme of another
+//  emulation; callers deal with both.
+//
+function getThemeSetting(emulation, key) {
+    const config = Config();
+    const perEmulation = _.get(config, ['theme', 'emulations', emulation, key]);
+    if (_.isString(perEmulation) && perEmulation.length > 0) {
+        return perEmulation;
+    }
+    return _.get(config, ['theme', key]);
+}
+
+//
+//  The theme a session of |emulation| falls back to: the configured default
+//  if it is available and of that emulation, otherwise the first theme of
+//  that emulation. Undefined when there is none.
+//
+function getEmulationDefaultThemeId(emulation) {
+    if (!themeManagerReady()) {
+        return undefined;
+    }
+
+    const configured = getThemeSetting(emulation, 'default');
+    if (
+        getAvailableThemes().has(configured) &&
+        isThemeCompatible(configured, emulation)
+    ) {
+        return configured;
+    }
+    return getThemeIdsForEmulation(emulation)[0];
+}
+
+//
+//  With |emulation|, picks among that emulation's themes only; without it,
+//  among all themes as before. On a board whose themes are all ANSI, the two
+//  are the same list in the same order.
+//
+function getRandomTheme(emulation) {
+    const themeIds = _.isString(emulation)
+        ? getThemeIdsForEmulation(emulation)
+        : [...getAvailableThemes().keys()];
+    if (themeIds.length > 0) {
         return themeIds[Math.floor(Math.random() * themeIds.length)];
     }
 }
 
+//  once per emulation per process: it is a configuration gap, not an event
+const warnedNoThemeEmulations = new Set();
+
 function setClientTheme(client, themeId) {
     const availThemes = getAvailableThemes();
+    const emulation = getSessionEmulation(client);
+
+    //
+    //  A theme for another emulation is not offered to this session at all:
+    //  it gets its emulation's default instead, and whatever asked for it --
+    //  usually the user's saved theme -- is left as it is (#593).
+    //
+    let requestedThemeId = themeId;
+    if (!isThemeCompatible(themeId, emulation)) {
+        client.log.debug(
+            {
+                requestedThemeId: themeId,
+                themeEmulation: getThemeEmulationById(themeId),
+                emulation,
+            },
+            'Theme is not for this terminal emulation; using the emulation default'
+        );
+        requestedThemeId = undefined;
+    }
+
+    const compatible = id => availThemes.has(id) && isThemeCompatible(id, emulation);
 
     let msg;
     let setThemeId;
-    const config = Config();
-    if (availThemes.has(themeId)) {
+    const defaultThemeId = getThemeSetting(emulation, 'default');
+    if (compatible(requestedThemeId)) {
         msg = 'Set client theme';
-        setThemeId = themeId;
-    } else if (availThemes.has(config.theme.default)) {
+        setThemeId = requestedThemeId;
+    } else if (compatible(defaultThemeId)) {
         msg = 'Failed setting theme by supplied ID; Using default';
-        setThemeId = config.theme.default;
-    } else {
+        setThemeId = defaultThemeId;
+    } else if (getThemeIdsForEmulation(emulation).length > 0) {
         msg =
             'Failed setting theme by system default ID; Using the first one we can find';
-        setThemeId = availThemes.keys().next().value;
+        setThemeId = getThemeIdsForEmulation(emulation)[0];
+    } else {
+        //
+        //  No theme at all for this emulation. Never leave the session
+        //  without one: fall back exactly as before emulations existed.
+        //  (With no themes whatsoever there is nothing to warn about here;
+        //  that fails below as it always has.)
+        //
+        if (availThemes.size > 0 && !warnedNoThemeEmulations.has(emulation)) {
+            warnedNoThemeEmulations.add(emulation);
+            //  the logger as it is now, not as it was when this file loaded
+            require('./logger.js').log.warn(
+                { emulation },
+                'No theme is available for this terminal emulation; using the default theme'
+            );
+        }
+
+        const config = Config();
+        if (availThemes.has(config.theme.default)) {
+            msg = 'Failed setting theme by supplied ID; Using default';
+            setThemeId = config.theme.default;
+        } else {
+            msg =
+                'Failed setting theme by system default ID; Using the first one we can find';
+            setThemeId = availThemes.keys().next().value;
+        }
     }
 
     client.currentTheme = availThemes.get(setThemeId);
@@ -582,6 +768,80 @@ function setClientTheme(client, themeId) {
         { setThemeId, requestedThemeId: themeId, info: client.currentTheme.info },
         msg
     );
+}
+
+//
+//  The theme id that art for |client| is looked up under, before the default
+//  theme and the general art directory. Undefined if there is none.
+//
+//  This is the user's theme property, as it always has been, whenever that
+//  theme suits the session's emulation -- which on an ANSI-only board is
+//  always, including an id that names no theme (looked up, missed, and the
+//  default theme used, as before). Reading |client.currentTheme| instead
+//  would change two things on such a board: art for a disabled or broken
+//  theme still in a user's profile comes from that theme's directory today,
+//  and the "already logged in" screen shows art from the theme of the user
+//  who tried to log in. Neither is touched here.
+//
+//  Only when the property names a theme of another emulation -- the session
+//  was given its emulation's default instead (see setClientTheme()) -- does
+//  art come from the session's theme.
+//
+function getSessionThemeId(client) {
+    const themeId = _.get(client, ['user', 'properties', UserProps.ThemeId]);
+    if (isThemeCompatible(themeId, getSessionEmulation(client))) {
+        return themeId;
+    }
+    return _.get(client, 'currentTheme.info.themeId');
+}
+
+//
+//  [ themeId, themeConfig ] entries a user on |client| may choose between:
+//  the available themes for the session's emulation, in load order. On an
+//  ANSI-only board, every available theme.
+//
+//  When there is no theme at all for the emulation, the session is running
+//  on the system default theme (see setClientTheme()); the list is then every
+//  available theme, never an empty one.
+//
+function getSelectableThemes(client) {
+    const emulation = getSessionEmulation(client);
+    const all = [...getAvailableThemes()];
+    const matching = all.filter(
+        ([, themeConfig]) => getThemeEmulation(themeConfig.get()) === emulation
+    );
+    return matching.length > 0 ? matching : all;
+}
+
+//
+//  What to save as the user's theme when they pick |selectedThemeId| from
+//  getSelectableThemes(): that id, or undefined to leave the saved one alone.
+//
+//  The saved theme may be for another emulation -- chosen on another
+//  terminal -- and so not in the list; the list then opens on the theme the
+//  session was given in its place. Saving with that still selected is not a
+//  choice, and must not overwrite the saved one. On an ANSI-only board the
+//  saved theme is always for the session's emulation, so this always returns
+//  |selectedThemeId|.
+//
+function getThemeIdToPersist(client, selectedThemeId) {
+    const savedThemeId = _.get(client, ['user', 'properties', UserProps.ThemeId]);
+    if (
+        !isThemeCompatible(savedThemeId, getSessionEmulation(client)) &&
+        selectedThemeId === _.get(client, 'currentTheme.info.themeId')
+    ) {
+        return undefined;
+    }
+    return selectedThemeId;
+}
+
+//  where art falls back to when the session's theme does not have it
+function getArtDefaultThemeId(client) {
+    const emulation = getSessionEmulation(client);
+    if (DEFAULT_EMULATION === emulation || !themeManagerReady()) {
+        return Config().theme.default;
+    }
+    return getEmulationDefaultThemeId(emulation) || Config().theme.default;
 }
 
 function getThemeArt(options, cb) {
@@ -597,14 +857,12 @@ function getThemeArt(options, cb) {
     //      random
     //
     const config = Config();
-    if (
-        !options.themeId &&
-        _.has(options, ['client', 'user', 'properties', UserProps.ThemeId])
-    ) {
-        options.themeId = options.client.user.properties[UserProps.ThemeId];
+    if (!options.themeId && options.client) {
+        options.themeId = getSessionThemeId(options.client);
     }
 
-    options.themeId = options.themeId || config.theme.default;
+    const defaultThemeId = getArtDefaultThemeId(options.client);
+    options.themeId = options.themeId || defaultThemeId;
 
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
     //  :TODO: Some of these options should only be set if not provided!
@@ -654,11 +912,11 @@ function getThemeArt(options, cb) {
                 });
             },
             function fromDefaultTheme(artInfo, callback) {
-                if (artInfo || config.theme.default === options.themeId) {
+                if (artInfo || defaultThemeId === options.themeId) {
                     return callback(null, artInfo);
                 }
 
-                options.basePath = paths.join(config.paths.themes, config.theme.default);
+                options.basePath = paths.join(config.paths.themes, defaultThemeId);
                 art.getArt(options.name, options, (err, artInfo) => {
                     return callback(null, artInfo);
                 });

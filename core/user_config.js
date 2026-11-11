@@ -130,8 +130,19 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         self.availThemeInfo[formData.value.theme].themeId,
                 };
 
+                //  A saved theme for another terminal emulation survives a
+                //  save that left the list on this session's theme (#593)
+                const persistThemeId = theme.getThemeIdToPersist(
+                    self.client,
+                    newProperties[UserProps.ThemeId]
+                );
+
                 //  Runtime set theme
                 theme.setClientTheme(self.client, newProperties.theme_id);
+
+                if (undefined === persistThemeId) {
+                    delete newProperties[UserProps.ThemeId];
+                }
 
                 //  persist all changes
                 self.client.user.persistProperties(newProperties, err => {
@@ -208,8 +219,9 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         );
                     },
                     function prepareAvailableThemes(callback) {
+                        //  only themes for this session's terminal emulation (#593)
                         self.availThemeInfo = _.sortBy(
-                            [...theme.getAvailableThemes()].map(entry => {
+                            theme.getSelectableThemes(self.client).map(entry => {
                                 const theme = entry[1].get();
                                 return {
                                     themeId: theme.info.themeId,
@@ -226,13 +238,16 @@ exports.getModule = class UserConfigModule extends MenuModule {
                             'name'
                         );
 
+                        //
+                        //  The saved theme; or, when that is for another
+                        //  emulation and so not listed, the theme this session
+                        //  was given in its place.
+                        //
+                        const selectThemeId = theme.getSessionThemeId(self.client);
                         currentThemeIdIndex = Math.max(
                             0,
                             self.availThemeInfo.findIndex(function cmp(ti) {
-                                return (
-                                    ti.themeId ===
-                                    self.client.user.properties[UserProps.ThemeId]
-                                );
+                                return ti.themeId === selectThemeId;
                             })
                         );
 

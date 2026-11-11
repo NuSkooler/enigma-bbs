@@ -424,6 +424,32 @@ describe('config validation: Blue Wave area entries', () => {
     });
 });
 
+describe('config validation: theme.emulations entries', () => {
+    //  keyed by emulation name, which is open (#593); each entry is closed
+    const themeEmulations = emulations => validate({ theme: { emulations } });
+
+    it('accepts default and preLogin for any emulation name', () => {
+        assert.deepEqual(
+            themeEmulations({
+                petscii: { default: 'c64', preLogin: '*' },
+                somethingNew: { preLogin: 'x' },
+            }),
+            []
+        );
+    });
+
+    it('catches a misspelled member', () => {
+        const [issue] = themeEmulations({ petscii: { prelogin: 'c64' } });
+
+        assert.equal(issue.code, IssueCodes.UnknownKey);
+        assert.equal(issue.suggestion, 'preLogin');
+    });
+
+    it('a config without it reports nothing new', () => {
+        assert.deepEqual(validate({ theme: { default: 'x', preLogin: '*' } }), []);
+    });
+});
+
 describe('config validation: eventScheduler entries', () => {
     //
     //  Closed for the same reason: a short, documented key set, and since

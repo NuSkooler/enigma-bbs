@@ -451,7 +451,16 @@ function checkThemeReferences(issues, config, themeIds) {
         return;
     }
 
-    ['theme.default', 'theme.preLogin'].forEach(path => {
+    //  and the per emulation overrides of both (#593)
+    const paths = ['theme.default', 'theme.preLogin'];
+    keysAt(config, 'theme.emulations').forEach(emulation => {
+        paths.push(
+            `theme.emulations.${emulation}.default`,
+            `theme.emulations.${emulation}.preLogin`
+        );
+    });
+
+    paths.forEach(path => {
         const value = _.get(config, path);
         if (RANDOM_THEME === value) {
             return;

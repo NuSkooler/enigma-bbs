@@ -121,9 +121,18 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                     //  :TODO: should probably have a place to create defaults/etc.
                 };
 
-                const defaultTheme = _.get(config, 'theme.default');
+                //
+                //  The setting and a random pick follow the session's
+                //  terminal emulation; for ANSI with no theme.emulations
+                //  block that is theme.default and every theme, as before.
+                //  A setting that names another emulation's theme is saved
+                //  as it is; no session is ever given one (setClientTheme()).
+                //
+                const emulation = theme.getSessionEmulation(self.client);
+                const defaultTheme = theme.getThemeSetting(emulation, 'default');
                 if ('*' === defaultTheme) {
-                    newUser.properties[UserProps.ThemeId] = theme.getRandomTheme();
+                    newUser.properties[UserProps.ThemeId] =
+                        theme.getRandomTheme(emulation);
                 } else {
                     newUser.properties[UserProps.ThemeId] = defaultTheme;
                 }
