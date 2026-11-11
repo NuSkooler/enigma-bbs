@@ -115,6 +115,16 @@ function logoff(callingMenu, formData, extraArgs, cb) {
     //
     const client = callingMenu.client;
 
+    //
+    //  The line noise below is random bytes read as the terminal's encoding.
+    //  An emulation with an encoding of its own (PETSCII) has a name iconv
+    //  does not know; its noise is read as CP437 and translated like any
+    //  other output.
+    //
+    const noiseEncoding = iconv.encodingExists(client.term.outputEncoding)
+        ? client.term.outputEncoding
+        : 'cp437';
+
     setTimeout(() => {
         //
         //  For giggles...
@@ -124,7 +134,7 @@ function logoff(callingMenu, formData, extraArgs, cb) {
                 '\n' +
                 iconv.decode(
                     require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20),
-                    client.term.outputEncoding
+                    noiseEncoding
                 ) +
                 'NO CARRIER',
             null,

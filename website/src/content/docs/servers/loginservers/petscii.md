@@ -49,4 +49,6 @@ Every caller on that port is treated as PETSCII, whatever its terminal announces
 * No hyperlinks, fonts, blink or underline.
 * The bottom right screen cell is never drawn, because writing it scrolls a Commodore screen.
 * Some control key combinations do not exist on a Commodore keyboard: Ctrl with E, N, Q, R, S or T share their codes with colour, cursor and delete keys.
-* Doors and file transfers are passed through untranslated. Most doors expect an ANSI terminal; use the `TE` [ACS](../../configuration/acs.md) code to keep them away from PETSCII callers, for example `TE[ansi]` on a door menu entry.
+* Doors expect an ANSI terminal. A door's output is translated like any other output, but its input is not: the door receives PETSCII key codes, so cursor and function keys will not work in it, and most doors assume 80 columns. Use the `TE` [ACS](../../configuration/acs.md) code to keep doors away from PETSCII callers, for example `TE[ansi]` on a door menu entry.
+* File transfers, and bridged connections such as the Telnet bridge and door networks, are passed through untranslated in both directions.
+* A window resize during a session is not followed; the size is settled at connect, up to 160x100.
