@@ -732,7 +732,7 @@
 						width: 70
 						maxLength: 600
 					}
-					TM3: {
+					HM3: {
 						focusTextStyle: upper
 						styleSGR1: |08
 					}
