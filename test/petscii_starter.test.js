@@ -329,10 +329,11 @@ describe('oputil config new and the PETSCII starter (#593)', function () {
         const log = console.info;
         console.info = () => {};
         return new Promise((resolve, reject) => {
-            buildNewConfig(dirs, (err, configPath) => {
+            buildNewConfig(dirs, (err, configPath, result) => {
                 console.info = log;
                 if (err) return reject(new Error(String(err)));
                 resolve({
+                    petsciiNotes: (result && result.petsciiNotes) || [],
                     config: readHjson(configPath),
                     menus: fs
                         .readdirSync(paths.join(dirs.installConfigDir, 'menus'))
@@ -447,5 +448,57 @@ describe('oputil config new and the PETSCII starter (#593)', function () {
             '{ mine: true }'
         );
         assert.deepEqual(fs.readdirSync(mine), ['theme.hjson']);
+    });
+    describe('when the starter cannot be completed', () => {
+        let errors;
+        let consoleError;
+
+        beforeEach(() => {
+            errors = [];
+            consoleError = console.error;
+            console.error = (...args) => errors.push(args.join(' '));
+        });
+
+        afterEach(() => {
+            console.error = consoleError;
+        });
+
+        it('a login menu already in the way is kept, and the operator is told', async () => {
+            const menuDir = paths.join(tmp, 'config', 'menus');
+            fs.mkdirSync(menuDir, { recursive: true });
+            const mine = paths.join(menuDir, 'test_board-login.hjson');
+            fs.writeFileSync(mine, '{ mine: true }');
+
+            const result = await runConfigNew(true);
+
+            assert.equal(fs.readFileSync(mine, 'utf8'), '{ mine: true }');
+            assert.equal(result.petsciiNotes.length, 1);
+            assert.match(result.petsciiNotes[0], /already exists/);
+            assert.match(result.petsciiNotes[0], /TE\[petscii\]/);
+            assert.ok(errors.some(e => /PETSCII starter is not complete/.test(e)));
+        });
+
+        it('a theme that cannot be copied leaves the theme setting out', async () => {
+            const { PetsciiStarter } = require('../core/oputil/oputil_config.js');
+            //  make the source unusable for the length of the run
+            const source = PetsciiStarter.themeSourceDir;
+            const moved = `${source}.moved-by-test`;
+            fs.renameSync(source, moved);
+            try {
+                const result = await runConfigNew(true);
+                assert.equal(_.get(result.config, 'theme.emulations'), undefined);
+                assert.equal(result.petsciiNotes.length, 1);
+                assert.match(result.petsciiNotes[0], /could not be copied/);
+                assert.deepEqual(result.themes, []);
+            } finally {
+                fs.renameSync(moved, source);
+            }
+        });
+
+        it('a complete run has nothing to report', async () => {
+            const result = await runConfigNew(true);
+            assert.deepEqual(result.petsciiNotes, []);
+            assert.equal(errors.length, 0);
+        });
     });
 });

@@ -362,20 +362,28 @@ function askNewConfigQuestions(cb) {
 //  the stock file is copied as it is: a board without the branch works, one
 //  without its login menus does not.
 //
+//  Returns undefined when the branch is in place, otherwise why it is not,
+//  for the operator to be told at the end: without it PETSCII callers on the
+//  main port stay on the stock menus.
+//
 const writePetsciiLoginMenu = (from, to) => {
+    const addItYourself = `add the TE[petscii] branch to telnetConnected in ${to} yourself (see the PETSCII documentation)`;
+
     let text;
     try {
         text = addPetsciiConnectBranch(fs.readFileSync(from, 'utf8'));
     } catch (e) {
-        console.error(
-            `${e.message}: PETSCII callers on the main port are not sent to the PETSCII menus; see the PETSCII documentation to add the branch to telnetConnected in ${to}`
-        );
-        return copyFileSyncSilent(from, to, fs.constants.COPYFILE_EXCL);
+        copyFileSyncSilent(from, to, fs.constants.COPYFILE_EXCL);
+        return `${e.message}; ${addItYourself}`;
     }
+
     try {
         fs.writeFileSync(to, text, { encoding: 'utf8', flag: 'wx' });
     } catch (e) {
-        console.error(e);
+        if ('EEXIST' === e.code) {
+            return `${to} already exists and was left as it is; ${addItYourself}`;
+        }
+        return `${to} could not be written (${e.message}); ${addItYourself}`;
     }
 };
 
@@ -435,16 +443,23 @@ function buildNewConfig(dirs = {}, done = _.noop) {
         ];
 
         let includeFiles = [];
+
+        //  what the operator still has to do by hand for the PETSCII starter
+        const petsciiNotes = [];
         includeFilesIn.forEach(incFile => {
             const outName = `${boardName}-${incFile.replace('.in', '')}`;
             includeFiles.push(outName);
 
             //  with the PETSCII starter, the connect menu branches to it (#593)
             if (options.includePetscii && 'login.in.hjson' === incFile) {
-                return writePetsciiLoginMenu(
+                const note = writePetsciiLoginMenu(
                     paths.join(__dirname, '../../misc/menu_templates', incFile),
                     paths.join(InstallConfigDir, 'menus', outName)
                 );
+                if (note) {
+                    petsciiNotes.push(note);
+                }
+                return;
             }
 
             copyFileSyncSilent(
@@ -469,16 +484,22 @@ function buildNewConfig(dirs = {}, done = _.noop) {
                 fs.constants.COPYFILE_EXCL
             );
 
+            //
+            //  The theme setting is only written when the theme is there:
+            //  naming a theme that does not exist would fail validation and
+            //  leave PETSCII sessions on the ANSI default.
+            //
             const themeDest = paths.join(themesDir, PetsciiStarter.themeId);
             try {
                 if (!copyPetsciiStarterTheme(themesDir)) {
                     console.info(`${themeDest} exists; left as it is`);
                 }
+                applyPetsciiStarterConfig(config);
             } catch (e) {
-                console.error(e);
+                petsciiNotes.push(
+                    `the starter theme could not be copied to ${themeDest} (${e.message}); copy ${PetsciiStarter.themeSourceDir} there and set theme.emulations.petscii yourself (see the PETSCII documentation)`
+                );
             }
-
-            applyPetsciiStarterConfig(config);
         }
 
         //  We really only need includes to be replaced
@@ -503,7 +524,12 @@ function buildNewConfig(dirs = {}, done = _.noop) {
         } else {
             console.error('Failed writing configuration');
         }
-        return done(null, configPath);
+
+        if (petsciiNotes.length > 0) {
+            console.error('\nThe PETSCII starter is not complete:');
+            petsciiNotes.forEach(note => console.error(`  * ${note}`));
+        }
+        return done(null, configPath, { petsciiNotes });
     });
 }
 
