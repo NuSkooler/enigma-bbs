@@ -655,6 +655,40 @@
                         "address": {
                             "description": "Interface to bind to. Unset binds every interface.",
                             "type": "string"
+                        },
+                        "listeners": {
+                            "description": "Additional telnet ports, keyed by listener name. Each may name its own emulation and first menu.",
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                    "port": {
+                                        "type": "number",
+                                        "minimum": 1,
+                                        "maximum": 65535
+                                    },
+                                    "address": {
+                                        "description": "Interface to bind to. Unset uses loginServers.telnet.address.",
+                                        "type": "string"
+                                    },
+                                    "emulation": {
+                                        "description": "Terminal emulation for callers on this port, e.g. \"petscii\". Only \"ansi\" is implemented; anything else falls back to ANSI.",
+                                        "type": "string"
+                                    },
+                                    "firstMenu": {
+                                        "description": "Menu entered on connect to this port. Unset uses loginServers.telnet.firstMenu.",
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "description": "false leaves this listener out without removing it.",
+                                        "type": "boolean"
+                                    }
+                                },
+                                "patternProperties": {
+                                    "^_": true
+                                },
+                                "additionalProperties": false
+                            }
                         }
                     },
                     "patternProperties": {

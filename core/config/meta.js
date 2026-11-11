@@ -659,6 +659,44 @@ module.exports = {
         type: 'string',
         description: 'Menu entered on connect; must name an entry in menu.hjson.',
     },
+    //
+    //  Extra telnet ports, keyed by a name the operator picks (#593). Absent
+    //  from config_default.js: no listeners unless configured. The entry key
+    //  set is short and fully read by core/servers/login/telnet.js, so it is
+    //  closed -- a misspelled "firstMenu" would otherwise silently send
+    //  callers to the main first menu.
+    //
+    'loginServers.telnet.listeners': {
+        openMap: true,
+        description:
+            'Additional telnet ports, keyed by listener name. Each may name its own emulation and first menu.',
+        value: {
+            type: 'object',
+            closedKeys: true,
+            children: {
+                port: PORT,
+                address: {
+                    type: 'string',
+                    description:
+                        'Interface to bind to. Unset uses loginServers.telnet.address.',
+                },
+                emulation: {
+                    type: 'string',
+                    description:
+                        'Terminal emulation for callers on this port, e.g. "petscii". Only "ansi" is implemented; anything else falls back to ANSI.',
+                },
+                firstMenu: {
+                    type: 'string',
+                    description:
+                        'Menu entered on connect to this port. Unset uses loginServers.telnet.firstMenu.',
+                },
+                enabled: {
+                    type: 'boolean',
+                    description: 'false leaves this listener out without removing it.',
+                },
+            },
+        },
+    },
     'loginServers.ssh.port': PORT,
     'loginServers.ssh.enabled': { type: 'boolean' },
     'loginServers.ssh.privateKeyPem': {

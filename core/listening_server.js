@@ -18,7 +18,8 @@ const ListenerCloseTimeoutMs = 1000;
 
 //
 //  Where the server modules keep what they listen with, for a module with no
-//  shutdown() of its own (none has one yet). Each is close()'d.
+//  shutdown() of its own (telnet has one, for its named listeners). Each is
+//  close()'d.
 //
 const ServerFields = [
     'server', //  telnet, ssh, gopher, the MRC multiplexer

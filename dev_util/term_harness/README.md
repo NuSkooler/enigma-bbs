@@ -28,11 +28,14 @@ generated lives in `dev_util/term_harness/.work/`, which is git-ignored.
 
 ## Build and start an instance
 
-    node dev_util/term_harness/make_instance.js [instanceDir] [port]
+    node dev_util/term_harness/make_instance.js [instanceDir] [port] [secondPort [secondFirstMenu]]
     dev_util/term_harness/run_instance.sh start [instanceDir]
 
 Defaults: `.work/instance`, port `47991`, telnet on 127.0.0.1 only; SSH, web
-and WebSocket servers are off. Stock menus, one message area, one file area.
+and WebSocket servers are off. With `secondPort`, a second telnet listener
+named `second` is added on that port (`loginServers.telnet.listeners`); it
+enters `secondFirstMenu`, default `login` (the login prompt, not the
+CONNECT/matrix chain), so `--port` picks which one a walk lands on. Stock menus, one message area, one file area.
 Logs are in `<instanceDir>/logs`, process output in `<instanceDir>/enigma.out`.
 `run_instance.sh status` and `stop` do what they say. Re-running
 `make_instance.js` on its own directory rewrites config and menus but keeps the

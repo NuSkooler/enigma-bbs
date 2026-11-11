@@ -7,6 +7,7 @@ const logger = require('./logger.js');
 const ServerModule = require('./server_module.js').ServerModule;
 const clientConns = require('./client_connections.js');
 const UserProps = require('./user_property.js');
+const { selectClientEmulation } = require('./term/select.js');
 
 //  deps
 const _ = require('lodash');
@@ -71,6 +72,14 @@ module.exports = class LoginServerModule extends ServerModule {
 
         client.on('ready', readyOptions => {
             client.startIdleMonitor();
+
+            //
+            //  The terminal type is known by now (the transport waits for
+            //  it), and so is the listener the caller came in on: settle
+            //  which terminal emulation this session uses before anything is
+            //  asked of the terminal.
+            //
+            selectClientEmulation(client, readyOptions);
 
             //  Go to module -- use default error handler
             this.prepareClient(client, () => {

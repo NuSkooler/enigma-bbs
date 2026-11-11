@@ -499,6 +499,22 @@ describe('config deferred references', () => {
         assert.equal(issues[0].path, 'loginServers.someMod.firstMenu');
     });
 
+    it("checks a named telnet listener's first menu, unless it is disabled", () => {
+        const config = sound();
+        config.loginServers.telnet.listeners = {
+            good: { port: 6400, firstMenu: 'telnetConnected' },
+            inherits: { port: 6401 },
+            typo: { port: 6402, firstMenu: 'telnetConected' },
+            off: { port: 6403, firstMenu: 'nowhere', enabled: false },
+        };
+
+        const issues = check(config);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].path, 'loginServers.telnet.listeners.typo.firstMenu');
+        assert.equal(issues[0].suggestion, 'telnetConnected');
+    });
+
     it('leaves an unresolved "@" spec alone', () => {
         //
         //  _resolveAtSpecs() leaves the literal spec string in place when it

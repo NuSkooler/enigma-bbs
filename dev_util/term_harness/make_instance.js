@@ -1,8 +1,11 @@
 'use strict';
 //  Build a throwaway ENiGMA instance (config + menus + data dirs) under a
 //  directory, the way `oputil.js config new` does, without prompts.
-//  Usage: node make_instance.js [instanceDir] [telnetPort]
+//  Usage: node make_instance.js [instanceDir] [telnetPort] [secondPort [secondFirstMenu]]
 //  Defaults: .work/instance beside this file, port 47991 (127.0.0.1 only).
+//  With secondPort, a named telnet listener "second" is added on that port
+//  (loginServers.telnet.listeners), entering secondFirstMenu (default "login",
+//  the stock login prompt) instead of telnetConnected.
 //  Refuses to write into a non-empty directory it did not create (marker file).
 const fs = require('fs');
 const paths = require('path');
@@ -11,12 +14,25 @@ const _ = require('lodash');
 
 const root = paths.resolve(__dirname, '../..');
 const MARKER = '.term_harness_instance';
-const [instDir = paths.join(__dirname, '.work', 'instance'), portArg = '47991'] =
-    process.argv.slice(2);
+const [
+    instDir = paths.join(__dirname, '.work', 'instance'),
+    portArg = '47991',
+    secondPortArg,
+    secondFirstMenu = 'login',
+] = process.argv.slice(2);
 const inst = paths.resolve(instDir);
-const port = parseInt(portArg, 10);
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    console.error(`bad port: ${portArg}`);
+const parsePort = arg => {
+    const p = parseInt(arg, 10);
+    if (!Number.isInteger(p) || p < 1 || p > 65535) {
+        console.error(`bad port: ${arg}`);
+        process.exit(1);
+    }
+    return p;
+};
+const port = parsePort(portArg);
+const secondPort = undefined === secondPortArg ? undefined : parsePort(secondPortArg);
+if (secondPort === port) {
+    console.error('second port must differ from the main port');
     process.exit(1);
 }
 
@@ -73,6 +89,11 @@ config.messageConferences.local = {
 };
 config.logging.rotatingFile.level = 'debug';
 config.loginServers.telnet = { enabled: true, port, address: '127.0.0.1' };
+if (undefined !== secondPort) {
+    config.loginServers.telnet.listeners = {
+        second: { port: secondPort, address: '127.0.0.1', firstMenu: secondFirstMenu },
+    };
+}
 config.loginServers.ssh.enabled = false;
 config.loginServers.webSocket.ws.enabled = false;
 config.loginServers.webSocket.wss.enabled = false;
@@ -125,4 +146,8 @@ fs.writeFileSync(
     paths.join(inst, 'config.hjson'),
     hjson.rt.stringify(config, { bracesSameLine: true })
 );
-console.log(`instance written to ${inst} (telnet 127.0.0.1:${port})`);
+const second =
+    undefined === secondPort
+        ? ''
+        : `, second listener 127.0.0.1:${secondPort} -> ${secondFirstMenu}`;
+console.log(`instance written to ${inst} (telnet 127.0.0.1:${port}${second})`);
