@@ -586,6 +586,14 @@ describe('Theme emulation binding (#593)', function () {
             );
         });
 
+        it('an emulation with no theme of its own is offered every theme, not none', () => {
+            installThemes(MIXED);
+            assert.deepEqual(
+                ids(theme.getSelectableThemes(makeClient({ emulation: 'lonelyemu' }))),
+                ['ansi_one', 'ansi_two', 'fake_one', 'fake_two']
+            );
+        });
+
         it('ANSI: the selection is always what gets saved', () => {
             installThemes(MIXED);
             const client = makeClient({ themeId: 'gone' });

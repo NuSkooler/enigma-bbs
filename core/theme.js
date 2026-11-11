@@ -800,11 +800,17 @@ function getSessionThemeId(client) {
 //  the available themes for the session's emulation, in load order. On an
 //  ANSI-only board, every available theme.
 //
+//  When there is no theme at all for the emulation, the session is running
+//  on the system default theme (see setClientTheme()); the list is then every
+//  available theme, never an empty one.
+//
 function getSelectableThemes(client) {
     const emulation = getSessionEmulation(client);
-    return [...getAvailableThemes()].filter(
+    const all = [...getAvailableThemes()];
+    const matching = all.filter(
         ([, themeConfig]) => getThemeEmulation(themeConfig.get()) === emulation
     );
+    return matching.length > 0 ? matching : all;
 }
 
 //
