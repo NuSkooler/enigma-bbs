@@ -20,3 +20,6 @@ website/.astro
 #  enig-term installed into a working copy: the image carries its own, at
 #  /opt/enig-term, and a ws-term/ here would switch the route on by default
 ws-term
+
+#  scratch state of the developer terminal harness
+dev_util/term_harness/.work

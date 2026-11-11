@@ -11,7 +11,7 @@ PETSCII/ATASCII work (#593).
 
 **Only ever point this at a throwaway local instance.** The walks log in, post
 messages and create users. The client refuses any host other than
-`127.0.0.1`/`localhost` unless you pass `--allow-remote`; do not. The instance
+`127.0.0.1`/`localhost`/`::1` unless you pass `--allow-remote`; do not. The instance
 builder refuses to write into a non-empty directory it did not create (it
 looks for a `.term_harness_instance` marker), so it cannot clobber a real
 config.
@@ -49,7 +49,7 @@ in this order against a fresh instance, with the same `--user`/`--password`:
 
 Options: `--cols --rows` (default 80x25), `--term` (TTYPE, default `ansi`),
 `--walk`, `--user`, `--password` (default `harnesspass1`), `--out` (default
-`.work/dumps-COLSxROWS`), `--port`, `-v` (print each dump). A walk takes a few
+`.work/dumps-COLSxROWS` beside the scripts), `--port`, `-v` (print each dump). A walk takes a few
 minutes; it waits for the board to go quiet after every key. With no `--walk`
 it just connects and dumps the first screen. Each step writes `NN-name.txt`
 (numbered screen plus cursor position) to the out directory, and `raw.log` holds

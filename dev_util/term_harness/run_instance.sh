@@ -10,7 +10,16 @@ CMD="${1:-}"
 INST="$(realpath -m "${2:-$HERE/.work/instance}")"
 PIDF="$INST/enigma.pid"
 
-alive() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
+#  Alive only if the pid is still OUR instance: a stale pid file must never get
+#  an unrelated process signalled once the pid has been reused.
+alive() {
+    [ -f "$PIDF" ] || return 1
+    local pid; pid="$(cat "$PIDF")"
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    kill -0 "$pid" 2>/dev/null || return 1
+    [ -r "/proc/$pid/cmdline" ] || return 1
+    tr '\0' ' ' < "/proc/$pid/cmdline" | grep -qF -- "--config $INST/"
+}
 
 case "$CMD" in
 start)
