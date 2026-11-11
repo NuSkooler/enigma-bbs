@@ -46,7 +46,8 @@ function makeClient(uniqueId) {
         term: {
             termWidth: 80,
             termHeight: 25,
-            rawWrite: data => {
+            //  protocol data reaches the caller untranslated
+            passThroughWrite: data => {
                 client.output += data.toString();
                 client.emitter.forEach(fn => fn(client.output));
             },

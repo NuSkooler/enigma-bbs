@@ -8,6 +8,7 @@ const ansi = require('./ansi_term.js');
 const aep = require('./ansi_escape_parser.js');
 const sauce = require('./sauce.js');
 const { Errors } = require('./enig_error.js');
+const { emulationOf } = require('./term');
 
 //  deps
 const fs = require('graceful-fs');
@@ -165,29 +166,22 @@ function getArtFromPath(path, options, cb) {
 //                  in any tier rank after all of them.
 //      last        array of types that rank after everything else
 //
-//  |term.artTypes|, when present, supplies this as-is. Nothing sets it yet; it
-//  is the seam the terminal emulation object will fill (#593), e.g. PETSCII
-//  allowing only '.seq', or a RIP layer preferring '.rip' over '.ans'.
-//
-//  Until then it is derived from the output encoding: a UTF-8 terminal prefers
-//  '.utf8ans', and every terminal accepts every type.
+//  |term.artTypes|, when present, supplies this as-is (an explicit override).
+//  Otherwise it comes from the terminal's emulation (core/term/): ANSI derives
+//  it from the output encoding, a UTF-8 terminal preferring '.utf8ans' and
+//  every terminal accepting every type; PETSCII would allow only '.seq', and a
+//  RIP layer would prefer '.rip' over '.ans'.
 //
 function termArtTypePreferences(term) {
-    if (term && term.artTypes) {
+    if (!term) {
+        return { preferred: [] };
+    }
+
+    if (term.artTypes) {
         return term.artTypes;
     }
 
-    if (term && 'utf8' === term.outputEncoding) {
-        return { preferred: [['.utf8ans']] };
-    }
-
-    //  Any other terminal cannot draw UTF-8: '.utf8ans' is a last resort, used
-    //  only when it is the sole match (as it always has been in that case).
-    if (term) {
-        return { preferred: [], last: ['.utf8ans'] };
-    }
-
-    return { preferred: [] };
+    return emulationOf(term).artTypes(term);
 }
 
 //

@@ -107,7 +107,7 @@ exports.getModule = class DoorPartyModule extends MenuModule {
 
                                 stream.on('data', d => {
                                     //  :TODO: we should just pipe this...
-                                    self.client.term.rawWrite(d);
+                                    self.client.term.passThroughWrite(d);
                                 });
 
                                 stream.on('end', () => {

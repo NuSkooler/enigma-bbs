@@ -645,7 +645,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
             updateActivity();
 
             //  needed for things like sz/rz
-            this.client.term.rawWrite(processIACs ? escapeIacs(data) : data);
+            this.client.term.passThroughWrite(processIACs ? escapeIacs(data) : data);
         });
 
         externalProc.onExit(exitEvent => {

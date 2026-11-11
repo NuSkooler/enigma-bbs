@@ -348,7 +348,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
                             case 'output':
                                 stopSpinner();
-                                self.client.term.rawWrite(Buffer.from(msg.data));
+                                self.client.term.passThroughWrite(Buffer.from(msg.data));
                                 break;
 
                             case 'stopped': {

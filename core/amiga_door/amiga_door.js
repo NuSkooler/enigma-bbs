@@ -1489,7 +1489,7 @@ class AmigaDoorSession extends EventEmitter {
             return;
         }
         if (this.rawOutput) {
-            this.client.term.rawWrite(bytes);
+            this.client.term.passThroughWrite(bytes);
         } else {
             const text = this.decoder ? this.decoder.write(bytes) : '';
             if (text) {

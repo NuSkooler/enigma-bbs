@@ -120,7 +120,7 @@ exports.getModule = class GoldmineModule extends MenuModule {
                     });
 
                     rlogin.on('data', data => {
-                        this.client.term.rawWrite(data);
+                        this.client.term.passThroughWrite(data);
                     });
 
                     // connect...
