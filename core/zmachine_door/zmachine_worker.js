@@ -24,6 +24,8 @@
  * {
  *   gamePath:          string   - path to the .z3/.z5/.z8 file
  *   preloadedAutosave: Buffer   - pre-fetched autosave data, or null for fresh start
+ *   termWidth:         number   - caller's terminal width (default 80)
+ *   termHeight:        number   - caller's terminal height (default 25)
  * }
  *
  * parentPort protocol (worker → parent):
@@ -49,6 +51,11 @@ const { isMainThread, workerData, parentPort } = require('worker_threads');
 if (isMainThread) {
     return;
 }
+
+const positiveIntOr = (value, def) =>
+    Number.isInteger(value) && value > 0 ? value : def;
+const TermWidth = positiveIntOr(workerData.termWidth, 80);
+const TermHeight = positiveIntOr(workerData.termHeight, 25);
 
 const { readFileSync } = require('fs');
 const { PassThrough } = require('stream');
@@ -185,14 +192,22 @@ const STYLE_SGR = {
 class WorkerGlkOte extends GlkOteLib.DumbGlkOte {
     constructor(options) {
         super(options);
-        //  Target line width for word wrap. Glkote-term's measure_window
-        //  reports 80×25 when not on a TTY, which matches typical BBS size.
-        //  We wrap at this width before emitting to the BBS client.
-        this.wrapWidth = 80;
+        //  Target line width for word wrap: the caller's terminal width, so
+        //  a 40-column terminal is not handed 80-column lines.
+        this.wrapWidth = TermWidth;
         //  Tracks the visible column of the current output line. Persists
         //  across chunks within the same Glk "line" (see `line.append`) and
         //  resets when we emit a newline.
         this._col = 0;
+    }
+
+    //  Glkote-term reports 80x25 when not on a TTY (always, in a worker).
+    //  Tell the VM the caller's real screen size instead.
+    measure_window() {
+        const metrics = super.measure_window();
+        metrics.width = TermWidth;
+        metrics.height = TermHeight;
+        return metrics;
     }
 
     //  Visible length of a string, discarding ANSI CSI m sequences.

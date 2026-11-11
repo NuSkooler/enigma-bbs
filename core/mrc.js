@@ -487,7 +487,9 @@ exports.getModule = class mrcModule extends MenuModule {
         const chatLogView = this.viewControllers.mrcChat.getView(
             MciViewIds.mrcChat.chatLog
         );
-        const viewWidth = (chatLogView.dimens && chatLogView.dimens.width) || 79;
+        const viewWidth =
+            (chatLogView.dimens && chatLogView.dimens.width) ||
+            Math.max(1, (this.client.term.termWidth || 80) - 1);
         lines.forEach(line => {
             const { wrapped } = wordWrapText(line, {
                 width: viewWidth,
