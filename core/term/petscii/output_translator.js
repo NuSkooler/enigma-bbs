@@ -20,6 +20,9 @@
 //      translate(data)     Buffer (or string) of UTF-8 + ANSI -> Buffer of PETSCII
 //      passThrough(data)   bytes were written around us: cursor, colour, reverse
 //                          and charset on the terminal are now unknown
+//      writeNative(data, { charset })
+//                          native PETSCII bytes (.seq art) -> the Buffer to send:
+//                          the same bytes, followed so the state stays known
 //      setSize(cols, rows) the terminal's screen changed size
 //      setCharset(cs)      'lower' or 'upper' (charset.js Charsets); the select
 //                          byte goes out at the start of the next translate()
@@ -111,6 +114,10 @@
 //  Real hardware C64 line linking (a row that wrapped is joined to the next, so
 //                RETURN skips both) is not modelled; neither test client has it.
 //
+//  Terminal      What the terminal does with each byte sent (cursor, colour,
+//  model         reverse, character set) is ./screen_rules.js, shared with the
+//                native art parser.
+//
 //  Dropped       Hide/show cursor, scroll regions, queries (DSR/CPR/DA), private
 //                modes, SyncTERM font selection, insert/delete line/char, scroll,
 //                any CSI with intermediates or a private marker, any unknown CSI,
@@ -128,6 +135,7 @@ const {
     unicodeToByte,
     reverseOnlyByte,
 } = require('./charset.js');
+const { Effect, createScreenState, applyByte } = require('./screen_rules.js');
 
 const DEFAULT_FG = 7; //  ANSI light grey
 const SPACE = 0x20;
@@ -202,8 +210,6 @@ function xterm256ToAnsi(n) {
 
 const ZERO_WIDTH_RE = /[\p{Mn}\p{Me}\p{Cf}]/u;
 
-const PETSCII_COLOR_BYTES = new Set(AnsiToPetsciiColor);
-
 function charsetSelectByte(charset) {
     return Charsets.UpperGraphics === charset
         ? Controls.charsetUpper
@@ -266,9 +272,9 @@ function createPetsciiTranslator({
             known: false, //  false: neither cursor is known
             saved: null,
 
-            //  where the terminal's cursor is (valid while |known|)
-            prow: 0,
-            pcol: 0,
+            //  what the terminal has: cursor (valid while |known|), colour,
+            //  reverse and character set (null = unknown); see ./screen_rules.js
+            term: createScreenState(),
 
             //  ANSI attributes
             fg: DEFAULT_FG,
@@ -278,10 +284,10 @@ function createPetsciiTranslator({
             inverse: false,
             conceal: false,
 
-            //  what the terminal has (null = unknown)
-            termColor: null,
-            termReverse: null,
             charsetSent: false,
+            //  the character set native art left the screen in, while it is not
+            //  |geo.charset| (see writeNative()); null otherwise
+            artCharset: null,
 
             //  bottom-right glyph waiting for a scroll: { byte, attrs }
             deferred: null,
@@ -294,72 +300,11 @@ function createPetsciiTranslator({
     //  Emitting bytes and the terminal model
     // ------------------------------------------------------------------
 
-    //  Send |b| and apply what the terminal does with it.
+    //  Send |b| and apply what the terminal does with it (./screen_rules.js).
     function emit(b) {
         out.push(b);
-
-        switch (b) {
-            case Controls.return:
-                st.termReverse = false;
-                if (st.known) {
-                    st.pcol = 0;
-                    st.prow = Math.min(st.prow + 1, geo.rows - 1); //  scrolls at the bottom
-                }
-                return;
-            case Controls.cursorDown:
-                if (st.known) st.prow = Math.min(st.prow + 1, geo.rows - 1);
-                return;
-            case Controls.cursorUp:
-                if (st.known) st.prow = Math.max(st.prow - 1, 0);
-                return;
-            case Controls.cursorRight:
-                if (st.known) {
-                    if (st.pcol < geo.cols - 1) {
-                        ++st.pcol;
-                    } else if (st.prow < geo.rows - 1) {
-                        st.pcol = 0;
-                        ++st.prow;
-                    }
-                }
-                return;
-            case Controls.cursorLeft:
-                if (st.known) {
-                    if (st.pcol > 0) {
-                        --st.pcol;
-                    } else if (st.prow > 0) {
-                        st.pcol = geo.cols - 1;
-                        --st.prow;
-                    }
-                }
-                return;
-            case Controls.home:
-            case Controls.clear:
-                st.known = true;
-                st.prow = 0;
-                st.pcol = 0;
-                return;
-            case Controls.reverseOn:
-                st.termReverse = true;
-                return;
-            case Controls.reverseOff:
-                st.termReverse = false;
-                return;
-            case Controls.charsetLower:
-            case Controls.charsetUpper:
-                return;
-        }
-
-        if (PETSCII_COLOR_BYTES.has(b)) {
-            st.termColor = b;
-            return;
-        }
-
-        //  a glyph: immediate wrap, scroll at the bottom-right
-        if (st.known) {
-            if (++st.pcol >= geo.cols) {
-                st.pcol = 0;
-                st.prow = Math.min(st.prow + 1, geo.rows - 1);
-            }
+        if (applyByte(st.term, b, geo.cols, geo.rows) & Effect.Homed) {
+            st.known = true;
         }
     }
 
@@ -400,7 +345,7 @@ function createPetsciiTranslator({
 
     //  Put the terminal's cursor at (row, col) with the fewest bytes.
     function moveTo(row, col) {
-        if (st.known && st.prow === row && st.pcol === col) {
+        if (st.known && st.term.row === row && st.term.col === col) {
             return;
         }
 
@@ -408,10 +353,10 @@ function createPetsciiTranslator({
         const candidates = [{ cost: 1 + home.cost, lead: Controls.home, m: home }];
 
         if (st.known) {
-            const rel = relativeMoves(st.prow, st.pcol, row, col);
+            const rel = relativeMoves(st.term.row, st.term.col, row, col);
             candidates.unshift({ cost: rel.cost, lead: null, m: rel });
-            if (st.prow < geo.rows - 1) {
-                const cr = relativeMoves(st.prow + 1, 0, row, col);
+            if (st.term.row < geo.rows - 1) {
+                const cr = relativeMoves(st.term.row + 1, 0, row, col);
                 candidates.push({ cost: 1 + cr.cost, lead: Controls.return, m: cr });
             }
         }
@@ -422,6 +367,11 @@ function createPetsciiTranslator({
             emit(best.lead);
         }
         emitRelative(best.m);
+    }
+
+    //  the set glyphs are written in: the session's, or the one native art left
+    function activeCharset() {
+        return st.artCharset || geo.charset;
     }
 
     function sendCharsetIfNeeded() {
@@ -444,14 +394,14 @@ function createPetsciiTranslator({
     }
 
     function syncReverse(reverse) {
-        if (st.termReverse !== reverse) {
+        if (st.term.reverse !== reverse) {
             emit(reverse ? Controls.reverseOn : Controls.reverseOff);
         }
     }
 
     function syncAttrs(attrs) {
         syncReverse(attrs.reverse);
-        if (st.termColor !== attrs.color) {
+        if (st.term.color !== attrs.color) {
             emit(attrs.color);
         }
     }
@@ -567,8 +517,8 @@ function createPetsciiTranslator({
             syncAttrs(d.attrs);
             emit(d.byte);
         } else {
-            if (st.prow !== geo.rows - 1) {
-                moveTo(geo.rows - 1, st.pcol);
+            if (st.term.row !== geo.rows - 1) {
+                moveTo(geo.rows - 1, st.term.col);
             }
             emit(Controls.return);
         }
@@ -674,6 +624,11 @@ function createPetsciiTranslator({
         emit(Controls.clear);
         st.row = 0;
         st.col = 0;
+        if (st.artCharset) {
+            //  the art that wanted the other set is gone: back to the session's
+            st.artCharset = null;
+            emit(charsetSelectByte(geo.charset));
+        }
     }
 
     //  Blank linear cells [from, to] with spaces (reverse off), cursor stays.
@@ -733,7 +688,7 @@ function createPetsciiTranslator({
         if (st.conceal) {
             byte = SPACE;
         } else {
-            byte = unicodeToByte(cp, geo.charset);
+            byte = unicodeToByte(cp, activeCharset());
             if (undefined === byte || isControlByte(byte)) {
                 const rev = reverseOnlyByte(cp);
                 if (undefined !== rev) {
@@ -1006,9 +961,11 @@ function createPetsciiTranslator({
         st.wrap = false;
         st.deferred = null;
         st.saved = null;
-        st.termColor = null;
-        st.termReverse = null;
+        st.term.color = null;
+        st.term.reverse = null;
+        st.term.charset = null;
         st.charsetSent = false;
+        st.artCharset = null;
         st.mode = Mode.Ground;
         st.csi = '';
         st.pendingCR = false;
@@ -1017,6 +974,62 @@ function createPetsciiTranslator({
 
     function passThrough() {
         forgetTerminal();
+    }
+
+    //
+    //  Native PETSCII bytes (a .seq art file, MCI codes already replaced) to
+    //  go to the terminal as they are. Returns the bytes to send: |data|,
+    //  preceded only by what settles the terminal first (a held CR, and the
+    //  character set select byte when the terminal is not already in
+    //  |options.charset|, the set the art was drawn for; default: the
+    //  session's). Every byte is followed through ./screen_rules.js, so
+    //  cursor, colour, reverse and character set are known afterwards and
+    //  ENiGMA's next ANSI output (views drawn at MCI positions) lands where it
+    //  should. ENiGMA's own SGR state is kept and re-asserted with its next
+    //  glyph.
+    //
+    //  CHARACTER SET AFTERWARDS. The set is screen-wide: switching back would
+    //  redraw art made for upper/graphics as lower case letters. So art that
+    //  leaves the terminal in the other set keeps it until the next clear
+    //  screen; ENiGMA's text in the meantime is written in that set (lower
+    //  case folds to upper case in upper/graphics), and the clear (ESC[2J and
+    //  friends) is followed by the session's set select byte.
+    //
+    function writeNative(data, { charset } = {}) {
+        out = [];
+        const want = undefined === charset ? geo.charset : checkCharset(charset);
+
+        //  settle what translate() holds back: a CR waiting to see if an LF
+        //  follows happens now; a half-parsed sequence or character is dropped
+        if (st.pendingCR) {
+            st.pendingCR = false;
+            carriageReturn();
+        }
+        st.mode = Mode.Ground;
+        st.csi = '';
+        st.decoder = new StringDecoder('utf8');
+        clearWrap();
+
+        if (st.term.charset !== want) {
+            emit(charsetSelectByte(want));
+        }
+        st.charsetSent = true;
+
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data || []);
+        for (let i = 0; i < buf.length; ++i) {
+            emit(buf[i]);
+        }
+
+        //  ENiGMA's cursor is where the art left the terminal's
+        if (st.known) {
+            st.row = st.term.row;
+            st.col = st.term.col;
+        }
+        st.artCharset = st.term.charset !== geo.charset ? st.term.charset : null;
+
+        const result = Buffer.from(out);
+        out = null;
+        return result;
     }
 
     function setSize(newCols, newRows) {
@@ -1033,6 +1046,7 @@ function createPetsciiTranslator({
     function setCharset(cs) {
         geo.charset = checkCharset(cs);
         st.charsetSent = false;
+        st.artCharset = null;
     }
 
     function reset() {
@@ -1044,16 +1058,18 @@ function createPetsciiTranslator({
             cols: geo.cols,
             rows: geo.rows,
             charset: geo.charset,
+            activeCharset: activeCharset(),
+            terminalCharset: st.term.charset,
             known: st.known,
             row: st.row,
             col: st.col,
             wrapPending: st.wrap,
-            terminalRow: st.prow,
-            terminalCol: st.pcol,
+            terminalRow: st.term.row,
+            terminalCol: st.term.col,
             colour: desiredAttrs().color,
             reverse: desiredAttrs().reverse,
-            terminalColour: st.termColor,
-            terminalReverse: st.termReverse,
+            terminalColour: st.term.color,
+            terminalReverse: st.term.reverse,
             charsetSent: st.charsetSent,
             heldBottomRight: null !== st.deferred,
         };
@@ -1063,6 +1079,7 @@ function createPetsciiTranslator({
         identity: false,
         translate,
         passThrough,
+        writeNative,
         setSize,
         setCharset,
         reset,

@@ -950,6 +950,10 @@ function displayPreparedArt(options, artInfo, cb) {
         startRow: options.startRow,
         baudRate: options.baudRate,
     };
+    if (artInfo.native) {
+        //  native art (.seq): see art.display()
+        displayOpts.native = artInfo.native;
+    }
     art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
         return cb(err, { mciMap: mciMap, artInfo: artInfo, extraInfo: extraInfo });
     });
@@ -963,10 +967,13 @@ function displayThemeArt(options, cb) {
     async.waterfall(
         [
             function getArt(callback) {
+                //  displayPreparedArt() shows native art (.seq) too
+                options.acceptNative = true;
                 return getThemeArt(options, callback);
             },
             function prepWork(artInfo, callback) {
-                if (_.isObject(options.ansiPrepOptions)) {
+                //  ANSI preparation does not apply to native art: drawn as it is
+                if (_.isObject(options.ansiPrepOptions) && !artInfo.native) {
                     AnsiPrep(artInfo.data, options.ansiPrepOptions, (err, prepped) => {
                         if (!err && prepped) {
                             artInfo.data = prepped;

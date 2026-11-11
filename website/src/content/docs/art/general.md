@@ -54,11 +54,26 @@ A menu entry has a few elements that control how art is selected and displayed. 
 | `random` | Set to `false` to explicitly disable random lookup. |
 | `types` | An optional array of types (aka file extensions) to consider for lookup. For example : `[ '.ans', '.asc' ]` |
 | `readSauce` | May be set to `false` if you need to explicitly disable SAUCE support. |
+| `encodedAs` | The character encoding of the art file, when it is not the type's default (CP437 for `.ans`). For native PETSCII art (`.seq`), the character set: `petscii_upper` for upper case and graphics. |
+
+### Art Types
+Art is looked up by name; the extension says what kind of file it is:
+
+| Extension | Type |
+|---|---|
+| `.ans` | ANSI, CP437 |
+| `.utf8ans` | ANSI, UTF-8 (see [UTF-8 Art Variants](#utf-8-art-variants)) |
+| `.asc` | ASCII, CP437 |
+| `.pcb` | PCBoard, CP437 |
+| `.bbs` | Wildcat, CP437 |
+| `.amiga` | Amiga text, ISO-8859-1 |
+| `.txt` | Text, CP437 |
+| `.seq` | Native PETSCII, shown only to [PETSCII callers](../servers/loginservers/petscii.md#native-petscii-art) |
 
 ### Art Spec
 In the section above it is mentioned that the `art` member is a *spec*. The value of a `art` spec controls how the system looks for an asset. The following forms are supported:
 
-* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path. Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
+* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path (for a PETSCII caller, `FOO.SEQ` is preferred at each step of that path). Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
 * `FOO.ANS`: By specifying an extension, only the exact match will be searched for.
 * `rel/path/to/BAR.ANS`: Only match a path (relative to the system's `art` directory).
 * `/path/to/BAZ.ANS`: Exact path only.

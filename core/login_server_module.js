@@ -175,7 +175,8 @@ function timeUpLogoff(client, cb) {
         return plainAndEnd();
     }
 
-    theme.getThemeArt({ client, name: artSpec }, err => {
+    //  the menu shows native art (.seq) too, so it counts as being there
+    theme.getThemeArt({ client, name: artSpec, acceptNative: true }, err => {
         if (err) {
             return plainAndEnd(); //  the menu is there; its art is not
         }
