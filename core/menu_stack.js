@@ -272,4 +272,13 @@ module.exports = class MenuStack {
         this.initFailures.set(menuName, activity);
         return wouldCycle;
     }
+
+    //
+    //  A menu whose init sequence succeeded has no failure on record: a later
+    //  failure of the same menu, even with no input in between (a timed or
+    //  sysop-initiated return, say), is a first failure again and falls back.
+    //
+    initSucceeded(menuName) {
+        this.initFailures.delete(menuName);
+    }
 };

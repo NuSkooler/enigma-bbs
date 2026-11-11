@@ -61,6 +61,10 @@ exports.getModule = class ShowArtModule extends MenuModule {
                     return self.initSequenceFailed(err);
                 }
 
+                if (!err) {
+                    self.initSequenceSucceeded();
+                }
+
                 self.finishedLoading();
                 return self.autoNextMenu(() => {
                     /* dummy */

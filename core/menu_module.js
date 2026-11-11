@@ -228,8 +228,18 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 if (err) {
                     return self.initSequenceFailed(err);
                 }
+
+                self.initSequenceSucceeded();
             }
         );
+    }
+
+    //  see MenuStack.initSucceeded(); a stand-in client may have no stack
+    initSequenceSucceeded() {
+        const menuStack = this.client.menuStack;
+        if (menuStack && _.isFunction(menuStack.initSucceeded)) {
+            menuStack.initSucceeded(this.menuName);
+        }
     }
 
     //

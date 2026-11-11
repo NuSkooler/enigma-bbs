@@ -402,6 +402,31 @@ describe('MenuStack navigation guards', function () {
         });
     });
 
+    describe('the failure record', () => {
+        it('a success in between makes the next failure a first failure again', () => {
+            const stack = new MenuStack({ lastActivityTime: 1000 });
+
+            assert.equal(stack.initFailureWouldCycle('m'), false);
+            assert.equal(stack.initFailureWouldCycle('m'), true);
+
+            //  the menu later loads fine, then fails with still no input
+            stack.initSucceeded('m');
+            assert.equal(stack.initFailureWouldCycle('m'), false);
+            assert.equal(stack.initFailureWouldCycle('m'), true);
+        });
+
+        it('is per menu, and input clears it', () => {
+            const client = { lastActivityTime: 1000 };
+            const stack = new MenuStack(client);
+
+            assert.equal(stack.initFailureWouldCycle('a'), false);
+            assert.equal(stack.initFailureWouldCycle('b'), false);
+            client.lastActivityTime = 2000;
+            assert.equal(stack.initFailureWouldCycle('a'), false);
+            assert.equal(stack.initFailureWouldCycle('a'), true);
+        });
+    });
+
     describe('a healthy autoNext chain is untouched', () => {
         it('runs every menu once, in order, with nothing logged above debug', done => {
             const counters = makeCounters();
