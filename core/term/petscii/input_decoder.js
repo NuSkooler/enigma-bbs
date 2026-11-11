@@ -33,6 +33,15 @@
 //  SyncTERM cterm.c `petscii_keys` sends): return 0D/8D, arrows 11/1D/91/9D,
 //  home 13, clear 93, backspace 14, insert 94, F1-F8 85 89 86 8A 87 8B 88 8C.
 //
+//  F1 IS ESCAPE
+//  ------------
+//  A Commodore keyboard has no Escape key, yet ENiGMA reaches some things
+//  only through Escape (the full-screen editor's menu, leaving a form). So F1
+//  (0x85) is reported exactly as 0x1B is: ch '\x1b', name 'escape'. seq stays
+//  the raw byte. The F1 key as such is therefore never reported for a PETSCII
+//  session; F2-F8 are. Terminals that do send 0x1B (SyncTERM, IcyTerm) keep
+//  working, as both bytes mean the same key.
+//
 //  Where IcyTerm (icy_engine_gui terminal_keys.rs C64_KEY_MAP) differs:
 //
 //      Escape      both send 0x1B                            same
@@ -74,10 +83,11 @@
 //
 //  The other C0 bytes are reported as the ANSI decoder reports them: 08 is
 //  backspace, 09 tab, 0A line feed, 1B escape (immediately, nothing can
-//  follow it), 01-1A otherwise 'ctrl + <letter>'. A byte KeyBytes claims wins
-//  over that, so these ctrl combinations are NOT available: ctrl+e (05
-//  white), ctrl+n (0E charset), ctrl+q (11 down), ctrl+r (12 reverse),
-//  ctrl+s (13 home), ctrl+t (14 backspace). ctrl+m (0D) is return as in ANSI,
+//  follow it; F1 is the same key, see above), 01-1A otherwise
+//  'ctrl + <letter>'. A byte KeyBytes claims wins over that, so these ctrl
+//  combinations are NOT available: ctrl+e (05 white), ctrl+n (0E charset),
+//  ctrl+q (11 down), ctrl+r (12 reverse), ctrl+s (13 home), ctrl+t (14
+//  backspace). ctrl+m (0D) is return as in ANSI,
 //  ctrl+h/i/j are backspace/tab/line feed as in ANSI. 1C-1F ctrl+\ ] ^ _ have
 //  no ANSI name; 1D is cursor right, the rest are colours.
 //
@@ -87,6 +97,9 @@ const SWALLOWED = new Set([
     0x00, 0x05, 0x0e, 0x12, 0x1c, 0x1e, 0x1f, 0x80, 0x81, 0x82, 0x83, 0x84, 0x8e, 0x8f,
     0x90, 0x92, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9e, 0x9f,
 ]);
+
+//  the F1 key; reported as Escape
+const F1 = 0x85;
 
 //  pound sign, up arrow, left arrow glyphs -> the ASCII keys in those positions
 const ASCII_POSITION_KEYS = new Map([
@@ -127,15 +140,16 @@ function decodeByte(byte) {
     //  generic list and editor key with no other PETSCII byte (its usual
     //  alternative, ctrl + e, is the colour byte 0x05). So CLR is End here.
     //
+    if (0x1b === byte || F1 === byte) {
+        return ['\x1b', makeKey(byte, 'escape')]; //  F1 is Escape: see above
+    }
+
     const keyName = 0x93 === byte ? 'end' : KeyBytes[byte];
     if (keyName) {
         //  backspace is '\b' the way the ANSI decoder reports Ctrl-H
         return ['backspace' === keyName ? '\b' : undefined, makeKey(byte, keyName)];
     }
 
-    if (0x1b === byte) {
-        return [seq, makeKey(byte, 'escape')];
-    }
     if (0x08 === byte) {
         return [seq, makeKey(byte, 'backspace')];
     }

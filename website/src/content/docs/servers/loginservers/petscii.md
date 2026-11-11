@@ -160,7 +160,8 @@ art/themes/my_c64_theme/LOGIN.seq
 * **Colour.** The 16 ANSI foreground colours map to the 16 Commodore colours. PETSCII has no background colour, so a background is shown as reverse video in that colour.
 * **Cursor movement.** PETSCII has no "go to row, column". ENiGMA½ tracks the cursor and sends relative moves.
 * **Screen size** is what the terminal reports, otherwise 40x25.
-* **Keys.** Cursor keys, HOME, INST/DEL (backspace), RETURN and F1 to F8 work as their ANSI equivalents. CLR, which SyncTERM sends for the End key, is End.
+* **Keys.** Cursor keys, HOME, INST/DEL (backspace), RETURN and F2 to F8 work as their ANSI equivalents. CLR, which SyncTERM sends for the End key, is End.
+* **F1 is Escape.** A Commodore keyboard has no Escape key, and ENiGMA½ reaches some things only through Escape (the full-screen editor's menu, backing out of a form). For a PETSCII caller, F1 is the Escape key, everywhere. A terminal that sends a real Escape byte (SyncTERM and IcyTerm do) works too. The F1 key as such is not available to PETSCII callers, so do not bind anything a PETSCII caller needs to `f1`.
 * Nothing is asked of the terminal at connect, so there is no feature detection pause.
 
 ### Limits

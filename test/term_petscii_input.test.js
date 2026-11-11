@@ -57,8 +57,9 @@ describe('PETSCII input decoder', () => {
 
     describe('KeyBytes', () => {
         for (const [byte, tableName] of Object.entries(KeyBytes)) {
-            //  CLR (0x93) is reported as End; see the decoder
-            const name = 0x93 === Number(byte) ? 'end' : tableName;
+            //  CLR (0x93) is reported as End and F1 (0x85) as Escape; see the
+            //  decoder
+            const name = { 0x93: 'end', 0x85: 'escape' }[Number(byte)] || tableName;
             it(`0x${Number(byte).toString(16)} is ${name}`, () => {
                 const [, key] = one([Number(byte)]);
                 assert.equal(key.name, name);
@@ -190,6 +191,34 @@ describe('PETSCII input decoder', () => {
             assert.deepEqual(one([0x1b]), ['\x1b', plain('escape')]);
         });
 
+        it('F1 is the escape key, exactly as ESC is', () => {
+            const [ch, key] = one([0x85]);
+            assert.deepEqual([ch, key], ['\x1b', plain('escape')]);
+            assert.deepEqual([ch, key], one([0x1b]));
+            assert.deepEqual(keys(petscii, [0x85]), keys(ansi, '\x1b'));
+            //  seq is still the byte that came in
+            assert.equal(run(petscii, [0x85])[0][2].seq, '\x85');
+        });
+
+        it('F1 is never reported as f1; the other function keys are unchanged', () => {
+            const names = [0x85, 0x89, 0x86, 0x8a, 0x87, 0x8b, 0x88, 0x8c].map(
+                b => one([b])[1].name
+            );
+            assert.deepEqual(names, ['escape', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8']);
+            for (let b = 0; b < 256; ++b) {
+                for (const [, key] of keys(petscii, [b])) {
+                    assert.notEqual(key && key.name, 'f1', `0x${b.toString(16)}`);
+                }
+            }
+        });
+
+        it('F1 between other keys is one escape in stream order', () => {
+            assert.deepEqual(
+                keys(petscii, [0x41, 0x85, 0x42]).map(k => k[1] && k[1].name),
+                ['a', 'escape', 'b']
+            );
+        });
+
         it('ESC then a letter is two keys, not meta + letter', () => {
             assert.deepEqual(keys(petscii, [0x1b, 0x41]), [
                 ['\x1b', plain('escape')],
@@ -266,7 +295,7 @@ describe('PETSCII input decoder', () => {
             ['home', [0x13], '\x1b[H'],
             ['end (CLR, what SyncTERM sends for End)', [0x93], '\x1b[F'],
             ['insert', [0x94], '\x1b[2~'],
-            ['f1', [0x85], '\x1b[11~'],
+            ['f1 is escape', [0x85], '\x1b'],
             ['f2', [0x89], '\x1b[12~'],
             ['f3', [0x86], '\x1b[13~'],
             ['f4', [0x8a], '\x1b[14~'],
