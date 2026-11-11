@@ -358,6 +358,63 @@ describe('ACS Parser — Check Functions', () => {
         });
     });
 
+    describe('TE (Terminal emulation)', () => {
+        const withTerm = term => {
+            const client = makeClient();
+            client.term = term;
+            return { subject: { client, user: makeUser({}) } };
+        };
+
+        it('every terminal is ANSI today', () => {
+            const { ClientTerminal } = require('../core/client_term.js');
+            const ctx = withTerm(new ClientTerminal({ write() {} }));
+            assert.equal(acsParser.parse('TE[ansi]', ctx), true);
+            assert.equal(acsParser.parse('TE[petscii,ansi]', ctx), true);
+            assert.equal(acsParser.parse('TE[ANSI]', ctx), true);
+            assert.equal(acsParser.parse('TE[petscii,atascii]', ctx), false);
+            assert.equal(acsParser.parse('!TE[petscii,atascii]', ctx), true);
+        });
+
+        it('matches the base emulation by name', () => {
+            const { ClientTerminal } = require('../core/client_term.js');
+            const term = new ClientTerminal({ write() {} });
+            term.emulation = { name: 'petscii', layers: new Map() };
+            const ctx = withTerm(term);
+            assert.equal(acsParser.parse('TE[petscii,atascii]', ctx), true);
+            assert.equal(acsParser.parse('TE[ansi]', ctx), false);
+        });
+
+        it('matches an additive layer as well as the base', () => {
+            const { ClientTerminal } = require('../core/client_term.js');
+            const term = new ClientTerminal({ write() {} });
+            term.emulation.addLayer({ name: 'rip' });
+            const ctx = withTerm(term);
+            assert.equal(acsParser.parse('TE[rip]', ctx), true);
+            assert.equal(acsParser.parse('TE[ansi]', ctx), true);
+            assert.equal(acsParser.parse('TE[petscii]', ctx), false);
+        });
+
+        it('a stand-in term without an emulation object is ANSI', () => {
+            assert.equal(parse('TE[ansi]'), true);
+            assert.equal(parse('TE[petscii]'), false);
+        });
+
+        it('needs a list, and a client', () => {
+            assert.equal(parse('TE'), false);
+            assert.equal(parse('TE1'), false);
+            assert.equal(
+                acsParser.parse('TE[ansi]', { subject: { user: makeUser({}) } }),
+                false
+            );
+        });
+
+        it('combines with other checks', () => {
+            assert.equal(parse('TE[ansi]TW80'), true);
+            assert.equal(parse('TE[petscii]|TW80'), true);
+            assert.equal(parse('TE[petscii]TW80'), false);
+        });
+    });
+
     describe('TM (Theme)', () => {
         it('matches the theme id', () => {
             assert.equal(parse('TM[luciano_blocktronics]'), true);

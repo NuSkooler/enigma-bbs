@@ -512,6 +512,23 @@ function checkFirstMenus(issues, config, menuNames) {
                 candidates: menuNames,
             });
         });
+
+        //  Named extra listeners (loginServers.telnet.listeners) may each
+        //  name their own first menu
+        if (_.isPlainObject(server.listeners)) {
+            Object.entries(server.listeners).forEach(([listenerName, listener]) => {
+                if (!_.isPlainObject(listener) || false === listener.enabled) {
+                    return;
+                }
+                checkExact(issues, config, {
+                    path: `loginServers.${serverName}.listeners.${listenerName}.firstMenu`,
+                    value: listener.firstMenu,
+                    kind: RefKind.Menu,
+                    refPath: 'general.menuFile',
+                    candidates: menuNames,
+                });
+            });
+        }
     });
 }
 

@@ -227,6 +227,21 @@
 					}
 					return !isNaN(value) && timeLeft >= value;
 				},
+				TE	: function isOneOfEmulations() {
+					if(!Array.isArray(value)) {
+						return false;
+					}
+					const term = _.get(client, 'term');
+					if(!term) {
+						return false;
+					}
+					//	The base emulation's name, plus any additive layers;
+					//	a terminal without an emulation object is ANSI.
+					const names = term.emulation
+						? [ term.emulation.name ].concat(Array.from(term.emulation.layers.keys()))
+						: [ 'ansi' ];
+					return value.some(name => names.includes(String(name).toLowerCase()));
+				},
 				TH	: function termHeight() {
 					return !isNaN(value) && _.get(client, 'term.termHeight', 0) >= value;
 				},
