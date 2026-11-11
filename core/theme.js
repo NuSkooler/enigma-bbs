@@ -668,6 +668,10 @@ function getThemeSetting(emulation, key) {
 //  that emulation. Undefined when there is none.
 //
 function getEmulationDefaultThemeId(emulation) {
+    if (!themeManagerReady()) {
+        return undefined;
+    }
+
     const configured = getThemeSetting(emulation, 'default');
     if (
         getAvailableThemes().has(configured) &&

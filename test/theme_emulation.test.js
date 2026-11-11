@@ -249,11 +249,22 @@ describe('Theme emulation binding (#593)', function () {
 
         it('on an ANSI-only board, the emulation pick equals the old pick', () => {
             installThemes({ a: {}, b: {}, c: {} });
+            //  what the code before emulations did, written out here
+            const oldPick = r => {
+                const themeIds = [...theme.getAvailableThemes().keys()];
+                return themeIds[Math.floor(r * themeIds.length)];
+            };
+            const expected = { 0: 'a', 0.34: 'b', 0.5: 'b', 0.67: 'c', 0.99: 'c' };
             [0, 0.34, 0.5, 0.67, 0.99].forEach(r => {
-                Math.random = () => r;
-                const old = theme.getRandomTheme();
-                Math.random = () => r;
-                assert.equal(theme.getRandomTheme('ansi'), old);
+                let calls = 0;
+                Math.random = () => {
+                    calls += 1;
+                    return r;
+                };
+                const picked = theme.getRandomTheme('ansi');
+                assert.equal(calls, 1, 'one Math.random() call per pick');
+                assert.equal(picked, oldPick(r));
+                assert.equal(picked, expected[r]);
             });
         });
     });
