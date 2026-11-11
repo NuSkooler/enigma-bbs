@@ -29,6 +29,8 @@ class Emulation {
         this.inputDecoder = definition.createInputDecoder();
         this.outputTranslator = definition.createOutputTranslator();
         this.codec = definition.codec;
+        //  the one output encoding this emulation uses, when it has its own
+        this.encoding = definition.encoding;
         this.capabilities = {};
         this.defaults = definition.defaults;
         this.layers = new Map();

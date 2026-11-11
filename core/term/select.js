@@ -16,7 +16,7 @@
 //
 //  What was asked for is always recorded. What the connection actually gets
 //  is the emulation if it is implemented, otherwise ANSI, and that is logged.
-//  Only ANSI is implemented so far.
+//  ANSI and PETSCII are implemented so far.
 //
 const { emulationExists, createEmulation, DEFAULT_EMULATION } = require('./index.js');
 
@@ -122,6 +122,15 @@ function selectClientEmulation(client, readyOptions) {
 
     if (term.emulation.name !== resolved.base) {
         term.emulation = createEmulation(resolved.base);
+
+        //
+        //  An emulation with an output encoding of its own (PETSCII) uses it
+        //  from here on. ANSI has none: its encoding stays whatever the
+        //  terminal type and configuration made it.
+        //
+        if (term.emulation.encoding) {
+            term.outputEncoding = term.emulation.encoding;
+        }
     }
 
     const info = {

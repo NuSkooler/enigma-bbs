@@ -125,7 +125,7 @@ The following ACS codes are available:
 | `TH`*height* | Terminal height is >= *height* |
 | `TW`*width* | Terminal width is >= *width* |
 | `TT[`*type,...*`]` | Terminal type is one of [*type,...*] (`ansi`, `xterm`, etc.) |
-| `TE[`*emulation,...*`]` | Terminal emulation is one of [*emulation,...*]: `ansi`, `petscii`, `atascii`, or an additive layer such as `rip`. Only `ansi` is implemented today, so every caller matches `TE[ansi]` and nothing else |
+| `TE[`*emulation,...*`]` | Terminal emulation is one of [*emulation,...*]: `ansi`, `petscii`, `atascii`, or an additive layer such as `rip`. `ansi` and `petscii` are implemented today; the check is against what the session is actually using, so a caller who asked for an emulation that is not implemented matches `TE[ansi]` |
 | `TM[`*theme,...*`]` | User's current theme ID is one of [*theme,...*] (e.g. `luciano_blocktronics`). A theme's display name also matches, but only if it has no spaces; prefer the ID |
 | `NN`*node*, `NN[`*node,...*`]` | Current node number is *node* or one of [*node,...*] |
 
