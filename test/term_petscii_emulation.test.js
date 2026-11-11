@@ -86,6 +86,19 @@ describe('PETSCII emulation', () => {
             reported.term.emulation.probes[0].run(reported.client, () => {});
             assert.equal(reported.term.emulation.outputTranslator.state().cols, 80);
 
+            const huge = petsciiTerm();
+            huge.term.termWidth = 65535;
+            huge.term.termHeight = 65535;
+            huge.term.emulation.probes[0].run(huge.client, () => {});
+            assert.deepEqual([huge.term.termWidth, huge.term.termHeight], [160, 100]);
+            assert.equal(huge.term.emulation.outputTranslator.state().rows, 100);
+
+            const tiny = petsciiTerm();
+            tiny.term.termWidth = 1;
+            tiny.term.termHeight = 1;
+            tiny.term.emulation.probes[0].run(tiny.client, () => {});
+            assert.deepEqual([tiny.term.termWidth, tiny.term.termHeight], [40, 25]);
+
             const silent = petsciiTerm();
             silent.term.emulation.probes[0].run(silent.client, () => {});
             assert.equal(silent.term.termWidth, 40);

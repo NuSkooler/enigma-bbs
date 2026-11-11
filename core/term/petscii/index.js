@@ -17,7 +17,7 @@
 //  No ENiGMA imports here or in the files beside this one.
 //
 const { createPetsciiInputDecoder } = require('./input_decoder.js');
-const { createPetsciiTranslator } = require('./output_translator.js');
+const { createPetsciiTranslator, MAX_COLS, MAX_ROWS } = require('./output_translator.js');
 
 const DEFAULT_COLS = 40;
 const DEFAULT_ROWS = 25;
@@ -55,10 +55,20 @@ const probes = [
         name: 'settleScreenSize',
         run(client, callback) {
             const term = client.term;
-            if (!(term.termWidth > 0) || !(term.termHeight > 0)) {
+
+            //
+            //  The size is the caller's claim (NAWS allows up to 65535 each
+            //  way). Anything that is not a plausible screen is replaced by
+            //  the default, and a large one is cut to what the translator
+            //  will accept, so the views and the translator agree.
+            //
+            const plausible = n => Number.isInteger(n) && n >= 2;
+            if (!plausible(term.termWidth) || !plausible(term.termHeight)) {
                 term.termWidth = DEFAULT_COLS;
                 term.termHeight = DEFAULT_ROWS;
             }
+            term.termWidth = Math.min(term.termWidth, MAX_COLS);
+            term.termHeight = Math.min(term.termHeight, MAX_ROWS);
 
             const translator = term.emulation.outputTranslator;
             if (translator && 'function' === typeof translator.setSize) {
