@@ -42,199 +42,27 @@ const UserTime = require('./user_time.js');
 const Events = require('./events.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
 const UserProps = require('./user_property.js');
+const { emulationOf } = require('./term');
+const DeviceAttributes = require('./term/ansi/device_attributes.js');
+const AnsiInput = require('./term/ansi/input_decoder.js');
 
 //  deps
 const stream = require('stream');
-const assert = require('assert');
 const _ = require('lodash');
 
 exports.Client = Client;
-exports.getCtermVersion = getCtermVersion;
-exports.getDeviceAttrVersion = getDeviceAttrVersion;
-exports.getTermClientFromDeviceAttr = getTermClientFromDeviceAttr;
-exports.getCtermCapabilitiesFromCtda = getCtermCapabilitiesFromCtda;
 
 //
-//  Terminals that answer DA with their name in ASCII, as decimal parameters,
-//  followed by version components. |versioned| marks the ones whose trailing
-//  parameters are known to be a version.
+//  DA / CTDA reply parsing lives with the ANSI emulation now; it is still
+//  exported from here, where callers have always found it.
 //
-//  * CTerm (SyncTERM): '67;84;101;114;109' is "CTerm".
-//    See https://syncterm.bbsdev.net/cterm.html
-//  * enig-term: '101;110;105;103;45;116;101;114;109' is "enig-term", then
-//    major;minor;patch. CTerm-shaped, but it is not CTerm: it is identified
-//    as its own client and does not set ctermVersion.
-//  * IcyTerm: '73;99;121;84;101;114;109' is "IcyTerm"; the remaining bytes
-//    are version info in a form not relied on here.
-//    See https://github.com/mkrueger/icy_tools
-//
-const NamedDeviceAttrClients = [
-    { prefix: '67;84;101;114;109', termClient: 'cterm', versioned: true },
-    {
-        prefix: '101;110;105;103;45;116;101;114;109',
-        termClient: 'enig_term',
-        versioned: true,
-    },
-    { prefix: '73;99;121;84;101;114;109', termClient: 'icy_term', versioned: false },
-];
-exports.NamedDeviceAttrClients = NamedDeviceAttrClients; //  exported for tests
-
-//  DA replies matched exactly
-const ExactDeviceAttrClients = {
-    '63;1;2': 'arctel', //  https://web.archive.org/web/20190828112223/http://www.fbl.cz/arctel/download/techman.pdf - Irssi ConnectBot (Android)
-    '50;86;84;88': 'vtx', //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
-};
-
-//
-//  The version that follows a name |prefix| in a DA reply, its components
-//  joined with dots: '67;84;101;114;109;1;332' with the CTerm prefix is
-//  '1.332'. Whatever follows the prefix is kept as-is, so a fork that appends
-//  a component keeps it. null when nothing usable follows the prefix.
-//
-function getDeviceAttrVersion(deviceAttr, prefix) {
-    const prefixLen = prefix.split(';').length;
-    const parts = deviceAttr.split(';');
-    if (parts.slice(0, prefixLen).join(';') !== prefix) {
-        return null;
-    }
-    const revision = parts.slice(prefixLen);
-    if (!revision.length || revision.some(part => !/^(?:0|[1-9][0-9]*)$/.test(part))) {
-        return null;
-    }
-    return revision.join('.');
-}
-
-//
-//  CTerm answers DA with the "CTerm" prefix followed by its revision, dots
-//  turned into semi-colons: '67;84;101;114;109;1;332' is revision 1.332. A
-//  fork appends a further component rather than incrementing one of these, so
-//  whatever follows the prefix is kept as-is.
-//
-function getCtermVersion(deviceAttr) {
-    const cterm = NamedDeviceAttrClients.find(c => 'cterm' === c.termClient);
-    return cterm ? getDeviceAttrVersion(deviceAttr, cterm.prefix) : null;
-}
-
-//
-//  The terminal client a DA reply identifies, and its version where the reply
-//  carries one: { termClient, version }, or null for a reply we don't know.
-//
-function getTermClientFromDeviceAttr(deviceAttr) {
-    const exact = ExactDeviceAttrClients[deviceAttr];
-    if (exact) {
-        return { termClient: exact, version: null };
-    }
-
-    //  match on a whole parameter boundary: a prefix followed by ';' or nothing
-    const named = NamedDeviceAttrClients.find(
-        c => deviceAttr === c.prefix || deviceAttr.startsWith(`${c.prefix};`)
-    );
-    if (!named) {
-        return null;
-    }
-
-    return {
-        termClient: named.termClient,
-        version: named.versioned ? getDeviceAttrVersion(deviceAttr, named.prefix) : null,
-    };
-}
-
-//
-//  CTerm Device Attributes (CTDA): asked with CSI < c, answered with
-//  CSI < 0 ; Ps... c, one Ps per feature the terminal has right now (SyncTERM
-//  for example leaves out font selection in its curses output mode).
-//
-//  The numbering is the current CTerm manual's (Table 4), and the one CTerm's
-//  code has used since it first answered CTDA (Synchronet commit 6b0845de,
-//  2018-02-09, shipped in SyncTERM 1.1). cterm.txt documented a different
-//  order (no bright background; 2 palette, 3 pixel, 4 font select, 5 "more
-//  than 16 colours") until the 2023-04-21 fix 44f5dccc: that was only ever a
-//  documentation error, so there is no older numbering to map from, and no
-//  CTerm revision to tell the two apart by.
-//
-//  See https://syncterm.bbsdev.net/cterm.html
-//
-const CtdaFeatures = Object.freeze({
-    1: 'loadableFonts', //  fonts loadable by DCS
-    2: 'brightBackground', //  bright background, CSI ? 33 h (iCE colours)
-    3: 'paletteOsc', //  palette entries settable by OSC
-    4: 'pixelOps', //  pixel operations: sixel, PPM
-    5: 'fontSelect', //  font selection by CSI Ps1 ; Ps2 SP D
-    6: 'extendedPalette', //  extended palette
-    7: 'mouse', //  mouse reports
-    8: 'keyEvents', //  physical key press/release reports
-});
-
-exports.CtdaFeatures = CtdaFeatures;
-
-//
-//  The capabilities a CTDA reply reports, from its parameters ('0;1;2;3;5' or
-//  [1, 2, 3, 5]): { ctda: [...], <name>: bool, ... }. The leading 0 that CTerm
-//  sends is not a feature and is dropped, so a reply without it (IcyTerm 0.8)
-//  reads the same.
-//  Every known feature gets a boolean, so a feature the reply leaves out is
-//  false rather than missing; numbers we have no name for are kept in |ctda|.
-//
-function getCtermCapabilitiesFromCtda(params) {
-    const list = (Array.isArray(params) ? params : String(params).split(';'))
-        .map(p => parseInt(p, 10))
-        .filter(n => Number.isInteger(n) && n > 0);
-
-    const ctda = [...new Set(list)].sort((a, b) => a - b);
-    const caps = { ctda };
-    Object.entries(CtdaFeatures).forEach(([n, name]) => {
-        caps[name] = ctda.includes(parseInt(n, 10));
-    });
-    return caps;
-}
-
-//  :TODO: Move all of the key stuff to it's own module
-
-//
-//  Resources & Standards:
-//  * http://www.ansi-bbs.org/ansi-bbs-core-server.html
-//
-/* eslint-disable no-control-regex */
-const RE_DSR_RESPONSE_ANYWHERE = /(?:\u001b\[)([0-9;]+)(R)/;
-const RE_DEV_ATTR_RESPONSE_ANYWHERE = /(?:\u001b\[)[=?]([0-9a-zA-Z;]+)(c)/;
-//  CTerm capability query response: ESC [ = <id> ; <value> n
-//  e.g. \x1b[=6;1n  → capability 6 (OSC 8 hyperlinks) supported
-//  See https://syncterm.bbsdev.net/cterm.html
-const RE_CTERM_CAP_RESPONSE_ANYWHERE = /\u001b\[=([0-9]+);([0-9]+)n/;
-//  CTerm Device Attributes (CTDA) response: ESC [ < 0 ; Ps... c
-//  e.g. \x1b[<0;1;2;3;5c. CTerm builds from before 2020-04-25 (Synchronet
-//  commit 3c5bb707, ahead of the SyncTERM 1.1 release) ended it with 'n'
-//  instead; both are taken so neither leaks into input as keystrokes.
-//  IcyTerm 0.8.0 to 0.8.4 leave the leading 0 out (\x1b[<1;2;3;4;5;6;7c).
-//  Ends in c or n only: SGR mouse reports, which also start ESC [ <, end in
-//  M or m.
-const RE_CTDA_RESPONSE_ANYWHERE = /\u001b\[<([0-9]+(?:;[0-9]*)*)([cn])/;
-exports.RE_CTDA_RESPONSE = RE_CTDA_RESPONSE_ANYWHERE;
-const RE_META_KEYCODE_ANYWHERE = /(?:\u001b)([a-zA-Z0-9])/;
-const RE_META_KEYCODE = new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
-const RE_FUNCTION_KEYCODE_ANYWHERE = new RegExp(
-    '(?:\u001b+)(O|N|\\[|\\[\\[)(?:' +
-        [
-            '(\\d+)(?:;(\\d+))?([~^$])',
-            '(?:M([@ #!a`])(.)(.))', // mouse stuff
-            '(?:1;)?(\\d+)?([a-zA-Z@])',
-        ].join('|') +
-        ')'
-);
-/* eslint-enable no-control-regex */
-
-const RE_FUNCTION_KEYCODE = new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.source);
-const RE_ESC_CODE_ANYWHERE = new RegExp(
-    [
-        RE_FUNCTION_KEYCODE_ANYWHERE.source,
-        RE_META_KEYCODE_ANYWHERE.source,
-        RE_DSR_RESPONSE_ANYWHERE.source,
-        RE_DEV_ATTR_RESPONSE_ANYWHERE.source,
-        RE_CTERM_CAP_RESPONSE_ANYWHERE.source,
-        RE_CTDA_RESPONSE_ANYWHERE.source,
-        /\u001b./.source, //  eslint-disable-line no-control-regex
-    ].join('|')
-);
+exports.getCtermVersion = DeviceAttributes.getCtermVersion;
+exports.getDeviceAttrVersion = DeviceAttributes.getDeviceAttrVersion;
+exports.getTermClientFromDeviceAttr = DeviceAttributes.getTermClientFromDeviceAttr;
+exports.getCtermCapabilitiesFromCtda = DeviceAttributes.getCtermCapabilitiesFromCtda;
+exports.NamedDeviceAttrClients = DeviceAttributes.NamedDeviceAttrClients; //  exported for tests
+exports.CtdaFeatures = DeviceAttributes.CtdaFeatures;
+exports.RE_CTDA_RESPONSE = AnsiInput.RE_CTDA_RESPONSE;
 
 function Client(/*input, output*/) {
     stream.call(this);
@@ -298,301 +126,85 @@ function Client(/*input, output*/) {
     Events.on(Events.getSystemEvents().ThemeChanged, this.themeChangedListener);
 
     //
-    //  Peek at incoming |data| and emit events for any special
-    //  handling that may include:
-    //  *   Keyboard input
-    //  *   ANSI CSR's and the like
+    //  Input from the terminal is decoded by its emulation (for ANSI see
+    //  core/term/ansi/input_decoder.js), which reports key presses and query
+    //  replies in stream order. What each one means to the session is
+    //  decided here.
     //
-    //  References:
-    //  *   http://www.ansi-bbs.org/ansi-bbs-core-server.html
-    //  *   Christopher Jeffrey's Blessed library @ https://github.com/chjj/blessed/
+    //  The three helpers below are kept for callers that reach for them on
+    //  the client; they are ANSI's.
     //
     this.getTermClient = function (deviceAttr) {
-        const identified = getTermClientFromDeviceAttr(deviceAttr);
+        const identified = DeviceAttributes.getTermClientFromDeviceAttr(deviceAttr);
         return identified ? identified.termClient : undefined;
     };
 
-    /* eslint-disable no-control-regex */
-    this.isMouseInput = function (data) {
-        return (
-            /\x1b\[M/.test(data) ||
-            /\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) ||
-            /\u001b\[(\d+;\d+;\d+)M/.test(data) ||
-            /\u001b\[<(\d+;\d+;\d+)([mM])/.test(data) ||
-            /\u001b\[<(\d+;\d+;\d+;\d+)&w/.test(data) ||
-            /\u001b\[24([0135])~\[(\d+),(\d+)\]\r/.test(data) ||
-            /\u001b\[(O|I)/.test(data)
-        );
+    this.isMouseInput = AnsiInput.isMouseInput;
+
+    this.getKeyComponentsFromCode = AnsiInput.getKeyComponentsFromCode;
+
+    const inputDecoderHost = {
+        isNixTerm: () => self.term.isNixTerm(),
     };
-    /* eslint-enable no-control-regex */
 
-    this.getKeyComponentsFromCode = function (code) {
-        return {
-            //  xterm/gnome
-            OP: { name: 'f1' },
-            OQ: { name: 'f2' },
-            OR: { name: 'f3' },
-            OS: { name: 'f4' },
+    const decodedInputHandlers = {
+        'cursor position report': cprArgs => {
+            if (self.cprOffset) {
+                cprArgs[0] = cprArgs[0] + self.cprOffset;
+                cprArgs[1] = cprArgs[1] + self.cprOffset;
+            }
+            self.emit('cursor position report', cprArgs);
+        },
 
-            OA: { name: 'up arrow' },
-            OB: { name: 'down arrow' },
-            OC: { name: 'right arrow' },
-            OD: { name: 'left arrow' },
-            OE: { name: 'clear' },
-            OF: { name: 'end' },
-            OH: { name: 'home' },
+        'device attributes': identified => {
+            self.term.termClientVersion = identified.version;
+            self.term.termClient = identified.termClient;
+            if ('cterm' === identified.termClient) {
+                self.term.ctermVersion = identified.version;
+            }
+        },
 
-            //  xterm/rxvt
-            '[11~': { name: 'f1' },
-            '[12~': { name: 'f2' },
-            '[13~': { name: 'f3' },
-            '[14~': { name: 'f4' },
+        'cterm capability response': response => {
+            self.emit('cterm capability response', response);
+        },
 
-            '[1~': { name: 'home' },
-            '[2~': { name: 'insert' },
-            '[3~': { name: 'delete' },
-            '[4~': { name: 'end' },
-            '[5~': { name: 'page up' },
-            '[6~': { name: 'page down' },
+        'cterm device attributes': caps => {
+            Object.assign(self.term.termCapabilities, caps);
+            if (self.log) {
+                self.log.debug(
+                    { termClient: self.term.termClient, ctda: caps.ctda },
+                    'CTerm device attributes (CTDA) reported'
+                );
+            }
+            self.emit('cterm device attributes', caps);
+        },
 
-            //  Cygwin & libuv
-            '[[A': { name: 'f1' },
-            '[[B': { name: 'f2' },
-            '[[C': { name: 'f3' },
-            '[[D': { name: 'f4' },
-            '[[E': { name: 'f5' },
+        'key press': (ch, key) => {
+            if (Config().logging.traceUserKeyboardInput) {
+                self.log.trace({ key: key, ch: escape(ch) }, 'User keyboard input'); // jshint ignore:line
+            }
 
-            //  Common impls
-            '[15~': { name: 'f5' },
-            '[17~': { name: 'f6' },
-            '[18~': { name: 'f7' },
-            '[19~': { name: 'f8' },
-            '[20~': { name: 'f9' },
-            '[21~': { name: 'f10' },
-            '[23~': { name: 'f11' },
-            '[24~': { name: 'f12' },
+            self.lastActivityTime = Date.now();
 
-            //  xterm
-            '[A': { name: 'up arrow' },
-            '[B': { name: 'down arrow' },
-            '[C': { name: 'right arrow' },
-            '[D': { name: 'left arrow' },
-            '[E': { name: 'clear' },
-            '[F': { name: 'end' },
-            '[H': { name: 'home' },
+            if (!self.ignoreInput) {
+                self.emit('key press', ch, key);
+            }
+        },
+    };
 
-            //  PuTTY
-            '[[5~': { name: 'page up' },
-            '[[6~': { name: 'page down' },
-
-            //  rvxt
-            '[7~': { name: 'home' },
-            '[8~': { name: 'end' },
-
-            //  rxvt with modifiers
-            '[a': { name: 'up arrow', shift: true },
-            '[b': { name: 'down arrow', shift: true },
-            '[c': { name: 'right arrow', shift: true },
-            '[d': { name: 'left arrow', shift: true },
-            '[e': { name: 'clear', shift: true },
-
-            '[2$': { name: 'insert', shift: true },
-            '[3$': { name: 'delete', shift: true },
-            '[5$': { name: 'page up', shift: true },
-            '[6$': { name: 'page down', shift: true },
-            '[7$': { name: 'home', shift: true },
-            '[8$': { name: 'end', shift: true },
-
-            Oa: { name: 'up arrow', ctrl: true },
-            Ob: { name: 'down arrow', ctrl: true },
-            Oc: { name: 'right arrow', ctrl: true },
-            Od: { name: 'left arrow', ctrl: true },
-            Oe: { name: 'clear', ctrl: true },
-
-            '[2^': { name: 'insert', ctrl: true },
-            '[3^': { name: 'delete', ctrl: true },
-            '[5^': { name: 'page up', ctrl: true },
-            '[6^': { name: 'page down', ctrl: true },
-            '[7^': { name: 'home', ctrl: true },
-            '[8^': { name: 'end', ctrl: true },
-
-            //  SyncTERM / EtherTerm
-            '[K': { name: 'end' },
-            '[@': { name: 'insert' },
-            '[V': { name: 'page up' },
-            '[U': { name: 'page down' },
-
-            //  other
-            '[Z': { name: 'tab', shift: true },
-        }[code];
+    const onDecodedInput = (eventName, ...args) => {
+        const handler = decodedInputHandlers[eventName];
+        if (handler) {
+            handler(...args);
+        }
     };
 
     this.on('data', function clientData(data) {
-        //  create a uniform format that can be parsed below
-        if (data[0] > 127 && undefined === data[1]) {
-            data[0] -= 128;
-            data = '\u001b' + data.toString('utf-8');
-        } else {
-            data = data.toString('utf-8');
-        }
-
-        if (self.isMouseInput(data)) {
-            return;
-        }
-
-        var buf = [];
-        var m;
-        while ((m = RE_ESC_CODE_ANYWHERE.exec(data))) {
-            buf = buf.concat(data.slice(0, m.index).split(''));
-            buf.push(m[0]);
-            data = data.slice(m.index + m[0].length);
-        }
-
-        buf = buf.concat(data.split('')); //  remainder
-
-        buf.forEach(function bufPart(s) {
-            var key = {
-                seq: s,
-                name: undefined,
-                ctrl: false,
-                meta: false,
-                shift: false,
-            };
-
-            var parts;
-
-            if ((parts = RE_DSR_RESPONSE_ANYWHERE.exec(s))) {
-                if ('R' === parts[2]) {
-                    const cprArgs = parts[1].split(';').map(v => parseInt(v, 10) || 0);
-                    if (2 === cprArgs.length) {
-                        if (self.cprOffset) {
-                            cprArgs[0] = cprArgs[0] + self.cprOffset;
-                            cprArgs[1] = cprArgs[1] + self.cprOffset;
-                        }
-                        self.emit('cursor position report', cprArgs);
-                    }
-                }
-            } else if ((parts = RE_DEV_ATTR_RESPONSE_ANYWHERE.exec(s))) {
-                assert('c' === parts[2]);
-                const identified = getTermClientFromDeviceAttr(parts[1]);
-                if (identified) {
-                    self.term.termClientVersion = identified.version;
-                    self.term.termClient = identified.termClient;
-                    if ('cterm' === identified.termClient) {
-                        self.term.ctermVersion = identified.version;
-                    }
-                }
-            } else if ((parts = RE_CTERM_CAP_RESPONSE_ANYWHERE.exec(s))) {
-                self.emit('cterm capability response', {
-                    id: parseInt(parts[1], 10),
-                    value: parseInt(parts[2], 10),
-                });
-            } else if ((parts = RE_CTDA_RESPONSE_ANYWHERE.exec(s))) {
-                const caps = getCtermCapabilitiesFromCtda(parts[1]);
-                Object.assign(self.term.termCapabilities, caps);
-                if (self.log) {
-                    self.log.debug(
-                        { termClient: self.term.termClient, ctda: caps.ctda },
-                        'CTerm device attributes (CTDA) reported'
-                    );
-                }
-                self.emit('cterm device attributes', caps);
-            } else if ('\r' === s) {
-                key.name = 'return';
-            } else if ('\n' === s) {
-                key.name = 'line feed';
-            } else if ('\t' === s) {
-                key.name = 'tab';
-            } else if ('\x7f' === s) {
-                //
-                //  Backspace vs delete is a crazy thing, especially in *nix.
-                //  - ANSI-BBS uses 0x7f for DEL
-                //  - xterm et. al clients send 0x7f for backspace... ugg.
-                //
-                //  See https://www.hypexr.org/linux_ruboff.html
-                //  And a great discussion @ https://lists.debian.org/debian-i18n/1998/04/msg00015.html
-                //
-                if (self.term.isNixTerm()) {
-                    key.name = 'backspace';
-                } else {
-                    key.name = 'delete';
-                }
-            } else if ('\b' === s || '\x1b\x7f' === s || '\x1b\b' === s) {
-                //  backspace, CTRL-H
-                key.name = 'backspace';
-                key.meta = '\x1b' === s.charAt(0);
-            } else if ('\x1b' === s || '\x1b\x1b' === s) {
-                key.name = 'escape';
-                key.meta = 2 === s.length;
-            } else if (' ' === s || '\x1b ' === s) {
-                //  rather annoying that space can come in other than just " "
-                key.name = 'space';
-                key.meta = 2 === s.length;
-            } else if (1 === s.length && s <= '\x1a') {
-                //  CTRL-<letter>
-                key.name = String.fromCharCode(s.charCodeAt(0) + 'a'.charCodeAt(0) - 1);
-                key.ctrl = true;
-            } else if (1 === s.length && s >= 'a' && s <= 'z') {
-                //  normal, lowercased letter
-                key.name = s;
-            } else if (1 === s.length && s >= 'A' && s <= 'Z') {
-                key.name = s.toLowerCase();
-                key.shift = true;
-            } else if ((parts = RE_META_KEYCODE.exec(s))) {
-                //  meta with character key
-                key.name = parts[1].toLowerCase();
-                key.meta = true;
-                key.shift = /^[A-Z]$/.test(parts[1]);
-            } else if ((parts = RE_FUNCTION_KEYCODE.exec(s))) {
-                var code =
-                    (parts[1] || '') +
-                    (parts[2] || '') +
-                    (parts[4] || '') +
-                    (parts[9] || '');
-
-                var modifier = (parts[3] || parts[8] || 1) - 1;
-
-                key.ctrl = !!(modifier & 4);
-                key.meta = !!(modifier & 10);
-                key.shift = !!(modifier & 1);
-                key.code = code;
-
-                Object.assign(key, self.getKeyComponentsFromCode(code));
-            }
-
-            var ch;
-            if (1 === s.length) {
-                ch = s;
-            } else if ('space' === key.name) {
-                //  stupid hack to always get space as a regular char
-                ch = ' ';
-            }
-
-            if (key.name === undefined) {
-                key = undefined;
-            } else {
-                //
-                //  Adjust name for CTRL/Shift/Meta modifiers
-                //
-                key.name =
-                    (key.ctrl ? 'ctrl + ' : '') +
-                    (key.meta ? 'meta + ' : '') +
-                    (key.shift ? 'shift + ' : '') +
-                    key.name;
-            }
-
-            if (key || ch) {
-                if (Config().logging.traceUserKeyboardInput) {
-                    self.log.trace({ key: key, ch: escape(ch) }, 'User keyboard input'); // jshint ignore:line
-                }
-
-                self.lastActivityTime = Date.now();
-
-                if (!self.ignoreInput) {
-                    self.emit('key press', ch, key);
-                }
-            }
-        });
+        emulationOf(self.term).inputDecoder.decode(
+            data,
+            inputDecoderHost,
+            onDecodedInput
+        );
     });
 }
 
@@ -866,26 +478,5 @@ Client.prototype.defaultHandlerMissingMod = function () {
 };
 
 Client.prototype.terminalSupports = function (query) {
-    const termClient = this.term.termClient;
-
-    switch (query) {
-        case 'vtx_audio':
-            //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
-            return 'vtx' === termClient;
-
-        case 'osc8_hyperlink':
-            //  OSC 8 clickable hyperlink support
-            //  cterm/SyncTERM, enig-term: confirmed via active capability
-            //  query (CSI = 6 n); never assumed from the client name
-            //  IcyTerm: confirmed via DA response + feature documentation
-            //  VTX: uses xterm.js which supports OSC 8
-            //  *nix xterm-class: broad support
-            if (this.term.termCapabilities.osc8) return true;
-            if ('icy_term' === termClient) return true;
-            if ('vtx' === termClient) return true;
-            return this.term.isNixTerm();
-
-        default:
-            return false;
-    }
+    return emulationOf(this.term).supports(query, this.term);
 };

@@ -173,7 +173,7 @@ class TelnetClientConnection extends EventEmitter {
         this.bridgeConnection.on('data', data => {
             this.updateActivity();
 
-            this.client.term.rawWrite(data);
+            this.client.term.passThroughWrite(data);
 
             //
             //  Wait for a terminal type request, and send it exactly once.
@@ -195,7 +195,7 @@ class TelnetClientConnection extends EventEmitter {
     _wireTelnetEndpoint() {
         this.remote.on('data', data => {
             this.updateActivity();
-            this.client.term.rawWrite(data);
+            this.client.term.passThroughWrite(data);
         });
 
         //

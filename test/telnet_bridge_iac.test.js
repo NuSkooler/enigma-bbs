@@ -27,7 +27,9 @@ function makeClient({ telnetBased }) {
         written,
         term: {
             termType: 'ansi',
-            rawWrite: data => written.push(Buffer.from(data)),
+            //  what the far end sends reaches the caller untranslated
+            passThroughWrite: data => written.push(Buffer.from(data)),
+            rawWrite: () => {},
             output: null, //  restorePipe() tolerates this
         },
         explicitActivityTimeUpdate: () => {},

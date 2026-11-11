@@ -101,7 +101,9 @@ exports.getModule = class ArchaicNETModule extends MenuModule {
                                     const tmp = data
                                         .toString('binary')
                                         .replace(/\xff/g, '\xff\xff'); //  escape
-                                    self.client.term.rawWrite(Buffer.from(tmp, 'binary'));
+                                    self.client.term.passThroughWrite(
+                                        Buffer.from(tmp, 'binary')
+                                    );
                                 });
 
                                 stream.on('close', () => {

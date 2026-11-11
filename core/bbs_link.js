@@ -200,7 +200,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     bridgeConnection.on('data', function incomingData(data) {
                         //  pass along
                         //  :TODO: just pipe this as well
-                        self.client.term.rawWrite(data);
+                        self.client.term.passThroughWrite(data);
                     });
 
                     bridgeConnection.on('end', function connectionEnd() {

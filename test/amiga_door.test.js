@@ -94,6 +94,10 @@ function fakeClient() {
         rawWrite(b) {
             this.raw.push(Buffer.from(b));
         },
+        //  raw door output goes around the output translator
+        passThroughWrite(b) {
+            this.raw.push(Buffer.from(b));
+        },
     };
     return client;
 }

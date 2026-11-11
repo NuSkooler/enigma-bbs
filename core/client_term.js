@@ -5,31 +5,25 @@
 const Log = require('./logger.js').log;
 const renegadeToAnsi = require('./color_codes.js').renegadeToAnsi;
 const Config = require('./config.js').get;
-const { CP437_TERM_ENCODING } = require('./cp437.js');
-const iconv = require('iconv-lite');
+const { createEmulation } = require('./term');
 const assert = require('assert');
 const _ = require('lodash');
-
-//
-//  What we actually hand iconv, keyed by the encoding name the rest of the
-//  system sees. CP437 output goes through the BBS-aware variant so the glyphs
-//  living under 0x20 survive instead of becoming '?' -- see core/cp437.js.
-//
-//  The name stays 'cp437' everywhere outside this file on purpose: ACS "EC0"
-//  compares against it literally, and setClientEncoding() assigns it straight
-//  from menu form data.
-//
-const TERM_CODEC = {
-    cp437: CP437_TERM_ENCODING,
-};
 
 exports.ClientTerminal = ClientTerminal;
 
 function ClientTerminal(output) {
     this.output = output;
 
+    //
+    //  The terminal emulation: how this terminal is probed, what its input
+    //  means, which codec encodes text for it and what (if anything) has to
+    //  happen to the outbound stream. Every terminal is ANSI unless something
+    //  selects otherwise before the session starts. See core/term/.
+    //
+    this.emulation = createEmulation();
+
     let outputEncoding = 'cp437';
-    assert(iconv.encodingExists(outputEncoding));
+    assert(this.emulation.codec.encodingExists(outputEncoding));
 
     //  convert line feeds such as \n -> \r\n
     this.convertLF = true;
@@ -42,7 +36,16 @@ function ClientTerminal(output) {
     //    boolean per known feature (loadableFonts, brightBackground,
     //    paletteOsc, pixelOps, fontSelect, extendedPalette, mouse,
     //    keyEvents); absent until a CTDA reply arrives
-    this.termCapabilities = {};
+    //  They are held by the emulation; this is the same object.
+    Object.defineProperty(this, 'termCapabilities', {
+        enumerable: true,
+        get: function () {
+            return this.emulation.capabilities;
+        },
+        set: function (capabilities) {
+            this.emulation.capabilities = capabilities;
+        },
+    });
 
     //
     //  Some terminal we handle specially
@@ -76,7 +79,7 @@ function ClientTerminal(output) {
             if (_.isString(enc) && /^utf-?8$/i.test(enc.trim())) {
                 enc = 'utf8';
             }
-            if (iconv.encodingExists(enc)) {
+            if (this.emulation.codec.encodingExists(enc)) {
                 Log.info(
                     { encoding: enc, currentEncoding: outputEncoding },
                     `Output encoding changed to ${enc}`
@@ -219,15 +222,54 @@ ClientTerminal.prototype.write = function (s, convertLineFeeds, cb) {
 };
 
 ClientTerminal.prototype.rawWrite = function (s, cb) {
+    return this._write(s, false, cb);
+};
+
+//
+//  passThroughWrite() -- bytes that are not ENiGMA's own output and must reach
+//  the terminal exactly as given: file transfer protocol data, the far end of
+//  a telnet or rlogin bridge, a raw door's output. They go around the
+//  emulation's output translator (which is told, so that one keeping cursor
+//  state knows it has gone stale).
+//
+//  Everything else, rawWrite() included, is ENiGMA speaking ANSI and goes
+//  through the translator. For an ANSI terminal the two are the same thing.
+//
+ClientTerminal.prototype.passThroughWrite = function (data, cb) {
+    return this._write(data, true, cb);
+};
+
+//
+//  The one place outbound data meets the emulation's output translator, used
+//  by every path that writes the socket: immediate writes, a committed batch
+//  and dripWrite().
+//
+ClientTerminal.prototype.translateOutput = function (data) {
+    return this.emulation.outputTranslator.translate(data);
+};
+
+ClientTerminal.prototype._write = function (s, passThrough, cb) {
     if (this._writeBuf) {
         //  Batch mode: accumulate instead of sending immediately.
         this._writeBuf.push(Buffer.isBuffer(s) ? s : Buffer.from(s));
+        if (passThrough) {
+            //  remembered by position in the batch
+            if (!this._writeBufPassThrough) {
+                this._writeBufPassThrough = new Set();
+            }
+            this._writeBufPassThrough.add(this._writeBuf.length - 1);
+        }
         if (cb) {
             cb(null);
         }
         return;
     }
     if (this.output && this.output.writable) {
+        if (passThrough) {
+            this.emulation.outputTranslator.passThrough(s);
+        } else {
+            s = this.translateOutput(s);
+        }
         this.output.write(s, err => {
             if (cb) {
                 return cb(err);
@@ -267,7 +309,9 @@ ClientTerminal.prototype.commitWrite = function (cb) {
         return;
     }
     const chunks = this._writeBuf;
+    const passThroughChunks = this._writeBufPassThrough;
     this._writeBuf = null;
+    this._writeBufPassThrough = null;
     this._writeBufDepth = 0;
     if (chunks.length === 0) {
         if (cb) {
@@ -275,17 +319,49 @@ ClientTerminal.prototype.commitWrite = function (cb) {
         }
         return;
     }
-    const combined = Buffer.concat(chunks);
-    if (this.output && this.output.writable) {
-        this.output.write(combined, err => {
-            if (cb) {
-                return cb(err);
+    if (!this.output || !this.output.writable) {
+        return;
+    }
+
+    //
+    //  The batch goes through the output translator as one piece, so a
+    //  sequence split across writes is whole again by the time it is seen.
+    //  Pass-through chunks in the batch keep their place but are not
+    //  translated.
+    //
+    let combined;
+    if (!passThroughChunks || 0 === passThroughChunks.size) {
+        combined = this.translateOutput(Buffer.concat(chunks));
+    } else {
+        const out = [];
+        let run = [];
+        const flushRun = () => {
+            if (run.length > 0) {
+                out.push(this.translateOutput(Buffer.concat(run)));
+                run = [];
             }
-            if (err) {
-                Log.warn({ error: err.message }, 'Failed writing to socket');
+        };
+        chunks.forEach((chunk, i) => {
+            if (passThroughChunks.has(i)) {
+                flushRun();
+                this.emulation.outputTranslator.passThrough(chunk);
+                out.push(chunk);
+            } else {
+                run.push(chunk);
             }
         });
+        flushRun();
+        combined = Buffer.concat(out);
     }
+
+    this.output.write(combined, err => {
+        if (cb) {
+            return cb(err);
+        }
+        if (err) {
+            Log.warn({ error: err.message }, 'Failed writing to socket');
+        }
+    });
 };
 
 ClientTerminal.prototype.pipeWrite = function (s, cb) {
@@ -295,7 +371,14 @@ ClientTerminal.prototype.pipeWrite = function (s, cb) {
 //  dripWrite() — send |buf| to the socket at |bytesPerSec|, calling |cb| when done.
 //  Goes directly to this.output, intentionally bypassing _writeBuf batching (the two
 //  are mutually exclusive: batch = instant display; drip = throttled display).
+//  |buf| is translated for the terminal's emulation up front, as a whole, so
+//  what is dripped is what goes on the wire.
 ClientTerminal.prototype.dripWrite = function (buf, bytesPerSec, cb) {
+    if (!buf || buf.length === 0) {
+        return cb(null);
+    }
+
+    buf = this.translateOutput(buf);
     if (!buf || buf.length === 0) {
         return cb(null);
     }
@@ -331,5 +414,5 @@ ClientTerminal.prototype.encode = function (s, convertLineFeeds) {
     if (convertLineFeeds && _.isString(s)) {
         s = s.replace(/\n/g, '\r\n');
     }
-    return iconv.encode(s, TERM_CODEC[this.outputEncoding] || this.outputEncoding);
+    return this.emulation.codec.encode(s, this.outputEncoding);
 };
