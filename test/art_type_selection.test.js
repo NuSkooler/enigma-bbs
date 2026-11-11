@@ -112,11 +112,11 @@ describe('art type selection', function () {
                 preferred: [ALL_TYPES],
             },
             {
-                desc: 'cp437 client: every requested type, one tier (.utf8ans included)',
+                desc: 'cp437 client: every type allowed, .utf8ans only as a last resort',
                 client: cp437Client(),
                 types: ALL_TYPES,
                 allowed: ALL_TYPES,
-                preferred: [ALL_TYPES],
+                preferred: [ALL_TYPES.filter(t => t !== '.utf8ans'), ['.utf8ans']],
             },
             {
                 desc: 'utf8 client: .utf8ans first, the rest after in request order',
@@ -333,12 +333,12 @@ describe('art type selection', function () {
                 expect: ['VAR1.utf8ans', 'VAR2.utf8ans'],
             },
             {
-                //  Existing behaviour, kept as-is: a non-UTF-8 client draws from
-                //  every type, .utf8ans included.
-                desc: 'cp437 client draws from every variant of every type',
+                //  A non-UTF-8 client is never handed .utf8ans while another
+                //  type matches.
+                desc: 'cp437 client draws only from the non-UTF-8 variants',
                 name: 'VAR',
                 client: cp437Client(),
-                expect: ['VAR1.ans', 'VAR1.utf8ans', 'VAR2.ans', 'VAR2.utf8ans'],
+                expect: ['VAR1.ans', 'VAR2.ans'],
             },
             {
                 desc: 'random mode also matches the bare name',

@@ -163,6 +163,7 @@ function getArtFromPath(path, options, cb) {
 //                  undefined for "any type"
 //      preferred   array of tiers (arrays of types), best first. Types not
 //                  in any tier rank after all of them.
+//      last        array of types that rank after everything else
 //
 //  |term.artTypes|, when present, supplies this as-is. Nothing sets it yet; it
 //  is the seam the terminal emulation object will fill (#593), e.g. PETSCII
@@ -178,6 +179,12 @@ function termArtTypePreferences(term) {
 
     if (term && 'utf8' === term.outputEncoding) {
         return { preferred: [['.utf8ans']] };
+    }
+
+    //  Any other terminal cannot draw UTF-8: '.utf8ans' is a last resort, used
+    //  only when it is the sole match (as it always has been in that case).
+    if (term) {
+        return { preferred: [], last: ['.utf8ans'] };
     }
 
     return { preferred: [] };
@@ -219,9 +226,15 @@ function getArtTypePolicy(client, types) {
         }
     });
 
-    const rest = allowed.filter(t => !ranked.has(t));
+    const last = (prefs.last || []).filter(t => !ranked.has(t));
+    const rest = allowed.filter(t => !ranked.has(t) && !last.includes(t));
     if (rest.length > 0) {
         preferred.push(rest);
+    }
+
+    const lastTier = allowed.filter(t => last.includes(t));
+    if (lastTier.length > 0) {
+        preferred.push(lastTier);
     }
 
     return { allowed, preferred };
