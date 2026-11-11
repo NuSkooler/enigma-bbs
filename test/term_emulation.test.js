@@ -406,18 +406,20 @@ describe('terminal emulation', () => {
     });
 
     describe('art type policy comes from the emulation', () => {
-        const types = ['.ans', '.utf8ans', '.seq'];
+        //  '.zzz' stands in for a type an emulation might add; '.seq' is real
+        //  native art now and has its own rule (test/art_native_petscii.test.js)
+        const types = ['.ans', '.utf8ans', '.zzz'];
 
         it('a real terminal: ANSI defaults by output encoding', () => {
             const term = new ClientTerminal(null);
             assert.deepEqual(getArtTypePolicy({ term }, types), {
                 allowed: types,
-                preferred: [['.ans', '.seq'], ['.utf8ans']],
+                preferred: [['.ans', '.zzz'], ['.utf8ans']],
             });
             term.outputEncoding = 'utf8';
             assert.deepEqual(getArtTypePolicy({ term }, types), {
                 allowed: types,
-                preferred: [['.utf8ans'], ['.ans', '.seq']],
+                preferred: [['.utf8ans'], ['.ans', '.zzz']],
             });
         });
 
@@ -426,22 +428,35 @@ describe('terminal emulation', () => {
             term.emulation.defaults = {
                 cols: 40,
                 rows: 25,
-                artTypes: () => ({ allowed: ['.seq'], preferred: [['.seq']] }),
+                artTypes: () => ({ allowed: ['.zzz'], preferred: [['.zzz']] }),
             };
             assert.deepEqual(getArtTypePolicy({ term }, types), {
-                allowed: ['.seq'],
-                preferred: [['.seq']],
+                allowed: ['.zzz'],
+                preferred: [['.zzz']],
             });
         });
 
         it('a stand-in term without an emulation behaves as before', () => {
             assert.deepEqual(
                 getArtTypePolicy({ term: { outputEncoding: 'utf8' } }, types),
-                { allowed: types, preferred: [['.utf8ans'], ['.ans', '.seq']] }
+                { allowed: types, preferred: [['.utf8ans'], ['.ans', '.zzz']] }
             );
             assert.deepEqual(getArtTypePolicy(undefined, types), {
                 allowed: types,
                 preferred: [types],
+            });
+        });
+
+        it('native PETSCII art is never allowed for an ANSI terminal', () => {
+            const term = new ClientTerminal(null);
+            term.emulation.defaults = {
+                cols: 80,
+                rows: 25,
+                artTypes: () => ({ allowed: ['.seq'], preferred: [['.seq']] }),
+            };
+            assert.deepEqual(getArtTypePolicy({ term }, ['.ans', '.seq']), {
+                allowed: [],
+                preferred: [],
             });
         });
     });

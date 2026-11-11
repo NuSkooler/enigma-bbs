@@ -9,6 +9,7 @@ const aep = require('./ansi_escape_parser.js');
 const sauce = require('./sauce.js');
 const { Errors } = require('./enig_error.js');
 const { emulationOf } = require('./term');
+const { PetsciiArtParser, petsciiArtToText } = require('./term/petscii/art_parser.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -41,7 +42,54 @@ const SUPPORTED_ART_TYPES = {
     //  :TODO: extentions for wwiv, renegade, celerity, syncronet, ...
     //  :TODO: extension for atari
     //  :TODO: extension for topaz ansi/ascii.
+
+    //
+    //  Native art: bytes in a base emulation's own language, shown as they are
+    //  to a session of that emulation and never offered to any other (#593).
+    //  See NATIVE_ART below.
+    //
+    '.seq': { name: 'PETSCII', native: 'petscii' },
 };
+
+//
+//  Per emulation, what native art needs:
+//
+//      charsetFor(encodedAs)   the character set the art is drawn in, from the
+//                              art's |encodedAs| option
+//      createParser(options)   the parser art.display() drives in place of
+//                              ANSIEscapeParser (same events)
+//      toText(bytes, options)  the art as plain Unicode text, for anything that
+//                              cannot show it natively
+//
+//  PETSCII (.seq): lower/upper unless |encodedAs| is 'petscii_upper'
+//  (upper/graphics); 'petscii' and 'petscii_lower' name the default. Any
+//  other encoding name means nothing for these bytes and is ignored.
+//
+const PETSCII_CHARSETS = {
+    petscii: 'lower',
+    petscii_lower: 'lower',
+    petscii_upper: 'upper',
+};
+
+const NATIVE_ART = {
+    petscii: {
+        charsetFor: encodedAs =>
+            PETSCII_CHARSETS[_.isString(encodedAs) ? encodedAs.toLowerCase() : ''] ||
+            'lower',
+        createParser: options => new PetsciiArtParser(options),
+        toText: (bytes, options) => petsciiArtToText(bytes, options),
+    },
+};
+
+function isNativeArtEncoding(encoding) {
+    return _.isString(encoding) && _.has(PETSCII_CHARSETS, encoding.toLowerCase());
+}
+
+//  the emulation |ext|'s art is native to, or undefined for ANSI-side types
+function nativeEmulationOfType(ext) {
+    const artType = SUPPORTED_ART_TYPES[ext];
+    return artType ? artType.native : undefined;
+}
 
 function getFontNameFromSAUCE(sauce) {
     if (sauce && sauce.Character) {
@@ -82,6 +130,57 @@ function sliceAtEOF(data, eofMarker) {
     return data.slice(0, eof);
 }
 
+//
+//  Native art's bytes without a SAUCE record (and its comment block and the
+//  0x1A before it) and without trailing 0x1A padding. Native art carries no
+//  SAUCE as a rule; one that does must not reach the terminal as art.
+//
+//  0x1A: in a PETSCII stream it is an unassigned control code that neither
+//  character set draws (the 'Z' glyph is screen code 0x1A, not PETSCII byte
+//  0x1A). A file that went through XMODEM is padded with it to a 128 byte
+//  block, so a trailing run of it is padding and is dropped. One anywhere
+//  else is not an end-of-file marker for this type: it goes out with the
+//  rest, as the terminal ignores it.
+//
+function stripNativeTrailer(data) {
+    let end = data.length;
+    if (
+        end >= sauce.SAUCE_SIZE &&
+        'SAUCE00' ===
+            data.slice(end - sauce.SAUCE_SIZE, end - sauce.SAUCE_SIZE + 7).toString()
+    ) {
+        const numComments = data[end - sauce.SAUCE_SIZE + 104];
+        end -= sauce.SAUCE_SIZE;
+        const commentStart = end - 5 - numComments * 64;
+        if (
+            numComments > 0 &&
+            commentStart >= 0 &&
+            'COMNT' === data.slice(commentStart, commentStart + 5).toString()
+        ) {
+            end = commentStart;
+        }
+    }
+    while (end > 0 && 0x1a === data[end - 1]) {
+        --end;
+    }
+    return end === data.length ? data : data.slice(0, end);
+}
+
+//
+//  Native art as read from |path|. Raw bytes with |native| set when the
+//  caller can show native art (|options.acceptNative|; art.display() decides
+//  per session what to do with it); otherwise plain text, safe anywhere.
+//
+function getNativeArt(path, data, emulation, options) {
+    const nativeArt = NATIVE_ART[emulation];
+    const charset = nativeArt.charsetFor(options.encodedAs);
+    const bytes = stripNativeTrailer(data);
+    if (true === options.acceptNative) {
+        return { data: bytes, fromPath: path, native: { emulation, charset } };
+    }
+    return { data: nativeArt.toText(bytes, { charset }), fromPath: path };
+}
+
 function getArtFromPath(path, options, cb) {
     fs.readFile(path, (err, data) => {
         if (err) {
@@ -92,7 +191,15 @@ function getArtFromPath(path, options, cb) {
         //  Convert from encodedAs -> j
         //
         const ext = paths.extname(path).toLowerCase();
-        const encoding = options.encodedAs || defaultEncodingFromExtension(ext);
+        const nativeEmulation = nativeEmulationOfType(ext);
+        if (nativeEmulation) {
+            return cb(null, getNativeArt(path, data, nativeEmulation, options));
+        }
+
+        //  a native art encoding ('petscii_upper') says nothing about this type
+        const encoding =
+            (!isNativeArtEncoding(options.encodedAs) && options.encodedAs) ||
+            defaultEncodingFromExtension(ext);
 
         //  :TODO: how are BOM's currently handled if present? Are they removed? Do we need to?
 
@@ -199,12 +306,23 @@ function termArtTypePreferences(term) {
 //  terminal did not rank form the next tier, in the caller's order; its 'last'
 //  types come after everything, whatever order the caller asked for.
 //
+//  Native art types ('.seq') are allowed for a session of their own emulation
+//  only, whatever else says otherwise: never for an ANSI session, a stand-in
+//  term or no client at all.
+//
 function getArtTypePolicy(client, types) {
-    const prefs = termArtTypePreferences(_.get(client, 'term'));
+    const term = _.get(client, 'term');
+    const prefs = termArtTypePreferences(term);
 
-    const allowed = Array.isArray(prefs.allowed)
-        ? types.filter(t => prefs.allowed.includes(t))
-        : types.slice();
+    const sessionEmulation = emulationOf(term).name;
+    const allowed = (
+        Array.isArray(prefs.allowed)
+            ? types.filter(t => prefs.allowed.includes(t))
+            : types.slice()
+    ).filter(t => {
+        const nativeTo = nativeEmulationOfType(t);
+        return undefined === nativeTo || nativeTo === sessionEmulation;
+    });
 
     const ranked = new Set();
     const preferred = [];
@@ -269,7 +387,13 @@ function getArt(name, options, cb) {
             return cb(err);
         }
 
-        const policy = getArtTypePolicy(options.client, options.types);
+        //  native types only for a caller that can show native art
+        const policy = getArtTypePolicy(
+            options.client,
+            true === options.acceptNative
+                ? options.types
+                : options.types.filter(t => !nativeEmulationOfType(t))
+        );
 
         const filtered = files.filter(file => {
             //
@@ -364,7 +488,7 @@ function getArt(name, options, cb) {
 
 function defaultEncodingFromExtension(ext) {
     const artType = SUPPORTED_ART_TYPES[ext.toLowerCase()];
-    return artType ? artType.defaultEncoding : 'utf8';
+    return (artType && artType.defaultEncoding) || 'utf8';
 }
 
 function defaultEofFromExtension(ext) {
@@ -374,10 +498,31 @@ function defaultEofFromExtension(ext) {
     }
 }
 
+//
+//  Can |client|'s session show |native| art ({ emulation, charset }, from
+//  getArtFromPath()) as it is?
+//
+function canDisplayNative(client, native) {
+    const term = client.term;
+    return (
+        _.has(NATIVE_ART, native.emulation) &&
+        emulationOf(term).name === native.emulation &&
+        _.isFunction(term.canWriteNative) &&
+        term.canWriteNative()
+    );
+}
+
 //  :TODO: Implement the following
 //  * Pause (disabled | termHeight | keyPress )
 //  * Cancel (disabled | <keys> )
 //  * Resume from pause -> continous (disabled | <keys>)
+//
+//  |art| is a string of ANSI art, or with |options.native| set, the Buffer of
+//  native art from getArtFromPath(). Native art goes to the wire as it is
+//  for a session of its emulation, with MCI codes found by that emulation's
+//  parser; any other session (an explicit 'NAME.seq', a forced theme) gets it
+//  as plain text through the ANSI path, never its raw bytes.
+//
 function display(client, art, options, cb) {
     if (_.isFunction(options) && !cb) {
         cb = options;
@@ -386,6 +531,17 @@ function display(client, art, options, cb) {
 
     if (!art || !art.length) {
         return cb(Errors.Invalid('No art supplied!'));
+    }
+
+    const native = options.native || null;
+    if (native && !canDisplayNative(client, native)) {
+        const toText = _.get(NATIVE_ART, [native.emulation, 'toText']);
+        const textOptions = Object.assign({}, options);
+        delete textOptions.native;
+        const text = toText
+            ? toText(art, { charset: native.charset, cols: client.term.termWidth })
+            : '';
+        return display(client, text, textOptions, cb);
     }
 
     options.mciReplaceChar = options.mciReplaceChar || ' ';
@@ -401,19 +557,28 @@ function display(client, art, options, cb) {
         }
     }
 
-    const ansiParser = new aep.ANSIEscapeParser({
-        mciReplaceChar: options.mciReplaceChar,
-        termHeight: client.term.termHeight,
-        termWidth: client.term.termWidth,
-        artWidth: getWidthFromSAUCE(options.sauce),
-        trailingLF: options.trailingLF,
-        startRow: options.startRow,
-    });
+    const parser = native
+        ? NATIVE_ART[native.emulation].createParser({
+              mciReplaceChar: options.mciReplaceChar,
+              termHeight: client.term.termHeight,
+              termWidth: client.term.termWidth,
+              trailingLF: options.trailingLF,
+              startRow: options.startRow,
+              charset: native.charset,
+          })
+        : new aep.ANSIEscapeParser({
+              mciReplaceChar: options.mciReplaceChar,
+              termHeight: client.term.termHeight,
+              termWidth: client.term.termWidth,
+              artWidth: getWidthFromSAUCE(options.sauce),
+              trailingLF: options.trailingLF,
+              startRow: options.startRow,
+          });
 
     const mciMap = {};
     let generatedId = 100;
 
-    ansiParser.on('mci', mciInfo => {
+    parser.on('mci', mciInfo => {
         //  :TODO: ensure generatedId's do not conflict with any existing |id|
         const id = _.isNumber(mciInfo.id) ? mciInfo.id : generatedId;
         const mapKey = `${mciInfo.mci}${id}`;
@@ -438,7 +603,7 @@ function display(client, art, options, cb) {
     });
 
     // Remove any MCI's that are in erased rows
-    ansiParser.on('erase row', (startRow, endRow) => {
+    parser.on('erase row', (startRow, endRow) => {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             if (mciInfo.position[0] >= startRow && mciInfo.position[0] <= endRow) {
                 delete mciMap[mapKey];
@@ -447,7 +612,7 @@ function display(client, art, options, cb) {
     });
 
     // Remove any MCI's that are in erased columns
-    ansiParser.on('erase columns', (row, startCol, endCol) => {
+    parser.on('erase columns', (row, startCol, endCol) => {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             if (
                 mciInfo.position[0] === row &&
@@ -459,7 +624,7 @@ function display(client, art, options, cb) {
         });
     });
 
-    ansiParser.on('insert columns', (row, startCol, numCols) => {
+    parser.on('insert columns', (row, startCol, numCols) => {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             if (mciInfo.position[0] === row && mciInfo.position[1] >= startCol) {
                 mciInfo.position[1] += numCols;
@@ -471,19 +636,19 @@ function display(client, art, options, cb) {
     });
 
     // Clear the screen, removing any MCI's
-    ansiParser.on('clear screen', () => {
+    parser.on('clear screen', () => {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             delete mciMap[mapKey];
         });
     });
 
-    ansiParser.on('scroll', scrollY => {
+    parser.on('scroll', scrollY => {
         _.forEach(mciMap, mciInfo => {
             mciInfo.position[0] -= scrollY;
         });
     });
 
-    ansiParser.on('insert line', (row, numLines) => {
+    parser.on('insert line', (row, numLines) => {
         _.forEach(mciMap, mciInfo => {
             if (mciInfo.position[0] >= row) {
                 mciInfo.position[0] += numLines;
@@ -491,7 +656,7 @@ function display(client, art, options, cb) {
         });
     });
 
-    ansiParser.on('delete line', (row, numLines) => {
+    parser.on('delete line', (row, numLines) => {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             if (mciInfo.position[0] >= row) {
                 if (mciInfo.position[0] < row + numLines) {
@@ -512,7 +677,13 @@ function display(client, art, options, cb) {
     const drip = bytesPerSec > 0;
     const dripChunks = drip ? [] : null;
 
-    ansiParser.on('literal', literal => {
+    //  native art: every byte as it is, written in one piece on completion
+    const nativeChunks = native ? [] : null;
+
+    parser.on('literal', literal => {
+        if (native) {
+            return nativeChunks.push(literal);
+        }
         const encoded = client.term.encode(literal, false);
         if (drip) {
             dripChunks.push(encoded);
@@ -521,7 +692,10 @@ function display(client, art, options, cb) {
         }
     });
 
-    ansiParser.on('control', control => {
+    parser.on('control', control => {
+        if (native) {
+            return nativeChunks.push(control);
+        }
         if (drip) {
             dripChunks.push(Buffer.isBuffer(control) ? control : Buffer.from(control));
         } else {
@@ -529,12 +703,27 @@ function display(client, art, options, cb) {
         }
     });
 
-    ansiParser.on('complete', () => {
-        ansiParser.removeAllListeners();
+    parser.on('complete', () => {
+        parser.removeAllListeners();
 
         const extraInfo = {
-            height: ansiParser.row - 1,
+            height: parser.row - 1,
         };
+
+        if (native) {
+            const nativeBytes = Buffer.concat(nativeChunks);
+            const nativeOptions = { charset: native.charset };
+            if (!drip) {
+                client.term.nativeWrite(nativeBytes, nativeOptions);
+                return cb(null, mciMap, extraInfo);
+            }
+            return client.term.nativeDripWrite(
+                nativeBytes,
+                nativeOptions,
+                bytesPerSec,
+                err => cb(err, mciMap, extraInfo)
+            );
+        }
 
         if (!drip) {
             return cb(null, mciMap, extraInfo);
@@ -546,7 +735,7 @@ function display(client, art, options, cb) {
     });
 
     let initSeq = '';
-    if (client.term.syncTermFontsEnabled) {
+    if (client.term.syncTermFontsEnabled && !native) {
         if (options.font) {
             initSeq = ansi.setSyncTermFontWithAlias(options.font);
         } else if (options.sauce) {
@@ -568,7 +757,7 @@ function display(client, art, options, cb) {
         }
     }
 
-    if (options.iceColors) {
+    if (options.iceColors && !native) {
         initSeq += ansi.blinkToBrightIntensity();
     }
 
@@ -576,8 +765,8 @@ function display(client, art, options, cb) {
         client.term.rawWrite(initSeq);
     }
 
-    ansiParser.reset(art);
-    return ansiParser.parse();
+    parser.reset(art);
+    return parser.parse();
 }
 
 const _ABS_POS_RE = /\x1b\[\d+(?:;\d+)?[Hf]/;

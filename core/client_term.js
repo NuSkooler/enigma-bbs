@@ -240,6 +240,40 @@ ClientTerminal.prototype.passThroughWrite = function (data, cb) {
 };
 
 //
+//  nativeWrite() -- bytes already in the terminal's own language, ENiGMA's
+//  output all the same: native art (a PETSCII .seq file) for a terminal of
+//  that emulation. They go to the wire as they are, through the output
+//  translator's writeNative(), which follows them so that the ANSI written
+//  after (views at MCI positions) lands where it should. |options| goes to
+//  writeNative() (PETSCII: { charset }).
+//
+//  Only an emulation whose translator has writeNative() takes native bytes;
+//  anything else (ANSI) gets an error and nothing is written. art.js never
+//  sends native art to such a session: it shows it as text instead.
+//
+ClientTerminal.prototype.canWriteNative = function () {
+    const translator = this.emulation.outputTranslator;
+    return Boolean(translator) && 'function' === typeof translator.writeNative;
+};
+
+ClientTerminal.prototype.nativeWrite = function (data, options, cb) {
+    if (!cb && 'function' === typeof options) {
+        cb = options;
+        options = {};
+    }
+    if (!this.canWriteNative()) {
+        const err = new Error(
+            `The ${this.emulation.name} emulation does not take native output`
+        );
+        if (cb) {
+            return cb(err);
+        }
+        throw err;
+    }
+    return this._write(data, { native: options || {} }, cb);
+};
+
+//
 //  The one place outbound data meets the emulation's output translator, used
 //  by every path that writes the socket: immediate writes, a committed batch
 //  and dripWrite().
@@ -248,16 +282,20 @@ ClientTerminal.prototype.translateOutput = function (data) {
     return this.emulation.outputTranslator.translate(data);
 };
 
-ClientTerminal.prototype._write = function (s, passThrough, cb) {
+//
+//  |how| is false for ENiGMA's own (ANSI) output, true for pass-through, or
+//  { native: options } for nativeWrite().
+//
+ClientTerminal.prototype._write = function (s, how, cb) {
     if (this._writeBuf) {
         //  Batch mode: accumulate instead of sending immediately.
         this._writeBuf.push(Buffer.isBuffer(s) ? s : Buffer.from(s));
-        if (passThrough) {
+        if (how) {
             //  remembered by position in the batch
             if (!this._writeBufPassThrough) {
-                this._writeBufPassThrough = new Set();
+                this._writeBufPassThrough = new Map();
             }
-            this._writeBufPassThrough.add(this._writeBuf.length - 1);
+            this._writeBufPassThrough.set(this._writeBuf.length - 1, how);
         }
         if (cb) {
             cb(null);
@@ -265,8 +303,10 @@ ClientTerminal.prototype._write = function (s, passThrough, cb) {
         return;
     }
     if (this.output && this.output.writable) {
-        if (passThrough) {
+        if (true === how) {
             this.emulation.outputTranslator.passThrough(s);
+        } else if (how) {
+            s = this.emulation.outputTranslator.writeNative(s, how.native);
         } else {
             s = this.translateOutput(s);
         }
@@ -326,8 +366,8 @@ ClientTerminal.prototype.commitWrite = function (cb) {
     //
     //  The batch goes through the output translator as one piece, so a
     //  sequence split across writes is whole again by the time it is seen.
-    //  Pass-through chunks in the batch keep their place but are not
-    //  translated.
+    //  Pass-through and native chunks in the batch keep their place but are
+    //  not translated.
     //
     let combined;
     if (!passThroughChunks || 0 === passThroughChunks.size) {
@@ -342,10 +382,14 @@ ClientTerminal.prototype.commitWrite = function (cb) {
             }
         };
         chunks.forEach((chunk, i) => {
-            if (passThroughChunks.has(i)) {
+            const how = passThroughChunks.get(i);
+            if (true === how) {
                 flushRun();
                 this.emulation.outputTranslator.passThrough(chunk);
                 out.push(chunk);
+            } else if (how) {
+                flushRun();
+                out.push(this.emulation.outputTranslator.writeNative(chunk, how.native));
             } else {
                 run.push(chunk);
             }
@@ -378,7 +422,29 @@ ClientTerminal.prototype.dripWrite = function (buf, bytesPerSec, cb) {
         return cb(null);
     }
 
-    buf = this.translateOutput(buf);
+    return this._drip(this.translateOutput(buf), bytesPerSec, cb);
+};
+
+//  nativeDripWrite() -- dripWrite() for nativeWrite() bytes (see both)
+ClientTerminal.prototype.nativeDripWrite = function (buf, options, bytesPerSec, cb) {
+    if (!this.canWriteNative()) {
+        return cb(
+            new Error(`The ${this.emulation.name} emulation does not take native output`)
+        );
+    }
+    if (!buf || buf.length === 0) {
+        return cb(null);
+    }
+
+    return this._drip(
+        this.emulation.outputTranslator.writeNative(buf, options),
+        bytesPerSec,
+        cb
+    );
+};
+
+//  |buf| as it goes on the wire, at |bytesPerSec|
+ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb) {
     if (!buf || buf.length === 0) {
         return cb(null);
     }
