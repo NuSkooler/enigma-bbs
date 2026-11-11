@@ -76,6 +76,16 @@ module.exports = class LoginServerModule extends ServerModule {
         clientConns.addNewClient(client, clientSock);
 
         client.on('ready', readyOptions => {
+            //
+            //  A transport can still report ready for a caller that has
+            //  already gone -- telnet's terminal type wait, for one (#999).
+            //  There is nobody to serve, and an idle monitor started now
+            //  would never be stopped.
+            //
+            if (client.clientEnded) {
+                return client.log.debug('Client ready after it ended; ignoring');
+            }
+
             client.startIdleMonitor();
 
             //

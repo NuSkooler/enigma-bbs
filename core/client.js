@@ -225,6 +225,15 @@ Client.prototype.setTermType = function (termType) {
 };
 
 Client.prototype.startIdleMonitor = function () {
+    //
+    //  Never for a session that has ended: end() has already stopped both
+    //  monitors, and nothing would ever stop them again. Several modules
+    //  restart the idle monitor from leave(), which can run after the end.
+    //
+    if (this.clientEnded) {
+        return;
+    }
+
     //  clear existing, if any
     if (this.idleCheck) {
         this.stopIdleMonitor();
@@ -382,6 +391,12 @@ Client.prototype.end = function () {
             this.themeChangedListener
         );
 
+        //  :TODO: getCurrentModule does not exist (the getter is
+        //  menuStack.currentModule), so this never finds a module and no
+        //  module's leave() runs here. Fixing it starts every module's leave()
+        //  running on disconnect, which wants its own review; it must then
+        //  mark the top stack entry |left| so MenuStack._refuseEnded() does
+        //  not leave() it a second time.
         const currentModule = this.menuStack.getCurrentModule;
 
         if (currentModule) {

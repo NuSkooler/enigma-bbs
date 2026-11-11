@@ -93,6 +93,7 @@ exports.ErrorReasons = {
     InvalidNextMenu: 'BADNEXT',
     NoPreviousMenu: 'NOPREV',
     NoConditionMatch: 'NOCONDMATCH',
+    ClientEnded: 'CLIENTENDED', //  the session is over; see MenuStack.goto()
     NotEnabled: 'NOTENABLED',
     AlreadyLoggedIn: 'ALREADYLOGGEDIN',
     TooMany: 'TOOMANY',
