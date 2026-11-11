@@ -599,8 +599,9 @@ class MultiLineEditTextView extends View {
                 ? this._findCurrentMatchStyle || '\x1b[0;7m' //  default: inverse
                 : this._findMatchStyle || '\x1b[0;7;2m'; //  default: inverse+dim
             const absCol = this.position.col + match.displayStart;
-            this.client.term.rawWrite(
-                `${ansi.goto(absRow, absCol)}${highlightSGR}${matchText}${sgrRestore}`
+            this.client.term.write(
+                `${ansi.goto(absRow, absCol)}${highlightSGR}${matchText}${sgrRestore}`,
+                false
             );
         }
     }
@@ -1181,7 +1182,7 @@ class MultiLineEditTextView extends View {
                 //  Explicitly reset SGR before writing so the character inherits the
                 //  view's text color rather than whatever the terminal's current state is
                 //  (e.g., a highlighted quote line color).
-                this.client.term.rawWrite(this.getTextSgrPrefix() + c);
+                this.client.term.write(this.getTextSgrPrefix() + c, false);
             }
         } else {
             this.insertCharactersInText(c, index, this.cursorPos.col);
