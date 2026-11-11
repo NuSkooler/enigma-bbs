@@ -26,11 +26,16 @@ module.exports = class LoginServerModule extends ServerModule {
         const theme = require('./theme.js');
 
         //
-        //  Choose initial theme before we have user context
+        //  Choose initial theme before we have user context. Both the setting
+        //  and a random pick follow the session's terminal emulation; for
+        //  ANSI with no theme.emulations block that is theme.preLogin and
+        //  every theme, as before (#593).
         //
-        const preLoginTheme = _.get(Config(), 'theme.preLogin');
+        const emulation = theme.getSessionEmulation(client);
+        const preLoginTheme = theme.getThemeSetting(emulation, 'preLogin');
         if ('*' === preLoginTheme) {
-            client.user.properties[UserProps.ThemeId] = theme.getRandomTheme() || '';
+            client.user.properties[UserProps.ThemeId] =
+                theme.getRandomTheme(emulation) || '';
         } else {
             client.user.properties[UserProps.ThemeId] = preLoginTheme;
         }

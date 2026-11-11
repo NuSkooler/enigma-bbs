@@ -35,6 +35,30 @@ The `info` configuration block describes the theme itself.
 | `author` | Yes | Author of the theme/artwork. |
 | `group` | No | Group/affils of author. |
 | `enabled` | No | Boolean of enabled state. If set to `false`, this theme will not be available to your users. If a user currently has this theme selected, the system default will be selected for them at next login. |
+| `emulation` | No | Terminal emulation the theme is drawn for. Defaults to `ansi`. See [Terminal Emulation](#terminal-emulation) below. |
+
+#### Terminal Emulation
+Every theme is drawn for one terminal emulation, named by `info.emulation`. A theme without it is an `ansi` theme, which is what every theme so far is, so existing themes need no change.
+
+```hjson
+info: {
+    name: Commodore Calling
+    author: Cool Artist
+    emulation: petscii
+}
+```
+
+A caller is only ever given a theme for the emulation their session uses:
+
+* Before login, the pre-login theme for that emulation (see `theme.emulations` under [Creating Your Own](#creating-your-own)). A `*` picks among that emulation's themes only.
+* After login, the user's own theme if it is for that emulation. If it is not, the session uses that emulation's default theme instead, and the user's saved choice is left alone for their next call on a terminal it suits.
+* The theme list in user configuration shows only themes for the session's emulation.
+
+If no theme exists for an emulation, its callers get the system default theme and a warning is logged once.
+
+:::note
+ENiGMA½ speaks only ANSI today, so only `ansi` themes are used. A theme for another emulation loads but is never offered to anyone until that emulation exists.
+:::
 
 ### Customization Block
 The `customization` block in is itself broken up into major parts:
@@ -142,6 +166,21 @@ messageAreaChangeCurrentArea: {
    theme: {
        default: your_board_theme
        preLogin: *
+   }
+   ```
+
+   Both settings apply to every terminal emulation unless overridden for one under `theme.emulations`, keyed by emulation name. Each entry may set `default`, `preLogin` or both, with the same meaning and the same `*`, limited to that emulation's themes. A setting that names a theme for another emulation is passed over in favour of that emulation's `default`, or failing that its first theme.
+
+   ```hjson
+   theme: {
+       default: your_board_theme
+       preLogin: your_board_theme
+       emulations: {
+           petscii: {
+               default: your_c64_theme
+               preLogin: your_c64_theme
+           }
+       }
    }
    ```
 

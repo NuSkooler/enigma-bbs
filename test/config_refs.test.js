@@ -473,6 +473,20 @@ describe('config deferred references', () => {
         assert.deepEqual(check(config), []);
     });
 
+    it('checks the per emulation theme settings too (#593)', () => {
+        const config = sound();
+        config.theme.emulations = {
+            petscii: { default: 'mystery_skull', preLogin: 'mystery_skul' },
+            atascii: { preLogin: '*' },
+        };
+
+        const issues = check(config);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].code, IssueCodes.UnresolvedRef);
+        assert.equal(issues[0].path, 'theme.emulations.petscii.preLogin');
+    });
+
     it('catches a first menu that menu.hjson does not define', () => {
         const config = sound();
         config.loginServers.ssh.firstMenuNewUser = 'sshConnectdNewUser';

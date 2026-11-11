@@ -467,6 +467,27 @@
                     "description": "Shown as a daily time budget runs down. \"{minutes}\" and \"{plural}\" are substituted; pipe codes are honoured. Empty means no warning.",
                     "type": "string",
                     "default": "|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00"
+                },
+                "emulations": {
+                    "description": "Per terminal emulation theme.default and theme.preLogin overrides, keyed by emulation name.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "default": {
+                                "description": "theme.default for this emulation: given to users who sign up on it, and used when a user's own theme is not for it. A theme ID, or \"*\" to pick one at random.",
+                                "type": "string"
+                            },
+                            "preLogin": {
+                                "description": "theme.preLogin for this emulation: a theme ID, or \"*\" to pick one of its themes at random.",
+                                "type": "string"
+                            }
+                        },
+                        "patternProperties": {
+                            "^_": true
+                        },
+                        "additionalProperties": false
+                    }
                 }
             },
             "patternProperties": {

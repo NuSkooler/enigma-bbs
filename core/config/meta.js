@@ -243,6 +243,35 @@ module.exports = {
         description:
             'Theme used before login: a directory name under paths.themes, or "*" to pick one at random.',
     },
+    //
+    //  Per terminal emulation (#593): keyed by emulation name ("petscii",
+    //  "atascii", ...), each entry overriding theme.default and/or
+    //  theme.preLogin for sessions of that emulation. Absent from
+    //  config_default.js on purpose; with no entry, theme.default and
+    //  theme.preLogin apply as they always have. Either may be "*", which
+    //  picks among that emulation's themes only. See core/theme.js.
+    //
+    'theme.emulations': {
+        openMap: true,
+        description:
+            'Per terminal emulation theme.default and theme.preLogin overrides, keyed by emulation name.',
+        value: {
+            type: 'object',
+            closedKeys: true,
+            children: {
+                default: {
+                    type: 'string',
+                    description:
+                        'theme.default for this emulation: given to users who sign up on it, and used when a user\'s own theme is not for it. A theme ID, or "*" to pick one at random.',
+                },
+                preLogin: {
+                    type: 'string',
+                    description:
+                        'theme.preLogin for this emulation: a theme ID, or "*" to pick one of its themes at random.',
+                },
+            },
+        },
+    },
     'theme.passwordChar': {
         type: 'string',
         description: 'Character echoed in place of a password.',

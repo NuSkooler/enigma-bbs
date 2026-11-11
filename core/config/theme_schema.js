@@ -7,7 +7,7 @@ const NodeType = require('./schema.js').NodeType;
 //
 //  A schema for a theme's theme.hjson.
 //
-//  Small: two top level keys, five in "info", four in "customization". The
+//  Small: two top level keys, six in "info", four in "customization". The
 //  bulk of a theme by line count is under customization.menus and
 //  customization.prompts, and that is MCI territory -- left wide open here,
 //  scoped separately along with menu.hjson's "form" blocks.
@@ -71,6 +71,12 @@ function buildThemeSchema() {
                     enabled: {
                         type: NodeType.Boolean,
                         description: 'false hides this theme from users.',
+                    },
+                    //  see core/theme.js getThemeEmulation() (#593)
+                    emulation: {
+                        type: NodeType.String,
+                        description:
+                            'Terminal emulation this theme is drawn for, e.g. "ansi" (the default when absent) or "petscii". Only sessions of that emulation are offered it.',
                     },
                 },
             },

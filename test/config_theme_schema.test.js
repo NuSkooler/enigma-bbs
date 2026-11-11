@@ -92,6 +92,17 @@ describe('theme schema', () => {
         );
     });
 
+    it('accepts "emulation" (#593) and type checks it', () => {
+        assert.deepEqual(
+            validate({ info: { name: 'X', author: 'Y', emulation: 'petscii' } }),
+            []
+        );
+        assert.equal(
+            validate({ info: { name: 'X', author: 'Y', emulation: 64 } }).length,
+            1
+        );
+    });
+
     it('uses the key names the code reads, not the helper names in the docs', () => {
         //
         //  art/themes.md lists getStatusAvailIndicators and

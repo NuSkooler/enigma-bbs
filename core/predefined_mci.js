@@ -189,6 +189,19 @@ const PREDEFINED_MCI_GENERATORS = {
         );
     },
     UD: function themeId(client) {
+        //
+        //  The user's theme property; but when that theme is for another
+        //  terminal emulation, the theme this session was given in its place
+        //  (#593). On an ANSI-only board, always the property.
+        //
+        const theme = require('./theme.js');
+        const savedThemeId = _.get(client, ['user', 'properties', UserProps.ThemeId]);
+        if (!theme.isThemeCompatible(savedThemeId, theme.getSessionEmulation(client))) {
+            const sessionThemeId = _.get(client, 'currentTheme.info.themeId');
+            if (_.isString(sessionThemeId)) {
+                return sessionThemeId;
+            }
+        }
         return userStatAsString(client, UserProps.ThemeId, '');
     },
     UC: function loginCount(client) {
