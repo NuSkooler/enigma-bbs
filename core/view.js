@@ -5,7 +5,7 @@ const events = require('events');
 const ansi = require('./ansi_term.js');
 const colorCodes = require('./color_codes.js');
 const enigAssert = require('./enigma_assert.js');
-const { renderSubstr } = require('./string_util.js');
+const { renderSubstr, renderStringLength, renderSplitPos } = require('./string_util.js');
 
 //  deps
 const _ = require('lodash');
@@ -124,6 +124,19 @@ class View extends events.EventEmitter {
         this.dimens.width =
             this.dimens.width ||
             Math.min(width, this.client.term.termWidth - this.position.col);
+    }
+
+    //
+    //  |text| cut off at the terminal's right edge when drawn from |col|.
+    //  Past the edge the terminal wraps it onto the next row, over whatever
+    //  is drawn there; on a narrow terminal that garbles a whole list.
+    //
+    clipToTerminalWidth(text, col = this.position.col) {
+        const available = this.client.term.termWidth - col + 1;
+        if (!(available > 0) || renderStringLength(text) <= available) {
+            return text;
+        }
+        return text.slice(0, renderSplitPos(text, available)) + this.getSGR();
     }
 
     setPosition(pos) {

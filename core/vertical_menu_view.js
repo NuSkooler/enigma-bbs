@@ -116,12 +116,14 @@ class VerticalMenuView extends MenuView {
             });
         }
 
-        text = `${sgr}${strUtil.pad(
-            `${text}${this.styleSGR1}`,
-            this.dimens.width,
-            this.fillChar,
-            this.justify
-        )}`;
+        text = this.clipToTerminalWidth(
+            `${sgr}${strUtil.pad(
+                `${text}${this.styleSGR1}`,
+                this.dimens.width,
+                this.fillChar,
+                this.justify
+            )}`
+        );
 
         this.client.term.write(`${ansi.goto(item.row, this.position.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);

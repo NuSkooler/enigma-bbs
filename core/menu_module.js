@@ -212,15 +212,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         return callback(null, null);
                     }
 
-                    if (
-                        self.client.term.termHeight > 0 &&
-                        pausePosition.row > self.client.termHeight
-                    ) {
-                        // If this scrolled, the prompt will go to the bottom of the screen
-                        pausePosition.row = self.client.termHeight;
-                    }
-
-                    return self.pausePrompt(pausePosition, callback);
+                    //  If the art scrolled, the prompt goes to the bottom of the screen
+                    return self.pausePrompt(
+                        self._clampRowToScreen(pausePosition),
+                        callback
+                    );
                 },
                 function finishAndNext(artInfo, callback) {
                     self.finishedLoading();
@@ -842,12 +838,17 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     //  below the art rather than wherever the last view write left the cursor
     pauseBelowArt(cb) {
-        const position = Object.assign({}, this.afterArtPosition);
+        return this.pausePrompt(this._clampRowToScreen(this.afterArtPosition), cb);
+    }
+
+    //  A copy of |position| whose row is no lower than the terminal's last row
+    _clampRowToScreen(position) {
+        const clamped = Object.assign({}, position);
         const termHeight = this.client.term.termHeight;
-        if (termHeight > 0 && position.row > termHeight) {
-            position.row = termHeight;
+        if (termHeight > 0 && clamped.row > termHeight) {
+            clamped.row = termHeight;
         }
-        return this.pausePrompt(position, cb);
+        return clamped;
     }
 
     pausePrompt(position, cb, type = 'end') {

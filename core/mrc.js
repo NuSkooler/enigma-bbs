@@ -487,7 +487,17 @@ exports.getModule = class mrcModule extends MenuModule {
         const chatLogView = this.viewControllers.mrcChat.getView(
             MciViewIds.mrcChat.chatLog
         );
-        const viewWidth = (chatLogView.dimens && chatLogView.dimens.width) || 79;
+        //  A width that came from the art is not clamped to the terminal, so
+        //  never wrap wider than what is left of the screen from the view's column.
+        const termWidth = this.client.term.termWidth || 80;
+        const viewCol = _.get(chatLogView, 'position.col', 1);
+        const viewWidth = Math.max(
+            1,
+            Math.min(
+                (chatLogView.dimens && chatLogView.dimens.width) || termWidth - 1,
+                termWidth - viewCol + 1
+            )
+        );
         lines.forEach(line => {
             const { wrapped } = wordWrapText(line, {
                 width: viewWidth,

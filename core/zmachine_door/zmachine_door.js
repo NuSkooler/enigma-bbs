@@ -188,6 +188,8 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         const workerData = {
             gamePath: self.config.game_path,
             preloadedAutosave: preloadedAutosave,
+            termWidth: self.client.term && self.client.term.termWidth,
+            termHeight: self.client.term && self.client.term.termHeight,
         };
 
         let worker;
