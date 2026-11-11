@@ -38,7 +38,7 @@
 //      Escape      both send 0x1B                            same
 //      Tab         neither maps it; 0x09 as typed            handled as ANSI tab
 //      Delete      icy sends 0x14 (backspace); SyncTERM too  same
-//      End         SyncTERM sends 0x93 (clear); icy none     clear
+//      End         SyncTERM sends 0x93 (clear); icy none     end (see below)
 //      F-keys      icy sends F1..F8 as 85 86 87 88 89 8A 8B 8C, i.e. sequential,
 //                  while the C64 keyboard and SyncTERM use 85 89 86 8A 87 8B 88 8C.
 //                  Icy's F2 therefore arrives as byte 0x86 and reads as 'f3'.
@@ -121,7 +121,13 @@ function decodeByte(byte) {
         return ['\r', makeKey(byte, 'return')];
     }
 
-    const keyName = KeyBytes[byte];
+    //
+    //  0x93 is CLR (Shift+HOME) on a C64, and it is what SyncTERM sends for
+    //  the End key. Nothing in ENiGMA acts on a 'clear' key, while 'end' is a
+    //  generic list and editor key with no other PETSCII byte (its usual
+    //  alternative, ctrl + e, is the colour byte 0x05). So CLR is End here.
+    //
+    const keyName = 0x93 === byte ? 'end' : KeyBytes[byte];
     if (keyName) {
         //  backspace is '\b' the way the ANSI decoder reports Ctrl-H
         return ['backspace' === keyName ? '\b' : undefined, makeKey(byte, keyName)];

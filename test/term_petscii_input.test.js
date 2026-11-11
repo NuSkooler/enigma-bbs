@@ -56,7 +56,9 @@ describe('PETSCII input decoder', () => {
     });
 
     describe('KeyBytes', () => {
-        for (const [byte, name] of Object.entries(KeyBytes)) {
+        for (const [byte, tableName] of Object.entries(KeyBytes)) {
+            //  CLR (0x93) is reported as End; see the decoder
+            const name = 0x93 === Number(byte) ? 'end' : tableName;
             it(`0x${Number(byte).toString(16)} is ${name}`, () => {
                 const [, key] = one([Number(byte)]);
                 assert.equal(key.name, name);
@@ -262,7 +264,7 @@ describe('PETSCII input decoder', () => {
             ['right arrow', [0x1d], '\x1b[C'],
             ['left arrow', [0x9d], '\x1b[D'],
             ['home', [0x13], '\x1b[H'],
-            ['clear', [0x93], '\x1b[E'],
+            ['end (CLR, what SyncTERM sends for End)', [0x93], '\x1b[F'],
             ['insert', [0x94], '\x1b[2~'],
             ['f1', [0x85], '\x1b[11~'],
             ['f2', [0x89], '\x1b[12~'],
