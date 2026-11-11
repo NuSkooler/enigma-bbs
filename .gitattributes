@@ -22,3 +22,7 @@ test/fixtures/area_lists/** -text
 # Webfonts are binary; never normalize line endings in them
 *.woff binary
 *.woff2 binary
+
+# Native PETSCII art (Commodore sequential files) is binary
+*.seq binary
+*.SEQ binary
