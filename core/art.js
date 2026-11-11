@@ -202,7 +202,8 @@ function termArtTypePreferences(term) {
 //  A candidate whose type is not in |allowed| is never chosen, whatever else is
 //  missing. getArt() takes the first tier that has a matching file as its pool.
 //  Within a tier, types keep the order the terminal gave them; types the
-//  terminal did not rank form the last tier, in the caller's order.
+//  terminal did not rank form the next tier, in the caller's order; its 'last'
+//  types come after everything, whatever order the caller asked for.
 //
 function getArtTypePolicy(client, types) {
     const prefs = termArtTypePreferences(_.get(client, 'term'));
