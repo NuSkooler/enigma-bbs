@@ -404,3 +404,40 @@ describe('MenuModule outcome helpers', () => {
         assert.equal(pausedAt({ row: 0, column: 0 }).row, 0);
     });
 });
+
+// ─── initSequence pause placement (#991) ─────────────────────────────────────
+
+describe('MenuModule initSequence pause placement', () => {
+    //  Run initSequence() over art |artHeight| rows tall on a |termHeight| row
+    //  terminal and report where the end-of-art pause prompt was asked to go.
+    const initPausedAt = (artHeight, termHeight) => {
+        const m = makeMenuModule({ art: 'someArt', config: { pause: true } });
+        m.client.term.termHeight = termHeight;
+        m.beforeArt = cb => cb(null);
+        m.displayAsset = (art, options, cb) =>
+            cb(null, { height: artHeight, mciMap: {} });
+        m.mciReady = (mciData, cb) => cb(null);
+        m.finishedLoading = () => {};
+        m.autoNextMenu = cb => cb(null);
+
+        let position;
+        m.pausePrompt = (p, cb) => {
+            position = p;
+            cb(null, null);
+        };
+        m.initSequence();
+        return position;
+    };
+
+    it('pauses on the row below the art when it fits', () => {
+        assert.equal(initPausedAt(10, 25).row, 11);
+    });
+
+    it('keeps the pause on the last row when the art is taller than the screen', () => {
+        assert.equal(initPausedAt(30, 25).row, 25);
+    });
+
+    it('keeps the pause on the last row of a 24-row terminal', () => {
+        assert.equal(initPausedAt(24, 24).row, 24);
+    });
+});
