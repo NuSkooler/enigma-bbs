@@ -73,7 +73,7 @@ Art is looked up by name; the extension says what kind of file it is:
 ### Art Spec
 In the section above it is mentioned that the `art` member is a *spec*. The value of a `art` spec controls how the system looks for an asset. The following forms are supported:
 
-* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path (and `FOO.SEQ` first for a PETSCII caller). Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
+* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path (for a PETSCII caller, `FOO.SEQ` is preferred at each step of that path). Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
 * `FOO.ANS`: By specifying an extension, only the exact match will be searched for.
 * `rel/path/to/BAR.ANS`: Only match a path (relative to the system's `art` directory).
 * `/path/to/BAZ.ANS`: Exact path only.
