@@ -38,7 +38,7 @@ The Telnet server can listen on more ports than its main one. Add each under `lo
 | `address` | No | Bind address. Defaults to the main Telnet `address`. |
 | `firstMenu` | No | First menu for callers on this port. Defaults to the main Telnet `firstMenu`. |
 | `emulation` | No | Terminal emulation for callers on this port, for example `petscii`. |
-| `enabled` | No | Defaults to `true`. Set to `false` to leave the listener out without removing it. |
+| `enabled` | No | Defaults to `true`. Set to `false` to leave the listener out without removing it. Read at startup: a change to `port`, `address` or `enabled` needs a restart. |
 
 `emulation` is recorded, but only `ansi` is implemented today, so any other value falls back to ANSI.
 

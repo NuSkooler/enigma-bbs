@@ -1309,9 +1309,10 @@ function peg$parse(input, options) {
                     }
                     //	The base emulation's name, plus any additive layers;
                     //	a terminal without an emulation object is ANSI.
-                    const names = term.emulation
-                        ? [term.emulation.name].concat(
-                              Array.from(term.emulation.layers.keys())
+                    const emulation = term.emulation;
+                    const names = emulation
+                        ? [emulation.name].concat(
+                              emulation.layers ? Array.from(emulation.layers.keys()) : []
                           )
                         : ['ansi'];
                     return value.some(name => names.includes(String(name).toLowerCase()));

@@ -411,7 +411,11 @@ function closeServer(server, cb) {
 
     try {
         server.close(() => done());
-    } catch (e) {
+    } catch (err) {
+        Log.warn(
+            { err, server: ModuleInfo.name },
+            'Failed to stop listening; continuing'
+        );
         return done();
     }
 

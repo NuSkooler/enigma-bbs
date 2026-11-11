@@ -399,6 +399,14 @@ describe('ACS Parser — Check Functions', () => {
             assert.equal(parse('TE[petscii]'), false);
         });
 
+        it('an emulation object without layers still matches by name', () => {
+            const client = makeClient();
+            client.term.emulation = { name: 'petscii' };
+            const ctx = { subject: { client, user: makeUser({}) } };
+            assert.equal(acsParser.parse('TE[petscii]', ctx), true);
+            assert.equal(acsParser.parse('TE[ansi]', ctx), false);
+        });
+
         it('needs a list, and a client', () => {
             assert.equal(parse('TE'), false);
             assert.equal(parse('TE1'), false);
