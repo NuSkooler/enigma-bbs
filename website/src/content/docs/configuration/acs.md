@@ -125,7 +125,7 @@ The following ACS codes are available:
 | `TH`*height* | Terminal height is >= *height* |
 | `TW`*width* | Terminal width is >= *width* |
 | `TT[`*type,...*`]` | Terminal type is one of [*type,...*] (`ansi`, `xterm`, etc.) |
-| `TM[`*theme,...*`]` | User's current theme ID or name is one of [*theme,...*] (e.g. `luciano_blocktronics`) |
+| `TM[`*theme,...*`]` | User's current theme ID is one of [*theme,...*] (e.g. `luciano_blocktronics`). A theme's display name also matches, but only if it has no spaces; prefer the ID |
 | `NN`*node*, `NN[`*node,...*`]` | Current node number is *node* or one of [*node,...*] |
 
 ### Time & Date
