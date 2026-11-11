@@ -68,7 +68,12 @@ function makeClient(overrides = {}) {
             termType: overrides.termType || 'ansi',
             outputEncoding: overrides.outputEncoding || 'cp437',
         },
-        currentTheme: { name: overrides.themeName || 'luciano_blocktronics' },
+        currentTheme: {
+            info: {
+                themeId: overrides.themeId || 'luciano_blocktronics',
+                name: overrides.themeName || 'Blocktronics',
+            },
+        },
         isLocal() {
             return !!overrides.isLocal;
         },
@@ -324,8 +329,60 @@ describe('ACS Parser — Check Functions', () => {
         });
 
         it('detects UTF-8', () => {
-            assert.equal(parse('EC1', {}, { outputEncoding: 'utf-8' }), true);
-            assert.equal(parse('EC0', {}, { outputEncoding: 'utf-8' }), false);
+            assert.equal(parse('EC1', {}, { outputEncoding: 'utf8' }), true);
+            assert.equal(parse('EC0', {}, { outputEncoding: 'utf8' }), false);
+        });
+
+        it('sees UTF-8 however the encoding was spelled when set', () => {
+            const { ClientTerminal } = require('../core/client_term.js');
+            for (const spelled of ['utf8', 'utf-8', 'UTF-8', 'UTF8']) {
+                const term = new ClientTerminal({ write() {} });
+                term.outputEncoding = spelled;
+                assert.equal(term.outputEncoding, 'utf8', spelled);
+                const client = makeClient();
+                client.term = term;
+                const ctx = { subject: { client, user: makeUser({}) } };
+                assert.equal(acsParser.parse('EC1', ctx), true, spelled);
+                assert.equal(acsParser.parse('EC0', ctx), false, spelled);
+            }
+        });
+
+        it('keeps cp437 as is and ignores unknown encodings', () => {
+            const { ClientTerminal } = require('../core/client_term.js');
+            const term = new ClientTerminal({ write() {} });
+            term.outputEncoding = 'utf-8';
+            term.outputEncoding = 'cp437';
+            assert.equal(term.outputEncoding, 'cp437');
+            term.outputEncoding = 'no-such-encoding';
+            assert.equal(term.outputEncoding, 'cp437');
+        });
+    });
+
+    describe('TM (Theme)', () => {
+        it('matches the theme id', () => {
+            assert.equal(parse('TM[luciano_blocktronics]'), true);
+            assert.equal(parse('TM[other,luciano_blocktronics]'), true);
+        });
+
+        it('matches the theme name', () => {
+            assert.equal(parse('TM[Blocktronics]'), true);
+        });
+
+        it('does not match another theme', () => {
+            assert.equal(parse('TM[other]'), false);
+            assert.equal(parse('TM[other]', {}, { themeId: 'x', themeName: 'y' }), false);
+            assert.equal(parse('TM[x]', {}, { themeId: 'x' }), true);
+        });
+
+        it('is false without a current theme', () => {
+            const client = makeClient();
+            delete client.currentTheme;
+            assert.equal(
+                acsParser.parse('TM[luciano_blocktronics]', {
+                    subject: { client, user: makeUser({}) },
+                }),
+                false
+            );
         });
     });
 

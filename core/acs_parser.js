@@ -1140,7 +1140,7 @@ function peg$parse(input, options) {
                         case 0:
                             return 'cp437' === encoding;
                         case 1:
-                            return 'utf-8' === encoding;
+                            return 'utf8' === encoding;
                         default:
                             return false;
                     }
@@ -1306,7 +1306,12 @@ function peg$parse(input, options) {
                     if (!Array.isArray(value)) {
                         return false;
                     }
-                    return value.includes(_.get(client, 'currentTheme.name'));
+                    const themeId = _.get(client, 'currentTheme.info.themeId');
+                    const themeName = _.get(client, 'currentTheme.info.name');
+                    return (
+                        (!!themeId && value.includes(themeId)) ||
+                        (!!themeName && value.includes(themeName))
+                    );
                 },
                 TT: function isOneOfTermTypes() {
                     if (!Array.isArray(value)) {
