@@ -32,3 +32,6 @@ dev_util/ngrok/enigma.local.yml
 
 #   enig-term, the browser terminal: installed by the operator, not shipped
 /ws-term/
+
+#   Terminal harness: throwaway instance, dumps, local pip target
+dev_util/term_harness/.work/
