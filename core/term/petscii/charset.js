@@ -504,7 +504,10 @@ const SCREEN_GLYPHS_LOWER = [
 const CHARSET_INDEX = { upper: 0, lower: 1 };
 
 function charsetIndexOf(charset) {
-    const idx = CHARSET_INDEX[undefined === charset ? DEFAULT_CHARSET : charset];
+    const name = undefined === charset ? DEFAULT_CHARSET : charset;
+    const idx = Object.prototype.hasOwnProperty.call(CHARSET_INDEX, name)
+        ? CHARSET_INDEX[name]
+        : undefined;
     if (undefined === idx) {
         throw new TypeError(`Unknown PETSCII charset: ${charset}`);
     }
@@ -660,7 +663,7 @@ fallback('●', ['●'], { lower: ['*'] });
 
 //  ASCII PETSCII lacks or draws differently. Synchronet cp437_to_petscii and
 //  petdefs.h: '|' 0xDD, '\\' '/' ("the 109 graphics char is an 'M' in shifted/text
-//  mode"), '`' 0xAD, '~' 0xA8, '_' 0xA4, '{' '(' and '}' ')'; '^' is left as 0x5E.
+//  mode"), '`' 0xAD, '~' 0xA8, '_' 0xA4, '{' '(' and '}' ')'; '^' stays byte 0x5E, which draws an up arrow.
 //  In the 0xAD/0xA8/0xA4 cases the byte draws the same glyph in both sets.
 fallback('|', ['│']);
 fallback('\\', ['/']);
@@ -828,8 +831,14 @@ function encode(string, charset, options) {
 
     const out = [];
     for (const ch of String(string)) {
-        const r = resolve(ch.codePointAt(0), idx);
+        const cp = ch.codePointAt(0);
+        const r = resolve(cp, idx);
         if (!r) {
+            //  a combining mark on its own (decomposed input): the base letter
+            //  has already been written, so the mark is dropped, not shown as '?'
+            if (cp >= 0x300 && cp <= 0x36f) {
+                continue;
+            }
             out.push(fallbackByte);
         } else if (r.reverse && reverseSolid) {
             out.push(Controls.reverseOn, ...r.bytes, Controls.reverseOff);

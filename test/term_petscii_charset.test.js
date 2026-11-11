@@ -853,4 +853,24 @@ describe('PETSCII charset tables', function () {
             for (const b of out) assert(b >= 0 && b <= 255);
         });
     });
+    describe('review fixes', () => {
+        it('rejects charset names that are Object.prototype keys with the same error', () => {
+            ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'ascii'].forEach(
+                name => {
+                    assert.throws(
+                        () => charset.encode('a', name),
+                        /Unknown PETSCII charset/
+                    );
+                }
+            );
+        });
+
+        it('drops a lone combining mark instead of writing the fallback byte', () => {
+            const decomposed = 'cafe' + String.fromCharCode(0x301);
+            assert.deepEqual(
+                [...charset.encode(decomposed, charset.Charsets.LowerUpper)],
+                [0x43, 0x41, 0x46, 0x45]
+            );
+        });
+    });
 });
