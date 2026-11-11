@@ -81,14 +81,14 @@ describe('terminal emulation selection', () => {
             }
         });
 
-        it('TTYPE PETSCII / ATASCII: recorded, falls back to ANSI', () => {
+        it('TTYPE PETSCII is honoured; ATASCII is recorded and falls back to ANSI', () => {
             assert.deepEqual(resolveEmulation({ termType: 'petscii' }), {
                 requested: 'petscii',
                 source: 'termType',
                 kind: 'base',
-                base: 'ansi',
+                base: 'petscii',
                 layers: [],
-                fallback: true,
+                fallback: false,
             });
             const atascii = resolveEmulation({ termType: 'ATASCII' });
             assert.equal(atascii.requested, 'atascii');
@@ -167,22 +167,38 @@ describe('terminal emulation selection', () => {
             );
         });
 
-        it('TTYPE PETSCII: stays ANSI, records the request, logs the fallback', () => {
+        it('TTYPE PETSCII: the session becomes PETSCII with its own encoding', () => {
             const client = makeClient('PETSCII');
             selectClientEmulation(client, { firstMenu: 'telnetConnected' });
 
-            assert.equal(client.term.emulation.name, 'ansi');
+            assert.equal(client.term.emulation.name, 'petscii');
+            assert.equal(client.term.outputEncoding, 'petscii');
             assert.deepEqual(client.term.requestedEmulation, {
                 name: 'petscii',
+                source: 'termType',
+            });
+            assert.equal(client.logged.length, 1);
+            assert.equal(client.logged[0].level, 'debug');
+            assert.equal(client.logged[0].info.emulation, 'petscii');
+            assert.equal(client.logged[0].info.termType, 'petscii');
+        });
+
+        it('TTYPE ATASCII: stays ANSI, records the request, logs the fallback', () => {
+            const client = makeClient('ATASCII');
+            selectClientEmulation(client, { firstMenu: 'telnetConnected' });
+
+            assert.equal(client.term.emulation.name, 'ansi');
+            assert.equal(client.term.outputEncoding, undefined);
+            assert.deepEqual(client.term.requestedEmulation, {
+                name: 'atascii',
                 source: 'termType',
             });
             assert.equal(client.logged.length, 1);
             assert.equal(client.logged[0].level, 'info');
             assert.match(
                 client.logged[0].msg,
-                /"petscii" is not implemented; using "ansi"/
+                /"atascii" is not implemented; using "ansi"/
             );
-            assert.equal(client.logged[0].info.termType, 'petscii');
         });
 
         it("a named listener's emulation is used and named in the log", () => {
@@ -192,7 +208,7 @@ describe('terminal emulation selection', () => {
                 listener: { name: 'c64', port: 6400, emulation: 'petscii' },
             });
 
-            assert.equal(client.term.emulation.name, 'ansi');
+            assert.equal(client.term.emulation.name, 'petscii');
             assert.deepEqual(client.term.requestedEmulation, {
                 name: 'petscii',
                 source: 'listener',

@@ -40,7 +40,7 @@ The Telnet server can listen on more ports than its main one. Add each under `lo
 | `emulation` | No | Terminal emulation for callers on this port, for example `petscii`. |
 | `enabled` | No | Defaults to `true`. Set to `false` to leave the listener out without removing it. Read at startup: a change to `port`, `address` or `enabled` needs a restart. |
 
-`emulation` is recorded, but only `ansi` is implemented today, so any other value falls back to ANSI.
+`ansi` and `petscii` are implemented today; see [PETSCII (Commodore) Callers](./petscii.md). Any other value is recorded and falls back to ANSI.
 
 Additional listeners run only while the main Telnet server is enabled. A listener with a missing or invalid port, one on a port already in use by the main server or another listener, or one that fails to bind is logged as an error and skipped; the main listener and the rest of the board start as normal.
 
