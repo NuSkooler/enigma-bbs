@@ -11,7 +11,7 @@ const Config = require('./config.js').get;
 const stringFormat = require('../core/string_format.js');
 const MultiLineEditTextView =
     require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
-const Errors = require('../core/enig_error.js').Errors;
+const { Errors, ErrorReasons } = require('../core/enig_error.js');
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
 
@@ -226,16 +226,41 @@ exports.MenuModule = class MenuModule extends PluginModule {
             ],
             err => {
                 if (err) {
-                    self.client.log.warn('Error during init sequence', {
-                        error: err.message,
-                    });
-
-                    return self.prevMenu(() => {
-                        /* dummy */
-                    });
+                    return self.initSequenceFailed(err);
                 }
             }
         );
+    }
+
+    //
+    //  initSequence() failed: fall back to the previous menu -- unless that
+    //  would cycle. A previous menu that advances on its own (autoNext, with
+    //  a pause prompt that could not be shown, say) comes straight back here
+    //  to fail again, as fast as the CPU allows. See
+    //  MenuStack.initFailureWouldCycle(): a second failure with no input from
+    //  the caller in between stays put, with the session left to the idle
+    //  timeout. If the caller pressed a key since the last failure, they are
+    //  trying again, and this failure falls back as before.
+    //
+    initSequenceFailed(err) {
+        if (ErrorReasons.ClientEnded === err.reasonCode) {
+            return; //  the caller has gone; there is nowhere to go
+        }
+
+        this.client.log.warn('Error during init sequence', {
+            error: err.message,
+        });
+
+        if (this.client.menuStack.initFailureWouldCycle(this.menuName)) {
+            return this.client.log.error(
+                { menuName: this.menuName, error: err.message },
+                'Menu failed again with no input since its last failure; not returning to the previous menu, which led straight back here'
+            );
+        }
+
+        return this.prevMenu(() => {
+            /* dummy */
+        });
     }
 
     beforeArt(cb) {

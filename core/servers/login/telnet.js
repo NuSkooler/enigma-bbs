@@ -41,9 +41,12 @@ class TelnetClient {
         //  Wait up to 3s to hear about from our terminal type request
         //  then go ahead and move on...
         //
-        setTimeout(() => {
+        this.termTypeTimer = setTimeout(() => {
             this._clientReady();
         }, 3000);
+
+        //  a caller that has gone is not waited for (#999)
+        this.once('end', () => clearTimeout(this.termTypeTimer));
 
         this.dataHandler = function (data) {
             this.emit('data', data);
@@ -252,9 +255,11 @@ class TelnetClient {
     }
 
     _clientReady() {
-        if (this.clientReadyHandled) {
-            return; //  already processed
+        if (this.clientReadyHandled || this.clientEnded) {
+            return; //  already processed, or the caller has gone (#999)
         }
+
+        clearTimeout(this.termTypeTimer);
 
         this.clientReadyHandled = true;
         this.emit('ready', readyOptionsFor(Config(), this.listener));

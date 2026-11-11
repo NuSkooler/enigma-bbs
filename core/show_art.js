@@ -58,12 +58,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
             ],
             err => {
                 if (err && !self.config.optional) {
-                    self.client.log.warn('Error during init sequence', {
-                        error: err.message,
-                    });
-                    return self.prevMenu(() => {
-                        /* dummy */
-                    });
+                    return self.initSequenceFailed(err);
                 }
 
                 self.finishedLoading();

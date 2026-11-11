@@ -16,6 +16,10 @@ module.exports = class MenuStack {
     constructor(client) {
         this.client = client;
         this.stack = [];
+
+        //  menu name -> client.lastActivityTime when its init last failed;
+        //  see initFailureWouldCycle()
+        this.initFailures = new Map();
     }
 
     push(moduleInfo) {
@@ -71,6 +75,10 @@ module.exports = class MenuStack {
     }
 
     prev(cb) {
+        if (this.client.clientEnded) {
+            return this._refuseEnded('(previous)', cb);
+        }
+
         const menuResult = this.top().instance.getMenuResult();
 
         this.pop().instance.leave(); //  leave & remove current
@@ -113,6 +121,10 @@ module.exports = class MenuStack {
             return;
         }
 
+        if (this.client.clientEnded) {
+            return this._refuseEnded(name, cb);
+        }
+
         const loadOpts = {
             name: name,
             client: this.client,
@@ -129,6 +141,11 @@ module.exports = class MenuStack {
         loadOpts.lastMenuResult = options.lastMenuResult;
 
         loadMenu(loadOpts, (err, modInst) => {
+            //  the caller may have gone while the menu was loading
+            if (this.client.clientEnded) {
+                return this._refuseEnded(name, cb);
+            }
+
             if (err) {
                 const errCb = cb || this.client.defaultHandlerMissingMod();
                 errCb(err);
@@ -167,6 +184,7 @@ module.exports = class MenuStack {
                         currentModuleInfo.instance.getSaveState();
 
                     currentModuleInfo.instance.leave();
+                    currentModuleInfo.left = true; //  see _refuseEnded()
 
                     if (currentModuleInfo.menuFlags.includes(MenuFlags.NoHistory)) {
                         this.pop();
@@ -206,5 +224,52 @@ module.exports = class MenuStack {
                 }
             }
         });
+    }
+
+    //
+    //  A session that has ended goes nowhere. Navigating used to carry on
+    //  regardless: a menu was created and entered for a terminal that was no
+    //  longer there, and anything that kept navigating -- a menu bouncing
+    //  between two others, or the menu chain of a caller who had already gone
+    //  (#999) -- did so for the life of the process.
+    //
+    //  The menu being left still gets its leave(), as it would have done
+    //  when the next one was entered: it is a module's one chance to clean
+    //  up (a door's node count, an upload's temp files, ...). Only once,
+    //  though: the top may already have been left, by an earlier refusal or
+    //  because prev() / reload() popped the menu that was above it.
+    //
+    _refuseEnded(name, cb) {
+        const top = this.top();
+        if (top && !top.left) {
+            top.left = true;
+            top.instance.leave();
+        }
+
+        this.client.log.debug({ menuName: name }, 'Not going to menu: session has ended');
+
+        if (cb) {
+            return cb(
+                Errors.MenuStack('The session has ended', ErrorReasons.ClientEnded)
+            );
+        }
+    }
+
+    //
+    //  Called by a menu whose init sequence failed, before it falls back to
+    //  the previous menu. Returns true when that fallback would cycle: this
+    //  menu has already failed with no input from the caller since, so the
+    //  previous menu advanced straight back here without the caller doing
+    //  anything (e.g. its pause prompt could not be shown, and it has
+    //  autoNext). Falling back again would repeat that forever.
+    //
+    //  The same failure after a key press is allowed: that is the caller
+    //  trying again.
+    //
+    initFailureWouldCycle(menuName) {
+        const activity = this.client.lastActivityTime;
+        const wouldCycle = this.initFailures.get(menuName) === activity;
+        this.initFailures.set(menuName, activity);
+        return wouldCycle;
     }
 };
