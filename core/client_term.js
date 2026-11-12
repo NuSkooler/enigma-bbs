@@ -240,8 +240,9 @@ ClientTerminal.prototype.write = function (s, convertLineFeeds, cb) {
 //  as text. Encoded and translated exactly as write() does, but never put
 //  through the emulation's output filter: the door is a program the operator
 //  installed, talking to the caller's terminal, and a RIP-aware door must be
-//  able to draw RIP for a RIP caller. For a session with no output filter
-//  (anything but RIP) this is write().
+//  able to draw RIP for a RIP caller. So a door's output reaches a RIP
+//  caller as the door sent it: RIP commands in it are not filtered. For a
+//  session with no output filter (anything but RIP) this is write().
 //
 ClientTerminal.prototype.writeDoorOutput = function (s, convertLineFeeds, cb) {
     if (!this.emulation.outputFilter) {
@@ -283,7 +284,10 @@ ClientTerminal.prototype.rawWrite = function (s, cb) {
 //  the terminal exactly as given: file transfer protocol data, the far end of
 //  a telnet or rlogin bridge, a raw door's output. They go around the
 //  emulation's output translator (which is told, so that one keeping cursor
-//  state knows it has gone stale), and around the output filter (RIP).
+//  state knows it has gone stale), and around the output filter: what a
+//  door or a bridged system (telnet bridge, BBSLink, DoorParty, Goldmine,
+//  ArchaicNet) sends reaches a RIP caller unfiltered. The filter covers
+//  what ENiGMA itself sends.
 //
 //  Everything else, rawWrite() included, is ENiGMA speaking ANSI and goes
 //  through the translator. For an ANSI terminal the two are the same thing.

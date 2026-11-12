@@ -327,38 +327,16 @@ function ripCommandOpen(wire) {
     return open ? { oddBackslashes: Boolean(backslashes & 1) } : null;
 }
 
-//  ESC [ <digits and ;> ! starting at |i|: the index after it, or 0
-function pureSequenceAt(input, i) {
-    if (0x1b !== input[i] || 0x5b !== input[i + 1]) {
-        return 0;
-    }
-    let j = i + 2;
-    while (
-        j < input.length &&
-        ((input[j] >= 0x30 && input[j] <= 0x39) || 0x3b === input[j])
-    ) {
-        ++j;
-    }
-    return 0x21 === input[j] ? j + 1 : 0;
-}
+const isRunByte = b => 0x1b === b || 0x5b === b || 0x3b === b || (b >= 0x30 && b <= 0x39);
+const isParam = b => 0x3b === b || (b >= 0x30 && b <= 0x39);
 
-//  is input[i..] all a possible start of one (ESC, ESC [, ESC [ params)?
-function pureStartToEnd(input, i) {
-    if (0x1b !== input[i]) {
-        return false;
+//  does the wire end in an open ESC (controls aside)?
+function escOpenAtEnd(wire) {
+    let i = wire.length - 1;
+    while (i >= 0 && ((wire[i] < 0x20 && 0x1b !== wire[i]) || 0x7f === wire[i])) {
+        --i;
     }
-    if (i + 1 === input.length) {
-        return true;
-    }
-    if (0x5b !== input[i + 1]) {
-        return false;
-    }
-    for (let j = i + 2; j < input.length; ++j) {
-        if (!((input[j] >= 0x30 && input[j] <= 0x39) || 0x3b === input[j])) {
-            return false;
-        }
-    }
-    return true;
+    return i >= 0 && 0x1b === wire[i];
 }
 
 function referenceWire(rawSegments) {
@@ -380,16 +358,27 @@ function referenceWire(rawSegments) {
         wire.push(b);
         fromFilter.push(filtered);
     };
-    segments.forEach(({ bytes: input, filtered }, n) => {
+    for (const { bytes: input, filtered } of segments) {
         if (!filtered) {
+            //  a | after a ! the filter sent gets a NUL in front
+            const last = wire.length - 1;
+            if (
+                input.length > 0 &&
+                0x7c === input[0] &&
+                last >= 0 &&
+                0x21 === wire[last] &&
+                fromFilter[last]
+            ) {
+                push(0x00, true);
+            }
             input.forEach(b => push(b, false));
-            return;
+            continue;
         }
         if (0 === input.length) {
-            return; //  an empty write sends nothing
+            continue; //  an empty write sends nothing
         }
-        const isLast = n === segments.length - 1;
         const start = wire.length;
+        const removed = [];
         const open = ripCommandOpen(wire);
         if (open) {
             if (open.oddBackslashes) {
@@ -398,19 +387,41 @@ function referenceWire(rawSegments) {
             push(0x0d, true);
             push(0x0a, true);
         }
-        let heldTail = false;
-        for (let i = 0; i < input.length; ++i) {
-            const after = pureSequenceAt(input, i);
-            if (after) {
-                i = after - 1;
+        let i = 0;
+        while (i < input.length) {
+            const b = input[i];
+            const paramsOpen = csiOpenAtEnd(wire);
+            const escOpen = !paramsOpen && escOpenAtEnd(wire);
+            if (0x1b === b || (escOpen && 0x5b === b) || (paramsOpen && isParam(b))) {
+                //  a run that starts or carries on ESC [ params
+                let state = 0x1b === b ? 'esc' : 'params';
+                let k = i + 1;
+                while (k < input.length) {
+                    if ('esc' === state && 0x5b === input[k]) {
+                        state = 'params';
+                    } else if (!('params' === state && isParam(input[k]))) {
+                        break;
+                    }
+                    ++k;
+                }
+                if (k === input.length) {
+                    removed.push([i, k]); //  held, then dropped or never sent
+                    break;
+                }
+                if ('params' === state && 0x21 === input[k]) {
+                    removed.push([i, k + 1]);
+                    i = k + 1;
+                    continue;
+                }
+                for (let r = i; r < k; ++r) {
+                    push(input[r], true);
+                }
+                i = k;
                 continue;
             }
-            if (isLast && pureStartToEnd(input, i)) {
-                heldTail = true; //  held back, never sent
-                break;
-            }
-            const b = input[i];
-            if (0x21 === b && csiOpenAtEnd(wire)) {
+            ++i;
+            if (0x21 === b && paramsOpen) {
+                removed.push([i - 1, i]);
                 continue;
             }
             if (0x01 === b || 0x02 === b) {
@@ -425,16 +436,37 @@ function referenceWire(rawSegments) {
             }
             push(b, true);
         }
-        placed.push({ input, start, end: wire.length, closed: Boolean(open), heldTail });
-    });
+        placed.push({ input, start, end: wire.length, closed: Boolean(open), removed });
+    }
     return { wire, fromFilter, placed };
 }
 
 //
 //  Undo a filtered segment: walk its input against its output allowing only
-//  the documented changes. Returns an error string, or null.
+//  the documented changes; each removed range must have a documented shape.
+//  Returns an error string, or null.
 //
-function undoFiltered(wire, { input, start, end, closed, heldTail }) {
+function undoFiltered(wire, { input, start, end, closed, removed }) {
+    const singleBang = new Set();
+    const skip = new Set();
+    for (const [a, b] of removed) {
+        const seg = input.slice(a, b);
+        const isBang = 1 === seg.length && 0x21 === seg[0];
+        const isSequence =
+            seg.length >= 2 &&
+            0x21 === seg[seg.length - 1] &&
+            seg.slice(0, -1).every(isRunByte);
+        const isTail = b === input.length && seg.every(isRunByte);
+        if (!isBang && !isSequence && !isTail) {
+            return `removed ${JSON.stringify(seg)} at ${a} has no documented shape`;
+        }
+        if (isBang) {
+            singleBang.add(a);
+        }
+        for (let k = a; k < b; ++k) {
+            skip.add(k);
+        }
+    }
     let j = start;
     if (closed) {
         if (0x00 === wire[j] && 0x0d === wire[j + 1]) {
@@ -447,13 +479,11 @@ function undoFiltered(wire, { input, start, end, closed, heldTail }) {
     }
     for (let i = 0; i < input.length; ++i) {
         const b = input[i];
-        const after = pureSequenceAt(input, i);
-        if (after) {
-            i = after - 1; //  removed whole
-            continue;
+        if (singleBang.has(i) && !csiOpenAtEnd(wire, j)) {
+            return `'!' at ${i} removed outside ESC [ params`;
         }
-        if (heldTail && pureStartToEnd(input, i)) {
-            break; //  held back at the end
+        if (skip.has(i)) {
+            continue;
         }
         if (0x01 === b || 0x02 === b) {
             if (0x2a !== wire[j]) {
@@ -464,10 +494,6 @@ function undoFiltered(wire, { input, start, end, closed, heldTail }) {
             ++j;
         } else if (0x7c === b && 0x00 === wire[j] && 0x7c === wire[j + 1]) {
             j += 2;
-        } else if (0x21 === b) {
-            if (!csiOpenAtEnd(wire, j)) {
-                return `'!' at ${i} removed outside ESC [ params`;
-            }
         } else {
             return `input byte ${b} at ${i} does not match wire byte ${wire[j]}`;
         }
@@ -551,14 +577,56 @@ describe('RIPscrip output filter (#989)', () => {
             assert.equal(latin1(f.filter(bytes('[2!b'))), 'b');
         });
 
-        it('an unfiltered write sends what was held back first', () => {
+        it('(a) held bytes are dropped, never finished, by an unfiltered write', () => {
+            for (const held of ['\x1b', '\x1b[', '\x1b[12', '\x1b[1;']) {
+                const f = warmFilter();
+                assert.equal(latin1(f.filter(bytes(`x${held}`))), 'x');
+                const door = bytes('!|1K door');
+                assert.equal(f.observe(door), door, JSON.stringify(held));
+                assert.equal(f.state.held, 0);
+            }
             const f = warmFilter();
-            f.filter(bytes('x\x1b['));
-            assert.equal(latin1(f.observe(bytes('!door'))), '\x1b[!door');
-            assert.equal(f.state.held, 0);
+            f.filter(bytes('\x1b['));
             assert.equal(f.observe('str'), 'str');
             f.filter(bytes('\x1b'));
-            assert.equal(f.observe(''), '\x1b');
+            assert.equal(f.observe(''), '');
+            assert.equal(latin1(f.filter(bytes('[1!x'))), '[1!x');
+        });
+
+        it('(a) bytes that carry on a sequence the wire has open are held too', () => {
+            const f = warmFilter();
+            f.observe(bytes('\x1b['));
+            assert.equal(latin1(f.filter(bytes('12'))), '');
+            assert.equal(latin1(f.observe(bytes('!x'))), '!x');
+            const g = warmFilter();
+            g.observe(bytes('\x1b'));
+            assert.equal(latin1(g.filter(bytes('[1!y'))), 'y');
+            const h = warmFilter();
+            h.observe(bytes('\x1b['));
+            assert.equal(latin1(h.filter(bytes('1;1H'))), '1;1H');
+        });
+
+        it('(b) a ! after unfiltered ESC [ params: only the ! is removed', () => {
+            const f = warmFilter();
+            f.observe(bytes('\x1b[1'));
+            assert.equal(latin1(f.filter(bytes('!x'))), 'x');
+        });
+
+        it('(c) held, then a filtered write that finishes an ordinary sequence', () => {
+            const f = warmFilter();
+            assert.equal(latin1(f.filter(bytes('\x1b['))), '');
+            assert.equal(latin1(f.filter(bytes('1;1H'))), '\x1b[1;1H');
+        });
+
+        it('a ! the filter sent, then an unfiltered |: a NUL between them', () => {
+            const f = warmFilter();
+            f.filter(bytes('hi!'));
+            assert.equal(latin1(f.observe(bytes('|1K'))), '\x00|1K');
+            assert.equal(f.observe('|s'), '|s');
+            const g = warmFilter();
+            g.observe(bytes('!'));
+            const art = bytes('|1K');
+            assert.equal(g.observe(art), art); //  both unfiltered: untouched
         });
 
         it('keeps its state across writes: every split of every attack string', () => {
@@ -703,9 +771,23 @@ describe('RIPscrip output filter (#989)', () => {
             term.writeUnfilteredRip(bytes('!|c0F'));
             term.write('three');
             term.commitWrite();
-            //  the door's | is its own: not changed, and with the ! before it
-            //  the filter takes a RIP command as open, so ends it before |two
-            assert.equal(sent(), 'one !|door!\r\n|two!|c0F\r\nthree');
+            assert.equal(sent(), 'one !\x00|door!\x00|two!|c0F\r\nthree');
+        });
+
+        it('(d) held bytes and dripWrite: the drip takes them, or holds its own tail', done => {
+            const { term, sent } = ripSession();
+            term.rawWrite(bytes('a\x1b['));
+            term.dripWrite(bytes('1;1Hb \x1b[1'), 1e9, err => {
+                assert.ifError(err);
+                assert.equal(sent(), 'a\x1b[1;1Hb ');
+                //  the drip's own unfinished tail is dropped by a door write
+                term.passThroughWrite(bytes('!|1K'));
+                assert.equal(sent(), 'a\x1b[1;1Hb !|1K');
+                term.nativeDripWrite(bytes('x'), {}, 1e9, nerr => {
+                    assert.ok(nerr, 'an ANSI (RIP) session takes no native output');
+                    return done();
+                });
+            });
         });
 
         it('dripWrite is filtered', done => {
@@ -877,6 +959,30 @@ describe('RIPscrip output filter (#989)', () => {
 
                 //  what filtered writes put on the wire is never a RIP command
                 const wire = [...bytes(actual)];
+                //  the WHOLE wire: ESC [ params ! and an introducer before |
+                //  only where every byte of them came from unfiltered input
+                for (let i = 0; i < wire.length; ++i) {
+                    if (0x21 === wire[i]) {
+                        let k = i - 1;
+                        while (k >= 0 && isParam(wire[k])) {
+                            --k;
+                        }
+                        if (k >= 1 && 0x5b === wire[k] && 0x1b === wire[k - 1]) {
+                            for (let m = k - 1; m <= i; ++m) {
+                                assert.ok(
+                                    !ref.fromFilter[m],
+                                    `${tag}: mixed ESC[n! ending at ${i}`
+                                );
+                            }
+                        }
+                    }
+                    if (0x7c === wire[i] && i > 0 && isIntroducer(wire[i - 1])) {
+                        assert.ok(
+                            !ref.fromFilter[i] && !ref.fromFilter[i - 1],
+                            `${tag}: !| with a filtered byte at ${i}`
+                        );
+                    }
+                }
                 for (let i = 0; i < wire.length; ++i) {
                     if (!ref.fromFilter[i]) {
                         continue;

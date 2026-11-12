@@ -37,15 +37,16 @@
 //     so the line keeps its length.
 //  3. ESC [ <digits and ;> ! is removed whole. A RIP terminal shows nothing
 //     for it either, so the text around it looks the same, cell for cell.
-//     To do that across writes, a write that ends in ESC, ESC [ or ESC [
-//     <digits and ;> holds those bytes back until the next write shows what
-//     they are (a terminal waits for the rest of an unfinished sequence
-//     too, so nothing looks different). An unfiltered write sends them first.
-//     When the start of such a sequence has already gone out (it came in an
-//     unfiltered write, or a control byte came in between: terminals differ
-//     on whether C0 ends a sequence, and the filter takes the stricter
-//     reading), only the '!' is removed; what is left is an ordinary
-//     unfinished sequence, as the text could have sent anyway.
+//     To do that across writes, bytes that start such a sequence (ESC) or
+//     carry on one the wire has open ('[', digits, ';') are held back until
+//     a later byte shows what they are (a terminal waits for the rest of an
+//     unfinished sequence too, so nothing looks different). If an
+//     unfiltered write comes first, the held bytes are dropped, never sent:
+//     unfiltered bytes (a door's '!|...') must not finish a sequence
+//     ENiGMA's output began. When a '!' follows a sequence already on the
+//     wire with nothing held (it came in an unfiltered write, or a control
+//     byte came in between: terminals differ on whether C0 ends a sequence,
+//     and the filter takes the stricter reading), only the '!' is removed.
 //  4. After unfiltered output that leaves a RIP command open (a '|' after an
 //     introducer, and no CR since that ends it), the next filtered output
 //     starts with COMMAND_LINE_END, so the text that follows cannot be read
@@ -56,10 +57,15 @@
 //     that the CR ends it. Unfiltered '!|' is taken as opening a command
 //     wherever it is, which is what SyncTERM 1.10b does.
 //
-//  Writes that are not filtered (pass-through: file transfers, bridges,
-//  doors; and RIP the operator installed) go to the wire as they are, after
-//  any bytes held back (3), and the filter is shown them (observe()) so
-//  that its state follows the wire.
+//  5. When the filter sent a '!' last and an unfiltered write starts with
+//     '|', an INTRODUCER_BREAK goes in front of that write.
+//
+//  The filter covers what ENiGMA itself sends. Output of doors and of
+//  bridged systems (telnet bridge, BBSLink, DoorParty, Goldmine,
+//  ArchaicNet), file transfers, and RIP the operator installed, go to the
+//  caller as the door, remote system or file has them, unfiltered. The
+//  filter is shown them (observe()) so that its state follows the wire,
+//  and only ever adds the break in 5 in front of them.
 //
 //  Data is a Buffer, or a string for the few callers that still write one.
 //  A string goes to the transport as a string, which turns it into bytes:
@@ -148,6 +154,10 @@ function createRipOutputFilter() {
     //  Units held back from the end of the last filtered write: a possible
     //  start of ESC [ <params> ! (ESC, ESC [, ESC [ params), not yet sent
     let carried = [];
+    let carriedState = CSI_NONE; //  where |carried| would leave the wire
+
+    //  the last unit sent came from filter() (not from an unfiltered write)
+    let prevFromFilter = false;
 
     function step(v) {
         if (!commandOpen) {
@@ -166,6 +176,7 @@ function createRipOutputFilter() {
         }
         csi = nextCsiState(csi, v);
         prev = v;
+        prevFromFilter = false;
     }
 
     //  |units| (numbers) as |data|'s type: code units, or bytes
@@ -173,19 +184,32 @@ function createRipOutputFilter() {
         isString ? String.fromCharCode(...units) : Buffer.from(units.map(u => u & 0xff));
 
     //
-    //  |data| goes to the wire as it is. Returns what to send: |data|, after
-    //  anything held back from the last filtered write.
+    //  |data| goes to the wire as it is. Returns what to send:
+    //
+    //  * bytes held back from the last filtered write (a possible start of
+    //    ESC [ <params> !) are dropped, never sent: unfiltered bytes must not
+    //    finish a sequence ENiGMA's own output began. An unfinished sequence
+    //    at such a boundary is broken output anyway.
+    //  * when the filter sent the '!' just before, and |data| starts with
+    //    '|', a NUL goes in front, so that the two do not meet on the wire.
+    //    |data| itself is never changed.
     //
     function observe(data) {
         if (null === data || undefined === data) {
             return data;
         }
+        carried = [];
         let out = data;
-        if (carried.length > 0) {
-            const isString = 'string' === typeof data;
-            const held = asType(carried, isString);
-            out = isString ? held + data : Buffer.concat([held, data]);
-            carried = [];
+        if (
+            prevFromFilter &&
+            BANG === prev &&
+            data.length > 0 &&
+            PIPE === unitAt(data, 0)
+        ) {
+            out =
+                'string' === typeof data
+                    ? String.fromCharCode(INTRODUCER_BREAK) + data
+                    : Buffer.concat([Buffer.from([INTRODUCER_BREAK]), data]);
         }
         for (let i = 0; i < out.length; ++i) {
             step(unitAt(out, i));
@@ -220,13 +244,15 @@ function createRipOutputFilter() {
         const sent = v => {
             prev = v;
             csi = nextCsiState(csi, v);
+            prevFromFilter = true;
         };
 
-        //  A possible ESC [ <params> ! being held back: |heldFrom| is where
-        //  it starts in |data| (0 when it began in an earlier write, whose
-        //  part is |carried|), or -1 when nothing is held
+        //  A possible ESC [ <params> ! being held back: bytes that start one
+        //  (ESC) or carry on one the wire has open. |heldFrom| is where they
+        //  start in |data| (0 when they began in an earlier write, whose part
+        //  is |carried|), or -1 when nothing is held
         let heldFrom = carried.length > 0 ? 0 : -1;
-        let heldState = carried.length > 1 ? CSI_PARAMS : CSI_ESC;
+        let heldState = carriedState;
 
         //  What is held goes on as it is: sent, in place
         const release = at => {
@@ -274,12 +300,17 @@ function createRipOutputFilter() {
                 release(i);
             }
 
-            if (ESC === v) {
+            if (
+                ESC === v ||
+                (CSI_ESC === csi && LEFT_BRACKET === v) ||
+                (CSI_PARAMS === csi && isParamByte(v))
+            ) {
+                //  hold it: the next byte decides
                 heldFrom = i;
-                heldState = CSI_ESC;
+                heldState = nextCsiState(csi, v);
             } else if (BANG === v && CSI_PARAMS === csi) {
                 //  change 3, for a sequence already sent (unfiltered, or
-                //  broken off by a control byte): only the '!' is held back
+                //  broken off by a control byte): only the '!' is removed
                 insert(i, [], 1);
             } else if (SOH === v || STX === v) {
                 //  change 2
@@ -297,6 +328,7 @@ function createRipOutputFilter() {
 
         if (heldFrom >= 0) {
             //  still possibly ESC [ <params> !: hold it for the next write
+            carriedState = heldState;
             carried = carried.concat(
                 Array.from({ length: data.length - heldFrom }, (_, k) =>
                     unitOf(heldFrom + k)
