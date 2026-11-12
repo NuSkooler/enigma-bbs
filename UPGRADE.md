@@ -22,7 +22,7 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.1-beta to 0.6.0-beta
 
-* **ATASCII (Atari) callers (new, early).** SyncTERM and IcyTerm in their Atari modes, and anything on a Telnet listener marked `emulation: atascii`, are now sent ATASCII in place of ANSI: text, cursor movement and keys are translated, in one colour. There are no ATASCII menus, art or theme yet, so such a caller sees your existing board translated and wrapped at 40 columns. See [ATASCII (Atari) Callers](website/src/content/docs/servers/loginservers/atascii.md).
+* **ATASCII (Atari) callers (new, early).** SyncTERM and IcyTerm in their Atari modes, and anything on a Telnet listener marked `emulation: atascii`, are now sent ATASCII in place of ANSI: text, cursor movement and keys are translated, in one colour. There are no ATASCII menus or theme yet, so such a caller sees your existing board translated and wrapped at 40 columns. See [ATASCII (Atari) Callers](website/src/content/docs/servers/loginservers/atascii.md).
 
   **Action:** none. Nothing changes for ANSI callers.
 

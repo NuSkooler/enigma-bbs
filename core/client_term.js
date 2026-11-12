@@ -251,11 +251,11 @@ ClientTerminal.prototype.passThroughWrite = function (data, cb) {
 
 //
 //  nativeWrite() -- bytes already in the terminal's own language, ENiGMA's
-//  output all the same: native art (a PETSCII .seq file) for a terminal of
-//  that emulation. They go to the wire as they are, through the output
-//  translator's writeNative(), which follows them so that the ANSI written
-//  after (views at MCI positions) lands where it should. |options| goes to
-//  writeNative() (PETSCII: { charset }).
+//  output all the same: native art (a PETSCII .seq or ATASCII .ata file) for
+//  a terminal of that emulation. They go to the wire as they are, through the
+//  output translator's writeNative(), which follows them so that the ANSI
+//  written after (views at MCI positions) lands where it should. |options|
+//  goes to writeNative() (PETSCII: { charset }; ATASCII: { anchor, startRow }).
 //
 //  Only an emulation whose translator has writeNative() takes native bytes;
 //  anything else (ANSI) gets an error and nothing is written. art.js never

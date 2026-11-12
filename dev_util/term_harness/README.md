@@ -62,6 +62,17 @@ terminal must never get), walks the starter tree and prints every screen:
 
 It exits non-zero on any ESC byte or screen-model error.
 
+`--emulation atascii` makes it an ATASCII caller instead (TTYPE `ATASCII`,
+NAWS 40x24, the ATASCII screen model from `test/term_atascii_screens.js`; ESC
+bytes are allowed, as ATASCII quotes glyphs with them). It has two walks so
+far: `--walk connect` (the first screen) and `--walk native`, which goes
+through the stock matrix and login menus, logs in and prints each screen with
+a map of its inverse cells; it is for checking native `.ata` art placed on
+those menus by a theme in the instance:
+
+    node dev_util/term_harness/make_instance.js .work/ata 49201 49202 login --second-emulation=atascii
+    node dev_util/term_harness/petscii_walk.js --emulation atascii --walk native --port 49201 --user tester
+
 `--walk messages` goes through the starter's message menus instead of who's
 online and last callers: conference and area lists, two posts (the editor
 menu opened once with F1 and once with a real ESC byte), the message list,

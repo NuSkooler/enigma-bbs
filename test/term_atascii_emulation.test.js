@@ -76,6 +76,8 @@ describe('ATASCII emulation', () => {
             const emulation = createEmulation('atascii');
             const types = emulation.artTypes({ outputEncoding: 'atascii' });
             assert.equal(JSON.stringify(types).includes('.seq'), false);
+            //  its own native art first
+            assert.deepEqual(types.preferred[0], ['.ata']);
             emulation.inputDecoder.dispose();
         });
 

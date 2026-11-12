@@ -54,7 +54,7 @@ A menu entry has a few elements that control how art is selected and displayed. 
 | `random` | Set to `false` to explicitly disable random lookup. |
 | `types` | An optional array of types (aka file extensions) to consider for lookup. For example : `[ '.ans', '.asc' ]` |
 | `readSauce` | May be set to `false` if you need to explicitly disable SAUCE support. |
-| `encodedAs` | The character encoding of the art file, when it is not the type's default (CP437 for `.ans`). For native PETSCII art (`.seq`), the character set: `petscii_upper` for upper case and graphics. |
+| `encodedAs` | The character encoding of the art file, when it is not the type's default (CP437 for `.ans`). For native PETSCII art (`.seq`), the character set: `petscii_upper` for upper case and graphics. Native ATASCII art (`.ata`) has one character set and ignores it. |
 
 ### Art Types
 Art is looked up by name; the extension says what kind of file it is:
@@ -69,11 +69,12 @@ Art is looked up by name; the extension says what kind of file it is:
 | `.amiga` | Amiga text, ISO-8859-1 |
 | `.txt` | Text, CP437 |
 | `.seq` | Native PETSCII, shown only to [PETSCII callers](../servers/loginservers/petscii.md#native-petscii-art) |
+| `.ata` | Native ATASCII, shown only to [ATASCII callers](../servers/loginservers/atascii.md#native-atascii-art) |
 
 ### Art Spec
 In the section above it is mentioned that the `art` member is a *spec*. The value of a `art` spec controls how the system looks for an asset. The following forms are supported:
 
-* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path (for a PETSCII caller, `FOO.SEQ` is preferred at each step of that path). Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
+* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path (for a PETSCII caller, `FOO.SEQ` is preferred at each step of that path; for an ATASCII caller, `FOO.ATA`). Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
 * `FOO.ANS`: By specifying an extension, only the exact match will be searched for.
 * `rel/path/to/BAR.ANS`: Only match a path (relative to the system's `art` directory).
 * `/path/to/BAZ.ANS`: Exact path only.

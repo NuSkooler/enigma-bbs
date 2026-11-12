@@ -10,6 +10,7 @@ const sauce = require('./sauce.js');
 const { Errors } = require('./enig_error.js');
 const { emulationOf } = require('./term');
 const { PetsciiArtParser, petsciiArtToText } = require('./term/petscii/art_parser.js');
+const { AtasciiArtParser, atasciiArtToText } = require('./term/atascii/art_parser.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -40,7 +41,6 @@ const SUPPORTED_ART_TYPES = {
     '.amiga': { name: 'Amiga', defaultEncoding: 'latin1', eof: 0x1a }, //  Amiga text is ISO-8859-1
     '.txt': { name: 'Amiga Text', defaultEncoding: 'cp437', eof: 0x1a },
     //  :TODO: extentions for wwiv, renegade, celerity, syncronet, ...
-    //  :TODO: extension for atari
     //  :TODO: extension for topaz ansi/ascii.
 
     //
@@ -49,21 +49,36 @@ const SUPPORTED_ART_TYPES = {
     //  See NATIVE_ART below.
     //
     '.seq': { name: 'PETSCII', native: 'petscii' },
+    '.ata': { name: 'ATASCII', native: 'atascii' },
 };
 
 //
 //  Per emulation, what native art needs:
 //
-//      charsetFor(encodedAs)   the character set the art is drawn in, from the
-//                              art's |encodedAs| option
+//      encodings               |encodedAs| names that belong to this art (on
+//                              an ANSI type they mean nothing and are ignored)
+//      describe(data, options) what getArtFromPath() records about the art
+//                              beside |emulation| in |native| (|data| is the
+//                              file as read, |options| the caller's)
+//      stripTrailer(data)      the art's bytes without SAUCE and padding
 //      createParser(options)   the parser art.display() drives in place of
 //                              ANSIEscapeParser (same events)
-//      toText(bytes, options)  the art as plain Unicode text, for anything that
-//                              cannot show it natively
+//      writeOptions(native, displayOptions)
+//                              options for the terminal's nativeWrite()
+//      toText(bytes, native, cols)
+//                              the art as plain Unicode text, for anything
+//                              that cannot show it natively (|cols|: the
+//                              session's width, when there is a session)
 //
 //  PETSCII (.seq): lower/upper unless |encodedAs| is 'petscii_upper'
 //  (upper/graphics); 'petscii' and 'petscii_lower' name the default. Any
 //  other encoding name means nothing for these bytes and is ignored.
+//
+//  ATASCII (.ata): one character set, so |encodedAs| has nothing to choose
+//  ('atascii' is accepted and ignored). |native.artWidth| is the art's own
+//  width when a SAUCE record gives one (80 for an XEP80 screen); it is used
+//  only for the plain text conversion: a session showing the art natively
+//  draws it at the session's width, as the terminal would.
 //
 const PETSCII_CHARSETS = {
     petscii: 'lower',
@@ -71,18 +86,52 @@ const PETSCII_CHARSETS = {
     petscii_upper: 'upper',
 };
 
+const ATASCII_DEFAULT_WIDTH = 40;
+
 const NATIVE_ART = {
     petscii: {
-        charsetFor: encodedAs =>
-            PETSCII_CHARSETS[_.isString(encodedAs) ? encodedAs.toLowerCase() : ''] ||
-            'lower',
+        encodings: Object.keys(PETSCII_CHARSETS),
+        describe: (data, options) => ({
+            charset:
+                PETSCII_CHARSETS[
+                    _.isString(options.encodedAs) ? options.encodedAs.toLowerCase() : ''
+                ] || 'lower',
+        }),
+        stripTrailer: data => stripNativeTrailer(data, { padding: true }),
         createParser: options => new PetsciiArtParser(options),
-        toText: (bytes, options) => petsciiArtToText(bytes, options),
+        writeOptions: native => ({ charset: native.charset }),
+        toText: (bytes, native, cols) =>
+            petsciiArtToText(bytes, { charset: native.charset, cols }),
+    },
+    atascii: {
+        encodings: ['atascii'],
+        describe: data => {
+            const artWidth = sauceCharacterWidth(data);
+            return artWidth ? { artWidth } : {};
+        },
+        stripTrailer: data => stripNativeTrailer(data, { padding: false }),
+        createParser: options => new AtasciiArtParser(options),
+        //  |anchor|: see writeNative() in core/term/atascii/output_translator.js
+        writeOptions: (native, displayOptions) => ({
+            anchor: true,
+            startRow: displayOptions.startRow,
+        }),
+        //  the art's width, not the session's: rows that fill the Atari screen
+        //  rely on its wrap and must break there
+        toText: (bytes, native) =>
+            atasciiArtToText(bytes, {
+                cols: native.artWidth || ATASCII_DEFAULT_WIDTH,
+            }),
     },
 };
 
 function isNativeArtEncoding(encoding) {
-    return _.isString(encoding) && _.has(PETSCII_CHARSETS, encoding.toLowerCase());
+    return (
+        _.isString(encoding) &&
+        _.some(NATIVE_ART, nativeArt =>
+            nativeArt.encodings.includes(encoding.toLowerCase())
+        )
+    );
 }
 
 //  the emulation |ext|'s art is native to, or undefined for ANSI-side types
@@ -130,25 +179,34 @@ function sliceAtEOF(data, eofMarker) {
     return data.slice(0, eof);
 }
 
+function hasSauceRecord(data) {
+    const at = data.length - sauce.SAUCE_SIZE;
+    return at >= 0 && 'SAUCE00' === data.slice(at, at + 7).toString();
+}
+
 //
 //  Native art's bytes without a SAUCE record (and its comment block and the
-//  0x1A before it) and without trailing 0x1A padding. Native art carries no
-//  SAUCE as a rule; one that does must not reach the terminal as art.
+//  0x1A before it). Native art carries no SAUCE as a rule; one that does must
+//  not reach the terminal as art.
 //
-//  0x1A: in a PETSCII stream it is an unassigned control code that neither
-//  character set draws (the 'Z' glyph is screen code 0x1A, not PETSCII byte
-//  0x1A). A file that went through XMODEM is padded with it to a 128 byte
-//  block, so a trailing run of it is padding and is dropped. One anywhere
-//  else is not an end-of-file marker for this type: it goes out with the
-//  rest, as the terminal ignores it.
+//  |padding| (PETSCII): every trailing 0x1A is dropped too. In a PETSCII
+//  stream 0x1A is an unassigned control code that neither character set
+//  draws (the 'Z' glyph is screen code 0x1A, not PETSCII byte 0x1A). A file
+//  that went through XMODEM is padded with it to a 128 byte block, so a
+//  trailing run of it is padding. One anywhere else is not an end-of-file
+//  marker for this type: it goes out with the rest, as the terminal ignores
+//  it.
 //
-function stripNativeTrailer(data) {
+//  Without |padding| (ATASCII): 0x1A draws a glyph (a line corner), so only
+//  the one 0x1A in front of a SAUCE record is dropped, as Icy Draw does when
+//  it loads the file. Nothing in the bytes tells XMODEM padding from art
+//  that ends in that glyph, so a trailing run is kept: the art shows as it
+//  does in the editor.
+//
+function stripNativeTrailer(data, { padding }) {
     let end = data.length;
-    if (
-        end >= sauce.SAUCE_SIZE &&
-        'SAUCE00' ===
-            data.slice(end - sauce.SAUCE_SIZE, end - sauce.SAUCE_SIZE + 7).toString()
-    ) {
+    const sauced = hasSauceRecord(data);
+    if (sauced) {
         const numComments = data[end - sauce.SAUCE_SIZE + 104];
         end -= sauce.SAUCE_SIZE;
         const commentStart = end - 5 - numComments * 64;
@@ -160,10 +218,23 @@ function stripNativeTrailer(data) {
             end = commentStart;
         }
     }
-    while (end > 0 && 0x1a === data[end - 1]) {
+    if (padding) {
+        while (end > 0 && 0x1a === data[end - 1]) {
+            --end;
+        }
+    } else if (sauced && end > 0 && 0x1a === data[end - 1]) {
         --end;
     }
     return end === data.length ? data : data.slice(0, end);
+}
+
+//  The character width (TInfo1) of |data|'s SAUCE record, or null
+function sauceCharacterWidth(data) {
+    if (!hasSauceRecord(data)) {
+        return null;
+    }
+    const width = data.readUInt16LE(data.length - sauce.SAUCE_SIZE + 96);
+    return width >= 2 && width <= 255 ? width : null;
 }
 
 //
@@ -173,12 +244,12 @@ function stripNativeTrailer(data) {
 //
 function getNativeArt(path, data, emulation, options) {
     const nativeArt = NATIVE_ART[emulation];
-    const charset = nativeArt.charsetFor(options.encodedAs);
-    const bytes = stripNativeTrailer(data);
+    const native = Object.assign({ emulation }, nativeArt.describe(data, options));
+    const bytes = nativeArt.stripTrailer(data);
     if (true === options.acceptNative) {
-        return { data: bytes, fromPath: path, native: { emulation, charset } };
+        return { data: bytes, fromPath: path, native };
     }
-    return { data: nativeArt.toText(bytes, { charset }), fromPath: path };
+    return { data: nativeArt.toText(bytes, native), fromPath: path };
 }
 
 function getArtFromPath(path, options, cb) {
@@ -196,7 +267,7 @@ function getArtFromPath(path, options, cb) {
             return cb(null, getNativeArt(path, data, nativeEmulation, options));
         }
 
-        //  a native art encoding ('petscii_upper') says nothing about this type
+        //  a native art encoding ('petscii_upper', 'atascii') says nothing about this type
         const encoding =
             (!isNativeArtEncoding(options.encodedAs) && options.encodedAs) ||
             defaultEncodingFromExtension(ext);
@@ -276,8 +347,9 @@ function getArtFromPath(path, options, cb) {
 //  |term.artTypes|, when present, supplies this as-is (an explicit override).
 //  Otherwise it comes from the terminal's emulation (core/term/): ANSI derives
 //  it from the output encoding, a UTF-8 terminal preferring '.utf8ans' and
-//  every terminal accepting every type; PETSCII would allow only '.seq', and a
-//  RIP layer would prefer '.rip' over '.ans'.
+//  every terminal accepting every type; PETSCII and ATASCII prefer their own
+//  native type ('.seq', '.ata'), and a RIP layer would prefer '.rip' over
+//  '.ans'.
 //
 function termArtTypePreferences(term) {
     if (!term) {
@@ -306,7 +378,7 @@ function termArtTypePreferences(term) {
 //  terminal did not rank form the next tier, in the caller's order; its 'last'
 //  types come after everything, whatever order the caller asked for.
 //
-//  Native art types ('.seq') are allowed for a session of their own emulation
+//  Native art types ('.seq', '.ata') are allowed for a session of their own emulation
 //  only, whatever else says otherwise: never for an ANSI session, a stand-in
 //  term or no client at all.
 //
@@ -499,7 +571,7 @@ function defaultEofFromExtension(ext) {
 }
 
 //
-//  Can |client|'s session show |native| art ({ emulation, charset }, from
+//  Can |client|'s session show |native| art ({ emulation, ... }, from
 //  getArtFromPath()) as it is?
 //
 function canDisplayNative(client, native) {
@@ -520,8 +592,8 @@ function canDisplayNative(client, native) {
 //  |art| is a string of ANSI art, or with |options.native| set, the Buffer of
 //  native art from getArtFromPath(). Native art goes to the wire as it is
 //  for a session of its emulation, with MCI codes found by that emulation's
-//  parser; any other session (an explicit 'NAME.seq', a forced theme) gets it
-//  as plain text through the ANSI path, never its raw bytes.
+//  parser; any other session (an explicit 'NAME.seq' or 'NAME.ata', a forced
+//  theme) gets it as plain text through the ANSI path, never its raw bytes.
 //
 function display(client, art, options, cb) {
     if (_.isFunction(options) && !cb) {
@@ -538,9 +610,7 @@ function display(client, art, options, cb) {
         const toText = _.get(NATIVE_ART, [native.emulation, 'toText']);
         const textOptions = Object.assign({}, options);
         delete textOptions.native;
-        const text = toText
-            ? toText(art, { charset: native.charset, cols: client.term.termWidth })
-            : '';
+        const text = toText ? toText(art, native, client.term.termWidth) : '';
         return display(client, text, textOptions, cb);
     }
 
@@ -620,6 +690,15 @@ function display(client, art, options, cb) {
                 mciInfo.position[1] <= endCol
             ) {
                 delete mciMap[mapKey];
+            }
+        });
+    });
+
+    //  native ATASCII art only (DELETE CHARACTER): the rest of the row moves left
+    parser.on('delete columns', (row, startCol, numCols) => {
+        _.forEach(mciMap, mciInfo => {
+            if (mciInfo.position[0] === row && mciInfo.position[1] > startCol) {
+                mciInfo.position[1] = Math.max(startCol, mciInfo.position[1] - numCols);
             }
         });
     });
@@ -712,7 +791,10 @@ function display(client, art, options, cb) {
 
         if (native) {
             const nativeBytes = Buffer.concat(nativeChunks);
-            const nativeOptions = { charset: native.charset };
+            const nativeOptions = NATIVE_ART[native.emulation].writeOptions(
+                native,
+                options
+            );
             if (!drip) {
                 client.term.nativeWrite(nativeBytes, nativeOptions);
                 return cb(null, mciMap, extraInfo);
