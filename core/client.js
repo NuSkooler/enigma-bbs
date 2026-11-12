@@ -182,7 +182,8 @@ function Client(/*input, output*/) {
 
         //
         //  A RIPscrip terminal's answer to the version query sent at connect
-        //  (#989), whenever it arrives; never seen as keys.
+        //  (#989), taken out of the input (never seen as keys) if it comes
+        //  within the detection window; see core/term/rip/reply_scanner.js.
         //
         'rip version': reply => {
             attachRipLayer(self, { source: 'probe', version: reply });

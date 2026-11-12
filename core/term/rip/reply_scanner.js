@@ -2,48 +2,72 @@
 'use strict';
 
 //
-//  Takes RIPscrip version replies out of what an ANSI terminal sends (#989).
+//  Takes the RIPscrip version reply out of what an ANSI terminal sends (#989).
 //
 //  A RIP terminal answers the version query (see ./index.js) on the input
 //  stream as if it had been typed: RIPSCRIP and six digits, and from IcyTerm
 //  a NUL after them. Nothing about it says "reply" the way ESC does for CPR,
-//  and it can arrive at any time: after the connect probes are done, or
-//  while the caller is typing a user name. So it is looked for in every
-//  chunk, for the whole session, and never passed on as keys.
+//  so it is looked for in ordinary input -- but only for a short while, and
+//  only once, so that what a caller types or pastes is left alone:
 //
-//      const scanner = createRipReplyScanner({ holdMs, nulWindowMs });
+//      const scanner = createRipReplyScanner({ windowMs, holdMs, nulWindowMs });
+//      scanner.expectReply()              the query has just been sent
 //      scanner.scan(data, { bytes(chunk), reply(version) })
 //      scanner.dispose()
 //
 //  scan() calls the sink synchronously and in stream order: bytes() with
-//  everything that is not a reply, reply() with each reply ('RIPSCRIP015410',
-//  without the NUL). A chunk holding no reply and ending in nothing that
-//  could start one is handed to bytes() as the very same object, untouched,
-//  so for any other input this is not there.
+//  everything that is not the reply, reply() with the reply ('RIPSCRIP015410',
+//  without the NUL).
+//
+//  WHEN IT LOOKS
+//  -------------
+//  Only from expectReply() until windowMs later (default DEFAULT_WINDOW_MS,
+//  30 seconds), and only until the first reply has been taken. Real terminals
+//  answer within a round trip of the query; 30 seconds covers a slow or
+//  congested link (and the connect probes, which can take several seconds
+//  when a terminal answers none of them) while the caller is still at the
+//  matrix or the login prompt. Before expectReply(), after the window, after
+//  the first reply (and its NUL, below) and after dispose(), scan() hands
+//  every chunk to bytes() as the very same object: nothing is held, nothing
+//  is removed, no timer is started. Inside the window, a chunk holding no
+//  reply and ending in nothing that could start one is passed on the same
+//  way.
+//
+//  The window is checked against a monotonic clock on each scan(); there is
+//  no timer for it.
 //
 //  A REPLY SPLIT ACROSS CHUNKS
 //  ---------------------------
-//  A terminal writes the reply in one go and it nearly always arrives in one
-//  chunk. When a chunk ends in what could be the start of one (RI, RIPSC,
-//  RIPSCRIP01, ...), those bytes are held back, and the next chunk is read as
-//  if it had followed them directly. If nothing comes within holdMs (default
-//  100) they are handed on as they were. Only a tail of two bytes or more is
-//  held: a lone 'R' is a typed key or the end of a cursor position report
-//  (ESC [ row ; col R), and neither may be delayed or cut off. So a reply
-//  split right after its first byte is the one split that gets through: the
-//  'R' and the rest reach the menu as keys. Not seen in practice: the reply
-//  is 14 bytes in one write.
+//  Inside the window, when a chunk ends in what could be the start of the
+//  reply (RI, RIPSC, RIPSCRIP01, ...), those bytes are held back and the next
+//  chunk is read as if it had followed them directly. If nothing comes within
+//  holdMs (default 100) they are handed on as they were, in order; the same
+//  happens when the window has closed by the next chunk. Only a tail of two
+//  bytes or more is held: a lone 'R' is a typed key or the end of a cursor
+//  position report (ESC [ row ; col R), and neither may be delayed or cut
+//  off. So a reply split right after its first byte gets through as keys.
+//  Not seen in practice: the reply is 14 bytes in one write. The hold timer
+//  is unref()ed and cleared by dispose().
+//
+//  Held bytes go to the sink of the scan() that held them. If a module swaps
+//  the client's data handler (setTemporaryDirectDataHandler, for a door or a
+//  transfer) during those 100 ms, the held bytes still reach the menu side.
+//  That needs a door started within the first 30 seconds of the connection
+//  and within 100 ms of the caller typing something that starts like the
+//  reply; the bytes are the caller's own keys, delivered late rather than
+//  lost. Not worth a hook into the data handler swap.
 //
 //  THE NUL
 //  -------
-//  A NUL right after a reply is part of it. When the reply ends a chunk,
-//  a NUL starting the next one is taken too, if it comes within nulWindowMs
-//  (default 500).
+//  A NUL right after the reply is part of it. When the reply ends a chunk, a
+//  NUL starting the next chunk is taken too, if it comes within nulWindowMs
+//  (default 500). Either way, that next chunk is the last one looked at.
 //
 //  Node built-ins only.
 //
 const { REPLY_PREFIX, REPLY_DIGITS } = require('./index.js');
 
+const DEFAULT_WINDOW_MS = 30 * 1000;
 const DEFAULT_HOLD_MS = 100;
 const DEFAULT_NUL_WINDOW_MS = 500;
 //  setTimeout() treats a delay above 2^31-1 ms as 1 ms: keep within it
@@ -84,20 +108,51 @@ function heldTailStart(buf, from) {
     return -1;
 }
 
+//  The first complete reply in |buf|: { at, end } (end past any NUL), or null
+function findReply(buf) {
+    let searchFrom = 0;
+    for (;;) {
+        const at = buf.indexOf(PREFIX, searchFrom);
+        if (at < 0) {
+            return null;
+        }
+        let digits = 0;
+        while (
+            digits < REPLY_DIGITS &&
+            at + PREFIX.length + digits < buf.length &&
+            isDigit(buf[at + PREFIX.length + digits])
+        ) {
+            ++digits;
+        }
+        if (REPLY_DIGITS === digits) {
+            return { at, end: at + REPLY_LENGTH };
+        }
+        searchFrom = at + 1;
+    }
+}
+
+//  States
+const Idle = 'idle'; //  query not sent yet: pass-through
+const Looking = 'looking'; //  inside the window
+const AfterReply = 'afterReply'; //  reply ended a chunk: the next may start with its NUL
+const Done = 'done'; //  pass-through for good
+
 function createRipReplyScanner(options = {}) {
     const boundedMs = (value, fallback) =>
         Number.isFinite(value) ? Math.min(MAX_TIMER_MS, Math.max(0, value)) : fallback;
+    const windowMs = boundedMs(options.windowMs, DEFAULT_WINDOW_MS);
     const holdMs = boundedMs(options.holdMs, DEFAULT_HOLD_MS);
     const nulWindowMs = boundedMs(options.nulWindowMs, DEFAULT_NUL_WINDOW_MS);
 
     //  elapsed time that cannot run backwards
     const now = () => Number(process.hrtime.bigint() / 1000000n);
 
-    let held = null; //  Buffer: a tail that could start a reply
+    let state = Idle;
+    let windowEnd = 0;
+    let nulUntil = 0;
+    let held = null; //  Buffer: a tail that could start the reply
     let heldSink = null;
     let timer = null;
-    let nulUntil = 0; //  a NUL starting the next chunk belongs to a reply
-    let disposed = false;
 
     const cancelTimer = () => {
         if (timer) {
@@ -121,17 +176,22 @@ function createRipReplyScanner(options = {}) {
         }
     }
 
+    function expectReply() {
+        if (Idle === state) {
+            state = Looking;
+            windowEnd = now() + windowMs;
+        }
+    }
+
     function dispose() {
-        disposed = true;
+        state = Done;
         cancelTimer();
         held = null;
         heldSink = null;
-        nulUntil = 0;
     }
 
     function scan(data, sink) {
-        //  after the session is over: no state, no timers
-        if (disposed) {
+        if (Idle === state || Done === state) {
             return sink.bytes(data);
         }
 
@@ -148,90 +208,66 @@ function createRipReplyScanner(options = {}) {
             changed = true;
         }
 
-        if (nulUntil) {
+        if (AfterReply === state) {
+            state = Done;
             if (buf.length > 0 && 0x00 === buf[0] && now() <= nulUntil) {
                 buf = buf.subarray(1);
                 changed = true;
             }
-            nulUntil = 0;
+            if (!changed) {
+                return sink.bytes(data);
+            }
+            return buf.length > 0 ? sink.bytes(buf) : undefined;
         }
 
-        //  [ 'bytes', Buffer ] | [ 'reply', string ], in stream order
-        const parts = [];
-        let start = 0;
-        let searchFrom = 0;
-        for (;;) {
-            const at = buf.indexOf(PREFIX, searchFrom);
-            if (at < 0) {
-                break;
-            }
+        //  Looking
+        if (now() > windowEnd) {
+            state = Done;
+            return sink.bytes(changed ? buf : data);
+        }
 
-            let digits = 0;
-            while (
-                digits < REPLY_DIGITS &&
-                at + PREFIX.length + digits < buf.length &&
-                isDigit(buf[at + PREFIX.length + digits])
-            ) {
-                ++digits;
-            }
-
-            if (REPLY_DIGITS === digits) {
-                if (at > start) {
-                    parts.push(['bytes', buf.subarray(start, at)]);
+        const found = findReply(buf);
+        if (found) {
+            let end = found.end;
+            if (end < buf.length) {
+                if (0x00 === buf[end]) {
+                    ++end;
                 }
-                let end = at + REPLY_LENGTH;
-                parts.push(['reply', buf.toString('latin1', at, end)]);
-                if (end < buf.length) {
-                    if (0x00 === buf[end]) {
-                        ++end;
-                    }
-                } else {
-                    nulUntil = now() + nulWindowMs;
-                }
-                start = searchFrom = end;
-                continue;
-            }
-
-            if (at + PREFIX.length + digits >= buf.length) {
-                break; //  runs off the end: maybe a split reply, see below
-            }
-
-            //  RIPSCRIP followed by something else: ordinary input
-            searchFrom = at + 1;
-        }
-
-        const holdAt = heldTailStart(buf, start);
-
-        if (0 === parts.length && -1 === holdAt && !changed) {
-            return sink.bytes(data);
-        }
-
-        const tailEnd = -1 === holdAt ? buf.length : holdAt;
-        if (tailEnd > start) {
-            parts.push(['bytes', buf.subarray(start, tailEnd)]);
-        }
-
-        if (-1 !== holdAt) {
-            held = Buffer.from(buf.subarray(holdAt));
-            heldSink = sink;
-            timer = setTimeout(flushHeld, holdMs);
-            timer.unref();
-        }
-
-        for (const [kind, value] of parts) {
-            if ('reply' === kind) {
-                sink.reply(value);
+                state = Done;
             } else {
-                sink.bytes(value);
+                state = AfterReply;
+                nulUntil = now() + nulWindowMs;
             }
+            if (found.at > 0) {
+                sink.bytes(buf.subarray(0, found.at));
+            }
+            sink.reply(buf.toString('latin1', found.at, found.at + REPLY_LENGTH));
+            if (end < buf.length) {
+                sink.bytes(buf.subarray(end));
+            }
+            return;
+        }
+
+        const holdAt = heldTailStart(buf, 0);
+        if (-1 === holdAt) {
+            return sink.bytes(changed ? buf : data);
+        }
+
+        held = Buffer.from(buf.subarray(holdAt));
+        heldSink = sink;
+        timer = setTimeout(flushHeld, holdMs);
+        timer.unref();
+        if (holdAt > 0) {
+            sink.bytes(buf.subarray(0, holdAt));
         }
     }
 
-    return { scan, dispose };
+    return { expectReply, scan, dispose };
 }
 
 module.exports = {
     createRipReplyScanner,
+    DEFAULT_WINDOW_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_NUL_WINDOW_MS,
 };

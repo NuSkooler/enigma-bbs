@@ -46,9 +46,11 @@
 //      'device attributes', { termClient, version }    a DA reply we know
 //      'cterm capability response', { id, value }      CSI = Ps ; Pv n
 //      'cterm device attributes', caps   a CTDA reply, parsed
-//      'rip version', reply              a RIPscrip version reply, e.g.
-//                                        'RIPSCRIP015410' (decoder instances
-//                                        only; see createAnsiInputDecoder)
+//      'rip version', reply              the RIPscrip version reply, e.g.
+//                                        'RIPSCRIP015410', once at most, in
+//                                        the window after the query (decoder
+//                                        instances only; see
+//                                        createAnsiInputDecoder)
 //
 //  |host| supplies the one piece of terminal state key naming needs:
 //
@@ -373,18 +375,23 @@ function decode(data, host, emit) {
 //
 //  A decoder for one connection. Key and query reply decoding keeps nothing
 //  between chunks (that is decode() above); in front of it sits the RIPscrip
-//  reply scanner (../rip/reply_scanner.js), which takes a RIP terminal's
-//  answer to the version query out of the input wherever it turns up and
-//  reports it as 'rip version'. The scanner can hold back a few bytes that
-//  might start a reply split across chunks, so it is per connection, and
-//  dispose() drops what it holds.
+//  reply scanner (../rip/reply_scanner.js). expectRipReply() is called as the
+//  version query is sent; from then until the window closes (30 seconds) the
+//  scanner takes the first reply out of the input and reports it as
+//  'rip version'. Before and after, input goes straight to decode(). The
+//  scanner can hold back a few bytes that might start a reply split across
+//  chunks, so it is per connection, and dispose() drops what it holds.
 //
-//  |options.ripReply| is passed to the scanner ({ holdMs, nulWindowMs }).
+//  |options.ripReply| is passed to the scanner ({ windowMs, holdMs,
+//  nulWindowMs }).
 //
 function createAnsiInputDecoder(options = {}) {
     const ripReplies = createRipReplyScanner(options.ripReply);
 
     return {
+        expectRipReply() {
+            ripReplies.expectReply();
+        },
         decode(data, host, emit) {
             ripReplies.scan(data, {
                 bytes: chunk => decode(chunk, host, emit),

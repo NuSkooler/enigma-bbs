@@ -406,10 +406,14 @@ const probes = [
             //
             //  The RIPscrip version query (#989), see core/term/rip. It waits
             //  for nothing: a RIP terminal answers while the probes below
-            //  wait on their own replies, and the input decoder takes the
-            //  answer out of the input whenever it comes (core/client.js
+            //  wait on their own replies. The input decoder is told to look
+            //  for the answer from now, for a limited time (core/client.js
             //  attaches the layer). Other terminals do not answer.
             //
+            const decoder = term.emulation && term.emulation.inputDecoder;
+            if (decoder && 'function' === typeof decoder.expectRipReply) {
+                decoder.expectRipReply();
+            }
             term.rawWrite(Rip.VERSION_PROBE);
 
             term.write('\nDetecting client features...');

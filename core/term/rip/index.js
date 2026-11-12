@@ -18,9 +18,10 @@
 //    ../ansi/probes.js). A RIP terminal answers on the input stream as if
 //    typed: 'RIPSCRIP' and six digits, e.g. RIPSCRIP015410 (RIPscrip 1.54,
 //    SyncTERM, IcyTerm) or RIPSCRIP030001 (SyncTERM set to RIPscrip 3).
-//    IcyTerm adds a NUL. SyncTERM with RIP off does not answer at all. The
-//    reply is taken out of the input by ./reply_scanner.js, so it never
-//    reaches a menu as keys.
+//    IcyTerm adds a NUL. SyncTERM with RIP off does not answer at all. A
+//    reply within 30 seconds of the query is taken out of the input by
+//    ./reply_scanner.js, so it never reaches a menu as keys; after that, or
+//    once one reply has been taken, input is left alone.
 //
 //  THE QUERY
 //  ---------

@@ -142,6 +142,9 @@ ENiGMA sends every ANSI caller the RIPscrip version query at connect (#989).
 * `--rip prompt` answers as soon as the query arrives, as SyncTERM with RIP
   on does.
 * `--rip late` leaves it to the walk, which calls `s.send_rip_reply()`.
+  ENiGMA only looks for the reply for 30 seconds after sending the query,
+  and takes one reply at most; a reply sent later (or a second one) is
+  ordinary input and ends up in whatever field has focus, by design.
 * `--rip-nul` ends the reply with a NUL, as IcyTerm does; `--term RIP` is
   IcyTerm's terminal type.
 

@@ -21,9 +21,13 @@ const {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-//  Runs |chunks| through a scanner; returns what the sink saw, in order
-function makeScanner(options) {
+//  A scanner and what its sink saw, in order; |expect| false leaves it
+//  before the query (expectReply() not called)
+function makeScanner(options, expect = true) {
     const scanner = createRipReplyScanner(options);
+    if (expect) {
+        scanner.expectReply();
+    }
     const seen = [];
     const sink = {
         bytes: chunk => seen.push(['bytes', chunk]),
@@ -44,9 +48,15 @@ function makeScanner(options) {
     return { scanner, seen, scan, flat };
 }
 
-//  A decoder for one connection, and the events it reports
-function makeDecoder(options) {
+const createIdle = () => makeScanner({}, false);
+
+//  A decoder for one connection, and the events it reports; |expect| false
+//  leaves it before the query
+function makeDecoder(options, expect = true) {
     const decoder = AnsiInput.createAnsiInputDecoder(options);
+    if (expect) {
+        decoder.expectRipReply();
+    }
     const events = [];
     const decode = data =>
         decoder.decode(
@@ -183,6 +193,29 @@ describe('RIPscrip detection', () => {
                 });
             });
 
+            it("sending it opens the window in the session's input decoder", done => {
+                const client = probeClient('ansi');
+                const decoder = client.term.emulation.inputDecoder;
+                const events = [];
+                const feed = text =>
+                    decoder.decode(
+                        Buffer.from(text),
+                        { isNixTerm: () => false },
+                        (...e) => events.push(e[0])
+                    );
+                feed('RIPSCRIP015410');
+                assert.deepEqual(events, new Array(14).fill('key press'));
+                events.length = 0;
+                const basic = client.term.emulation.probes.find(
+                    p => 'basicPrepWork' === p.name
+                );
+                basic.run(client, () => {
+                    feed('RIPSCRIP015410');
+                    assert.deepEqual(events, ['rip version']);
+                    return done();
+                });
+            });
+
             it('adds no probe step: the ANSI connect sequence is unchanged', () => {
                 assert.deepEqual(
                     Term.createEmulation('ansi').probes.map(p => p.name),
@@ -219,7 +252,20 @@ describe('RIPscrip detection', () => {
     });
 
     describe('the reply scanner', () => {
-        it('hands a chunk with no reply on as the same object', () => {
+        it('takes nothing before the query is sent: every chunk passes as is', () => {
+            const { scanner, scan, seen } = createIdle();
+            const reply = Buffer.from('RIPSCRIP015410\x00');
+            const tail = Buffer.from('xRI');
+            scan(reply);
+            scan(tail);
+            assert.deepEqual(seen, [
+                ['bytes', reply],
+                ['bytes', tail],
+            ]);
+            scanner.dispose();
+        });
+
+        it('inside the window: hands a chunk with no reply on as the same object', () => {
             const { scan, seen } = makeScanner();
             const chunk = Buffer.from('hello RIPSCRAP R\x1b[A');
             scan(chunk);
@@ -227,24 +273,52 @@ describe('RIPscrip detection', () => {
             assert.equal(seen[0][1], chunk);
         });
 
-        it('a lone typed R is not held back', () => {
+        it('never holds back a single R: a typed key, or the end of a CPR', () => {
             const { scan, seen } = makeScanner();
             const r = Buffer.from('R');
+            const cpr = Buffer.from('\x1b[12;40R');
             scan(r);
-            assert.deepEqual(seen, [['bytes', r]]);
+            scan(cpr);
+            assert.deepEqual(seen, [
+                ['bytes', r],
+                ['bytes', cpr],
+            ]);
+            //  so a reply split right after its R gets through
+            const split = makeScanner();
+            split.scan(Buffer.from('xR'));
+            split.scan(Buffer.from('IPSCRIP015410'));
+            assert.equal(split.flat(), 'xRIPSCRIP015410');
         });
 
-        it('takes a reply out, with or without the NUL, in stream order', () => {
-            const { scan, flat } = makeScanner();
-            scan(Buffer.from('a\x1b[1;1RRIPSCRIP015410b'));
-            scan(Buffer.from('RIPSCRIP015410\x00c'));
-            assert.equal(flat(), 'a\x1b[1;1R<RIPSCRIP015410>b<RIPSCRIP015410>c');
+        it('takes the reply out, with or without the NUL, in stream order', () => {
+            const plain = makeScanner();
+            plain.scan(Buffer.from('a\x1b[1;1RRIPSCRIP015410b'));
+            assert.equal(plain.flat(), 'a\x1b[1;1R<RIPSCRIP015410>b');
+
+            const nul = makeScanner();
+            nul.scan(Buffer.from('aRIPSCRIP015410\x00c'));
+            assert.equal(nul.flat(), 'a<RIPSCRIP015410>c');
         });
 
-        it('takes two replies in one chunk', () => {
-            const { scan, flat } = makeScanner();
-            scan(Buffer.from('RIPSCRIP015410\x00RIPSCRIP030001'));
-            assert.equal(flat(), '<RIPSCRIP015410><RIPSCRIP030001>');
+        it('takes one reply only: a second, in the same chunk or later, is input', () => {
+            const same = makeScanner();
+            same.scan(Buffer.from('RIPSCRIP015410\x00RIPSCRIP030001'));
+            assert.equal(same.flat(), '<RIPSCRIP015410>RIPSCRIP030001');
+
+            const later = makeScanner();
+            later.scan(Buffer.from('RIPSCRIP015410\x00'));
+            const again = Buffer.from('RIPSCRIP015410\x00');
+            later.scan(again);
+            assert.equal(later.seen[later.seen.length - 1][1], again);
+            assert.equal(later.seen.filter(e => 'reply' === e[0]).length, 1);
+        });
+
+        it('after the reply nothing is held: a chunk ending RI goes on at once', () => {
+            const { scan, seen } = makeScanner();
+            scan(Buffer.from('RIPSCRIP015410\x00'));
+            const tail = Buffer.from('xRI');
+            scan(tail);
+            assert.equal(seen[seen.length - 1][1], tail);
         });
 
         it('leaves RIPSCRIP followed by anything but six digits alone', () => {
@@ -260,7 +334,7 @@ describe('RIPscrip detection', () => {
             assert.equal(flat(), '<RIPSCRIP015410>x');
         });
 
-        it('takes that NUL only straight after the reply, and only within the window', async () => {
+        it('that NUL only straight after the reply, and only within its window', async () => {
             const late = makeScanner({ nulWindowMs: 10 });
             late.scan(Buffer.from('RIPSCRIP015410'));
             await sleep(30);
@@ -284,18 +358,6 @@ describe('RIPscrip detection', () => {
             }
         });
 
-        it('never holds back a single R: a typed key, or the end of a CPR', () => {
-            const { scan, seen } = makeScanner();
-            const cpr = Buffer.from('\x1b[12;40R');
-            scan(cpr);
-            assert.deepEqual(seen, [['bytes', cpr]]);
-            //  so a reply split right after its R is the one that gets through
-            const split = makeScanner();
-            split.scan(Buffer.from('xR'));
-            split.scan(Buffer.from('IPSCRIP015410'));
-            assert.equal(split.flat(), 'xRIPSCRIP015410');
-        });
-
         it('hands held bytes on when nothing follows', async () => {
             const { scan, flat } = makeScanner({ holdMs: 10 });
             scan(Buffer.from('xRIPS'));
@@ -311,6 +373,48 @@ describe('RIPscrip detection', () => {
             assert.equal(flat(), 'xRIght');
         });
 
+        describe('after the window', () => {
+            it('the reply is ordinary input, untouched', async () => {
+                const { scan, seen } = makeScanner({ windowMs: 10 });
+                await sleep(30);
+                const reply = Buffer.from('RIPSCRIP015410\x00');
+                scan(reply);
+                assert.deepEqual(seen, [['bytes', reply]]);
+            });
+
+            it('nothing is held: a chunk ending RI goes on at once', async () => {
+                const { scan, seen } = makeScanner({ windowMs: 10, holdMs: 10000 });
+                await sleep(30);
+                const tail = Buffer.from('xRI');
+                scan(tail);
+                assert.deepEqual(seen, [['bytes', tail]]);
+            });
+
+            it('a NUL is ordinary input', async () => {
+                const { scan, seen } = makeScanner({ windowMs: 10 });
+                await sleep(30);
+                const nul = Buffer.from([0]);
+                scan(nul);
+                assert.deepEqual(seen, [['bytes', nul]]);
+            });
+
+            it('bytes held when it closed come out first, in order', async () => {
+                const { scan, flat } = makeScanner({ windowMs: 20, holdMs: 10000 });
+                scan(Buffer.from('aRIPSC'));
+                assert.equal(flat(), 'a');
+                await sleep(40);
+                scan(Buffer.from('RIP015410b'));
+                assert.equal(flat(), 'aRIPSCRIP015410b');
+            });
+
+            it('bytes held when it closed are let go by the hold timer as before', async () => {
+                const { scan, flat } = makeScanner({ windowMs: 5, holdMs: 20 });
+                scan(Buffer.from('aRIPSC'));
+                await sleep(50);
+                assert.equal(flat(), 'aRIPSC');
+            });
+        });
+
         it('dispose() drops held bytes and stops the timer; later input passes through', async () => {
             const { scanner, scan, flat, seen } = makeScanner({ holdMs: 10 });
             scan(Buffer.from('xRIPS'));
@@ -321,13 +425,25 @@ describe('RIPscrip detection', () => {
             scan(chunk);
             assert.equal(seen[seen.length - 1][1], chunk);
         });
+
+        it('the window is 30 seconds by default', () => {
+            const { DEFAULT_WINDOW_MS } = require('../core/term/rip/reply_scanner.js');
+            assert.equal(DEFAULT_WINDOW_MS, 30000);
+        });
     });
 
     describe('the ANSI input decoder', () => {
-        it('reports a reply as "rip version", never as keys', () => {
+        it('reports the reply as "rip version", never as keys', () => {
             const d = makeDecoder();
             d.decode('RIPSCRIP015410\x00');
             assert.deepEqual(d.events, [['rip version', 'RIPSCRIP015410']]);
+        });
+
+        it('takes nothing until told the query went out', () => {
+            const d = makeDecoder({}, false);
+            d.decode('RIPSCRIP015410');
+            assert.equal(d.typed(), 'RIPSCRIP015410');
+            assert.deepEqual(d.replies(), []);
         });
 
         it('a late reply in the middle of typing a user name leaves only the name', () => {
@@ -338,6 +454,22 @@ describe('RIPscrip detection', () => {
             }
             assert.equal(d.typed(), 'guest\r');
             assert.deepEqual(d.replies(), ['RIPSCRIP015410']);
+        });
+
+        it('after the first reply, the same text typed or pasted is kept as keys', () => {
+            const d = makeDecoder();
+            d.decode('RIPSCRIP015410\x00');
+            d.decode('pw RIPSCRIP015410\r');
+            assert.equal(d.typed(), 'pw RIPSCRIP015410\r');
+            assert.deepEqual(d.replies(), ['RIPSCRIP015410']);
+        });
+
+        it('after the window, a reply is kept as keys and not reported', async () => {
+            const d = makeDecoder({ ripReply: { windowMs: 10 } });
+            await sleep(30);
+            d.decode('RIPSCRIP015410\x00');
+            assert.equal(d.typed(), 'RIPSCRIP015410\x00');
+            assert.deepEqual(d.replies(), []);
         });
 
         it("IcyTerm's NUL arriving on its own is not a key either", () => {
@@ -383,11 +515,12 @@ describe('RIPscrip detection', () => {
             }
         });
 
-        it('each connection has its own decoder, and dispose()', () => {
+        it('each connection has its own decoder, with expectRipReply() and dispose()', () => {
             const a = Term.createEmulation('ansi');
             const b = Term.createEmulation('ansi');
             assert.notEqual(a.inputDecoder, b.inputDecoder);
             assert.equal(typeof a.inputDecoder.dispose, 'function');
+            assert.equal(typeof a.inputDecoder.expectRipReply, 'function');
         });
     });
 
@@ -455,6 +588,20 @@ describe('RIPscrip detection', () => {
             assert.equal(client.logged.filter(l => 'info' === l.level).length, 2);
         });
 
+        it('the ANSI decoder a PETSCII session replaces is disposed', () => {
+            const client = makeClient('PETSCII');
+            const outgoing = client.term.emulation.inputDecoder;
+            let disposed = 0;
+            const dispose = outgoing.dispose;
+            outgoing.dispose = () => {
+                ++disposed;
+                dispose();
+            };
+            selectClientEmulation(client, {});
+            assert.equal(disposed, 1);
+            assert.notEqual(client.term.emulation.inputDecoder, outgoing);
+        });
+
         for (const name of ['petscii', 'atascii']) {
             it(`a ${name.toUpperCase()} session never gets the layer`, () => {
                 const client = makeClient(name.toUpperCase());
@@ -478,10 +625,12 @@ describe('RIPscrip detection', () => {
             Events = require('../core/events.js');
         });
 
+        //  a real client whose connect probes have sent the query
         function realClient() {
             const client = new ClientModule.Client();
             client.term = new ClientTerminal(null);
             client.log = makeLog().log;
+            client.term.emulation.inputDecoder.expectRipReply();
             return client;
         }
 

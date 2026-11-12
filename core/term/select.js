@@ -21,7 +21,8 @@
 //
 //  A layer can also be found later: a RIP terminal answers the version query
 //  the ANSI probes send (core/term/rip), and core/client.js hands the answer
-//  to attachRipLayer() below, whenever it arrives.
+//  to attachRipLayer() below if it arrives within the detection window (see
+//  core/term/rip/reply_scanner.js).
 //
 const {
     emulationExists,
@@ -198,6 +199,12 @@ function selectClientEmulation(client, readyOptions) {
     };
 
     if (term.emulation.name !== resolved.base) {
+        //  the outgoing decoder has not been told to expect anything yet, so
+        //  it holds nothing; dispose() just keeps it from ever doing so
+        const outgoing = term.emulation && term.emulation.inputDecoder;
+        if (outgoing && 'function' === typeof outgoing.dispose) {
+            outgoing.dispose();
+        }
         term.emulation = createEmulation(resolved.base);
 
         //
