@@ -18,6 +18,7 @@ Below are just some of the features ENiGMA½ supports out of the box:
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output with **wide character support** — CJK, Hangul, fullwidth forms, and similar scripts display and edit correctly
  * [SyncTERM](http://syncterm.bbsdev.net/) style font support. Display PC/DOS and Amiga style artwork as it should be! In general, ANSI-BBS / [CTerm](https://syncterm.bbsdev.net/cterm.html) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * Baud emulation. View ANSI like the block gods intended.
+ * **PETSCII (Commodore 64/128) callers** *(early)* — C64-style terminals get PETSCII in place of ANSI, native `.seq` art, and an optional 40 column starter menu tree to build a Commodore board on. See [PETSCII Callers](https://enigma-bbs.github.io/servers/loginservers/petscii/)
  * Full [SAUCE](https://github.com/radman1/sauce) support.
  * Renegade style [pipe color codes](https://enigma-bbs.github.io/art/colour-codes/).
  * [MCI support](https://enigma-bbs.github.io/art/mci/) for lightbars, toggles, input areas, and so on plus many other bells and whistles
