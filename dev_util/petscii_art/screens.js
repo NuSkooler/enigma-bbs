@@ -365,9 +365,11 @@ const Screens = {
         '{darkGrey}RETURN new line, DEL deletes'
     ),
     PMSGEMFT: footer(at(2, '{cyan}%HM1'), '{darkGrey}A letter or RETURN; F1 to go back'),
-    PMSGVFTR: footer(
-        at(2, '{cyan}%HM1'),
-        '{darkGrey}Up/down scroll, N P R, Q or F1 quit'
+    PMSGVFTR: footer(at(2, '{cyan}%HM1'), '{darkGrey}F3/F5 page, N P R, ? help, Q quit'),
+    //  find: the editor's and reader's footer while asking what to find
+    PMSGFIND: footer(
+        at(2, '{white}Find {cyan}%ET1'),
+        '{darkGrey}RETURN finds; F1 cancels, clears'
     ),
 
     //  quote builder: drawn below the header, views offset by its height
@@ -402,21 +404,83 @@ const Screens = {
         ['INST', 'insert or overwrite'],
         ['DEL', 'delete left'],
         ['RETURN', 'new line'],
+        ['F3 / F5', 'page up / page down'],
         ['F1', 'menu: save, discard,'],
         ['', 'quote, help'],
+        ['CTRL F', 'find (goes to the'],
+        ['', 'first match)'],
         ['CTRL Y', 'delete the line'],
         ['CTRL A', 'edit the subject'],
+        ['CTRL O', 'this help'],
     ]),
 
     PMSGVHLP: help('reader keys', [
         ['cursor up/down', 'scroll'],
+        ['F3 / F5', 'page up / page down'],
         ['cursor left/right', 'pick from the menu'],
         ['RETURN', 'do what is picked'],
         ['N', 'next message'],
         ['P', 'previous message'],
         ['R', 'reply'],
         ['Q or F1', 'back to the list'],
+        ['CTRL F', 'find'],
+        ['CTRL G / CTRL P', 'next / previous'],
+        ['', 'match'],
+        ['CTRL F, then F1', 'stop finding'],
     ]),
+
+    //
+    //  New-message scan (new_scan): asked after login, or picked from the
+    //  message menu. PNEWSCAN shows TL1, the scan's status line, and the
+    //  pause prompt below it when the scan is done; areas with something new
+    //  are listed in PNEWMSGS (columns as PMSGLIST).
+    //
+    PNSCONF: [
+        band('new scan'),
+        '',
+        at(3, '{white}Look for new messages?'),
+        rule(),
+        '',
+        at(6, '{cyan}%TM1'),
+        '',
+        rule(),
+        at(3, '{darkGrey}Y or N, or cursor keys and RETURN.'),
+    ],
+
+    PNEWSCAN: [
+        band('new scan'),
+        '',
+        at(3, '{white}New messages'),
+        rule(),
+        at(3, '{lightGrey}%TL1'),
+        '',
+    ],
+
+    PNEWMSGS: [
+        band('new messages'),
+        '',
+        at(2, '{white}%MA(38)'),
+        rule(2, 38),
+        at(2, `{grey}  # ${'Subject'.padEnd(20)}From`),
+        at(2, '{lightGrey}%VM1'),
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        rule(2, 38),
+        at(2, '{lightGrey}%TL10'),
+        at(2, '{darkGrey}RETURN read, Q next area, X stop,'),
+        at(2, '{darkGrey}M mark all read, P post'),
+    ],
 
     PMSGNOACC: notice('messages', 'No access', [
         'You cannot post in this area.',

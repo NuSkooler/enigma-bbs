@@ -27,9 +27,9 @@
         New user applications are not offered here yet: "apply" tells the
         caller to apply from an ANSI terminal.
 
-        Messages (conferences, areas, the message list, reading, replying
-        and posting with the full-screen editor) are here; new-scan,
-        search, private mail and the file base are not yet.
+        Messages (the new-message scan, conferences, areas, the message
+        list, reading, replying and posting with the full-screen editor)
+        are here; search, private mail and the file base are not yet.
 
         A Commodore keyboard has no Escape key: for a PETSCII caller F1 is
         Escape (the PETSCII input decoder reports it so), which is how the
@@ -249,7 +249,60 @@
             config: {
                 pause: petsciiPause
             }
+            next: petsciiLoginNewScanConfirm
+        }
+
+        //
+        //  The new-message scan after login, as the stock login sequence
+        //  offers it (fullLoginSequenceNewScanConfirm), for messages only:
+        //  "skipFileBase" keeps new_scan out of the file base, which has no
+        //  PETSCII menus. Every menu the scan can go to is named here.
+        //
+        petsciiLoginNewScanConfirm: {
+            desc: Logging In
+            art: PNSCONF
+            form: {
+                0: {
+                    mci: {
+                        TM1: {
+                            argName: promptValue
+                            items: [ "yes", "no" ]
+                            focus: true
+                            submit: true
+                            hotKeys: {
+                                Y: 0
+                                N: 1
+                            }
+                            hotKeySubmit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { promptValue: 0 }
+                                action: @menu:petsciiLoginNewScan
+                            }
+                            {
+                                value: { promptValue: 1 }
+                                action: @menu:petsciiMainMenu
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        petsciiLoginNewScan: {
+            desc: New Scan
+            module: new_scan
+            art: PNEWSCAN
             next: petsciiMainMenu
+            config: {
+                skipFileBase: true
+                newScanMessageList: petsciiNewScanMessageList
+                newScanActivityPubList: petsciiNewScanMessageList
+                pause: petsciiPause
+            }
         }
 
         petsciiMainMenu: {
@@ -336,10 +389,11 @@
         //  messages, read them, reply, and post. The stock equivalents are
         //  in message_base.in.hjson (messageBaseMainMenu and the menus it
         //  leads to); these are the same modules with 40 column art and
-        //  only keys a Commodore keyboard has. F1 is Escape for a PETSCII
-        //  caller, so "escape" below is F1 (or ESC, where the terminal has
-        //  one). Not here yet: new-scan, search, private mail, find in the
-        //  editor and reader, uploads and downloads.
+        //  only keys a Commodore keyboard has. The PETSCII input decoder
+        //  reports F1 as Escape and F3 / F5 as Page Up / Page Down, so
+        //  "escape" below is F1 (or ESC, where the terminal has one) and
+        //  "page up" / "page down" are F3 / F5. Not here yet: search,
+        //  private mail, uploads and downloads.
         //
         petsciiMessageMenu: {
             desc: Message Menu
@@ -352,14 +406,19 @@
                             focus: true
                             argName: navSelect
                             hotKeys: {
-                                L: 0
-                                P: 1
-                                A: 2
-                                J: 3
-                                Q: 4
+                                N: 0
+                                L: 1
+                                P: 2
+                                A: 3
+                                J: 4
+                                Q: 5
                             }
                             hotKeySubmit: true
                             items: [
+                                {
+                                    text: "[N] new messages"
+                                    data: newScan
+                                }
                                 {
                                     text: "[L] list messages"
                                     data: list
@@ -385,6 +444,10 @@
                     }
                     submit: {
                         *: [
+                            {
+                                value: { navSelect: "newScan" }
+                                action: @menu:petsciiMessageNewScan
+                            }
                             {
                                 value: { navSelect: "list" }
                                 action: @menu:petsciiMessageList
@@ -521,6 +584,72 @@
             }
         }
 
+        //  the new-message scan from the message menu; back there when done
+        petsciiMessageNewScan: {
+            desc: New Scan
+            module: new_scan
+            art: PNEWSCAN
+            config: {
+                skipFileBase: true
+                newScanMessageList: petsciiNewScanMessageList
+                newScanActivityPubList: petsciiNewScanMessageList
+                pause: petsciiPause
+            }
+        }
+
+        //
+        //  An area with new messages, during the scan: Q goes on to the next
+        //  area, X stops the scan, M marks the area read. (An ActivityPub
+        //  area, which the stock tree shows in its own browser, is listed
+        //  here too.)
+        //
+        petsciiNewScanMessageList: {
+            desc: New Message List
+            module: msg_list
+            art: PNEWMSGS
+            config: {
+                menuViewPost: petsciiMessageRead
+                menuNewPost: petsciiMessagePost
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: messageIndex
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { messageIndex: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "x", "shift + x" ]
+                            action: @method:fullExit
+                        }
+                        {
+                            keys: [ "m", "shift + m" ]
+                            action: @method:markAllRead
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
+                }
+            }
+        }
+
         petsciiMessageList: {
             desc: Message List
             module: msg_list
@@ -574,6 +703,7 @@
                     header: PMSGVHDR
                     body: PMSGBODY
                     footerView: PMSGVFTR
+                    footerFind: PMSGFIND
                     help: PMSGVHLP
                 }
                 //  a reply to a sender with no account here (pre-login
@@ -667,8 +797,46 @@
                             action: @method:viewModeMenuHelp
                         }
                         {
-                            keys: [ "down arrow", "up arrow" ]
+                            //  page up / down are F3 / F5 for a PETSCII caller
+                            keys: [ "down arrow", "up arrow", "page up", "page down" ]
                             action: @method:movementKeyPressed
+                        }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:viewModeFind
+                        }
+                        {
+                            //  the stock tree's CTRL N is a cursor key here
+                            keys: [ "ctrl + g" ]
+                            action: @method:viewModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:viewModeFindPrev
+                        }
+                    ]
+                }
+                //  find: what to look for; F1 cancels and clears the matches
+                6: {
+                    mci: {
+                        ET1: {
+                            argName: query
+                            maxLength: 100
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        1: [
+                            {
+                                value: { query: null }
+                                action: @method:footerFindSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:footerFindCancel
                         }
                     ]
                 }
@@ -690,6 +858,7 @@
                     body: PMSGBODY
                     footerEditor: PMSGEFTR
                     footerEditorMenu: PMSGEMFT
+                    footerFind: PMSGFIND
                     help: PMSGEHLP
                 }
                 editorMode: edit
@@ -762,6 +931,12 @@
                             keys: [ "ctrl + a" ]
                             action: @method:editModeChangeSubject
                         }
+                        {
+                            //  the editor's find goes to the first match (it
+                            //  keeps no matches to step through while editing)
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
+                        }
                     ]
                 }
                 2: {
@@ -827,6 +1002,30 @@
                         }
                     ]
                 }
+                //  find: what to look for; F1 cancels
+                6: {
+                    mci: {
+                        ET1: {
+                            argName: query
+                            maxLength: 100
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        1: [
+                            {
+                                value: { query: null }
+                                action: @method:footerFindSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:footerFindCancel
+                        }
+                    ]
+                }
             }
         }
 
@@ -845,6 +1044,7 @@
                     quote: PMSGQUOT
                     footerEditor: PMSGEFTR
                     footerEditorMenu: PMSGEMFT
+                    footerFind: PMSGFIND
                     help: PMSGEHLP
                 }
                 editorMode: edit
@@ -915,6 +1115,12 @@
                         {
                             keys: [ "ctrl + a" ]
                             action: @method:editModeChangeSubject
+                        }
+                        {
+                            //  the editor's find goes to the first match (it
+                            //  keeps no matches to step through while editing)
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
                         }
                     ]
                 }
@@ -1009,6 +1215,30 @@
                         {
                             keys: [ "escape" ]
                             action: @method:quoteBuilderEscPressed
+                        }
+                    ]
+                }
+                //  find: what to look for; F1 cancels
+                6: {
+                    mci: {
+                        ET1: {
+                            argName: query
+                            maxLength: 100
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        1: [
+                            {
+                                value: { query: null }
+                                action: @method:footerFindSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:footerFindCancel
                         }
                     ]
                 }

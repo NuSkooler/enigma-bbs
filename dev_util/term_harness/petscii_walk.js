@@ -12,7 +12,7 @@
 //  Only for a throwaway local instance (see README.md): it logs in.
 //
 //      node petscii_walk.js --port 48901 [--user tester] [--password harnesspass1]
-//                           [--term PETSCII] [--walk full|connect|messages]
+//                           [--term PETSCII] [--walk full|connect|messages|newscan]
 //
 //  --walk connect stops after the first menu (to check a route in); --term ''
 //  sends no terminal type (a dedicated PETSCII listener does not need one).
@@ -22,7 +22,14 @@
 //  through the editor menu opened with F1, a second one opened with a real
 //  ESC byte, the message list, reading, the reader's help, a reply with a
 //  quoted line, and back out to log off. Run it once per fresh instance:
-//  it expects an area holding only what it posts.
+//  it expects an area holding only what it posts. The other walks answer No
+//  to the new-message scan after login.
+//
+//  --walk newscan answers Yes to the scan (run it as a user someone else has
+//  posted for since), reads a new message, then writes a long message,
+//  paging it with F3 / F5 and finding a word with CTRL F, saves it with F1,
+//  and in the reader finds a word that is in it twice, steps to the second
+//  match with CTRL G and leaves find.
 //
 const net = require('net');
 const paths = require('path');
@@ -237,11 +244,19 @@ async function main() {
     await c.expect(/press a key/);
     dump(c, 'last callers (login)');
     await c.key(Controls.return);
-    //  anything the system shows on its own in between (an achievement
-    //  popup on a return call, say) waits for a key
-    for (let i = 0; i < 5 && !/main menu/.test(c.text()); ++i) {
-        await c.expect(/main menu|press a key/);
-        if (!/main menu/.test(c.text())) {
+    //  the new-message scan question; anything the system shows on its own
+    //  in between (an achievement popup on a return call, say) waits for a key
+    for (let i = 0; i < 8 && !/main menu/.test(c.text()); ++i) {
+        await c.expect(/main menu|press a key|Look for new messages/);
+        if (/Look for new messages/.test(c.text())) {
+            dump(c, 'new scan question');
+            if ('newscan' === args.walk) {
+                await newScanAtLogin(c);
+            } else {
+                await c.type('n');
+            }
+            await c.settle();
+        } else if (!/main menu/.test(c.text())) {
             dump(c, 'interstitial');
             await c.key(Controls.return);
             await c.settle();
@@ -252,6 +267,8 @@ async function main() {
 
     if ('messages' === args.walk) {
         await messagesWalk(c);
+    } else if ('newscan' === args.walk) {
+        await findAndPageWalk(c);
     } else {
         await whosOnlineAndLastCallers(c);
     }
@@ -300,7 +317,103 @@ async function expectThrough(c, re) {
 }
 
 const F1 = 0x85;
+const F3 = 0x86; //  page up for a PETSCII caller
+const F5 = 0x87; //  page down
 const ESC = 0x1b;
+const CTRL_F = 0x06; //  find
+const CTRL_G = 0x07; //  next match (in the reader)
+
+//  --walk newscan: yes to the scan, read the first new message, back out
+async function newScanAtLogin(c) {
+    await c.type('y');
+    await c.expect(/new messages/);
+    await c.expect(/RETURN read/);
+    dump(c, 'new scan: new messages');
+    await c.key(Controls.return);
+    await c.expect(/read a message/);
+    dump(c, 'new scan: reading');
+    await c.type('q');
+    await c.expect(/RETURN read/);
+    await c.type('q'); //  on to the next area
+    await expectThrough(c, /Done\./);
+    dump(c, 'new scan: done');
+    await c.key(Controls.return);
+}
+
+//  --walk newscan, after login: page and find in the editor on a long
+//  message, save it with F1, then find with two matches in the reader
+async function findAndPageWalk(c) {
+    await c.type('m');
+    await c.expect(/list messages/);
+    dump(c, 'message menu');
+    await c.type('p');
+    await c.expect(/write a message/);
+    await c.key(Controls.return);
+    await c.type('Fruit, a long list');
+    await c.key(Controls.return);
+    for (let i = 1; i <= 24; ++i) {
+        const fruit = 3 === i || 21 === i ? 'apple' : 'pear';
+        await c.type(`Row ${i}: a ${fruit} a day.`);
+        if (i < 24) {
+            await c.key(Controls.return);
+        }
+    }
+    await c.settle();
+    dump(c, 'editor: 24 rows typed');
+    await c.key(F3);
+    await c.settle();
+    dump(c, 'editor: F3 (page up)');
+    await c.key(F3);
+    await c.settle();
+    dump(c, 'editor: F3 again');
+    await c.key(F5);
+    await c.settle();
+    dump(c, 'editor: F5 (page down)');
+    await c.key(CTRL_F);
+    await c.expect(/RETURN finds/);
+    dump(c, 'editor: CTRL F');
+    await c.type('apple');
+    await c.key(Controls.return);
+    await c.expect(/F1: save/);
+    dump(c, 'editor: found');
+    await c.key(F1);
+    await c.expect(/save/);
+    await c.type('s');
+    await expectThrough(c, /list messages/);
+
+    await c.type('l');
+    await expectThrough(c, /RETURN read/);
+    await c.key(0x93); //  CLR, i.e. End: the last message
+    await c.key(Controls.return);
+    await c.expect(/Row 1: a pear/);
+    dump(c, 'reader: the long message');
+    await c.key(F5);
+    await c.settle();
+    dump(c, 'reader: F5 (page down)');
+    await c.key(F3);
+    await c.settle();
+    dump(c, 'reader: F3 (page up)');
+    await c.key(CTRL_F);
+    await c.expect(/RETURN finds/);
+    await c.type('apple');
+    await c.key(Controls.return);
+    await c.expect(/prev {2}next/);
+    dump(c, 'reader: found, first of two');
+    await c.key(CTRL_G);
+    await c.settle();
+    dump(c, 'reader: CTRL G, second match');
+    await c.key(CTRL_F);
+    await c.expect(/RETURN finds/);
+    await c.key(F1);
+    await c.expect(/prev {2}next/);
+    dump(c, 'reader: find left (CTRL F, F1)');
+    await c.type('q');
+    await c.expect(/RETURN read/);
+    await c.type('q');
+    await c.expect(/list messages/);
+    await c.type('q');
+    await c.expect(/main menu/);
+}
 
 //  writes a new message from the message menu; |menuKey| opens the editor menu
 async function postMessage(c, subject, lines, menuKey, label) {

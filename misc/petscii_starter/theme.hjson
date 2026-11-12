@@ -115,7 +115,7 @@
                 mci: {
                     VM1: {
                         width: 24
-                        height: 5
+                        height: 6
                         itemFormat: "|11{text}"
                         focusItemFormat: "|00|23{text}"
                     }
@@ -225,6 +225,17 @@
                         MT1: {
                             width: 38
                             height: 15
+                            //  the match in focus is reversed (the default);
+                            //  the others, which would be reversed too on a
+                            //  PETSCII screen, are yellow instead
+                            findMatchStyle: "\u001b[0;1;33m"
+                        }
+                    }
+                }
+                6: {
+                    mci: {
+                        ET1: {
+                            width: 33
                         }
                     }
                 }
@@ -271,6 +282,13 @@
                         }
                     }
                 }
+                6: {
+                    mci: {
+                        ET1: {
+                            width: 33
+                        }
+                    }
+                }
             }
 
             petsciiMessageReply: {
@@ -306,6 +324,13 @@
                         }
                     }
                 }
+                6: {
+                    mci: {
+                        ET1: {
+                            width: 33
+                        }
+                    }
+                }
                 //  rows match PMSGQUOT.seq
                 5: {
                     mci: {
@@ -318,6 +343,59 @@
                             height: 7
                             focusTextStyle: normal
                         }
+                    }
+                }
+            }
+
+            petsciiLoginNewScanConfirm: {
+                mci: {
+                    TM1: {
+                        styleSGR1: "|00|11"
+                        styleSGR2: "|00|23"
+                    }
+                }
+            }
+
+            //  TL1 is new_scan's status line
+            petsciiLoginNewScan: {
+                config: {
+                    scanStartFmt: "Scanning {areaName}..."
+                    scanCompleteMsg: "Done."
+                }
+                mci: {
+                    TL1: {
+                        width: 36
+                    }
+                }
+            }
+
+            petsciiMessageNewScan: {
+                config: {
+                    scanStartFmt: "Scanning {areaName}..."
+                    scanCompleteMsg: "Done."
+                }
+                mci: {
+                    TL1: {
+                        width: 36
+                    }
+                }
+            }
+
+            //  columns match the headings in PNEWMSGS.seq, as PMSGLIST
+            petsciiNewScanMessageList: {
+                config: {
+                    dateTimeFormat: MM/DD/YY hh:mma
+                    allViewsInfoFormat10: "|07{msgNumSelected}/{msgNumTotal} |15{fromUserName:<16.15} |11{ts}"
+                }
+                mci: {
+                    VM1: {
+                        height: 14
+                        width: 38
+                        itemFormat: "|15{msgNum:>3} |03{subject:<20.19}|11{fromUserName:<13.12}|15{newIndicator}"
+                        focusItemFormat: "|00|23{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}"
+                    }
+                    TL10: {
+                        width: 38
                     }
                 }
             }

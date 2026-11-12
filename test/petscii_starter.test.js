@@ -44,6 +44,8 @@ const ALLOWED_METHODS = [
     //  msg_list
     'selectMessage',
     'postNewMessage',
+    'fullExit',
+    'markAllRead',
     //  fse.js and its view / post modules
     'headerSubmit',
     'headerEscapePressed',
@@ -60,6 +62,12 @@ const ALLOWED_METHODS = [
     'replyMessage',
     'viewModeMenuHelp',
     'movementKeyPressed',
+    'editModeFind',
+    'viewModeFind',
+    'viewModeFindNext',
+    'viewModeFindPrev',
+    'footerFindSubmit',
+    'footerFindCancel',
 ];
 
 //  Every menu or prompt a menu entry can lead to: [where, spec]
@@ -97,6 +105,10 @@ function targetsOf(name, menu) {
         'changeConfPreArtMenu',
         'changeAreaPreArtMenu',
         'messageBasePostMessageNoAccess',
+        //  new_scan
+        'newScanMessageList',
+        'newScanActivityPubList',
+        'newScanFileBaseList',
         'noReplyGhostSenderMenu',
     ].forEach(k => {
         if (config[k]) {
@@ -358,7 +370,7 @@ describe('PETSCII starter menus (#593)', () => {
                 const header = heightOf(art.header, 1);
                 const bodyEnd = heightOf(art.body, header + 1);
                 const footerRow = bodyEnd; //  header.height + body.height
-                ['footerEditor', 'footerEditorMenu', 'footerView']
+                ['footerEditor', 'footerEditorMenu', 'footerView', 'footerFind']
                     .filter(f => art[f])
                     .forEach(f => {
                         const bottom = footerRow + lastRow(art[f]);
@@ -373,10 +385,22 @@ describe('PETSCII starter menus (#593)', () => {
     });
 
     it('no shortcut uses a key a Commodore keyboard does not have', () => {
-        //  CTRL E N Q R S T are colour, cursor and delete codes there; F1 is
-        //  Escape, the other function keys and PC keys do not exist
+        //  CTRL E N Q R S T are colour, cursor and delete codes there. The
+        //  PETSCII input decoder reports F1 as escape and F3 / F5 as page up /
+        //  page down, so those names are usable and f1, f3 and f5 never
+        //  arrive; the other function keys are left alone (IcyTerm numbers
+        //  them differently from a C64), and PC-only keys do not exist.
+        const { decode } = require('../core/term/petscii/input_decoder.js');
+        const decoded = byte => {
+            let name;
+            decode(Buffer.from([byte]), null, (e, ch, key) => (name = key && key.name));
+            return name;
+        };
+        assert.equal(decoded(0x85), 'escape');
+        assert.equal(decoded(0x86), 'page up');
+        assert.equal(decoded(0x87), 'page down');
         const unusable =
-            /^(ctrl \+ [enqrst]|f\d+|page up|page down|delete|ctrl \+ (home|end|left arrow|right arrow))$/;
+            /^(ctrl \+ [enqrst]|f\d+|delete|ctrl \+ (home|end|left arrow|right arrow))$/;
         const problems = [];
         _.forEach(tree().menus, (menu, name) => {
             _.forEach(menu.form || {}, (form, id) => {
@@ -390,6 +414,23 @@ describe('PETSCII starter menus (#593)', () => {
             });
         });
         assert.deepEqual(problems, []);
+    });
+
+    it('every new-scan menu scans the message base only, into the tree', () => {
+        const t = tree();
+        const scans = _.pickBy(t.menus, m => 'new_scan' === m.module);
+        assert.ok(Object.keys(scans).length >= 2);
+        _.forEach(scans, (menu, name) => {
+            //  the file base has no PETSCII menus
+            assert.equal(menu.config.skipFileBase, true, name);
+            //  the module's defaults are stock menus: both must be named
+            ['newScanMessageList', 'newScanActivityPubList'].forEach(k =>
+                assert.ok(t.menus[menu.config[k]], `${name}.config.${k}`)
+            );
+            assert.equal(t.menus[menu.config.newScanMessageList].module, 'msg_list');
+            //  new_scan writes its status to TL1
+            assert.ok(mciInArt(menu.art).includes('TL1'), `${name}: TL1`);
+        });
     });
 
     it('the editor offers nothing that leaves the tree', () => {
