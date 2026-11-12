@@ -26,11 +26,12 @@
 //
 //  ATASCII (buildAtasciiScreen()): charset.js's glyphs, each with bit 7 set
 //  where the row says {rvs}; no colour (an Atari screen has one). A screen
-//  starts with CLEAR and draws its rows with END OF LINE (0x9B) between
-//  them; a row that fills all 40 columns has none after it, because the
-//  screen has already wrapped (as on PETSCII, and as the ATASCII art parser
-//  counts). The rest is as for PETSCII: trailing blanks, padded screens,
-//  parts and prompts, the empty bottom right cell. No byte is a control
+//  starts with CLEAR and ends every row with END OF LINE (0x9B), except the
+//  last row of a prompt. No row reaches the last (40th) column, so no row
+//  relies on the screen wrapping: the same file then draws the same on a 40
+//  column screen and on an 80 column (XEP80) one, and the bottom right cell
+//  is never drawn. A padded row is filled out to 39 columns. The rest is as
+//  for PETSCII: trailing blanks, parts and prompts. No byte is a control
 //  byte except CLEAR and END OF LINE: no ESC (so no quoted glyph), no cursor,
 //  tab, delete or insert codes.
 //
@@ -216,19 +217,18 @@ function buildAtasciiScreen(name, screen) {
     const C = atascii.Controls;
     const out = part ? [] : [C.clear];
 
+    //  a row stops short of the last column (see the top of this file)
+    const maxCells = width - 1;
+
     rows.forEach((row, r) => {
         const cells = parseAtasciiRow(name, row);
-        if (cells.length > width) {
-            throw new Error(`${name}: row ${r + 1} is ${cells.length} columns wide`);
+        if (cells.length > maxCells) {
+            throw new Error(
+                `${name}: row ${r + 1} is ${cells.length} columns wide; at most ${maxCells}`
+            );
         }
-        if (height - 1 === r && width === cells.length) {
-            throw new Error(`${name}: the bottom right cell must stay empty`);
-        }
-        if (pad) {
-            const w = height - 1 === r ? width - 1 : width;
-            while (cells.length < w) {
-                cells.push({ ch: ' ', rvs: false });
-            }
+        while (pad && cells.length < maxCells) {
+            cells.push({ ch: ' ', rvs: false });
         }
         while (!pad && cells.length > 0) {
             const last = cells[cells.length - 1];
@@ -240,8 +240,7 @@ function buildAtasciiScreen(name, screen) {
         cells.forEach(cell => out.push(atasciiGlyphByte(name, cell.ch, cell.rvs)));
 
         const last = rows.length - 1 === r;
-        const wrapped = width === cells.length;
-        if (wrapped || (prompt && last) || (last && height - 1 === r)) {
+        if ((prompt && last) || (last && height - 1 === r)) {
             return;
         }
         out.push(C.eol);

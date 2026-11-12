@@ -10,8 +10,8 @@
 //  starter's screens (./screens.js) made over for an Atari: 40x24, one
 //  colour, Atari keys.
 //
-//  A screen is a list of rows, top to bottom, at most 24 rows of at most 40
-//  columns. In a row:
+//  A screen is a list of rows, top to bottom, at most 24 rows of at most 39
+//  columns (no row reaches the 40th; see build.js). In a row:
 //
 //      {rvs} {/rvs}          inverse video on / off (an Atari screen has
 //                            one colour: inverse is all there is)
@@ -21,7 +21,7 @@
 //  a control byte (the arrows, the escape glyph, the clear-screen arrow and
 //  the two triangles would need ESC quoting, which SyncTERM misdraws for some
 //  of them): build.js refuses anything else. The bottom right cell is never
-//  drawn.
+//  drawn: no row reaches the last column.
 //
 //  |prompt|, |part| and |pad| mean what they mean in ./screens.js.
 //
@@ -33,11 +33,12 @@ const HEIGHT = 24;
 //  a horizontal line (ATASCII's line graphic)
 const rule = (col = 3, length = 36) => at(col, '─'.repeat(length));
 
-//  the full width title band at the top of each screen
+//  the title band at the top of each screen: 39 columns, as no row reaches
+//  the last column (see build.js)
 const band = title => {
     const left = ' ENiGMA BBS';
     const right = `${title} `;
-    return `{rvs}${left}${spaces(WIDTH - left.length - right.length)}${right}{/rvs}`;
+    return `{rvs}${left}${spaces(WIDTH - 1 - left.length - right.length)}${right}{/rvs}`;
 };
 
 //  a short notice: band, heading, a few lines, closing rule

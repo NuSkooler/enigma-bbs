@@ -499,7 +499,20 @@ describe('ATASCII starter art (#593)', () => {
             const screen = new AtasciiScreen(40, 24, { row: 0, col: 0 });
             screen.write(bytes);
             assert.equal(screen.scrolls, 0, `${file} scrolled the screen`);
-            assert.equal(screen.grid[23][39], 0x20, `${file}: bottom right cell`);
+            //  no row reaches the last column, so nothing relies on wrapping
+            //  and the art draws the same on an 80 column (XEP80) screen
+            screen.grid.forEach((row, r) =>
+                assert.equal(row[39], 0x20, `${file}: row ${r + 1} reaches column 40`)
+            );
+            const wide = new AtasciiScreen(80, 25, { row: 0, col: 0 });
+            wide.write(bytes);
+            screen.grid.forEach((row, r) =>
+                assert.deepEqual(
+                    wide.grid[r].slice(0, 40),
+                    row,
+                    `${file}: row ${r + 1} at 80`
+                )
+            );
         });
     });
 
