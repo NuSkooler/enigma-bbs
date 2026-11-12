@@ -20,6 +20,9 @@
 //      translate(data)     Buffer (or string) of UTF-8 + ANSI -> Buffer of ATASCII
 //      passThrough(data)   bytes were written around us: the cursor on the
 //                          terminal is now unknown
+//      writeNative(data, { anchor, startRow })
+//                          native ATASCII bytes (.ata art) -> the Buffer to send:
+//                          the same bytes, followed so the cursor stays known
 //      setSize(cols, rows) the terminal's screen changed size
 //      reset()             back to the state of a new connection
 //      state()             plain snapshot for tests and debugging
@@ -141,7 +144,8 @@
 //
 //  BEL           0x07 becomes BELL (0xFD): no screen effect anywhere.
 //
-//  Never sent    0x7E backspace, 0x7F tab, 0x9C / 0x9D / 0x9E / 0x9F (delete and
+//  Never sent    (by translate(); writeNative() sends native art as it is)
+//                0x7E backspace, 0x7F tab, 0x9C / 0x9D / 0x9E / 0x9F (delete and
 //                insert line, clear and set tab), 0xFE / 0xFF (delete and insert
 //                character) as actions; ESC before anything but a control byte;
 //                ESC 0x9B. (0x7E, 0x7F, 0x9C-0x9F and 0xFD-0xFF do go out as the
@@ -997,6 +1001,92 @@ function createAtasciiTranslator(options) {
         }
     }
 
+    //
+    //  Native ATASCII bytes (an .ata art file, MCI codes already replaced) to
+    //  go to the terminal as they are. Returns the bytes to send: |data|,
+    //  preceded only by what settles the terminal first. Every byte is
+    //  followed through ./screen_rules.js (the rules the art parser uses), so
+    //  the cursor is known afterwards and ENiGMA's next ANSI output (views
+    //  drawn at MCI positions) lands where it should. ENiGMA's own SGR state
+    //  (inverse, conceal) is kept: it is per glyph, so nothing needs to be
+    //  re-asserted.
+    //
+    //  Settled first: a CR waiting to see if an LF follows happens now; a
+    //  half-parsed sequence or character is dropped; a glyph held for the
+    //  bottom-right cell is dropped (as by any cursor move: writing it would
+    //  scroll the screen under the art); bytes written around us that ended
+    //  inside an ESC quote get their space (emit()).
+    //
+    //  |anchor| (art.display() sets it): when the position is unknown (after a
+    //  door or a transfer, see passThrough()) and the art does not start by
+    //  clearing the screen, CLEAR goes first, then END OF LINE down to
+    //  |startRow| (1-based, default 1), where the art parser assumed the art
+    //  starts. Without it the art would land wherever the cursor happens to be
+    //  and every MCI position reported to the views would be wrong; ATASCII has
+    //  no other way to reach a known place. The same rule as an absolute goto
+    //  from an unknown position (absoluteGoTo()).
+    //
+    //  An ESC as the last byte would quote the first byte written after the
+    //  art: it is treated as bytes written around us that end in a quote (the
+    //  next byte out is preceded by a space). art.display() never sends one.
+    //
+    function writeNative(data, { anchor = false, startRow } = {}) {
+        out = [];
+
+        if (st.pendingCR) {
+            st.pendingCR = false;
+            carriageReturn();
+        }
+        st.mode = Mode.Ground;
+        st.csi = '';
+        st.decoder = new StringDecoder('utf8');
+        clearWrap();
+
+        //  nothing to write is nothing to write
+        if (undefined === data || null === data) {
+            data = Buffer.alloc(0);
+        }
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+
+        if (anchor && !st.known && !clearsFirst(buf)) {
+            clearScreen();
+            const row = clamp((startRow || 1) - 1, 0, geo.rows - 1);
+            if (row > 0) {
+                goTo(row, 0);
+            }
+        }
+
+        for (let i = 0; i < buf.length; ++i) {
+            emit(buf[i]);
+        }
+
+        if (st.term.quote) {
+            st.term.quote = false;
+            st.foreignQuote = true;
+        }
+
+        //  ENiGMA's cursor is where the art left the terminal's
+        if (st.known) {
+            st.row = st.term.row;
+            st.col = st.term.col;
+        }
+
+        const result = Buffer.from(out);
+        out = null;
+        return result;
+    }
+
+    //  Does |buf| put the cursor at a known place before anything that depends
+    //  on where it was? (CLEAR first, after nothing but BELLs.)
+    function clearsFirst(buf) {
+        for (const b of buf) {
+            if (Controls.bell !== b) {
+                return Controls.clear === b;
+            }
+        }
+        return false;
+    }
+
     function setSize(newCols, newRows) {
         checkSize(newCols, newRows);
         geo.cols = newCols;
@@ -1033,6 +1123,7 @@ function createAtasciiTranslator(options) {
         identity: false,
         translate,
         passThrough,
+        writeNative,
         setSize,
         reset,
         state,

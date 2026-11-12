@@ -89,13 +89,14 @@ const probes = [
 ];
 
 //
-//  Art types: the same as a non-UTF-8 ANSI terminal, so a board with no
-//  ATASCII art still shows its ANSI art, translated. Native ATASCII art
-//  ('.ata') and its preference over ANSI types arrive with the native art
-//  work; no other emulation's native type is ever offered (see core/art.js).
+//  Art types: native '.ata' art first. Where a name has no '.ata', the ANSI
+//  types as for a non-UTF-8 ANSI terminal, translated: a board with no
+//  ATASCII art still shows something. (Only callers that can show native art
+//  are offered '.ata' at all, and no other emulation's native type is ever
+//  offered; see core/art.js.)
 //
 function artTypes() {
-    return { preferred: [], last: ['.utf8ans'] };
+    return { preferred: [['.ata']], last: ['.utf8ans'] };
 }
 
 module.exports = {

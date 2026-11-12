@@ -528,7 +528,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     _paginateAndDisplay(artInfo, artOptions, cb) {
         const self = this;
 
-        //  native art (.seq) positions itself on the screen: never paged
+        //  native art (.seq, .ata) positions itself on the screen: never paged
         const { pages, hasAbsolutePositioning } = artInfo.native
             ? { pages: [], hasAbsolutePositioning: true }
             : artUtil.paginate(artInfo.data, {

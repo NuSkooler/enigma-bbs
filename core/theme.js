@@ -951,7 +951,7 @@ function displayPreparedArt(options, artInfo, cb) {
         baudRate: options.baudRate,
     };
     if (artInfo.native) {
-        //  native art (.seq): see art.display()
+        //  native art (.seq, .ata): see art.display()
         displayOpts.native = artInfo.native;
     }
     art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
@@ -967,7 +967,7 @@ function displayThemeArt(options, cb) {
     async.waterfall(
         [
             function getArt(callback) {
-                //  displayPreparedArt() shows native art (.seq) too
+                //  displayPreparedArt() shows native art (.seq, .ata) too
                 options.acceptNative = true;
                 return getThemeArt(options, callback);
             },

@@ -23,6 +23,13 @@
 //                 With { edges: 'syncterm' } or { edges: 'icy' } the edge moves are
 //                 applied the way that terminal does instead of throwing (for the
 //                 unknown-position tests, where the translator cannot avoid them).
+//                 With { native: true } (native .ata art goes out as it is) every
+//                 byte is applied as SyncTERM's cterm_atascii.c does: edge moves
+//                 wrap, ESC before any byte draws it (ESC 0x9B is END OF LINE),
+//                 and BACKSPACE, TAB, SET / CLEAR TAB, DELETE / INSERT LINE and
+//                 DELETE / INSERT CHARACTER act. Written from that source, not
+//                 from core/term/atascii/screen_rules.js, so the two can be
+//                 compared.
 //
 //  expectedCell() is the translator's documented mapping of an ANSI cell, built
 //  from charset.js encode()/decodeCells() rather than the translator's own path.
@@ -56,7 +63,7 @@ class AtasciiScreen {
     constructor(
         cols = 40,
         rows = 24,
-        { row = 7, col = 13, quoted = true, edges = 'throw' } = {}
+        { row = 7, col = 13, quoted = true, edges = 'throw', native = false } = {}
     ) {
         this.cols = cols;
         this.rows = rows;
@@ -67,7 +74,9 @@ class AtasciiScreen {
         this.row = row; //  somewhere arbitrary: the translator must not assume home
         this.col = col;
         this.quoted = quoted;
-        this.edges = edges;
+        this.native = native;
+        this.edges = native ? 'syncterm' : edges;
+        this.tabs = null; //  null: every 8 columns (SyncTERM's default stops)
         this.quote = false;
         this.scrolls = 0;
         this.bells = 0;
@@ -78,6 +87,62 @@ class AtasciiScreen {
         this.grid.shift();
         this.grid.push(Array.from({ length: this.cols }, () => 0x20));
         ++this.scrolls;
+    }
+
+    blankRow() {
+        return Array.from({ length: this.cols }, () => 0x20);
+    }
+
+    //  SyncTERM: BACKSPACE, TAB and the edit bytes (cterm_atascii.c)
+    nativeControl(b) {
+        const row = this.grid[this.row];
+        switch (b) {
+            case C.backspace:
+                if (this.col > 0) {
+                    --this.col;
+                    row[this.col] = 0x20;
+                }
+                return;
+            case C.tab: {
+                const stops =
+                    this.tabs ||
+                    new Set([...Array(this.cols).keys()].filter(c => 0 === c % 8));
+                const next = [...stops]
+                    .filter(c => c > this.col)
+                    .sort((a, b) => a - b)[0];
+                if (undefined === next) this.newline();
+                else this.col = next;
+                return;
+            }
+            case C.setTab:
+            case C.clearTab:
+                if (!this.tabs) {
+                    this.tabs = new Set(
+                        [...Array(this.cols).keys()].filter(c => 0 === c % 8)
+                    );
+                }
+                if (C.setTab === b) this.tabs.add(this.col);
+                else this.tabs.delete(this.col);
+                return;
+            case C.deleteLine:
+                this.grid.splice(this.row, 1);
+                this.grid.push(this.blankRow());
+                this.col = 0;
+                return;
+            case C.insertLine:
+                this.grid.splice(this.row, 0, this.blankRow());
+                this.grid.pop();
+                this.col = 0;
+                return;
+            case C.deleteChar:
+                row.splice(this.col, 1);
+                row.push(0x20);
+                return;
+            case C.insertChar:
+                row.splice(this.col, 0, 0x20);
+                row.pop();
+                return;
+        }
     }
 
     newline() {
@@ -121,6 +186,9 @@ class AtasciiScreen {
 
         if (this.quote) {
             this.quote = false;
+            if (this.native) {
+                return C.eol === b ? this.newline() : this.draw(b);
+            }
             if (!isControlByte(b)) fail('ESC before a glyph byte');
             if (C.eol === b) fail('ESC before END OF LINE');
             return this.draw(b);
@@ -130,6 +198,9 @@ class AtasciiScreen {
             return this.draw(b);
         }
         if (FORBIDDEN.has(b)) {
+            if (this.native) {
+                return this.nativeControl(b);
+            }
             fail(`${FORBIDDEN.get(b)} sent`);
         }
 
