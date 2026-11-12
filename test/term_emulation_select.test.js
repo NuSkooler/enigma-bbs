@@ -81,7 +81,7 @@ describe('terminal emulation selection', () => {
             }
         });
 
-        it('TTYPE PETSCII is honoured; ATASCII is recorded and falls back to ANSI', () => {
+        it('TTYPE PETSCII and ATASCII are honoured', () => {
             assert.deepEqual(resolveEmulation({ termType: 'petscii' }), {
                 requested: 'petscii',
                 source: 'termType',
@@ -90,10 +90,14 @@ describe('terminal emulation selection', () => {
                 layers: [],
                 fallback: false,
             });
-            const atascii = resolveEmulation({ termType: 'ATASCII' });
-            assert.equal(atascii.requested, 'atascii');
-            assert.equal(atascii.base, 'ansi');
-            assert.equal(atascii.fallback, true);
+            assert.deepEqual(resolveEmulation({ termType: 'ATASCII' }), {
+                requested: 'atascii',
+                source: 'termType',
+                kind: 'base',
+                base: 'atascii',
+                layers: [],
+                fallback: false,
+            });
         });
 
         it('TTYPE RIP: a layer on ANSI, not implemented yet', () => {
@@ -183,22 +187,34 @@ describe('terminal emulation selection', () => {
             assert.equal(client.logged[0].info.termType, 'petscii');
         });
 
-        it('TTYPE ATASCII: stays ANSI, records the request, logs the fallback', () => {
+        it('TTYPE ATASCII: the session becomes ATASCII with its own encoding', () => {
             const client = makeClient('ATASCII');
             selectClientEmulation(client, { firstMenu: 'telnetConnected' });
 
-            assert.equal(client.term.emulation.name, 'ansi');
-            assert.equal(client.term.outputEncoding, undefined);
+            assert.equal(client.term.emulation.name, 'atascii');
+            assert.equal(client.term.outputEncoding, 'atascii');
             assert.deepEqual(client.term.requestedEmulation, {
                 name: 'atascii',
                 source: 'termType',
             });
             assert.equal(client.logged.length, 1);
+            assert.equal(client.logged[0].level, 'debug');
+            assert.equal(client.logged[0].info.emulation, 'atascii');
+        });
+
+        it('TTYPE RIP: stays ANSI, records the request, logs the fallback', () => {
+            const client = makeClient('RIP');
+            selectClientEmulation(client, { firstMenu: 'telnetConnected' });
+
+            assert.equal(client.term.emulation.name, 'ansi');
+            assert.equal(client.term.outputEncoding, undefined);
+            assert.deepEqual(client.term.requestedEmulation, {
+                name: 'rip',
+                source: 'termType',
+            });
+            assert.equal(client.logged.length, 1);
             assert.equal(client.logged[0].level, 'info');
-            assert.match(
-                client.logged[0].msg,
-                /"atascii" is not implemented; using "ansi"/
-            );
+            assert.match(client.logged[0].msg, /"rip" is not implemented; using "ansi"/);
         });
 
         it("a named listener's emulation is used and named in the log", () => {

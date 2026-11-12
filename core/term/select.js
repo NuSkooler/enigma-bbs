@@ -16,7 +16,7 @@
 //
 //  What was asked for is always recorded. What the connection actually gets
 //  is the emulation if it is implemented, otherwise ANSI, and that is logged.
-//  ANSI and PETSCII are implemented so far.
+//  ANSI, PETSCII and ATASCII are implemented so far.
 //
 const { emulationExists, createEmulation, DEFAULT_EMULATION } = require('./index.js');
 

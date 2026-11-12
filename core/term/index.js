@@ -4,18 +4,20 @@
 //
 //  Terminal emulations (#593). See ./emulation.js for what one is.
 //
-//  ANSI is the default for every client. PETSCII is the other base emulation
-//  so far; a client gets it only by asking (see ./select.js).
+//  ANSI is the default for every client. PETSCII and ATASCII are the other
+//  base emulations so far; a client gets one only by asking (see ./select.js).
 //
 const { Emulation } = require('./emulation.js');
 const ansiDefinition = require('./ansi');
 const petsciiDefinition = require('./petscii');
+const atasciiDefinition = require('./atascii');
 
 const DEFAULT_EMULATION = 'ansi';
 
 const definitions = new Map([
     [ansiDefinition.name, ansiDefinition],
     [petsciiDefinition.name, petsciiDefinition],
+    [atasciiDefinition.name, atasciiDefinition],
 ]);
 
 //  true when a base emulation called |name| is implemented
