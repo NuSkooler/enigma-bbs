@@ -25,6 +25,14 @@
 //  it expects an area holding only what it posts. The other walks answer No
 //  to the new-message scan after login.
 //
+//  --emulation atascii is an ATASCII caller instead: TTYPE "ATASCII", NAWS
+//  40x24, rendered on the ATASCII screen model from
+//  test/term_atascii_screens.js (same rule: a byte an Atari terminal must
+//  never get from ENiGMA's translator is an error; ESC is allowed, ATASCII
+//  quotes glyphs with it). Only --walk connect and --walk native exist for
+//  it so far; --walk native goes through the stock matrix and login menus
+//  (for checking native .ata art on them) and logs in.
+//
 //  --walk newscan answers Yes to the scan (run it as a user someone else has
 //  posted for since), reads a new message, then writes a long message,
 //  paging it with F3 / F5 and finding a word with CTRL F, saves it with F1,
@@ -36,7 +44,28 @@ const paths = require('path');
 
 const root = paths.resolve(__dirname, '../..');
 const { PetsciiScreen } = require(paths.join(root, 'test/term_petscii_screens.js'));
+const { AtasciiScreen } = require(paths.join(root, 'test/term_atascii_screens.js'));
 const { encode, Controls } = require(paths.join(root, 'core/term/petscii/charset.js'));
+const atascii = require(paths.join(root, 'core/term/atascii/charset.js'));
+
+const EMULATIONS = {
+    petscii: {
+        term: 'PETSCII',
+        cols: 40,
+        rows: 25,
+        screen: () => new PetsciiScreen(40, 25, { row: 0, col: 0 }),
+        encode: text => encode(text, 'lower'),
+        escIsError: true,
+    },
+    atascii: {
+        term: 'ATASCII',
+        cols: 40,
+        rows: 24,
+        screen: () => new AtasciiScreen(40, 24, { row: 0, col: 0 }),
+        encode: text => atascii.encode(text),
+        escIsError: false,
+    },
+};
 
 const IAC = 255;
 const DONT = 254;
@@ -55,7 +84,7 @@ function parseArgs() {
         port: 48901,
         user: 'tester',
         password: 'harnesspass1',
-        term: 'PETSCII',
+        emulation: 'petscii',
         walk: 'full',
     };
     const argv = process.argv.slice(2);
@@ -63,13 +92,22 @@ function parseArgs() {
         out[argv[i].replace(/^--/, '')] = argv[i + 1];
     }
     out.port = parseInt(out.port, 10);
+    if (!EMULATIONS[out.emulation]) {
+        throw new Error(`--emulation: petscii or atascii, not ${out.emulation}`);
+    }
+    if (undefined === out.term) {
+        out.term = EMULATIONS[out.emulation].term;
+    }
     return out;
 }
 
 class Caller {
-    constructor({ port, term }) {
+    constructor({ port, term, emulation = 'petscii' }) {
         this.term = term;
-        this.screen = new PetsciiScreen(40, 25, { row: 0, col: 0 });
+        this.emu = EMULATIONS[emulation];
+        this.cols = this.emu.cols;
+        this.rows = this.emu.rows;
+        this.screen = this.emu.screen();
         this.errors = [];
         this.escBytes = 0;
         this.dataBytes = 0;
@@ -137,7 +175,10 @@ class Caller {
             if (opt === TTYPE && this.term) {
                 this._send([IAC, WILL, TTYPE]);
             } else if (opt === NAWS) {
-                this._send([IAC, WILL, NAWS, IAC, SB, NAWS, 0, 40, 0, 25, IAC, SE]);
+                this._send([
+                    ...[IAC, WILL, NAWS, IAC, SB, NAWS],
+                    ...[0, this.cols, 0, this.rows, IAC, SE],
+                ]);
             } else {
                 this._send([IAC, WONT, opt]);
             }
@@ -160,9 +201,9 @@ class Caller {
 
     text() {
         const lines = [];
-        for (let r = 0; r < 25; ++r) {
+        for (let r = 0; r < this.rows; ++r) {
             let line = '';
-            for (let c = 0; c < 40; ++c) {
+            for (let c = 0; c < this.cols; ++c) {
                 line += this.screen.actual(r, c).ch;
             }
             lines.push(line.replace(/\s+$/, ''));
@@ -188,7 +229,7 @@ class Caller {
     }
 
     async type(text) {
-        this._send(encode(text, 'lower'));
+        this._send(this.emu.encode(text));
         await sleep(150);
     }
 
@@ -201,7 +242,7 @@ class Caller {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function dump(caller, label) {
-    const bar = '+' + '-'.repeat(40) + '+';
+    const bar = '+' + '-'.repeat(caller.cols) + '+';
     console.log(
         `\n[${label}]  (cursor ${caller.screen.row + 1},${caller.screen.col + 1})`
     );
@@ -209,13 +250,63 @@ function dump(caller, label) {
     caller
         .text()
         .split('\n')
-        .forEach(l => console.log('|' + l.padEnd(40) + '|'));
+        .forEach(l => console.log('|' + l.padEnd(caller.cols) + '|'));
     console.log(bar);
+}
+
+//  inverse cells as a second picture: '#' inverse, '.' normal (ATASCII)
+function dumpInverse(caller, label) {
+    console.log(`[${label}: inverse cells]`);
+    for (let r = 0; r < caller.rows; ++r) {
+        let line = '';
+        for (let c = 0; c < caller.cols; ++c) {
+            line += caller.screen.actual(r, c).inverse ? '#' : '.';
+        }
+        if (line.includes('#')) {
+            console.log(`${String(r + 1).padStart(2)} ${line}`);
+        }
+    }
+}
+
+//  --emulation atascii --walk native: stock matrix and login menus
+async function atasciiNativeWalk(c, args) {
+    const EOL = atascii.Controls.eol;
+    await c.expect(/Pick one|MATRIX|login/);
+    dump(c, 'matrix');
+    dumpInverse(c, 'matrix');
+    await c.key(EOL); //  the first item: login
+    await c.expect(/User:|LOGIN|ogin/);
+    dump(c, 'login');
+    dumpInverse(c, 'login');
+    await c.type(args.user);
+    await c.key(EOL);
+    await c.type(args.password);
+    await c.settle();
+    dump(c, 'login, typed');
+    dumpInverse(c, 'login, typed');
+    await c.key(EOL);
+    for (let i = 0; i < 3; ++i) {
+        await sleep(2500);
+        await c.settle();
+        dump(c, `after login ${i + 1}`);
+        await c.key(EOL);
+    }
 }
 
 async function main() {
     const args = parseArgs();
     const c = new Caller(args);
+
+    if ('atascii' === args.emulation) {
+        if ('native' === args.walk) {
+            await atasciiNativeWalk(c, args);
+        } else {
+            await c.expect(/\S/);
+            await c.settle(1500);
+            dump(c, 'connect');
+        }
+        return finish(c);
+    }
 
     await c.expect(/Commodore caller/);
     dump(c, 'connect');
@@ -545,7 +636,7 @@ function finish(c) {
     );
     c.errors.slice(0, 10).forEach(e => console.log(`  ${e}`));
     c.sock.destroy();
-    process.exitCode = c.errors.length || c.escBytes ? 1 : 0;
+    process.exitCode = c.errors.length || (c.emu.escIsError && c.escBytes) ? 1 : 0;
 }
 
 module.exports = { Caller, dump };
