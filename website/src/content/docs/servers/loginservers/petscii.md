@@ -158,7 +158,7 @@ Keys for PETSCII callers, all on a Commodore keyboard:
 | Reader | CTRL F | find: type the text and RETURN; every match is marked, the one in focus in reverse |
 | Reader | CTRL G, CTRL P | next match, previous match |
 | Reader | CTRL F, then F1 | stop finding (clears the marks) |
-| Lists and menus | cursor keys, F3 and F5, RETURN, the bracketed letter; **Q** or F1 | move, page, pick; go back |
+| Lists and menus | cursor keys, F3 and F5, RETURN, the bracketed letter; **Q** or F1 | move, page, pick; go back (lists and the message menu; the matrix and main menu have only their bracketed letters) |
 
 F3 and F5 are Page Up and Page Down because the PETSCII input decoder reports them so (see [What is translated](#what-is-translated)). The stock menus find the next match with CTRL N, which is a cursor key on a Commodore keyboard; the starter menus use CTRL G instead.
 

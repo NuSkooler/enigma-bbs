@@ -173,7 +173,7 @@ Keys for ATASCII callers:
 | Reader | CTRL F | find: type the text and RETURN; the match in focus is shown in inverse video |
 | Reader | CTRL N, CTRL P | next match, previous match |
 | Reader | CTRL F, then ESC | stop finding |
-| Lists and menus | arrow keys, CTRL W and CTRL Z, CTRL X, RETURN, the bracketed letter; **Q** or ESC | move, page, last item, pick; go back |
+| Lists and menus | arrow keys, CTRL W and CTRL Z, CTRL X, RETURN, the bracketed letter; **Q** or ESC | move, page, last item, pick; go back (lists and the message menu; the matrix and main menu have only their bracketed letters) |
 | Login | ESC | back to the matrix (in the two-factor prompt, ESC logs off) |
 
 Most of these are the stock menus' keys: an Atari has a real ESC key, and CTRL N, CTRL P and CTRL S reach ENiGMA½ as themselves. CTRL W, CTRL Z and CTRL X are Page Up, Page Down and End because the ATASCII input decoder reports them so (see [Keys](#keys)); an Atari keyboard has none of those keys. There is no key for the start of a line or the first item of a list: the editor's CTRL A edits the subject, as in the stock menus.
