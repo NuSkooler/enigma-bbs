@@ -22,6 +22,16 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.1-beta to 0.6.0-beta
 
+* **PETSCII (Commodore) callers (new, optional).** ENiGMA½ can now talk to Commodore-style terminals: SyncTERM and IcyTerm in their C64 or C128 modes, and terminal programs on real hardware through a dedicated Telnet port. See [PETSCII (Commodore) Callers](website/src/content/docs/servers/loginservers/petscii.md).
+
+  **What changes by itself:** a caller whose terminal announces the Telnet terminal type `PETSCII` is now sent PETSCII. Before, such a caller was sent ANSI, which a PETSCII terminal prints as a screen of escape codes. They see your existing menus and art translated and wrapped at 40 columns: readable, not pretty. Nothing changes for ANSI callers, and nothing in your configuration, menus or themes is touched.
+
+  **Action:** none, unless you want to offer PETSCII callers a proper board. Then either build your own menus, art and theme for them, or start from the PETSCII starter (a small 40 column menu tree with login, messages, who's online and last callers, plus a theme of placeholder art). A new board is offered it by `oputil.js config new`. On an existing board it is four manual steps, in [An existing board](website/src/content/docs/servers/loginservers/petscii.md#an-existing-board): include the PETSCII menu file, add one `TE[petscii]` branch to `telnetConnected`, copy the starter theme into your themes directory, and set `theme.emulations.petscii`. Do not copy a PETSCII theme into your themes directory without also routing PETSCII callers to menus made for it: such a theme is given to every PETSCII caller, and almost none of your stock menus have art in it.
+
+  **Keys:** for every PETSCII session, F1 is Escape, F3 is Page Up and F5 is Page Down, because a Commodore keyboard has none of those keys. If you already run your own menus for PETSCII callers, those three function keys no longer arrive as themselves.
+
+  **Also new and optional:** additional Telnet listeners (`loginServers.telnet.listeners`), each with its own port, `firstMenu` and `emulation`; the `TE[...]` [ACS](website/src/content/docs/configuration/acs.md) code for a session's terminal emulation; `info.emulation` in a [theme](website/src/content/docs/art/themes.md#terminal-emulation); and `skipFileBase` for the [new scan](website/src/content/docs/modules/new-scan.md) module.
+
 * **Amiga doors (new, optional).** The `amiga_door` menu module runs AmiExpress (/X) XIM doors inside an embedded vAmiga emulator. It depends on the new `enigma-vamiga` npm package, which bundles the emulator core (WebAssembly) and the AROS replacement Kickstart, so no external emulator, Kickstart ROM or Workbench is needed.
 
   **Action:** run `npm install` after upgrading so the new dependency is present. Nothing else changes unless you add Amiga doors: see [Amiga Doors](website/src/content/docs/doors/amiga.md) for building a door image with `misc/amiga_door/image/make_image.sh` and the `doorMyGameAmiga` example in `misc/menu_templates/doors.in.hjson`. The one new system setting, `doors.amiga.snapshotCacheEntries` (default 4), caps how many booted-machine snapshots are kept in memory; each is about 1.5 MB.

@@ -366,6 +366,24 @@ login: {
 }
 ```
 
+The same mechanism sends different kinds of caller down different menus. The stock menus already start Telnet and SSH callers on different menus (`telnetConnected` and `sshConnected`); to branch on the caller's terminal emulation, use the `TE` ACS code. This sends [PETSCII callers](../servers/loginservers/petscii.md) to a menu tree of their own and everyone else to the usual login matrix:
+```hjson
+telnetConnected: {
+    desc: Telnet Connect
+    art: CONNECT
+    next: [
+        {
+            acs: TE[petscii]
+            next: petsciiMatrix
+        }
+        {
+            next: matrix
+        }
+    ]
+    config: { nextTimeout: 1500 }
+}
+```
+
 ### Art Asset Selection
 Another area in which you can apply ACS in a menu is art asset specs.
 

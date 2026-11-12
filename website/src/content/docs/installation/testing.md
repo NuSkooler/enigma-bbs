@@ -54,6 +54,8 @@ happily; the first three are the usual recommendations for day-to-day BBSing.
 | [MagiTerm](https://gitlab.com/magickabbs/MagiTerm) | Windows | |
 | [fTelnet](https://www.ftelnet.ca/) | Browser | Telnet only |
 
+SyncTERM and IcyTerm can also call as Commodore (PETSCII) terminals. See [PETSCII (Commodore) Callers](../servers/loginservers/petscii.md#testing-with-syncterm-and-icyterm).
+
 ## Next Steps
 
 With the board running and a client connected, move on to
