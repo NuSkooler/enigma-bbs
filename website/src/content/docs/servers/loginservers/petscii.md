@@ -183,8 +183,8 @@ art/themes/my_c64_theme/LOGIN.seq
 * **Colour.** The 16 ANSI foreground colours map to the 16 Commodore colours. PETSCII has no background colour, so a background is shown as reverse video in that colour.
 * **Cursor movement.** PETSCII has no "go to row, column". ENiGMA½ tracks the cursor and sends relative moves.
 * **Screen size** is what the terminal reports, otherwise 40x25.
-* **Keys.** Cursor keys, HOME, INST/DEL (backspace), RETURN and F2 to F8 work as their ANSI equivalents. CLR, which SyncTERM sends for the End key, is End.
-* **F1 is Escape.** A Commodore keyboard has no Escape key, and ENiGMA½ reaches some things only through Escape (the full-screen editor's menu, backing out of a form). For a PETSCII caller, F1 is the Escape key, everywhere. A terminal that sends a real Escape byte (SyncTERM and IcyTerm do) works too. The F1 key as such is not available to PETSCII callers, so do not bind anything a PETSCII caller needs to `f1`.
+* **Keys.** Cursor keys, HOME, INST/DEL (backspace), RETURN, F2, F4, F6, F7 and F8 work as their ANSI equivalents. CLR, which SyncTERM sends for the End key, is End.
+* **F1 is Escape; F3 and F5 are Page Up and Page Down.** A Commodore keyboard has no Escape, Page Up or Page Down key, and ENiGMA½ reaches some things only through them (the full-screen editor's menu and backing out of a form; paging through a message or a list). For a PETSCII caller, F1 is the Escape key, F3 is Page Up and F5 is Page Down. A terminal that also sends a real Escape byte (SyncTERM and IcyTerm do) works too. This holds for **every PETSCII session**, whatever menus it is in: the starter menus, menus of your own behind a PETSCII listener, or the stock menus. F1, F3 and F5 as such are therefore not available to PETSCII callers, so do not bind anything a PETSCII caller needs to `f1`, `f3` or `f5`. (IcyTerm numbers its function keys in a row, so for its users Page Up and Page Down are on F2 and F3.)
 * Nothing is asked of the terminal at connect, so there is no feature detection pause.
 
 ### Limits
@@ -194,7 +194,7 @@ art/themes/my_c64_theme/LOGIN.seq
 * Art that is not shown through a menu or prompt (achievement and node message headers and footers, for example) uses the ANSI art, translated, or plain text from a `.seq` file named with its extension.
 * No hyperlinks, fonts, blink or underline.
 * The bottom right screen cell is never drawn, because writing it scrolls a Commodore screen.
-* Some control key combinations do not exist on a Commodore keyboard: Ctrl with E, N, Q, R, S or T share their codes with colour, cursor and delete keys. Nor do Page Up, Page Down, Delete (as opposed to backspace) or function keys other than F1 to F8, and F1 is Escape. Menus for PETSCII callers should not rely on any of them.
+* Some control key combinations do not exist on a Commodore keyboard: Ctrl with E, N, Q, R, S or T share their codes with colour, cursor and delete keys. Nor do Page Up, Page Down (F3 and F5 stand in for them), Delete (as opposed to backspace) or function keys other than F1 to F8, and F1 is Escape. Menus for PETSCII callers should not rely on any of them.
 * Doors expect an ANSI terminal. A door's output is translated like any other output, but its input is not: the door receives PETSCII key codes, so cursor and function keys will not work in it, and most doors assume 80 columns. Use the `TE` [ACS](../../configuration/acs.md) code to keep doors away from PETSCII callers, for example `TE[ansi]` on a door menu entry.
 * File transfers, and bridged connections such as the Telnet bridge and door networks, are passed through untranslated in both directions.
 * A window resize during a session is not followed; the size is settled at connect, up to 160x100.

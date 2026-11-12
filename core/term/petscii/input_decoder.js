@@ -39,8 +39,17 @@
 //  only through Escape (the full-screen editor's menu, leaving a form). So F1
 //  (0x85) is reported exactly as 0x1B is: ch '\x1b', name 'escape'. seq stays
 //  the raw byte. The F1 key as such is therefore never reported for a PETSCII
-//  session; F2-F8 are. Terminals that do send 0x1B (SyncTERM, IcyTerm) keep
-//  working, as both bytes mean the same key.
+//  session. Terminals that do send 0x1B (SyncTERM, IcyTerm) keep working, as
+//  both bytes mean the same key.
+//
+//  F3 AND F5 ARE PAGE UP AND PAGE DOWN
+//  -----------------------------------
+//  Nor has a Commodore keyboard Page Up or Page Down, which the full-screen
+//  editor and reader (and every list) page with. F3 (0x86) is reported as
+//  'page up' and F5 (0x87) as 'page down', exactly as the ANSI decoder
+//  reports those keys (no ch). F3 and F5 as such are therefore never
+//  reported either; F2, F4, F6, F7 and F8 are. (IcyTerm's sequential F-keys,
+//  below, put this on its F2 and F3.)
 //
 //  Where IcyTerm (icy_engine_gui terminal_keys.rs C64_KEY_MAP) differs:
 //
@@ -98,8 +107,10 @@ const SWALLOWED = new Set([
     0x90, 0x92, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9e, 0x9f,
 ]);
 
-//  the F1 key; reported as Escape
+//  the F1, F3 and F5 keys; reported as Escape, Page Up and Page Down
 const F1 = 0x85;
+const F3 = 0x86;
+const F5 = 0x87;
 
 //  pound sign, up arrow, left arrow glyphs -> the ASCII keys in those positions
 const ASCII_POSITION_KEYS = new Map([
@@ -142,6 +153,10 @@ function decodeByte(byte) {
     //
     if (0x1b === byte || F1 === byte) {
         return ['\x1b', makeKey(byte, 'escape')]; //  F1 is Escape: see above
+    }
+    if (F3 === byte || F5 === byte) {
+        //  F3 / F5 are page up / page down: see above
+        return [undefined, makeKey(byte, F3 === byte ? 'page up' : 'page down')];
     }
 
     const keyName = 0x93 === byte ? 'end' : KeyBytes[byte];

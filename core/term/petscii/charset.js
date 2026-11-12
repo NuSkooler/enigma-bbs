@@ -209,8 +209,8 @@ const AnsiToPetsciiColor = Object.freeze([
 //
 //  This table names what each key IS. What a key press reports to ENiGMA is
 //  the input decoder's business (./input_decoder.js), which departs from it in
-//  two places: F1 is reported as Escape (a Commodore keyboard has none) and
-//  CLR as End.
+//  a few places: F1 is reported as Escape, F3 and F5 as Page Up and Page Down
+//  (a Commodore keyboard has none of those), and CLR as End.
 //
 const KeyBytes = Object.freeze({
     0x0d: 'return',
