@@ -576,6 +576,9 @@
                     footerView: PMSGVFTR
                     help: PMSGVHLP
                 }
+                //  a reply to a sender with no account here (pre-login
+                //  feedback); without this the module names a stock menu
+                noReplyGhostSenderMenu: petsciiMessageNoReply
                 editorMode: view
                 editorType: area
             }
@@ -1015,6 +1018,14 @@
         petsciiMessagePostNoAccess: {
             desc: No Access
             art: PMSGNOACC
+            config: {
+                pause: petsciiPause
+            }
+        }
+
+        petsciiMessageNoReply: {
+            desc: No Reply - Ghost Sender
+            art: PMSGNORPL
             config: {
                 pause: petsciiPause
             }

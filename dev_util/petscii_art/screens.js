@@ -424,6 +424,12 @@ const Screens = {
         'sysop.',
     ]),
 
+    PMSGNORPL: notice('messages', 'No reply', [
+        'This message is from someone',
+        'without an account here, so',
+        'there is nobody to reply to.',
+    ]),
+
     PLOGOFF: [
         band('log off'),
         '',

@@ -97,6 +97,7 @@ function targetsOf(name, menu) {
         'changeConfPreArtMenu',
         'changeAreaPreArtMenu',
         'messageBasePostMessageNoAccess',
+        'noReplyGhostSenderMenu',
     ].forEach(k => {
         if (config[k]) {
             out.push([`${name}.config.${k}`, config[k]]);
