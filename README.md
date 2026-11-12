@@ -68,6 +68,7 @@ ENiGMA has been tested with many terminals. [IcyTERM](https://github.com/mkruege
 
 ## Some Boards
 * :skull: [Xibalba - ENiGMA WHQ](https://xibalba.vip) :skull: (**ssh://xibalba.vip:44511** or **telnet://xibalba.vip:44510**)
+* [Vortex](https://vortexbbs.com): (**telnet://vortexbbs.com**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
 
 ## Special Thanks
