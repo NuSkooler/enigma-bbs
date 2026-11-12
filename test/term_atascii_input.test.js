@@ -290,9 +290,13 @@ describe('ATASCII input decoder', function () {
             }
         });
 
+        it("0x7D, also what a PC keyboard's '}' sends, is swallowed, not a stand-in", function () {
+            assert.deepEqual(keys(mk(), [0x7d]), []);
+            assert.equal(StandIns[0x7d], undefined);
+        });
+
         it('stand-ins give the ANSI home/end/page keys', function () {
             const cases = [
-                [0x7d, '\x1b[H'],
                 [0x18, '\x1b[F'],
                 [0x17, '\x1b[5~'],
                 [0x1a, '\x1b[6~'],

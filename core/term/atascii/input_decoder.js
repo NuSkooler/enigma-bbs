@@ -115,8 +115,12 @@ const ESC = 0x1b;
 //  byte -> key name. Each of these bytes would otherwise be swallowed (7D, 9C,
 //  9D: the Atari's clear-screen, delete-line and insert-line keys, nothing a
 //  caller means by them) or is a ctrl combination nothing in ENiGMA binds.
+//
+//  0x7D (the Atari clear-screen key) is deliberately not one of them: it is
+//  also what a PC keyboard's '}' sends through SyncTERM, and a caller typing
+//  a brace into a message must not have the cursor jump. It stays swallowed.
+//
 const StandIns = Object.freeze({
-    0x7d: 'home', //  Atari Ctrl+<  (clear screen)
     0x9c: 'page up', //  Atari Shift+Backspace (delete line)
     0x9d: 'page down', //  Atari Shift+> (insert line)
     0x17: 'page up', //  ctrl+w
