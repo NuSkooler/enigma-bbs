@@ -62,6 +62,13 @@ terminal must never get), walks the starter tree and prints every screen:
 
 It exits non-zero on any ESC byte or screen-model error.
 
+`--walk messages` goes through the starter's message menus instead of who's
+online and last callers: conference and area lists, two posts (the editor
+menu opened once with F1 and once with a real ESC byte), the message list,
+reading, the reader's help, and a reply with a quoted line. Run it on a fresh
+instance (it expects an area holding only what it posts), then look at the
+posts with `sqlite3 <instanceDir>/db/message.sqlite3`.
+
 ## Run a walk
 
 The new-user walk creates the user; the main walk logs that user in, so run them

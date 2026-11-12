@@ -60,6 +60,10 @@ exports.getModule = class NewScanModule extends MenuModule {
         this.scanFinishNoneFmt = config.scanFinishNoneFmt || 'Nothing new';
         this.scanFinishNewFmt = config.scanFinishNewFmt || '{count} entries found';
         this.scanCompleteMsg = config.scanCompleteMsg || 'Finished newscan';
+
+        //  skipFileBase: scan the message base only; the file base step (and
+        //  newScanFileBaseList) is never entered. Off unless set to true.
+        this.skipFileBase = true === config.skipFileBase;
     }
 
     updateScanStatus(statusText) {
@@ -335,12 +339,21 @@ exports.getModule = class NewScanModule extends MenuModule {
         switch (this.currentStep) {
             case Steps.MessageConfs:
                 this.newScanMessageConference(() => {
-                    this.currentStep = Steps.FileBase;
+                    this.currentStep = this.skipFileBase
+                        ? Steps.Finished
+                        : Steps.FileBase;
                     return this.performScanCurrentStep(cb);
                 });
                 break;
 
             case Steps.FileBase:
+                //  only reachable with skipFileBase through a state saved
+                //  before the option applied; the file base stays out
+                if (this.skipFileBase) {
+                    this.currentStep = Steps.Finished;
+                    return this.performScanCurrentStep(cb);
+                }
+
                 this.newScanFileBase(() => {
                     this.currentStep = Steps.Finished;
                     return this.performScanCurrentStep(cb);

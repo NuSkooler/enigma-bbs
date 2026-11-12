@@ -22,6 +22,7 @@ with the system, see [Menu Modules](../modding/menu-modules.md).
 
 | Module | What it does |
 |--------|--------------|
+| [New Scan](new-scan.md) | What is new in the message base, and optionally the file base |
 | [Message Conference & Area Lists](message-lists.md) | Browsing and changing conference and area |
 | [Configure Newscan](configure-newscan.md) | Which conferences, areas and file areas a user's newscan covers |
 | [Set Newscan Date](set-newscan-date.md) | Resetting a newscan pointer to a chosen date |

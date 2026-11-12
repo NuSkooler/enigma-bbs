@@ -15,8 +15,11 @@
 //  lower/upper switch, draws its rows with colour and reverse codes and
 //  RETURN between rows (none after a row that fills all 40 columns: the
 //  screen has already wrapped), and ends with a RETURN so that the art's
-//  height counts its last row. Trailing blanks are not sent. Nothing uses
-//  DELETE, INSERT or cursor codes.
+//  height counts its last row. Trailing blanks are not sent, except in a
+//  padded screen, where every row is filled out to the full width with
+//  spaces. A part or a prompt has no CLR and no charset switch, and a prompt
+//  no RETURN at the end (see screens.js). Nothing uses DELETE, INSERT or
+//  cursor codes.
 //
 
 const fs = require('fs');
@@ -72,13 +75,17 @@ function glyphByte(name, ch) {
 }
 
 function buildScreen(name, screen) {
-    const prompt = !Array.isArray(screen) && true === screen.prompt;
+    const opts = Array.isArray(screen) ? {} : screen;
+    const prompt = true === opts.prompt;
+    //  a part (prompt or not) is drawn below what is already there
+    const part = prompt || true === opts.part;
+    const pad = true === opts.pad;
     const rows = Array.isArray(screen) ? screen : screen.rows;
     if (rows.length > HEIGHT) {
         throw new Error(`${name}: ${rows.length} rows; at most ${HEIGHT}`);
     }
 
-    const out = prompt ? [] : [Controls.clear, Controls.charsetLower];
+    const out = part ? [] : [Controls.clear, Controls.charsetLower];
     let color = null;
     let rvs = false;
 
@@ -91,8 +98,16 @@ function buildScreen(name, screen) {
             throw new Error(`${name}: the bottom right cell must stay empty`);
         }
 
-        //  trailing blanks draw nothing
-        while (cells.length > 0) {
+        //  padded rows overwrite whatever was in the row before
+        if (pad) {
+            const width = HEIGHT - 1 === r ? WIDTH - 1 : WIDTH;
+            while (cells.length < width) {
+                cells.push({ ch: ' ', color: null, rvs: false });
+            }
+        }
+
+        //  trailing blanks draw nothing (and are kept when padding)
+        while (!pad && cells.length > 0) {
             const last = cells[cells.length - 1];
             if (' ' !== last.ch || last.rvs) {
                 break;

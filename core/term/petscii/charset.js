@@ -207,6 +207,11 @@ const AnsiToPetsciiColor = Object.freeze([
 //  F2 $89, F4 $8A, F6 $8B, F8 $8C), the same as SyncTERM cterm.c `petscii_keys`.
 //  Shift-Return (0x8D) is reported as plain 'return' (key names carry no shift).
 //
+//  This table names what each key IS. What a key press reports to ENiGMA is
+//  the input decoder's business (./input_decoder.js), which departs from it in
+//  a few places: F1 is reported as Escape, F3 and F5 as Page Up and Page Down
+//  (a Commodore keyboard has none of those), and CLR as End.
+//
 const KeyBytes = Object.freeze({
     0x0d: 'return',
     0x8d: 'return',
