@@ -153,6 +153,8 @@ F3 and F5 are Page Up and Page Down because the PETSCII input decoder reports th
 
 Left out on purpose, because they need keys a Commodore keyboard does not have or lead out of the PETSCII menus: the editor's quick-save (CTRL S is HOME there), uploading a message body, and adding a message to the download queue. Not in the starter menus yet: message search, private mail and deleting from the list.
 
+On a board with ActivityPub areas, the new-message scan shows those areas in the same plain message list and reader as any other area, without threads, attachments or reactions, and counts what it shows as read. There is no PETSCII version of the ActivityPub browser.
+
 #### Extending it
 
 Add menus to your copy of `petscii.in.hjson` the way you would to any menu file, using the stock menus as examples, and keep every `next` and `action` inside the PETSCII tree: a stock menu has no art in a PETSCII theme. For each new menu, add its art to the theme as a `.seq` file and its view layout (widths, heights, item formats) under `customization.menus` in the theme's `theme.hjson`. Lay views out for 40 columns, and prefer vertical menus to horizontal ones.
