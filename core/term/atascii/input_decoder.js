@@ -109,6 +109,7 @@ const { KeyBytes, EscPrefixedKeys, byteToUnicode } = require('./charset.js');
 
 const DEFAULT_ESC_TIMEOUT_MS = 100;
 const DEFAULT_CR_WINDOW_MS = 250;
+const MAX_TIMER_MS = 0x7fffffff;
 
 const ESC = 0x1b;
 
@@ -195,13 +196,22 @@ function decodeByte(byte, standIns) {
 }
 
 function createAtasciiInputDecoder(options = {}) {
-    const escTimeoutMs = Number.isFinite(options.escTimeoutMs)
-        ? Math.max(0, options.escTimeoutMs)
-        : DEFAULT_ESC_TIMEOUT_MS;
-    const crWindowMs = Number.isFinite(options.crWindowMs)
-        ? Math.max(0, options.crWindowMs)
-        : DEFAULT_CR_WINDOW_MS;
-    const standIns = false === options.standIns ? null : options.standIns || StandIns;
+    //  setTimeout() treats a delay above 2^31-1 ms as 1 ms: keep within it
+    const boundedMs = (value, fallback) =>
+        Number.isFinite(value) ? Math.min(MAX_TIMER_MS, Math.max(0, value)) : fallback;
+    const escTimeoutMs = boundedMs(options.escTimeoutMs, DEFAULT_ESC_TIMEOUT_MS);
+    const crWindowMs = boundedMs(options.crWindowMs, DEFAULT_CR_WINDOW_MS);
+
+    //  false: none; a table: that table; anything else (true, unset): the default
+    let standIns = StandIns;
+    if (false === options.standIns) {
+        standIns = null;
+    } else if (options.standIns && 'object' === typeof options.standIns) {
+        standIns = options.standIns;
+    }
+
+    //  elapsed time that cannot run backwards, for the CR window
+    const now = () => Number(process.hrtime.bigint() / 1000000n);
 
     let pendingEsc = false;
     let pendingEmit = null;
@@ -253,6 +263,12 @@ function createAtasciiInputDecoder(options = {}) {
         };
 
         for (let i = 0; i < bytes.length; ++i) {
+            //  a key handler may end the session (dispose()) part-way through
+            //  a buffer: nothing more is decoded or emitted after that
+            if (disposed) {
+                break;
+            }
+
             const byte = bytes[i] & 0xff;
 
             if (pendingEsc) {
@@ -274,7 +290,7 @@ function createAtasciiInputDecoder(options = {}) {
                 afterCr = false;
                 if (
                     (0x0a === byte || 0x00 === byte) &&
-                    (crCall === callNo || Date.now() - crTime <= crWindowMs)
+                    (crCall === callNo || now() - crTime <= crWindowMs)
                 ) {
                     continue;
                 }
@@ -288,7 +304,7 @@ function createAtasciiInputDecoder(options = {}) {
             if (0x0d === byte) {
                 afterCr = true;
                 crCall = callNo;
-                crTime = Date.now();
+                crTime = now();
             }
 
             const decoded = decodeByte(byte, standIns);
@@ -297,7 +313,7 @@ function createAtasciiInputDecoder(options = {}) {
             }
         }
 
-        if (pendingEsc) {
+        if (pendingEsc && !disposed) {
             if (0 === escTimeoutMs) {
                 pendingEsc = false;
                 out(...escapeKey());

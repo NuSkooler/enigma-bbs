@@ -373,4 +373,41 @@ describe('ATASCII input decoder', function () {
             }
         });
     });
+    describe('review fixes', function () {
+        it('nothing is emitted after dispose(), even from inside a key handler', function (done) {
+            const decoder = createAtasciiInputDecoder({ escTimeoutMs: 5 });
+            const seen = [];
+            decoder.decode(Buffer.from([0x41, 0x42, 0x1b]), {}, (event, ch) => {
+                seen.push(ch);
+                decoder.dispose();
+            });
+            setTimeout(() => {
+                assert.deepEqual(seen, ['A']);
+                done();
+            }, 30);
+        });
+
+        it('a very large escape timeout is not turned into an immediate one', function (done) {
+            const decoder = createAtasciiInputDecoder({ escTimeoutMs: 1e12 });
+            const seen = [];
+            decoder.decode(Buffer.from([0x1b]), {}, (event, ch, key) =>
+                seen.push(key.name)
+            );
+            setTimeout(() => {
+                assert.deepEqual(seen, []);
+                decoder.dispose();
+                done();
+            }, 30);
+        });
+
+        it('standIns: true means the default table', function () {
+            const seen = [];
+            createAtasciiInputDecoder({ standIns: true }).decode(
+                Buffer.from([0x17, 0x1a, 0x18]),
+                {},
+                (event, ch, key) => seen.push(key.name)
+            );
+            assert.deepEqual(seen, ['page up', 'page down', 'end']);
+        });
+    });
 });
