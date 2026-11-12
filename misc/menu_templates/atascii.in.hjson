@@ -1,0 +1,1306 @@
+{
+    /*
+        ATASCII starter menus (#593)
+        ------------------------------- -   -
+        A small menu tree for Atari 8-bit style callers (ATASCII
+        terminals), laid out for a 40x24 screen in one colour. It goes with
+        the starter theme in misc/atascii_starter/, which holds the art
+        (.ata files) and the view layouts for exactly these menus.
+        "oputil.js config new" can set both up; see the ATASCII page in the
+        documentation.
+
+        A caller reaches this tree in one of two ways:
+
+        *   The stock connect menu, telnetConnected, branches on the
+            session's terminal emulation (the TE ACS code): an ATASCII
+            caller goes on to atasciiMatrix, everyone else to the stock
+            matrix (a board with the PETSCII starter too has a TE[petscii]
+            branch beside it). "config new" writes that branch; on an
+            existing board, change telnetConnected's "next" by hand (see the
+            documentation). The starter theme has CONNECT art, so the
+            connect screen is ATASCII.
+        *   A telnet listener of its own (loginServers.telnet.listeners in
+            config.hjson) with "emulation: atascii" and
+            "firstMenu: atasciiConnected".
+
+        Every menu here is named "atascii..." and leads only to other menus
+        in this file, or ends the session: an ATASCII caller never lands on
+        a stock (80 column ANSI) menu, which an ATASCII theme has no art for.
+
+        This tree is the PETSCII starter's (petscii.in.hjson) menu for menu:
+        the same menus, modules and flow, with 24 rows instead of 25 and
+        Atari keys. test/atascii_starter.test.js holds the two to that and
+        lists the few places they are allowed to differ; change both.
+
+        New user applications are not offered here yet: "apply" tells the
+        caller to apply from an ANSI terminal.
+
+        Messages (the new-message scan, conferences, areas, the message
+        list, reading, replying and posting with the full-screen editor)
+        are here; search, private mail and the file base are not yet.
+
+        Keys: an Atari has a real ESC key, which opens the editor's menu
+        and goes back, as in the stock menus. It has no Page Up, Page Down,
+        Home or End keys: the ATASCII input decoder reports CTRL W as Page
+        Up, CTRL Z as Page Down and CTRL X as End. Keep shortcuts to keys
+        an Atari-mode terminal can send: not CTRL H, I, J or M (Backspace,
+        Tab, line feed and Return), not CTRL W, X or Z as themselves, no
+        function keys, and none of the characters ` { } ~.
+
+        Extend it the same way as the stock menus: add a menu here, its art
+        to the theme as an .ata file, and its view layout to the theme.
+    */
+    menus: {
+        atasciiConnected: {
+            desc: Connected
+            art: CONNECT
+            next: atasciiMatrix
+            config: {
+                nextTimeout: 2500
+            }
+        }
+
+        atasciiMatrix: {
+            desc: Login Matrix
+            art: AMATRIX
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            submit: true
+                            focus: true
+                            argName: navSelect
+                            hotKeys: {
+                                L: 0
+                                A: 1
+                                G: 2
+                            }
+                            hotKeySubmit: true
+                            items: [
+                                {
+                                    text: "[L] login"
+                                    data: login
+                                }
+                                {
+                                    text: "[A] apply"
+                                    data: apply
+                                }
+                                {
+                                    text: "[G] log off"
+                                    data: logoff
+                                }
+                            ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: "login" }
+                                action: @menu:atasciiLogin
+                            }
+                            {
+                                value: { navSelect: "apply" }
+                                action: @menu:atasciiApply
+                            }
+                            {
+                                value: { navSelect: "logoff" }
+                                action: @menu:atasciiLogoff
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        //
+        //  No new user application for ATASCII callers yet: say where to
+        //  apply, then go back to the matrix.
+        //
+        atasciiApply: {
+            desc: Apply
+            art: AAPPLY
+            config: {
+                pause: atasciiPause
+            }
+        }
+
+        atasciiLogin: {
+            desc: Login
+            art: ALOGIN
+            next: [
+                {
+                    //  users with 2FA/OTP enabled *must* go through it
+                    acs: AR2
+                    next: atasciiLoginTwoFactorAuthOTPLoop
+                }
+                {
+                    next: atasciiLoginLastCallers
+                }
+            ]
+            config: {
+                tooNodeMenu: atasciiLoginTooNode
+                inactive: atasciiLoginAccountInactive
+                disabled: atasciiLoginAccountDisabled
+                locked: atasciiLoginAccountLocked
+            }
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            maxLength: @config:users.usernameMax
+                            argName: username
+                            focus: true
+                        }
+                        ET2: {
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            argName: password
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { password: null }
+                                action: @systemMethod:login
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        atasciiLoginTooNode: {
+            desc: Already Logged In
+            art: ATOONODE
+            config: {
+                pause: atasciiPause
+            }
+            next: atasciiLogoff
+        }
+
+        atasciiLoginAccountLocked: {
+            desc: Account Locked
+            art: ALOCKED
+            config: {
+                pause: atasciiPause
+            }
+            next: atasciiLogoff
+        }
+
+        atasciiLoginAccountDisabled: {
+            desc: Account Disabled
+            art: ADISABLED
+            config: {
+                pause: atasciiPause
+            }
+            next: atasciiLogoff
+        }
+
+        atasciiLoginAccountInactive: {
+            desc: Inactive Account
+            art: AINACTIVE
+            config: {
+                pause: atasciiPause
+            }
+            next: atasciiLogoff
+        }
+
+        //
+        //  Empty menu to hold a 2FA/OTP login in a loop until the user
+        //  authenticates or the system boots them, as the stock login does.
+        //
+        atasciiLoginTwoFactorAuthOTPLoop: {
+            next: atasciiLoginTwoFactorAuthOTP
+        }
+
+        atasciiLoginTwoFactorAuthOTP: {
+            desc: 2FA
+            art: A2FAOTP
+            next: atasciiLoginLastCallers
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: token
+                            focus: true
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { token: null }
+                                action: @systemMethod:login2FA_OTP
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            //  no turning back at this point...
+                            keys: [ "escape" ]
+                            action: @systemMethod:logoff
+                        }
+                    ]
+                }
+            }
+        }
+
+        atasciiLoginLastCallers: {
+            desc: Last Callers
+            module: last_callers
+            art: ALASTCALL
+            config: {
+                pause: atasciiPause
+            }
+            next: [
+                {
+                    //  calls >= 2
+                    acs: NC2
+                    next: atasciiLoginNewScanConfirm
+                }
+                {
+                    //  new users: skip the new scan, as the stock login does
+                    next: atasciiMainMenu
+                }
+            ]
+        }
+
+        //
+        //  The new-message scan after login, as the stock login sequence
+        //  offers it (fullLoginSequenceNewScanConfirm), for messages only:
+        //  "skipFileBase" keeps new_scan out of the file base, which has no
+        //  ATASCII menus. Every menu the scan can go to is named here.
+        //
+        atasciiLoginNewScanConfirm: {
+            desc: Logging In
+            art: ANSCONF
+            form: {
+                0: {
+                    mci: {
+                        TM1: {
+                            argName: promptValue
+                            items: [ "yes", "no" ]
+                            focus: true
+                            submit: true
+                            hotKeys: {
+                                Y: 0
+                                N: 1
+                            }
+                            hotKeySubmit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { promptValue: 0 }
+                                action: @menu:atasciiLoginNewScan
+                            }
+                            {
+                                value: { promptValue: 1 }
+                                action: @menu:atasciiMainMenu
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        atasciiLoginNewScan: {
+            desc: New Scan
+            module: new_scan
+            art: ANEWSCAN
+            next: atasciiMainMenu
+            config: {
+                skipFileBase: true
+                newScanMessageList: atasciiNewScanMessageList
+                newScanActivityPubList: atasciiNewScanMessageList
+                pause: atasciiPause
+            }
+        }
+
+        atasciiMainMenu: {
+            desc: Main Menu
+            art: AMAIN
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            submit: true
+                            focus: true
+                            argName: navSelect
+                            hotKeys: {
+                                M: 0
+                                W: 1
+                                L: 2
+                                G: 3
+                            }
+                            hotKeySubmit: true
+                            items: [
+                                {
+                                    text: "[M] messages"
+                                    data: messages
+                                }
+                                {
+                                    text: "[W] who's online"
+                                    data: whosOnline
+                                }
+                                {
+                                    text: "[L] last callers"
+                                    data: lastCallers
+                                }
+                                {
+                                    text: "[G] log off"
+                                    data: logoff
+                                }
+                            ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: "messages" }
+                                action: @menu:atasciiMessageMenu
+                            }
+                            {
+                                value: { navSelect: "whosOnline" }
+                                action: @menu:atasciiWhosOnline
+                            }
+                            {
+                                value: { navSelect: "lastCallers" }
+                                action: @menu:atasciiLastCallers
+                            }
+                            {
+                                value: { navSelect: "logoff" }
+                                action: @menu:atasciiLogoff
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        atasciiWhosOnline: {
+            desc: Who's Online
+            module: whos_online
+            art: AWHOSON
+            config: {
+                pause: atasciiPause
+            }
+        }
+
+        atasciiLastCallers: {
+            desc: Last Callers
+            module: last_callers
+            art: ALASTCALL
+            config: {
+                pause: atasciiPause
+            }
+        }
+
+        //
+        //  Messages: pick a conference and an area, list the area's
+        //  messages, read them, reply, and post. The stock equivalents are
+        //  in message_base.in.hjson (messageBaseMainMenu and the menus it
+        //  leads to); these are the same modules with 40 column art and
+        //  only keys an Atari keyboard has. "escape" below is the Atari's
+        //  ESC key; the ATASCII input decoder reports CTRL W / CTRL Z as
+        //  "page up" / "page down". Not here yet: search,
+        //  private mail, uploads and downloads.
+        //
+        atasciiMessageMenu: {
+            desc: Message Menu
+            art: AMSGMENU
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            submit: true
+                            focus: true
+                            argName: navSelect
+                            hotKeys: {
+                                N: 0
+                                L: 1
+                                P: 2
+                                A: 3
+                                J: 4
+                                Q: 5
+                            }
+                            hotKeySubmit: true
+                            items: [
+                                {
+                                    text: "[N] new messages"
+                                    data: newScan
+                                }
+                                {
+                                    text: "[L] list messages"
+                                    data: list
+                                }
+                                {
+                                    text: "[P] post a message"
+                                    data: post
+                                }
+                                {
+                                    text: "[A] change area"
+                                    data: area
+                                }
+                                {
+                                    text: "[J] join conference"
+                                    data: conf
+                                }
+                                {
+                                    text: "[Q] main menu"
+                                    data: quit
+                                }
+                            ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: "newScan" }
+                                action: @menu:atasciiMessageNewScan
+                            }
+                            {
+                                value: { navSelect: "list" }
+                                action: @menu:atasciiMessageList
+                            }
+                            {
+                                value: { navSelect: "post" }
+                                action: @menu:atasciiMessagePost
+                            }
+                            {
+                                value: { navSelect: "area" }
+                                action: @menu:atasciiMessageAreaList
+                            }
+                            {
+                                value: { navSelect: "conf" }
+                                action: @menu:atasciiMessageConfList
+                            }
+                            {
+                                value: { navSelect: "quit" }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        atasciiMessageConfList: {
+            desc: Changing Confs
+            art: AMSGCONF
+            module: msg_conf_list
+            config: {
+                //  for a conference with art of its own
+                changeConfPreArtMenu: atasciiMessageConfPreArt
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: conf
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { conf: null }
+                                action: @method:changeConference
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        atasciiMessageAreaList: {
+            desc: Message Area List
+            art: AMSGAREA
+            module: msg_area_list
+            config: {
+                //  for an area with art of its own
+                changeAreaPreArtMenu: atasciiMessageAreaPreArt
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: area
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { area: null }
+                                action: @method:changeArea
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  A conference can name art of its own ("art" in its config.hjson
+        //  entry), shown when a caller picks it. An ATASCII caller sees it
+        //  only if the ATASCII theme has an .ata file of that name; otherwise
+        //  nothing is shown ("optional"). An area can name art too, but the
+        //  show_art module does not show area art yet (stock or ATASCII);
+        //  the menu is here so that an area with art stays in this tree.
+        //
+        atasciiMessageConfPreArt: {
+            desc: Viewing Art
+            module: show_art
+            config: {
+                method: messageConf
+                key: confTag
+                optional: true
+                pause: atasciiPause
+                cls: true
+                menuFlags: [ "noHistory" ]
+            }
+        }
+
+        atasciiMessageAreaPreArt: {
+            desc: Viewing Art
+            module: show_art
+            config: {
+                method: messageArea
+                key: areaTag
+                optional: true
+                pause: atasciiPause
+                cls: true
+                menuFlags: [ "noHistory" ]
+            }
+        }
+
+        //  the new-message scan from the message menu; back there when done
+        atasciiMessageNewScan: {
+            desc: New Scan
+            module: new_scan
+            art: ANEWSCAN
+            config: {
+                skipFileBase: true
+                newScanMessageList: atasciiNewScanMessageList
+                newScanActivityPubList: atasciiNewScanMessageList
+                pause: atasciiPause
+            }
+        }
+
+        //
+        //  An area with new messages, during the scan: Q goes on to the next
+        //  area, X stops the scan, M marks the area read. (An ActivityPub
+        //  area, which the stock tree shows in its own browser, is listed
+        //  here too.)
+        //
+        atasciiNewScanMessageList: {
+            desc: New Message List
+            module: msg_list
+            art: ANEWMSGS
+            config: {
+                menuViewPost: atasciiMessageRead
+                menuNewPost: atasciiMessagePost
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: messageIndex
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { messageIndex: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "x", "shift + x" ]
+                            action: @method:fullExit
+                        }
+                        {
+                            keys: [ "m", "shift + m" ]
+                            action: @method:markAllRead
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
+                }
+            }
+        }
+
+        atasciiMessageList: {
+            desc: Message List
+            module: msg_list
+            art: AMSGLIST
+            config: {
+                menuViewPost: atasciiMessageRead
+                menuNewPost: atasciiMessagePost
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: messageIndex
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { messageIndex: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  The full-screen editor reading a message. Its screen is a header,
+        //  the body and a footer, each its own art, and each its own form:
+        //  0 header, 1 body, 4 the reader's footer. The help screen is the
+        //  art named "help".
+        //
+        atasciiMessageRead: {
+            desc: Viewing Message
+            module: msg_area_view_fse
+            config: {
+                art: {
+                    header: AMSGVHDR
+                    body: AMSGBODY
+                    footerView: AMSGVFTR
+                    footerFind: AMSGFIND
+                    help: AMSGVHLP
+                }
+                //  a reply to a sender with no account here (pre-login
+                //  feedback); without this the module names a stock menu
+                noReplyGhostSenderMenu: atasciiMessageNoReply
+                editorMode: view
+                editorType: area
+            }
+            form: {
+                0: {
+                    mci: {
+                    }
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            mode: preview
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: message
+                                action: @method:editModeEscPressed
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                    ]
+                }
+                4: {
+                    mci: {
+                        HM1: {
+                            items: [ "prev", "next", "reply", "quit", "help" ]
+                            focusItemIndex: 1
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { 1: 0 }
+                                action: @method:prevMessage
+                            }
+                            {
+                                value: { 1: 1 }
+                                action: @method:nextMessage
+                            }
+                            {
+                                value: { 1: 2 }
+                                action: @method:replyMessage
+                                extraArgs: {
+                                    menu: atasciiMessageReply
+                                }
+                            }
+                            {
+                                value: { 1: 3 }
+                                action: @systemMethod:prevMenu
+                            }
+                            {
+                                value: { 1: 4 }
+                                action: @method:viewModeMenuHelp
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:prevMessage
+                        }
+                        {
+                            keys: [ "n", "shift + n" ]
+                            action: @method:nextMessage
+                        }
+                        {
+                            keys: [ "r", "shift + r" ]
+                            action: @method:replyMessage
+                            extraArgs: {
+                                menu: atasciiMessageReply
+                            }
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "?" ]
+                            action: @method:viewModeMenuHelp
+                        }
+                        {
+                            //  page up / down are CTRL W / CTRL Z for an ATASCII caller
+                            keys: [ "down arrow", "up arrow", "page up", "page down" ]
+                            action: @method:movementKeyPressed
+                        }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:viewModeFind
+                        }
+                        {
+                            keys: [ "ctrl + n" ]
+                            action: @method:viewModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:viewModeFindPrev
+                        }
+                    ]
+                }
+                //  find: what to look for; ESC cancels and clears the matches
+                6: {
+                    mci: {
+                        ET1: {
+                            argName: query
+                            maxLength: 100
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        1: [
+                            {
+                                value: { query: null }
+                                action: @method:footerFindSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:footerFindCancel
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  The full-screen editor writing a new message: forms 0 header
+        //  (to, subject), 1 body, 2 the editing footer, 3 the editor menu
+        //  that ESC opens (save, discard, help). There is no upload here.
+        //  CTRL S saves at once, as in the stock editor.
+        //
+        atasciiMessagePost: {
+            desc: Posting Message
+            module: msg_area_post_fse
+            config: {
+                art: {
+                    header: AMSGEHDR
+                    body: AMSGBODY
+                    footerEditor: AMSGEFTR
+                    footerEditorMenu: AMSGEMFT
+                    footerFind: AMSGFIND
+                    help: AMSGEHLP
+                }
+                editorMode: edit
+                editorType: area
+                messageBasePostMessageNoAccess: atasciiMessagePostNoAccess
+                //  so that leaving for the no access notice comes back to
+                //  the menu before this one, not here
+                menuFlags: [ "noHistory" ]
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL1: {
+                            argName: from
+                        }
+                        ET2: {
+                            argName: to
+                            focus: true
+                            text: All
+                            validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:headerEscapePressed
+                        }
+                    ]
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            argName: message
+                            mode: edit
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: message
+                                action: @method:editModeEscPressed
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                        {
+                            keys: [ "ctrl + s" ]
+                            action: @method:editModeQuickSave
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
+                        {
+                            keys: [ "ctrl + a" ]
+                            action: @method:editModeChangeSubject
+                        }
+                        {
+                            //  the editor's find goes to the first match (it
+                            //  keeps no matches to step through while editing)
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
+                        }
+                    ]
+                }
+                2: {
+                    mci: {
+                        SB1: {
+                            width: 9
+                            anchor: left
+                            justify: left
+                            separator: " "
+                            panels: [
+                                {
+                                    name: mode
+                                    width: 3
+                                    justify: right
+                                }
+                                {
+                                    name: pos
+                                    width: 5
+                                    justify: left
+                                }
+                            ]
+                        }
+                    }
+                }
+                3: {
+                    mci: {
+                        HM1: {
+                            items: [ "save", "discard", "help" ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { 1: 0 }
+                                action: @method:editModeMenuSave
+                            }
+                            {
+                                value: { 1: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                            {
+                                value: { 1: 2 }
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:editModeEscPressed
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:editModeMenuSave
+                        }
+                        {
+                            keys: [ "d", "shift + d" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "?", "h", "shift + h" ]
+                            action: @method:editModeMenuHelp
+                        }
+                    ]
+                }
+                //  find: what to look for; ESC cancels
+                6: {
+                    mci: {
+                        ET1: {
+                            argName: query
+                            maxLength: 100
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        1: [
+                            {
+                                value: { query: null }
+                                action: @method:footerFindSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:footerFindCancel
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  A reply: as atasciiMessagePost, with "quote" in the editor menu
+        //  and form 5, the quote builder (MT1 the lines picked so far, VM3
+        //  the message's lines to pick from), drawn below the header.
+        //
+        atasciiMessageReply: {
+            desc: Replying to Message
+            module: msg_area_post_fse
+            config: {
+                art: {
+                    header: AMSGEHDR
+                    body: AMSGBODY
+                    quote: AMSGQUOT
+                    footerEditor: AMSGEFTR
+                    footerEditorMenu: AMSGEMFT
+                    footerFind: AMSGFIND
+                    help: AMSGEHLP
+                }
+                editorMode: edit
+                editorType: area
+                messageBasePostMessageNoAccess: atasciiMessagePostNoAccess
+                //  so that leaving for the no access notice comes back to
+                //  the menu before this one, not here
+                menuFlags: [ "noHistory" ]
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL1: {
+                            argName: from
+                        }
+                        ET2: {
+                            argName: to
+                            focus: true
+                            validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:headerEscapePressed
+                        }
+                    ]
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            argName: message
+                            mode: edit
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: message
+                                action: @method:editModeEscPressed
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                        {
+                            keys: [ "ctrl + s" ]
+                            action: @method:editModeQuickSave
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
+                        {
+                            keys: [ "ctrl + a" ]
+                            action: @method:editModeChangeSubject
+                        }
+                        {
+                            //  the editor's find goes to the first match (it
+                            //  keeps no matches to step through while editing)
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
+                        }
+                    ]
+                }
+                2: {
+                    mci: {
+                        SB1: {
+                            width: 9
+                            anchor: left
+                            justify: left
+                            separator: " "
+                            panels: [
+                                {
+                                    name: mode
+                                    width: 3
+                                    justify: right
+                                }
+                                {
+                                    name: pos
+                                    width: 5
+                                    justify: left
+                                }
+                            ]
+                        }
+                    }
+                }
+                3: {
+                    mci: {
+                        HM1: {
+                            items: [ "save", "discard", "quote", "help" ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { 1: 0 }
+                                action: @method:editModeMenuSave
+                            }
+                            {
+                                value: { 1: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                            {
+                                value: { 1: 2 }
+                                action: @method:editModeMenuQuote
+                            }
+                            {
+                                value: { 1: 3 }
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:editModeEscPressed
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:editModeMenuSave
+                        }
+                        {
+                            keys: [ "d", "shift + d" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "q", "shift + q" ]
+                            action: @method:editModeMenuQuote
+                        }
+                        {
+                            keys: [ "?", "h", "shift + h" ]
+                            action: @method:editModeMenuHelp
+                        }
+                    ]
+                }
+                5: {
+                    mci: {
+                        MT1: {
+                        }
+                        VM3: {
+                            argName: quote
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { quote: null }
+                                action: @method:appendQuoteEntry
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:quoteBuilderEscPressed
+                        }
+                    ]
+                }
+                //  find: what to look for; ESC cancels
+                6: {
+                    mci: {
+                        ET1: {
+                            argName: query
+                            maxLength: 100
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        1: [
+                            {
+                                value: { query: null }
+                                action: @method:footerFindSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:footerFindCancel
+                        }
+                    ]
+                }
+            }
+        }
+
+        atasciiMessagePostNoAccess: {
+            desc: No Access
+            art: AMSGNOACC
+            config: {
+                pause: atasciiPause
+            }
+        }
+
+        atasciiMessageNoReply: {
+            desc: No Reply - Ghost Sender
+            art: AMSGNORPL
+            config: {
+                pause: atasciiPause
+            }
+        }
+
+        atasciiLogoff: {
+            desc: Logging Off
+            art: ALOGOFF
+            next: @systemMethod:logoff
+        }
+    }
+
+    prompts: {
+        //  The pause prompt for this tree; the stock one is drawn for ANSI
+        atasciiPause: {
+            art: APAUSE
+            config: {
+                trailingLF: no
+            }
+        }
+    }
+}

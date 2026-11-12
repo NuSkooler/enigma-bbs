@@ -26,3 +26,7 @@ test/fixtures/area_lists/** -text
 # Native PETSCII art (Commodore sequential files) is binary
 *.seq binary
 *.SEQ binary
+
+# Native ATASCII art (Atari 8-bit screen streams) is binary
+*.ata binary
+*.ATA binary
