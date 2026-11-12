@@ -131,6 +131,37 @@ it just connects and dumps the first screen. Each step writes `NN-name.txt`
 (numbered screen plus cursor position) to the out directory, and `raw.log` holds
 the decoded byte stream. Compare two sizes with `diff -r`.
 
+## RIPscrip callers
+
+ENiGMA sends every ANSI caller the RIPscrip version query at connect (#989).
+`term_client.py` can answer it as a RIP terminal does, with `RIPSCRIP015410`
+(`--rip-version` for another):
+
+* `--rip off` (default) does not answer: SyncTERM with RIP off, and every
+  other terminal.
+* `--rip prompt` answers as soon as the query arrives, as SyncTERM with RIP
+  on does.
+* `--rip late` leaves it to the walk, which calls `s.send_rip_reply()`.
+  ENiGMA only looks for the reply for 30 seconds after sending the query,
+  and takes one reply at most; a reply sent later (or a second one) is
+  ordinary input and ends up in whatever field has focus, by design.
+* `--rip-nul` ends the reply with a NUL, as IcyTerm does; `--term RIP` is
+  IcyTerm's terminal type.
+
+On exit the client prints `ripQueries=` (queries received) and `ripReplies=`.
+`walk_rip_login.py` logs an existing user in and, under `--rip late`, sends the
+reply half way through typing the user name; it exits 1 if the reply shows on
+screen or the login fails. Look for `Terminal emulation layer "rip" attached`
+in the instance log:
+
+    python3 term_client.py --walk walk_rip_login.py --user tester --rip late --rip-nul
+    python3 term_client.py --walk walk_rip_login.py --user tester --rip prompt --term RIP
+    python3 term_client.py --walk walk_rip_login.py --user tester           # does not answer
+
+`--raw-out FILE` (here and on `petscii_walk.js`) writes every byte received,
+telnet stripped, so two builds can be compared byte for byte. `petscii_walk.js`
+also prints `ripQueries=`, which must be 0 for a PETSCII or ATASCII caller.
+
 ## Reading the off-screen report
 
 On exit the client prints, per screen label:

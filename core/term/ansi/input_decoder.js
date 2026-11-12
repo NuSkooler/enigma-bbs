@@ -46,6 +46,11 @@
 //      'device attributes', { termClient, version }    a DA reply we know
 //      'cterm capability response', { id, value }      CSI = Ps ; Pv n
 //      'cterm device attributes', caps   a CTDA reply, parsed
+//      'rip version', reply              the RIPscrip version reply, e.g.
+//                                        'RIPSCRIP015410', once at most, in
+//                                        the window after the query (decoder
+//                                        instances only; see
+//                                        createAnsiInputDecoder)
 //
 //  |host| supplies the one piece of terminal state key naming needs:
 //
@@ -58,6 +63,7 @@ const {
     getTermClientFromDeviceAttr,
     getCtermCapabilitiesFromCtda,
 } = require('./device_attributes.js');
+const { createRipReplyScanner } = require('../rip/reply_scanner.js');
 const assert = require('assert');
 
 //
@@ -366,9 +372,49 @@ function decode(data, host, emit) {
     });
 }
 
-//  ANSI decoding keeps nothing between chunks, so one decoder serves everyone
-function createAnsiInputDecoder() {
-    return { decode };
+//
+//  A decoder for one connection. Key and query reply decoding keeps nothing
+//  between chunks (that is decode() above); in front of it sits the RIPscrip
+//  reply scanner (../rip/reply_scanner.js). expectRipReply() is called as the
+//  version query is sent; from then until the window closes (30 seconds) the
+//  scanner takes the first reply out of the input and reports it as
+//  'rip version'. Before and after, input goes straight to decode(). The
+//  scanner can hold back a few bytes that might start a reply split across
+//  chunks, so it is per connection, and dispose() drops what it holds.
+//
+//  |options.ripReply| is passed to the scanner ({ windowMs, holdMs,
+//  nulWindowMs }). When the scanner's hold timer hands bytes on and decoding
+//  them throws (a key handler failing), the error goes to the |host| of the
+//  latest decode() call, as host.reportError(err), if it has one; the client
+//  logs it.
+//
+function createAnsiInputDecoder(options = {}) {
+    let lastHost;
+    const ripReplies = createRipReplyScanner(
+        Object.assign({}, options.ripReply, {
+            onError: err => {
+                if (lastHost && 'function' === typeof lastHost.reportError) {
+                    lastHost.reportError(err);
+                }
+            },
+        })
+    );
+
+    return {
+        expectRipReply() {
+            ripReplies.expectReply();
+        },
+        decode(data, host, emit) {
+            lastHost = host;
+            ripReplies.scan(data, {
+                bytes: chunk => decode(chunk, host, emit),
+                reply: reply => emit('rip version', reply),
+            });
+        },
+        dispose() {
+            ripReplies.dispose();
+        },
+    };
 }
 
 module.exports = {

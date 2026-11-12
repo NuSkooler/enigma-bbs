@@ -6,11 +6,14 @@
 //
 //  ANSI is the default for every client. PETSCII and ATASCII are the other
 //  base emulations so far; a client gets one only by asking (see ./select.js).
+//  RIPscrip is a layer on ANSI (./rip), attached when the terminal says it
+//  draws RIP.
 //
 const { Emulation } = require('./emulation.js');
 const ansiDefinition = require('./ansi');
 const petsciiDefinition = require('./petscii');
 const atasciiDefinition = require('./atascii');
+const rip = require('./rip');
 
 const DEFAULT_EMULATION = 'ansi';
 
@@ -20,9 +23,27 @@ const definitions = new Map([
     [atasciiDefinition.name, atasciiDefinition],
 ]);
 
+//  Layers, by name: each makes a new layer for one client from |info|
+const layerFactories = new Map([[rip.LAYER_NAME, rip.createRipLayer]]);
+
 //  true when a base emulation called |name| is implemented
 function emulationExists(name) {
     return definitions.has(name);
+}
+
+//  true when a layer called |name| is implemented
+function layerExists(name) {
+    return layerFactories.has(name);
+}
+
+//  A new layer for one client; |info| is what the layer takes (rip: version,
+//  source)
+function createLayer(name, info) {
+    const factory = layerFactories.get(name);
+    if (!factory) {
+        throw new Error(`Unknown terminal emulation layer "${name}"`);
+    }
+    return factory(info);
 }
 
 function emulationNames() {
@@ -60,7 +81,9 @@ module.exports = {
     DEFAULT_EMULATION,
     Emulation,
     createEmulation,
+    createLayer,
     emulationExists,
+    layerExists,
     emulationNames,
     emulationOf,
 };
