@@ -15,6 +15,10 @@
 //                              (<instanceDir>/themes: the stock theme and
 //                              the starter theme copied), so nothing is added
 //                              to the checkout's art/themes.
+//    --atascii                 the same for the ATASCII starter; with
+//                              --petscii too, the connect menu gets both
+//                              branches, as "config new" writes them on
+//                              Yes to both questions.
 //    --second-emulation=NAME   give the second listener "emulation: NAME"
 const fs = require('fs');
 const paths = require('path');
@@ -26,6 +30,9 @@ const MARKER = '.term_harness_instance';
 const args = process.argv.slice(2);
 const flags = args.filter(a => a.startsWith('--'));
 const petscii = flags.includes('--petscii');
+const atascii = flags.includes('--atascii');
+//  the starters asked for, by emulation name
+const starterNames = [petscii && 'petscii', atascii && 'atascii'].filter(Boolean);
 const secondEmulationFlag = flags.find(f => f.startsWith('--second-emulation='));
 const secondEmulation = secondEmulationFlag && secondEmulationFlag.split('=')[1];
 const [
@@ -83,10 +90,10 @@ for (const d of [
 
 const {
     ConfigIncludeKeys,
-    PetsciiStarter,
-    applyPetsciiStarterConfig,
-    copyPetsciiStarterTheme,
-    addPetsciiConnectBranch,
+    Starters,
+    applyStarterConfig,
+    copyStarterTheme,
+    addConnectBranches,
 } = require(paths.join(root, 'core/oputil/oputil_config.js'));
 const defaultConfig = require(paths.join(root, 'core/config_default'))();
 const template = hjson.rt.parse(
@@ -152,24 +159,17 @@ const includes = [
 ].map(n => {
     const out = `harness-${n}.hjson`;
     const from = paths.join(root, 'misc/menu_templates', `${n}.in.hjson`);
-    if (petscii && 'login' === n) {
+    if (starterNames.length > 0 && 'login' === n) {
         fs.writeFileSync(
             paths.join(inst, 'menus', out),
-            addPetsciiConnectBranch(fs.readFileSync(from, 'utf8'))
+            addConnectBranches(fs.readFileSync(from, 'utf8'), starterNames)
         );
     } else {
         fs.copyFileSync(from, paths.join(inst, 'menus', out));
     }
     return out;
 });
-if (petscii) {
-    const out = `harness-${PetsciiStarter.menuTemplate.replace('.in', '')}`;
-    fs.copyFileSync(
-        paths.join(root, 'misc/menu_templates', PetsciiStarter.menuTemplate),
-        paths.join(inst, 'menus', out)
-    );
-    includes.push(out);
-
+if (starterNames.length > 0) {
     const themesDir = paths.join(inst, 'themes');
     fs.mkdirSync(themesDir, { recursive: true });
     const stock = paths.join(themesDir, 'luciano_blocktronics');
@@ -177,13 +177,23 @@ if (petscii) {
     fs.cpSync(paths.join(root, 'art/themes/luciano_blocktronics'), stock, {
         recursive: true,
     });
-    fs.rmSync(paths.join(themesDir, PetsciiStarter.themeId), {
-        recursive: true,
-        force: true,
-    });
-    copyPetsciiStarterTheme(themesDir);
     config.paths.themes = themesDir + '/';
-    applyPetsciiStarterConfig(config);
+
+    starterNames.forEach(name => {
+        const starter = Starters[name];
+        const out = `harness-${starter.menuTemplate.replace('.in', '')}`;
+        fs.copyFileSync(
+            paths.join(root, 'misc/menu_templates', starter.menuTemplate),
+            paths.join(inst, 'menus', out)
+        );
+        includes.push(out);
+        fs.rmSync(paths.join(themesDir, starter.themeId), {
+            recursive: true,
+            force: true,
+        });
+        copyStarterTheme(themesDir, name);
+        applyStarterConfig(config, name);
+    });
 }
 const main = fs
     .readFileSync(paths.join(root, 'misc/menu_templates/main.in.hjson'), 'utf8')
@@ -203,6 +213,8 @@ const second =
         : `, second listener 127.0.0.1:${secondPort} -> ${secondFirstMenu}`;
 console.log(
     `instance written to ${inst} (telnet 127.0.0.1:${port}${second}${
-        petscii ? ', PETSCII starter' : ''
+        starterNames.length > 0
+            ? `, ${starterNames.map(n => Starters[n].label).join(' and ')} starter`
+            : ''
     })`
 );

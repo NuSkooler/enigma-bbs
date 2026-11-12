@@ -3,12 +3,14 @@
 //
 //  The ATASCII starter (#593): the menu tree in
 //  misc/menu_templates/atascii.in.hjson, the starter theme in
-//  misc/atascii_starter/, its generated art, and how it is kept in step with
-//  the PETSCII starter.
+//  misc/atascii_starter/, its generated art, how it is kept in step with the
+//  PETSCII starter, and how "oputil.js config new" opts a board in to either
+//  starter, both, or (by default) neither.
 //
 
 const { strict: assert } = require('assert');
 const fs = require('fs');
+const os = require('os');
 const paths = require('path');
 const hjson = require('hjson');
 const _ = require('lodash');
@@ -100,6 +102,30 @@ function renamedPetsciiTree() {
     };
     return rename(petsciiTree(), null);
 }
+
+//  telnetConnected as origin/master's config new writes it on Yes to the
+//  PETSCII question (copied from master's PetsciiTelnetConnected)
+const MASTER_PETSCII_TELNET_CONNECTED = `        telnetConnected: {
+            desc: Telnet Connect
+            art: CONNECT
+            next: [
+                {
+                    //  PETSCII (Commodore) callers: the PETSCII starter menus
+                    acs: TE[petscii]
+                    next: petsciiMatrix
+                }
+                {
+                    next: matrix
+                }
+            ]
+            config: { nextTimeout: 1500 }
+        }`;
+const STOCK_TELNET_CONNECTED = `        telnetConnected: {
+            desc: Telnet Connect
+            art: CONNECT
+            next: matrix
+            config: { nextTimeout: 1500 }
+        }`;
 
 describe('ATASCII starter menus (#593)', () => {
     it('every menu and prompt is named atascii...', () => {
@@ -590,5 +616,442 @@ describe('ATASCII starter theme shows focus in inverse video (#593)', () => {
             pipeToAnsi(tm.styleSGR2) + 'yes' + pipeToAnsi(tm.styleSGR1) + ' / no';
         const cells = inverseCells(both, 8);
         assert.deepEqual(cells, [true, true, true, false, false, false, false, false]);
+    });
+});
+
+describe('Connect menu branches for the starters (#593)', () => {
+    let addConnectBranches;
+    let addPetsciiConnectBranch;
+
+    before(() => {
+        ({
+            addConnectBranches,
+            addPetsciiConnectBranch,
+        } = require('../core/oputil/oputil_config.js'));
+    });
+
+    const loginText = () =>
+        fs.readFileSync(paths.join(TEMPLATE_DIR, 'login.in.hjson'), 'utf8');
+
+    function nextFor(menus, emulation) {
+        const ACS = require('../core/acs.js');
+        const client = { term: { emulation: { name: emulation, layers: new Map() } } };
+        const acs = new ACS({ client, user: { groups: [], isGroupMember: () => false } });
+        return acs.getConditionalValue(menus.telnetConnected.next, 'next');
+    }
+
+    it('the PETSCII branch alone is exactly what master writes', () => {
+        const stock = loginText();
+        assert.equal(stock.split(STOCK_TELNET_CONNECTED).length, 2);
+        const master = stock.replace(
+            STOCK_TELNET_CONNECTED,
+            MASTER_PETSCII_TELNET_CONNECTED
+        );
+        assert.equal(addPetsciiConnectBranch(stock), master);
+        assert.equal(addConnectBranches(stock, ['petscii']), master);
+    });
+
+    it('no starter leaves the text as it is', () => {
+        assert.equal(addConnectBranches(loginText(), []), loginText());
+    });
+
+    it('ATASCII alone sends ATASCII sessions to the ATASCII matrix', () => {
+        const menus = hjson.parse(addConnectBranches(loginText(), ['atascii'])).menus;
+        assert.equal(nextFor(menus, 'atascii'), 'atasciiMatrix');
+        assert.equal(nextFor(menus, 'petscii'), 'matrix');
+        assert.equal(nextFor(menus, 'ansi'), 'matrix');
+        assert.deepEqual(menus.telnetConnected.next, [
+            { acs: 'TE[atascii]', next: 'atasciiMatrix' },
+            { next: 'matrix' },
+        ]);
+    });
+
+    it('both compose: PETSCII, ATASCII, then the default, whatever the order asked', () => {
+        [
+            ['petscii', 'atascii'],
+            ['atascii', 'petscii'],
+        ].forEach(asked => {
+            const menus = hjson.parse(addConnectBranches(loginText(), asked)).menus;
+            assert.deepEqual(menus.telnetConnected.next, [
+                { acs: 'TE[petscii]', next: 'petsciiMatrix' },
+                { acs: 'TE[atascii]', next: 'atasciiMatrix' },
+                { next: 'matrix' },
+            ]);
+            assert.equal(nextFor(menus, 'petscii'), 'petsciiMatrix');
+            assert.equal(nextFor(menus, 'atascii'), 'atasciiMatrix');
+            assert.equal(nextFor(menus, 'ansi'), 'matrix');
+        });
+    });
+
+    it('changes nothing but telnetConnected.next', () => {
+        const before = hjson.parse(loginText());
+        const after = hjson.parse(
+            addConnectBranches(loginText(), ['petscii', 'atascii'])
+        );
+        after.menus.telnetConnected.next = before.menus.telnetConnected.next;
+        assert.deepEqual(after, before);
+    });
+
+    it('works on a checkout with CRLF line endings', () => {
+        const crlf = loginText().replace(/\r?\n/g, '\r\n');
+        const out = addConnectBranches(crlf, ['petscii', 'atascii']);
+        assert.ok(!/[^\r]\n/.test(out), 'a bare LF crept in');
+        assert.equal(nextFor(hjson.parse(out).menus, 'atascii'), 'atasciiMatrix');
+    });
+
+    it('refuses text without the stock entry, and an unknown emulation', () => {
+        assert.throws(() => addConnectBranches('{ menus: {} }', ['atascii']), /ATASCII/);
+        assert.throws(
+            () => addConnectBranches('{ menus: {} }', ['petscii', 'atascii']),
+            /PETSCII and ATASCII branches not added/
+        );
+        assert.throws(() => addConnectBranches(loginText(), ['ansi']));
+    });
+});
+
+describe('oputil config new and the starters (#593)', function () {
+    this.timeout(20000);
+
+    let tmp;
+    let restore = [];
+
+    const answersFor = (includePetscii, includeAtascii) => ({
+        createNewConfig: true,
+        configPath: paths.join(tmp, 'out', 'config.hjson'),
+        overwriteConfig: true,
+        boardName: 'Test Board',
+        msgConfName: 'Local',
+        msgConfDesc: 'Local Areas',
+        msgAreaName: 'General',
+        msgAreaDesc: 'General chit-chat',
+        loggingLevel: 'info',
+        includePetscii,
+        includeAtascii,
+    });
+
+    const asked = [];
+
+    function stubInquirer(answers) {
+        const inq = require('inquirer');
+        const prompt = inq.prompt;
+        const BottomBar = inq.ui.BottomBar;
+        inq.prompt = questions => {
+            questions.forEach(q => asked.push(q));
+            return Promise.resolve(
+                _.pick(
+                    answers,
+                    questions.map(q => q.name)
+                )
+            );
+        };
+        inq.ui.BottomBar = class {
+            constructor() {
+                this.log = { write() {} };
+            }
+        };
+        restore.push(() => {
+            inq.prompt = prompt;
+            inq.ui.BottomBar = BottomBar;
+        });
+    }
+
+    function runConfigNew(includePetscii, includeAtascii) {
+        stubInquirer(answersFor(includePetscii, includeAtascii));
+        const { buildNewConfig } = require('../core/oputil/oputil_config.js');
+        const dirs = {
+            installConfigDir: paths.join(tmp, 'config'),
+            themesDir: paths.join(tmp, 'themes'),
+        };
+        fs.mkdirSync(dirs.themesDir, { recursive: true });
+        const log = console.info;
+        console.info = () => {};
+        return new Promise((resolve, reject) => {
+            buildNewConfig(dirs, (err, configPath, result) => {
+                console.info = log;
+                if (err) return reject(new Error(String(err)));
+                const menuDir = paths.join(dirs.installConfigDir, 'menus');
+                resolve({
+                    petsciiNotes: (result && result.petsciiNotes) || [],
+                    atasciiNotes: (result && result.atasciiNotes) || [],
+                    config: readHjson(configPath),
+                    menus: fs.readdirSync(menuDir).sort(),
+                    menuDir,
+                    file: n =>
+                        fs.readFileSync(paths.join(menuDir, `test_board-${n}.hjson`)),
+                    themes: fs.readdirSync(dirs.themesDir).sort(),
+                    themesDir: dirs.themesDir,
+                });
+            });
+        });
+    }
+
+    const template = n => fs.readFileSync(paths.join(TEMPLATE_DIR, `${n}.in.hjson`));
+    const STOCK_MENUS = [
+        'test_board-activitypub.hjson',
+        'test_board-doors.hjson',
+        'test_board-file_base.hjson',
+        'test_board-login.hjson',
+        'test_board-main.hjson',
+        'test_board-message_base.hjson',
+        'test_board-new_user.hjson',
+        'test_board-private_mail.hjson',
+    ];
+    const STOCK_COPIES = [
+        'message_base',
+        'private_mail',
+        'new_user',
+        'doors',
+        'file_base',
+        'activitypub',
+    ];
+
+    //  every menu the generated menus name exists, and so do the themes
+    function validateReferences(out, themeIds) {
+        const ConfigLoader = require('../core/config_loader.js');
+        const merged = readHjson(paths.join(out.menuDir, 'test_board-main.hjson'));
+        merged.includes.forEach(inc =>
+            _.defaultsDeep(merged, readHjson(paths.join(out.menuDir, inc)))
+        );
+        const menus = new ConfigLoader({ hotReload: false })._resolveAtSpecs(
+            merged
+        ).menus;
+        const { validateDeferredReferences } = require('../core/config/refs.js');
+        const issues = validateDeferredReferences(out.config, {
+            themeIds: ['luciano_blocktronics', ...themeIds],
+            menuNames: Object.keys(menus),
+        });
+        assert.deepEqual(issues, []);
+        return menus;
+    }
+
+    beforeEach(() => {
+        tmp = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigma-atascii-starter-'));
+        asked.length = 0;
+    });
+
+    afterEach(() => {
+        restore.forEach(r => r());
+        restore = [];
+        fs.rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it('asks the ATASCII question after the PETSCII one, default No', async () => {
+        await runConfigNew(false, false);
+        const names = asked.map(q => q.name);
+        const p = names.indexOf('includePetscii');
+        const a = names.indexOf('includeAtascii');
+        assert.ok(p >= 0 && a === p + 1, names.join(','));
+        const q = asked[a];
+        assert.equal(q.type, 'confirm');
+        assert.equal(q.default, false);
+        assert.equal(
+            q.message,
+            'Include starter menus and theme for ATASCII (Atari 8-bit) callers?'
+        );
+    });
+
+    it('No / No writes exactly the stock menus and no starter settings', async () => {
+        const out = await runConfigNew(false, false);
+        assert.deepEqual(out.menus, STOCK_MENUS);
+        assert.deepEqual(out.themes, []);
+        assert.equal(_.get(out.config, 'theme.emulations'), undefined);
+        STOCK_COPIES.concat('login').forEach(n =>
+            assert.ok(out.file(n).equals(template(n)), n)
+        );
+        //  main is the template with its includes filled in, as on master
+        const main = template('main')
+            .toString('utf8')
+            .replace(
+                /%INCLUDE_FILES%/g,
+                [
+                    'message_base',
+                    'private_mail',
+                    'login',
+                    'new_user',
+                    'doors',
+                    'file_base',
+                    'activitypub',
+                ]
+                    .map(n => `test_board-${n}.hjson`)
+                    .join('\n\t\t')
+            );
+        assert.equal(out.file('main').toString('utf8'), main);
+        assert.deepEqual(out.petsciiNotes, []);
+        assert.deepEqual(out.atasciiNotes, []);
+    });
+
+    it('PETSCII only writes what master writes on Yes', async () => {
+        const out = await runConfigNew(true, false);
+        assert.deepEqual(
+            out.menus.filter(m => /scii/.test(m)),
+            ['test_board-petscii.hjson']
+        );
+        assert.ok(out.file('petscii').equals(template('petscii')));
+        STOCK_COPIES.forEach(n => assert.ok(out.file(n).equals(template(n)), n));
+        //  master's login: the stock template with master's PETSCII branch
+        const login = out.file('login').toString('utf8');
+        assert.equal(
+            login,
+            template('login')
+                .toString('utf8')
+                .replace(STOCK_TELNET_CONNECTED, MASTER_PETSCII_TELNET_CONNECTED)
+        );
+        assert.notEqual(login, template('login').toString('utf8'));
+        assert.deepEqual(
+            readHjson(paths.join(out.menuDir, 'test_board-login.hjson')).menus
+                .telnetConnected.next,
+            [{ acs: 'TE[petscii]', next: 'petsciiMatrix' }, { next: 'matrix' }]
+        );
+        assert.ok(!/atascii/i.test(out.file('main').toString('utf8')));
+        assert.deepEqual(out.themes, ['petscii_starter']);
+        assert.deepEqual(out.config.theme.emulations, {
+            petscii: { default: 'petscii_starter', preLogin: 'petscii_starter' },
+        });
+        validateReferences(out, ['petscii_starter']);
+    });
+
+    it('ATASCII only adds the ATASCII menus, branch, theme and setting', async () => {
+        const out = await runConfigNew(false, true);
+        assert.deepEqual(
+            out.menus.filter(m => /scii/.test(m)),
+            ['test_board-atascii.hjson']
+        );
+        assert.ok(out.file('atascii').equals(template('atascii')));
+        assert.match(out.file('main').toString('utf8'), /test_board-atascii\.hjson/);
+        assert.ok(!/petscii/i.test(out.file('main').toString('utf8')));
+        const login = readHjson(paths.join(out.menuDir, 'test_board-login.hjson'));
+        assert.deepEqual(login.menus.telnetConnected.next, [
+            { acs: 'TE[atascii]', next: 'atasciiMatrix' },
+            { next: 'matrix' },
+        ]);
+        assert.deepEqual(out.themes, ['atascii_starter']);
+        assert.deepEqual(
+            fs.readdirSync(paths.join(out.themesDir, 'atascii_starter')).sort(),
+            fs.readdirSync(STARTER_DIR).sort()
+        );
+        assert.deepEqual(out.config.theme.emulations, {
+            atascii: { default: 'atascii_starter', preLogin: 'atascii_starter' },
+        });
+        const menus = validateReferences(out, ['atascii_starter']);
+        assert.ok(menus.atasciiMatrix && menus.atasciiConnected);
+        assert.deepEqual(out.atasciiNotes, []);
+    });
+
+    it('both write both trees, both themes, both settings and a two-way branch', async () => {
+        const out = await runConfigNew(true, true);
+        assert.ok(out.file('petscii').equals(template('petscii')));
+        assert.ok(out.file('atascii').equals(template('atascii')));
+        const main = out.file('main').toString('utf8');
+        assert.ok(
+            main.indexOf('test_board-petscii.hjson') <
+                main.indexOf('test_board-atascii.hjson')
+        );
+        const login = readHjson(paths.join(out.menuDir, 'test_board-login.hjson'));
+        assert.deepEqual(login.menus.telnetConnected.next, [
+            { acs: 'TE[petscii]', next: 'petsciiMatrix' },
+            { acs: 'TE[atascii]', next: 'atasciiMatrix' },
+            { next: 'matrix' },
+        ]);
+        assert.deepEqual(out.themes, ['atascii_starter', 'petscii_starter']);
+        assert.deepEqual(out.config.theme.emulations, {
+            petscii: { default: 'petscii_starter', preLogin: 'petscii_starter' },
+            atascii: { default: 'atascii_starter', preLogin: 'atascii_starter' },
+        });
+        const menus = validateReferences(out, ['petscii_starter', 'atascii_starter']);
+        assert.ok(menus.petsciiMatrix && menus.atasciiMatrix);
+        assert.deepEqual(out.petsciiNotes, []);
+        assert.deepEqual(out.atasciiNotes, []);
+    });
+
+    it('never overwrites an ATASCII theme directory that is already there', async () => {
+        const mine = paths.join(tmp, 'themes', 'atascii_starter');
+        fs.mkdirSync(mine, { recursive: true });
+        fs.writeFileSync(paths.join(mine, 'theme.hjson'), '{ mine: true }');
+        await runConfigNew(false, true);
+        assert.equal(
+            fs.readFileSync(paths.join(mine, 'theme.hjson'), 'utf8'),
+            '{ mine: true }'
+        );
+        assert.deepEqual(fs.readdirSync(mine), ['theme.hjson']);
+    });
+
+    describe('when a starter cannot be completed', () => {
+        let errors;
+        let consoleError;
+
+        beforeEach(() => {
+            errors = [];
+            consoleError = console.error;
+            console.error = (...args) => errors.push(args.join(' '));
+        });
+
+        afterEach(() => {
+            console.error = consoleError;
+        });
+
+        it('a login menu in the way is reported for each starter asked for', async () => {
+            const menuDir = paths.join(tmp, 'config', 'menus');
+            fs.mkdirSync(menuDir, { recursive: true });
+            const mine = paths.join(menuDir, 'test_board-login.hjson');
+            fs.writeFileSync(mine, '{ mine: true }');
+
+            const result = await runConfigNew(true, true);
+
+            assert.equal(fs.readFileSync(mine, 'utf8'), '{ mine: true }');
+            assert.equal(result.petsciiNotes.length, 1);
+            assert.equal(result.atasciiNotes.length, 1);
+            assert.match(result.petsciiNotes[0], /already exists.*TE\[petscii\]/);
+            assert.match(
+                result.atasciiNotes[0],
+                /already exists.*TE\[atascii\].*ATASCII documentation/
+            );
+            assert.ok(errors.some(e => /PETSCII starter is not complete/.test(e)));
+            assert.ok(errors.some(e => /ATASCII starter is not complete/.test(e)));
+        });
+
+        it('a login menu in the way, ATASCII only: only ATASCII is reported', async () => {
+            const menuDir = paths.join(tmp, 'config', 'menus');
+            fs.mkdirSync(menuDir, { recursive: true });
+            fs.writeFileSync(
+                paths.join(menuDir, 'test_board-login.hjson'),
+                '{ mine: true }'
+            );
+            const result = await runConfigNew(false, true);
+            assert.deepEqual(result.petsciiNotes, []);
+            assert.equal(result.atasciiNotes.length, 1);
+            assert.ok(!errors.some(e => /PETSCII/.test(e)));
+        });
+
+        it('an ATASCII theme that cannot be copied leaves only its setting out', async () => {
+            const { AtasciiStarter } = require('../core/oputil/oputil_config.js');
+            const source = AtasciiStarter.themeSourceDir;
+            const moved = `${source}.moved-by-test`;
+            fs.renameSync(source, moved);
+            try {
+                const result = await runConfigNew(true, true);
+                assert.deepEqual(result.config.theme.emulations, {
+                    petscii: { default: 'petscii_starter', preLogin: 'petscii_starter' },
+                });
+                assert.deepEqual(result.petsciiNotes, []);
+                assert.equal(result.atasciiNotes.length, 1);
+                assert.match(result.atasciiNotes[0], /could not be copied/);
+                assert.match(result.atasciiNotes[0], /theme\.emulations\.atascii/);
+                assert.deepEqual(result.themes, ['petscii_starter']);
+                //  the branch is still written: the menus are there
+                const login = readHjson(
+                    paths.join(tmp, 'config', 'menus', 'test_board-login.hjson')
+                );
+                assert.equal(login.menus.telnetConnected.next.length, 3);
+            } finally {
+                fs.renameSync(moved, source);
+            }
+        });
+
+        it('a complete run has nothing to report', async () => {
+            const result = await runConfigNew(true, true);
+            assert.deepEqual(result.petsciiNotes, []);
+            assert.deepEqual(result.atasciiNotes, []);
+            assert.equal(errors.length, 0);
+        });
     });
 });

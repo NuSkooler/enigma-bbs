@@ -59,15 +59,17 @@ const ConfigIncludeKeys = [
 exports.ConfigIncludeKeys = ConfigIncludeKeys;
 
 //
-//  The PETSCII starter (#593): a small menu tree and a theme for Commodore
-//  style callers, offered by "config new" and off unless asked for. The
+//  The starters (#593): a small menu tree and a theme for callers of one
+//  terminal emulation, PETSCII (Commodore style) or ATASCII (Atari 8-bit
+//  style), each offered by "config new" and off unless asked for. A starter
 //  theme ships outside art/themes/ and is only copied in on request: any
-//  PETSCII theme in the themes directory is given to PETSCII callers, which
-//  on a board without these menus would strand them on the stock tree.
+//  theme for an emulation in the themes directory is given to callers of
+//  that emulation, which on a board without the menus made for it would
+//  strand them on the stock tree.
 //
-//  A PETSCII caller on the main telnet port is sent into the starter menus by
-//  an ACS branch on the stock connect menu (see addPetsciiConnectBranch()); a
-//  dedicated listener can name |firstMenu| instead.
+//  A caller on the main telnet port is sent into the starter menus by an ACS
+//  branch on the stock connect menu (see addConnectBranches()); a dedicated
+//  listener can name |firstMenu| instead.
 //
 const PetsciiStarter = Object.freeze({
     menuTemplate: 'petscii.in.hjson',
@@ -75,18 +77,57 @@ const PetsciiStarter = Object.freeze({
     themeId: 'petscii_starter',
     firstMenu: 'petsciiConnected',
     afterConnectMenu: 'petsciiMatrix',
+    emulation: 'petscii',
+    label: 'PETSCII',
+    callers: 'PETSCII (Commodore) callers',
+});
+
+const AtasciiStarter = Object.freeze({
+    menuTemplate: 'atascii.in.hjson',
+    themeSourceDir: paths.join(__dirname, '../../misc/atascii_starter'),
+    themeId: 'atascii_starter',
+    firstMenu: 'atasciiConnected',
+    afterConnectMenu: 'atasciiMatrix',
+    emulation: 'atascii',
+    label: 'ATASCII',
+    callers: 'ATASCII (Atari 8-bit) callers',
+});
+
+//  in the order their branches and settings are written
+const Starters = Object.freeze({
+    petscii: PetsciiStarter,
+    atascii: AtasciiStarter,
 });
 
 exports.PetsciiStarter = PetsciiStarter;
+exports.AtasciiStarter = AtasciiStarter;
+exports.Starters = Starters;
+
+//  [starter, ...] for a list of emulation names, in Starters order
+function startersFor(emulations) {
+    emulations.forEach(e => {
+        if (!Starters[e]) {
+            throw new Error(`no starter for emulation "${e}"`);
+        }
+    });
+    return Object.values(Starters).filter(s => emulations.includes(s.emulation));
+}
+
+//  The config.hjson setting that gives sessions of |emulation| its starter
+//  theme; other emulations' settings are kept
+function applyStarterConfig(config, emulation) {
+    const starter = startersFor([emulation])[0];
+    _.set(config, ['theme', 'emulations', starter.emulation], {
+        default: starter.themeId,
+        preLogin: starter.themeId,
+    });
+}
+
+exports.applyStarterConfig = applyStarterConfig;
 
 //  The config.hjson setting that gives PETSCII sessions the starter theme
 function applyPetsciiStarterConfig(config) {
-    _.set(config, ['theme', 'emulations'], {
-        petscii: {
-            default: PetsciiStarter.themeId,
-            preLogin: PetsciiStarter.themeId,
-        },
-    });
+    applyStarterConfig(config, 'petscii');
 }
 
 exports.applyPetsciiStarterConfig = applyPetsciiStarterConfig;
@@ -94,9 +135,10 @@ exports.applyPetsciiStarterConfig = applyPetsciiStarterConfig;
 //
 //  The stock telnetConnected menu in login.in.hjson, exactly as shipped, and
 //  the same menu with its |next| branched on the session's terminal
-//  emulation: a PETSCII caller goes on to the starter matrix, everyone else
-//  to the stock one. Its CONNECT art is in the starter theme too, so a
-//  PETSCII caller sees PETSCII art from the first screen.
+//  emulation: a caller of a starter's emulation goes on to that starter's
+//  matrix, everyone else to the stock one. Its CONNECT art is in each
+//  starter theme too, so such a caller sees art for their terminal from the
+//  first screen.
 //
 const StockTelnetConnected = `        telnetConnected: {
             desc: Telnet Connect
@@ -105,16 +147,18 @@ const StockTelnetConnected = `        telnetConnected: {
             config: { nextTimeout: 1500 }
         }`;
 
-const PetsciiTelnetConnected = `        telnetConnected: {
+const connectBranch = starter => `                {
+                    //  ${starter.callers}: the ${starter.label} starter menus
+                    acs: TE[${starter.emulation}]
+                    next: ${starter.afterConnectMenu}
+                }
+`;
+
+const branchedTelnetConnected = starters => `        telnetConnected: {
             desc: Telnet Connect
             art: CONNECT
             next: [
-                {
-                    //  PETSCII (Commodore) callers: the PETSCII starter menus
-                    acs: TE[petscii]
-                    next: ${PetsciiStarter.afterConnectMenu}
-                }
-                {
+${starters.map(connectBranch).join('')}                {
                     next: matrix
                 }
             ]
@@ -122,39 +166,63 @@ const PetsciiTelnetConnected = `        telnetConnected: {
         }`;
 
 //
-//  |loginMenuText| (login.in.hjson's text) with the PETSCII branch added to
-//  telnetConnected. Throws when the stock entry is not there exactly once:
-//  better no file than one that silently lacks the way in.
+//  |loginMenuText| (login.in.hjson's text) with a branch added to
+//  telnetConnected for each of |emulations| ('petscii', 'atascii'), in
+//  Starters order, before the default. Throws when the stock entry is not
+//  there exactly once: better no file than one that silently lacks the way
+//  in.
 //
-function addPetsciiConnectBranch(loginMenuText) {
+function addConnectBranches(loginMenuText, emulations) {
+    const starters = startersFor(emulations);
+    if (0 === starters.length) {
+        return loginMenuText;
+    }
     //  a checkout with CRLF line endings has them in the template too
     const eol = loginMenuText.includes('\r\n') ? '\r\n' : '\n';
     const parts = loginMenuText.split(StockTelnetConnected.replace(/\n/g, eol));
     if (2 !== parts.length) {
+        const what =
+            1 === starters.length
+                ? `${starters[0].label} branch`
+                : `${starters.map(s => s.label).join(' and ')} branches`;
         throw new Error(
-            'telnetConnected in login.in.hjson is not as expected; PETSCII branch not added'
+            `telnetConnected in login.in.hjson is not as expected; ${what} not added`
         );
     }
-    return parts.join(PetsciiTelnetConnected.replace(/\n/g, eol));
+    return parts.join(branchedTelnetConnected(starters).replace(/\n/g, eol));
+}
+
+exports.addConnectBranches = addConnectBranches;
+
+//  |loginMenuText| with the PETSCII branch only
+function addPetsciiConnectBranch(loginMenuText) {
+    return addConnectBranches(loginMenuText, ['petscii']);
 }
 
 exports.addPetsciiConnectBranch = addPetsciiConnectBranch;
 
 //
-//  Copy the starter theme into |themesDir|. An existing theme directory of
+//  Copy a starter theme into |themesDir|. An existing theme directory of
 //  that name is left alone (it may have been customised): returns false
 //  then, true when copied.
 //
-function copyPetsciiStarterTheme(themesDir) {
-    const dest = paths.join(themesDir, PetsciiStarter.themeId);
+function copyStarterTheme(themesDir, emulation) {
+    const starter = startersFor([emulation])[0];
+    const dest = paths.join(themesDir, starter.themeId);
     if (fs.existsSync(dest)) {
         return false;
     }
-    copySync(PetsciiStarter.themeSourceDir, dest, {
+    copySync(starter.themeSourceDir, dest, {
         overwrite: false,
         errorOnExist: true,
     });
     return true;
+}
+
+exports.copyStarterTheme = copyStarterTheme;
+
+function copyPetsciiStarterTheme(themesDir) {
+    return copyStarterTheme(themesDir, 'petscii');
 }
 
 exports.copyPetsciiStarterTheme = copyPetsciiStarterTheme;
@@ -231,6 +299,15 @@ const QUESTIONS = {
             name: 'includePetscii',
             message:
                 'Include starter menus and theme for PETSCII (Commodore 64/128) callers?',
+            type: 'confirm',
+            default: false,
+        },
+    ],
+
+    Atascii: [
+        {
+            name: 'includeAtascii',
+            message: 'Include starter menus and theme for ATASCII (Atari 8-bit) callers?',
             type: 'confirm',
             default: false,
         },
@@ -349,6 +426,12 @@ function askNewConfigQuestions(cb) {
                     return callback(null);
                 });
             },
+            function atascii(callback) {
+                getAnswers(QUESTIONS.Atascii, answers => {
+                    options.includeAtascii = true === answers.includeAtascii;
+                    return callback(null);
+                });
+            },
         ],
         err => {
             return cb(err, configPath, config, options);
@@ -357,34 +440,45 @@ function askNewConfigQuestions(cb) {
 }
 
 //
-//  login.in.hjson with the PETSCII branch, never over an existing file (as
-//  copyFileSyncSilent() with COPYFILE_EXCL). If the branch cannot be added
-//  the stock file is copied as it is: a board without the branch works, one
-//  without its login menus does not.
+//  login.in.hjson with the branches for |starters|, never over an existing
+//  file (as copyFileSyncSilent() with COPYFILE_EXCL). If the branches cannot
+//  be added the stock file is copied as it is: a board without them works,
+//  one without its login menus does not.
 //
-//  Returns undefined when the branch is in place, otherwise why it is not,
-//  for the operator to be told at the end: without it PETSCII callers on the
-//  main port stay on the stock menus.
+//  Returns {} when the branches are in place, otherwise { emulation: why }
+//  for each starter, for the operator to be told at the end: without its
+//  branch, callers of that emulation on the main port stay on the stock
+//  menus.
 //
-const writePetsciiLoginMenu = (from, to) => {
-    const addItYourself = `add the TE[petscii] branch to telnetConnected in ${to} yourself (see the PETSCII documentation)`;
+const writeStarterLoginMenu = (from, to, starters) => {
+    const notesFor = why =>
+        _.fromPairs(
+            starters.map(s => [
+                s.emulation,
+                `${why}; add the TE[${s.emulation}] branch to telnetConnected in ${to} yourself (see the ${s.label} documentation)`,
+            ])
+        );
 
     let text;
     try {
-        text = addPetsciiConnectBranch(fs.readFileSync(from, 'utf8'));
+        text = addConnectBranches(
+            fs.readFileSync(from, 'utf8'),
+            starters.map(s => s.emulation)
+        );
     } catch (e) {
         copyFileSyncSilent(from, to, fs.constants.COPYFILE_EXCL);
-        return `${e.message}; ${addItYourself}`;
+        return notesFor(e.message);
     }
 
     try {
         fs.writeFileSync(to, text, { encoding: 'utf8', flag: 'wx' });
     } catch (e) {
         if ('EEXIST' === e.code) {
-            return `${to} already exists and was left as it is; ${addItYourself}`;
+            return notesFor(`${to} already exists and was left as it is`);
         }
-        return `${to} could not be written (${e.message}); ${addItYourself}`;
+        return notesFor(`${to} could not be written (${e.message})`);
     }
+    return {};
 };
 
 const copyFileSyncSilent = (to, from, flags) => {
@@ -444,21 +538,28 @@ function buildNewConfig(dirs = {}, done = _.noop) {
 
         let includeFiles = [];
 
-        //  what the operator still has to do by hand for the PETSCII starter
-        const petsciiNotes = [];
+        //  the starters asked for (#593), and what the operator still has to
+        //  do by hand for each
+        const starters = startersFor(
+            [
+                options.includePetscii && 'petscii',
+                options.includeAtascii && 'atascii',
+            ].filter(Boolean)
+        );
+        const notes = { petscii: [], atascii: [] };
+
         includeFilesIn.forEach(incFile => {
             const outName = `${boardName}-${incFile.replace('.in', '')}`;
             includeFiles.push(outName);
 
-            //  with the PETSCII starter, the connect menu branches to it (#593)
-            if (options.includePetscii && 'login.in.hjson' === incFile) {
-                const note = writePetsciiLoginMenu(
+            //  with a starter, the connect menu branches to it (#593)
+            if (starters.length > 0 && 'login.in.hjson' === incFile) {
+                const why = writeStarterLoginMenu(
                     paths.join(__dirname, '../../misc/menu_templates', incFile),
-                    paths.join(InstallConfigDir, 'menus', outName)
+                    paths.join(InstallConfigDir, 'menus', outName),
+                    starters
                 );
-                if (note) {
-                    petsciiNotes.push(note);
-                }
+                _.forEach(why, (note, emulation) => notes[emulation].push(note));
                 return;
             }
 
@@ -469,17 +570,13 @@ function buildNewConfig(dirs = {}, done = _.noop) {
             );
         });
 
-        //  PETSCII starter menus and theme, only when asked for (#593)
-        if (options.includePetscii) {
-            const outName = `${boardName}-${PetsciiStarter.menuTemplate.replace('.in', '')}`;
+        //  starter menus and themes, only when asked for (#593)
+        starters.forEach(starter => {
+            const outName = `${boardName}-${starter.menuTemplate.replace('.in', '')}`;
             includeFiles.push(outName);
 
             copyFileSyncSilent(
-                paths.join(
-                    __dirname,
-                    '../../misc/menu_templates',
-                    PetsciiStarter.menuTemplate
-                ),
+                paths.join(__dirname, '../../misc/menu_templates', starter.menuTemplate),
                 paths.join(InstallConfigDir, 'menus', outName),
                 fs.constants.COPYFILE_EXCL
             );
@@ -487,20 +584,20 @@ function buildNewConfig(dirs = {}, done = _.noop) {
             //
             //  The theme setting is only written when the theme is there:
             //  naming a theme that does not exist would fail validation and
-            //  leave PETSCII sessions on the ANSI default.
+            //  leave the starter's sessions on the ANSI default.
             //
-            const themeDest = paths.join(themesDir, PetsciiStarter.themeId);
+            const themeDest = paths.join(themesDir, starter.themeId);
             try {
-                if (!copyPetsciiStarterTheme(themesDir)) {
+                if (!copyStarterTheme(themesDir, starter.emulation)) {
                     console.info(`${themeDest} exists; left as it is`);
                 }
-                applyPetsciiStarterConfig(config);
+                applyStarterConfig(config, starter.emulation);
             } catch (e) {
-                petsciiNotes.push(
-                    `the starter theme could not be copied to ${themeDest} (${e.message}); copy ${PetsciiStarter.themeSourceDir} there and set theme.emulations.petscii yourself (see the PETSCII documentation)`
+                notes[starter.emulation].push(
+                    `the starter theme could not be copied to ${themeDest} (${e.message}); copy ${starter.themeSourceDir} there and set theme.emulations.${starter.emulation} yourself (see the ${starter.label} documentation)`
                 );
             }
-        }
+        });
 
         //  We really only need includes to be replaced
         const mainTemplate = fs
@@ -525,11 +622,17 @@ function buildNewConfig(dirs = {}, done = _.noop) {
             console.error('Failed writing configuration');
         }
 
-        if (petsciiNotes.length > 0) {
-            console.error('\nThe PETSCII starter is not complete:');
-            petsciiNotes.forEach(note => console.error(`  * ${note}`));
-        }
-        return done(null, configPath, { petsciiNotes });
+        Object.values(Starters).forEach(starter => {
+            const left = notes[starter.emulation];
+            if (left.length > 0) {
+                console.error(`\nThe ${starter.label} starter is not complete:`);
+                left.forEach(note => console.error(`  * ${note}`));
+            }
+        });
+        return done(null, configPath, {
+            petsciiNotes: notes.petscii,
+            atasciiNotes: notes.atascii,
+        });
     });
 }
 
