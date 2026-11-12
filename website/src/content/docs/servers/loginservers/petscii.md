@@ -137,7 +137,7 @@ Keys for PETSCII callers, all on a Commodore keyboard:
 | Editor | cursor keys, HOME, CLR (shift HOME), INST, DEL, RETURN | move, start and end of the line, insert or overwrite, delete left, new line |
 | Editor | **F3**, **F5** | page up, page down |
 | Editor | **F1** | the editor menu: **S** save, **D** discard, **Q** quote (replies), **?** or **H** help; F1 again goes back to typing |
-| Editor | CTRL F | find: type the text and RETURN; the cursor goes to the first match (the editor keeps no matches to step through, as in the stock menus); F1 cancels |
+| Editor | CTRL F | find: type the text and RETURN; the cursor goes to the first match (the editor keeps no list of matches to step through; the stock editor behaves the same); F1 cancels |
 | Editor | CTRL Y, CTRL A, CTRL O | delete the line; edit the subject; help |
 | Header | RETURN | next field (To, then Subject, then the body); F1 leaves without saving |
 | Quote builder | RETURN, F1 | add the line in focus; done |

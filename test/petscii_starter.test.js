@@ -416,6 +416,13 @@ describe('PETSCII starter menus (#593)', () => {
         assert.deepEqual(problems, []);
     });
 
+    it('the login scan is offered from the second call on, as the stock login does', () => {
+        const next = tree().menus.petsciiLoginLastCallers.next;
+        assert.ok(Array.isArray(next));
+        assert.deepEqual(next[0], { acs: 'NC2', next: 'petsciiLoginNewScanConfirm' });
+        assert.deepEqual(next[1], { next: 'petsciiMainMenu' });
+    });
+
     it('every new-scan menu scans the message base only, into the tree', () => {
         const t = tree();
         const scans = _.pickBy(t.menus, m => 'new_scan' === m.module);

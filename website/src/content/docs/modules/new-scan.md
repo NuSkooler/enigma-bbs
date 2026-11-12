@@ -4,7 +4,7 @@ description: "Scan the message base, and optionally the file base, for what is n
 sidebar:
     order: 9
 ---
-The `new_scan` module looks for new messages, conference by conference and area by area (private mail first), and shows each area with something new in a message list. When the message base is done it looks for new files and shows them in a file list. The stock login sequence runs it as `fullLoginSequenceNewScan`, after asking the caller whether to.
+The `new_scan` module looks for new messages, conference by conference and area by area (private mail first), and shows each area with something new in a message list. When the message base is done it looks for new files and shows them in a file list. The stock login sequence runs it as `fullLoginSequenceNewScan`, after asking the caller whether to (callers on their first call are not asked).
 
 What counts as new follows the caller's last-read pointers, their newscan area selection and their newscan floor date (see [Configure Newscan](configure-newscan.md)).
 

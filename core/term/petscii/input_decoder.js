@@ -59,7 +59,8 @@
 //      End         SyncTERM sends 0x93 (clear); icy none     end (see below)
 //      F-keys      icy sends F1..F8 as 85 86 87 88 89 8A 8B 8C, i.e. sequential,
 //                  while the C64 keyboard and SyncTERM use 85 89 86 8A 87 8B 88 8C.
-//                  Icy's F2 therefore arrives as byte 0x86 and reads as 'f3'.
+//                  Icy's F2 therefore arrives as byte 0x86, the C64's F3, and
+//                  so pages up (see F3 AND F5 above); its F3 pages down.
 //                  One byte cannot mean two keys; the real C64 / SyncTERM
 //                  meaning wins. (Icy's Shift+F1/F3/F5/F7 send 89/8A/8B/8C,
 //                  which come out as f2/f4/f6/f8: Shift-F1 is F2 on a C64, so

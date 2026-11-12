@@ -160,6 +160,21 @@ describe('new_scan: skipFileBase', () => {
             });
         });
 
+        it('a saved scan that stopped at the file base does not go back into it', done => {
+            const calls = stubFileBase([7, 8, 9]);
+            const mod = makeScan({ skipFileBase: true });
+            mod.restoreSavedState({ currentStep: 'fileBase', currentScanAux: {} });
+            mod.performScanCurrentStep(err => {
+                assert.equal(err, null);
+                assert.deepEqual(mod.trace, []);
+                assert.equal(mod.currentStep, 'finished');
+                assert.equal(calls.findFiles, 0);
+                assert.deepEqual(calls.setLastViewed, []);
+                assert.equal(mod.went, null);
+                done();
+            });
+        });
+
         //  the real step would need a file base configuration: entering it
         //  here would throw, and the stand-ins below would see calls
         it('the real file base step is not run either', done => {

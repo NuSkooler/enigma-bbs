@@ -249,7 +249,17 @@
             config: {
                 pause: petsciiPause
             }
-            next: petsciiLoginNewScanConfirm
+            next: [
+                {
+                    //  calls >= 2
+                    acs: NC2
+                    next: petsciiLoginNewScanConfirm
+                }
+                {
+                    //  new users: skip the new scan, as the stock login does
+                    next: petsciiMainMenu
+                }
+            ]
         }
 
         //

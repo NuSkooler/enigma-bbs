@@ -347,6 +347,13 @@ exports.getModule = class NewScanModule extends MenuModule {
                 break;
 
             case Steps.FileBase:
+                //  only reachable with skipFileBase through a state saved
+                //  before the option applied; the file base stays out
+                if (this.skipFileBase) {
+                    this.currentStep = Steps.Finished;
+                    return this.performScanCurrentStep(cb);
+                }
+
                 this.newScanFileBase(() => {
                     this.currentStep = Steps.Finished;
                     return this.performScanCurrentStep(cb);
