@@ -373,6 +373,104 @@ describe('RIPscrip detection', () => {
             assert.equal(flat(), 'xRIght');
         });
 
+        describe('held bytes and the chunk after them', () => {
+            it('not a reply after all: held bytes on their own, then the chunk as it came', () => {
+                const { scan, seen } = makeScanner();
+                const c1 = Buffer.from([0xc1]);
+                scan(Buffer.from('RI'));
+                assert.deepEqual(seen, []);
+                scan(c1);
+                assert.equal(seen.length, 2);
+                assert.equal(seen[0][1].toString('latin1'), 'RI');
+                assert.equal(seen[1][1], c1, 'the same object');
+            });
+
+            it('so a lone high byte after them decodes as on master (a meta key)', () => {
+                const d = makeDecoder();
+                d.decode('RI');
+                d.decode(Buffer.from([0xc1]));
+                const master = [];
+                for (const chunk of [Buffer.from('RI'), Buffer.from([0xc1])]) {
+                    AnsiInput.decode(chunk, { isNixTerm: () => false }, (...e) =>
+                        master.push(e)
+                    );
+                }
+                assert.deepEqual(d.events, master);
+                assert.equal(d.events[d.events.length - 1][2].name, 'meta + shift + a');
+            });
+
+            it('a reply carried on across two and three chunks, at every split', () => {
+                const reply = 'RIPSCRIP015410\x00';
+                for (let a = 2; a < reply.length; ++a) {
+                    for (let b = a; b <= reply.length; ++b) {
+                        const { scan, flat } = makeScanner();
+                        scan(Buffer.from('x' + reply.slice(0, a)));
+                        if (b > a) {
+                            scan(Buffer.from(reply.slice(a, b)));
+                        }
+                        scan(Buffer.from(reply.slice(b) + 'y'));
+                        assert.equal(flat(), 'x<RIPSCRIP015410>y', `split ${a}, ${b}`);
+                    }
+                }
+            });
+
+            it('a reply that starts part way into the held bytes', () => {
+                //  RIPSCRI is held from its first R; the reply starts at the second
+                const { scan, flat } = makeScanner();
+                scan(Buffer.from('RIPSCRI'));
+                scan(Buffer.from('PSCRIP015410'));
+                assert.equal(flat(), 'RIPSC<RIPSCRIP015410>');
+            });
+
+            it('a chunk that ends in a new start of a reply is held in its turn', () => {
+                const { scan, seen, flat } = makeScanner();
+                scan(Buffer.from('RI'));
+                scan(Buffer.from('xRIPS'));
+                assert.deepEqual(
+                    seen.map(e => e[1].toString('latin1')),
+                    ['RI', 'x']
+                );
+                scan(Buffer.from('CRIP015410'));
+                assert.equal(flat(), 'RIx<RIPSCRIP015410>');
+            });
+
+            it('a sink that throws from the hold timer reaches onError; the scanner carries on', async () => {
+                const errors = [];
+                const scanner = createRipReplyScanner({
+                    holdMs: 5,
+                    onError: err => errors.push(err.message),
+                });
+                scanner.expectReply();
+                const seen = [];
+                const sink = {
+                    bytes: chunk => {
+                        if ('RIPS' === chunk.toString('latin1')) {
+                            throw new Error('key handler failed');
+                        }
+                        seen.push(chunk.toString('latin1'));
+                    },
+                    reply: reply => seen.push(`<${reply}>`),
+                };
+                scanner.scan(Buffer.from('RIPS'), sink);
+                await sleep(30);
+                assert.deepEqual(errors, ['key handler failed']);
+                scanner.scan(Buffer.from('aRIPSCRIP015410'), sink);
+                assert.deepEqual(seen, ['a', '<RIPSCRIP015410>']);
+            });
+
+            it('without onError such an error is dropped, not thrown from a timer', async () => {
+                const scanner = createRipReplyScanner({ holdMs: 5 });
+                scanner.expectReply();
+                scanner.scan(Buffer.from('RIPS'), {
+                    bytes: () => {
+                        throw new Error('nobody listening');
+                    },
+                    reply: () => {},
+                });
+                await sleep(30);
+            });
+        });
+
         describe('after the window', () => {
             it('the reply is ordinary input, untouched', async () => {
                 const { scan, seen } = makeScanner({ windowMs: 10 });
@@ -470,6 +568,24 @@ describe('RIPscrip detection', () => {
             d.decode('RIPSCRIP015410\x00');
             assert.equal(d.typed(), 'RIPSCRIP015410\x00');
             assert.deepEqual(d.replies(), []);
+        });
+
+        it('an error from held input let go by the timer goes to host.reportError', async () => {
+            const decoder = AnsiInput.createAnsiInputDecoder({ ripReply: { holdMs: 5 } });
+            decoder.expectRipReply();
+            const reported = [];
+            const host = {
+                isNixTerm: () => false,
+                reportError: err => reported.push(err.message),
+            };
+            let calls = 0;
+            decoder.decode(Buffer.from('RIPS'), host, () => {
+                ++calls;
+                throw new Error('menu threw');
+            });
+            await sleep(30);
+            assert.equal(calls, 1);
+            assert.deepEqual(reported, ['menu threw']);
         });
 
         it("IcyTerm's NUL arriving on its own is not a key either", () => {

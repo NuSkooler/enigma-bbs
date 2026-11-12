@@ -10,7 +10,9 @@
 //  so it is looked for in ordinary input -- but only for a short while, and
 //  only once, so that what a caller types or pastes is left alone:
 //
-//      const scanner = createRipReplyScanner({ windowMs, holdMs, nulWindowMs });
+//      const scanner = createRipReplyScanner({
+//          windowMs, holdMs, nulWindowMs, onError(err),
+//      });
 //      scanner.expectReply()              the query has just been sent
 //      scanner.scan(data, { bytes(chunk), reply(version) })
 //      scanner.dispose()
@@ -47,7 +49,12 @@
 //  position report (ESC [ row ; col R), and neither may be delayed or cut
 //  off. So a reply split right after its first byte gets through as keys.
 //  Not seen in practice: the reply is 14 bytes in one write. The hold timer
-//  is unref()ed and cleared by dispose().
+//  is unref()ed and cleared by dispose(). Held bytes that turn out not to be
+//  the reply go to bytes() on their own, and the chunk after them as the
+//  object it arrived as, so the decoder sees the chunk boundaries it would
+//  have seen anyway. When the timer hands held bytes on and the sink throws
+//  (the sink runs the decoder and the menu's key handlers), the error goes
+//  to options.onError, if given; a timer cannot throw it to anyone.
 //
 //  Held bytes go to the sink of the scan() that held them. If a module swaps
 //  the client's data handler (setTemporaryDirectDataHandler, for a door or a
@@ -143,6 +150,7 @@ function createRipReplyScanner(options = {}) {
     const windowMs = boundedMs(options.windowMs, DEFAULT_WINDOW_MS);
     const holdMs = boundedMs(options.holdMs, DEFAULT_HOLD_MS);
     const nulWindowMs = boundedMs(options.nulWindowMs, DEFAULT_NUL_WINDOW_MS);
+    const onError = 'function' === typeof options.onError ? options.onError : null;
 
     //  elapsed time that cannot run backwards
     const now = () => Number(process.hrtime.bigint() / 1000000n);
@@ -171,7 +179,14 @@ function createRipReplyScanner(options = {}) {
             try {
                 sink.bytes(bytes);
             } catch (e) {
-                //  nobody to report to; a timer must never throw
+                //  a timer must never throw: report it, if anyone listens
+                if (onError) {
+                    try {
+                        onError(e);
+                    } catch (ignored) {
+                        //  nothing more to be done
+                    }
+                }
             }
         }
     }
@@ -190,6 +205,52 @@ function createRipReplyScanner(options = {}) {
         heldSink = null;
     }
 
+    function hold(bytes, sink) {
+        held = Buffer.from(bytes);
+        heldSink = sink;
+        timer = setTimeout(flushHeld, holdMs);
+        timer.unref();
+    }
+
+    //  |buf| holds |found|: hand on what is around it, report it, and stop
+    //  looking (but for the NUL in the next chunk, when the reply ends this one)
+    function takeReply(buf, found, sink) {
+        let end = found.end;
+        if (end < buf.length) {
+            if (0x00 === buf[end]) {
+                ++end;
+            }
+            state = Done;
+        } else {
+            state = AfterReply;
+            nulUntil = now() + nulWindowMs;
+        }
+        if (found.at > 0) {
+            sink.bytes(buf.subarray(0, found.at));
+        }
+        sink.reply(buf.toString('latin1', found.at, found.at + REPLY_LENGTH));
+        if (end < buf.length) {
+            sink.bytes(buf.subarray(end));
+        }
+    }
+
+    //  A chunk, nothing held before it, inside the window. |data| is what
+    //  scan() was given, passed on as is when there is nothing to take or hold.
+    function lookIn(buf, data, sink) {
+        const found = findReply(buf);
+        if (found) {
+            return takeReply(buf, found, sink);
+        }
+        const holdAt = heldTailStart(buf, 0);
+        if (-1 === holdAt) {
+            return sink.bytes(data);
+        }
+        hold(buf.subarray(holdAt), sink);
+        if (holdAt > 0) {
+            sink.bytes(buf.subarray(0, holdAt));
+        }
+    }
+
     function scan(data, sink) {
         if (Idle === state || Done === state) {
             return sink.bytes(data);
@@ -197,69 +258,63 @@ function createRipReplyScanner(options = {}) {
 
         cancelTimer();
 
-        const chunk = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
-        let buf = chunk;
-        let changed = false;
-
-        if (held) {
-            buf = Buffer.concat([held, chunk]);
-            held = null;
-            heldSink = null;
-            changed = true;
-        }
+        const prior = held;
+        held = null;
+        heldSink = null;
 
         if (AfterReply === state) {
+            //  nothing is ever held after a reply
             state = Done;
-            if (buf.length > 0 && 0x00 === buf[0] && now() <= nulUntil) {
-                buf = buf.subarray(1);
-                changed = true;
+            const chunk = Buffer.isBuffer(data)
+                ? data
+                : Buffer.from(String(data), 'utf8');
+            if (chunk.length > 0 && 0x00 === chunk[0] && now() <= nulUntil) {
+                return chunk.length > 1 ? sink.bytes(chunk.subarray(1)) : undefined;
             }
-            if (!changed) {
-                return sink.bytes(data);
-            }
-            return buf.length > 0 ? sink.bytes(buf) : undefined;
+            return sink.bytes(data);
         }
 
-        //  Looking
+        //  Looking. Held bytes go on as a piece of their own, ahead of the
+        //  new chunk, unless a reply carries on across the join: the new
+        //  chunk then reaches the decoder as the very object it arrived as,
+        //  so it is decoded exactly as it would have been without the hold
+        //  (a lone byte above 0x7F is a meta key only as a chunk of its own).
         if (now() > windowEnd) {
             state = Done;
-            return sink.bytes(changed ? buf : data);
+            if (prior) {
+                sink.bytes(prior);
+            }
+            return sink.bytes(data);
         }
 
-        const found = findReply(buf);
-        if (found) {
-            let end = found.end;
-            if (end < buf.length) {
-                if (0x00 === buf[end]) {
-                    ++end;
+        const chunk = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
+
+        if (prior) {
+            const joined = Buffer.concat([prior, chunk]);
+
+            //  a reply that starts in the held bytes and ends in this chunk
+            const found = findReply(joined);
+            if (found && found.at < prior.length) {
+                return takeReply(joined, found, sink);
+            }
+
+            //  or one that starts there and is still not complete: keep
+            //  holding. What is held is only reply characters (letters and
+            //  digits), so handing it on later in one piece instead of the
+            //  pieces it came in decodes the same.
+            const holdAt = heldTailStart(joined, 0);
+            if (-1 !== holdAt && holdAt < prior.length) {
+                hold(joined.subarray(holdAt), sink);
+                if (holdAt > 0) {
+                    sink.bytes(joined.subarray(0, holdAt));
                 }
-                state = Done;
-            } else {
-                state = AfterReply;
-                nulUntil = now() + nulWindowMs;
+                return;
             }
-            if (found.at > 0) {
-                sink.bytes(buf.subarray(0, found.at));
-            }
-            sink.reply(buf.toString('latin1', found.at, found.at + REPLY_LENGTH));
-            if (end < buf.length) {
-                sink.bytes(buf.subarray(end));
-            }
-            return;
+
+            sink.bytes(prior);
         }
 
-        const holdAt = heldTailStart(buf, 0);
-        if (-1 === holdAt) {
-            return sink.bytes(changed ? buf : data);
-        }
-
-        held = Buffer.from(buf.subarray(holdAt));
-        heldSink = sink;
-        timer = setTimeout(flushHeld, holdMs);
-        timer.unref();
-        if (holdAt > 0) {
-            sink.bytes(buf.subarray(0, holdAt));
-        }
+        return lookIn(chunk, data, sink);
     }
 
     return { expectReply, scan, dispose };

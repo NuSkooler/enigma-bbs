@@ -383,16 +383,29 @@ function decode(data, host, emit) {
 //  chunks, so it is per connection, and dispose() drops what it holds.
 //
 //  |options.ripReply| is passed to the scanner ({ windowMs, holdMs,
-//  nulWindowMs }).
+//  nulWindowMs }). When the scanner's hold timer hands bytes on and decoding
+//  them throws (a key handler failing), the error goes to the |host| of the
+//  latest decode() call, as host.reportError(err), if it has one; the client
+//  logs it.
 //
 function createAnsiInputDecoder(options = {}) {
-    const ripReplies = createRipReplyScanner(options.ripReply);
+    let lastHost;
+    const ripReplies = createRipReplyScanner(
+        Object.assign({}, options.ripReply, {
+            onError: err => {
+                if (lastHost && 'function' === typeof lastHost.reportError) {
+                    lastHost.reportError(err);
+                }
+            },
+        })
+    );
 
     return {
         expectRipReply() {
             ripReplies.expectReply();
         },
         decode(data, host, emit) {
+            lastHost = host;
             ripReplies.scan(data, {
                 bytes: chunk => decode(chunk, host, emit),
                 reply: reply => emit('rip version', reply),

@@ -42,9 +42,9 @@
 //  A RIP terminal acts at the '!' (SyncTERM ripper.c, IcyTerm's RIP parser)
 //  and then shows the '_' as text; so does any terminal whose parser takes
 //  '!' itself as the final byte. The '_' is therefore drawn black on black,
-//  as Synchronet does, and the colour put back. Nothing has set a colour
-//  this early in a session, so ESC [ 0 m puts back exactly what was there.
-//  The screen is cleared once the probes are done.
+//  as Synchronet does, then ESC [ 0 m resets the attributes. ENiGMA has set
+//  no attributes of its own at that point in a session, and the screen is
+//  cleared (with ESC [ 0 m again) once the probes are done.
 //
 //  Only the bare ESC [ ! and ESC [ 0 ! forms have been seen answered by
 //  real SyncTERM and IcyTerm (2026-11-12); the form with '_' is read from

@@ -146,6 +146,17 @@ function Client(/*input, output*/) {
 
     const inputDecoderHost = {
         isNixTerm: () => self.term.isNixTerm(),
+
+        //  input the decoder delivered from a timer (a held start of a
+        //  RIPscrip reply that was not one) failed in a key handler
+        reportError: err => {
+            if (self.log) {
+                self.log.warn(
+                    { error: err && err.message, stack: err && err.stack },
+                    'Error handling delayed terminal input'
+                );
+            }
+        },
     };
 
     const decodedInputHandlers = {
