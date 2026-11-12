@@ -10,6 +10,7 @@ const StringUtil = require('./string_util.js');
 const Config = require('./config.js').get;
 const { loadDatabaseForMod } = require('./database.js');
 const { wordWrapText } = require('./word_wrap.js');
+const { glyphSmiliesAllowed, smiliesToGlyphs } = require('./mrc_smilies.js');
 
 //  deps
 const _ = require('lodash');
@@ -504,13 +505,9 @@ exports.getModule = class mrcModule extends MenuModule {
                 pipeCodeSupport: true,
             });
             wrapped.forEach(wline => {
-                const converted =
-                    this.userPrefs && this.userPrefs.showSmilies
-                        ? wline
-                              .replace(/:D/g, '\x02')
-                              .replace(/=\)/g, '\x02')
-                              .replace(/:\)/g, '\x01')
-                        : wline;
+                const converted = glyphSmiliesAllowed(this.userPrefs, this.client)
+                    ? smiliesToGlyphs(wline)
+                    : wline;
                 chatLogView.addText(pipeToAnsi(converted), { scrollMode: 'end' });
 
                 if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
