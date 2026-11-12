@@ -48,6 +48,12 @@
 //  and in the reader finds a word that is in it twice, steps to the second
 //  match with CTRL G and leaves find.
 //
+//  --raw-out FILE writes every byte received (telnet stripped) to FILE, for
+//  comparing two builds byte for byte. The summary line counts RIPscrip
+//  version queries (ESC [ !) received: a PETSCII or ATASCII caller must get
+//  none (#989).
+//
+const fs = require('fs');
 const net = require('net');
 const paths = require('path');
 
@@ -165,6 +171,7 @@ class Caller {
         this.errors = [];
         this.escBytes = 0;
         this.dataBytes = 0;
+        this.received = []; //  every byte rendered, for --raw-out
         this.lastData = Date.now();
         this.closed = false;
         this.pending = Buffer.alloc(0);
@@ -243,6 +250,7 @@ class Caller {
 
     _render(b) {
         ++this.dataBytes;
+        this.received.push(b);
         if (this.afterEsc && b >= 0x1b && b <= 0x1f) {
             ++this.badEsc;
         }
@@ -364,6 +372,7 @@ async function atasciiNativeWalk(c, args) {
 async function main() {
     const args = parseArgs();
     const c = new Caller(args);
+    c.rawOut = args['raw-out'];
 
     if ('atascii' === args.emulation && 'native' === args.walk) {
         await atasciiNativeWalk(c, args);
@@ -724,9 +733,14 @@ async function messagesWalk(c) {
 }
 
 function finish(c) {
+    const received = Buffer.from(c.received);
+    const ripQueries = received.toString('latin1').split('\x1b[!').length - 1;
     console.log(
-        `\nbytes=${c.dataBytes} esc=${c.escBytes} escBefore1Bto1F=${c.badEsc} modelErrors=${c.errors.length} closedByServer=${c.closed}`
+        `\nbytes=${c.dataBytes} esc=${c.escBytes} escBefore1Bto1F=${c.badEsc} modelErrors=${c.errors.length} closedByServer=${c.closed} ripQueries=${ripQueries}`
     );
+    if (c.rawOut) {
+        fs.writeFileSync(c.rawOut, received);
+    }
     c.errors.slice(0, 10).forEach(e => console.log(`  ${e}`));
     c.sock.destroy();
     process.exitCode =

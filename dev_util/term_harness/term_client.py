@@ -7,7 +7,8 @@ ONLY point this at a throwaway local instance. It refuses anything but
 127.0.0.1/localhost unless --allow-remote is given.
 
 Negotiates NAWS (cols x rows) and TTYPE (default 'ansi'), answers CPR
-(ESC[6n) from the emulated cursor, decodes the stream with a pluggable
+(ESC[6n) from the emulated cursor, can play a RIPscrip terminal answering
+the version query (--rip; see RIP below), decodes the stream with a pluggable
 charset (default CP437; see CHARSETS), and keeps a
 log of every absolute cursor move (CSI row;col H/f) that lands outside the
 screen, so off-screen view placement shows up even though pyte clamps it.
@@ -61,6 +62,17 @@ TTYPE_IS, TTYPE_SEND = 0, 1
 
 CSI_GOTO = re.compile(r'\x1b\[(\d*)(?:;(\d*))?[Hf]')
 
+#  RIP (#989). A RIPscrip terminal answers ESC [ ! and ESC [ 0 ! (whatever
+#  follows) with RIPSCRIP and six digits, as if typed; IcyTerm adds a NUL.
+#  --rip off      do not answer (SyncTERM with RIP off; every other terminal)
+#  --rip prompt   answer as soon as the query arrives
+#  --rip late     do not answer by itself; a walk calls s.send_rip_reply()
+#                 when it likes (walk_rip_login.py sends it mid user name)
+#  --rip-nul adds the NUL. s.rip_queries counts the queries received.
+RIP_QUERY = re.compile(rb'\x1b\[0?!')
+RIP_MODES = ('off', 'prompt', 'late')
+DEFAULT_RIP_VERSION = 'RIPSCRIP015410'
+
 
 class _Screen(pyte.Screen):
     def __init__(self, cols, rows, reply):
@@ -96,7 +108,8 @@ class _Screen(pyte.Screen):
 class Session:
     def __init__(self, host, port, cols=80, rows=25, term='ansi', outdir=None,
                  log=None, verbose=False, charset=DEFAULT_CHARSET,
-                 allow_remote=False):
+                 allow_remote=False, rip='off', rip_nul=False,
+                 rip_version=DEFAULT_RIP_VERSION):
         if host not in LOOPBACK and not allow_remote:
             raise ValueError(f'refusing to connect to {host!r}: this harness is '
                              'for throwaway local instances only '
@@ -115,6 +128,14 @@ class Session:
         self.offscreen = []             # (label, row, col)
         self.verbose = verbose
         self._iac = bytearray()
+        if rip not in RIP_MODES:
+            raise ValueError(f'rip must be one of {RIP_MODES}, not {rip!r}')
+        self.rip = rip
+        self.rip_nul = rip_nul
+        self.rip_version = rip_version
+        self.rip_queries = 0
+        self.rip_replies = 0
+        self._rip_scanned = 0           # how far into self.raw queries were counted
         if outdir:
             os.makedirs(outdir, exist_ok=True)
         self.log = open(log, 'w') if log else None
@@ -182,6 +203,29 @@ class Session:
                 i += 2
         return bytes(out)
 
+    # ---- RIP ------------------------------------------------------------
+    def send_rip_reply(self):
+        """Answer as a RIPscrip terminal would (with the NUL under --rip-nul)."""
+        reply = self.rip_version.encode('latin-1')
+        if self.rip_nul:
+            reply += b'\x00'
+        self._send_raw(reply)
+        self.rip_replies += 1
+
+    def _rip_scan(self):
+        #  look for queries in what arrived since last time; keep the last two
+        #  bytes in view so a query split across reads is still seen
+        start = max(0, self._rip_scanned - 3)
+        found = 0
+        for m in RIP_QUERY.finditer(self.raw, start):
+            if m.end() > self._rip_scanned:
+                found += 1
+        self._rip_scanned = len(self.raw)
+        self.rip_queries += found
+        if found and self.rip == 'prompt':
+            for _ in range(found):
+                self.send_rip_reply()
+
     # ---- charset (the seam) ---------------------------------------------
     def decode(self, data):
         return self._decoder.decode(data)
@@ -203,6 +247,7 @@ class Session:
         data = self._strip_telnet(data)
         if data:
             self.raw += data
+            self._rip_scan()
             text = self.decode(data)
             if self.log:
                 self.log.write(text)
@@ -295,6 +340,14 @@ def main():
     ap.add_argument('--out', help='dump directory (default .work/dumps-COLSxROWS)')
     ap.add_argument('--walk', help='python file defining walk(session, args); a '
                     'bare name is also looked up beside this script')
+    ap.add_argument('--rip', default='off', choices=RIP_MODES,
+                    help='answer the RIPscrip version query: off (do not), '
+                    'prompt (at once), late (when the walk says)')
+    ap.add_argument('--rip-nul', action='store_true',
+                    help='end the RIP reply with a NUL, as IcyTerm does')
+    ap.add_argument('--rip-version', default=DEFAULT_RIP_VERSION)
+    ap.add_argument('--raw-out', help='write every byte received (telnet '
+                    'stripped) to this file, to compare two builds')
     ap.add_argument('--user', default='harness')
     ap.add_argument('--password', default='harnesspass1')
     ap.add_argument('-v', '--verbose', action='store_true')
@@ -309,7 +362,8 @@ def main():
         s = Session(args.host, args.port, args.cols, args.rows, args.term,
                     outdir=args.out, log=os.path.join(args.out, 'raw.log'),
                     verbose=args.verbose, charset=args.charset,
-                    allow_remote=args.allow_remote)
+                    allow_remote=args.allow_remote, rip=args.rip,
+                    rip_nul=args.rip_nul, rip_version=args.rip_version)
     except ValueError as e:
         sys.exit(str(e))
     try:
@@ -330,6 +384,11 @@ def main():
                 summary[lab] = (n + 1, max(mr, r), max(mc, c))
             for lab, (n, mr, mc) in summary.items():
                 print(f'  [{lab}] {n} moves, max row={mr}, max col={mc}')
+        print(f'bytes={len(s.raw)} ripQueries={s.rip_queries} '
+              f'ripReplies={s.rip_replies}')
+        if args.raw_out:
+            with open(args.raw_out, 'wb') as f:
+                f.write(bytes(s.raw))
         s.close()
 
 
