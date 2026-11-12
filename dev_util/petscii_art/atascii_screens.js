@@ -302,7 +302,11 @@ const Screens = {
     //  find: the editor's and reader's footer while asking what to find
     AMSGFIND: footer(at(2, 'Find %ET1'), 'RETURN finds; ESC cancels, clears'),
 
-    //  quote builder: drawn below the header, views offset by its height
+    //  quote builder: drawn below the header, views offset by its height.
+    //  VM3 (6 rows, theme.hjson) ends on row 20, above the footer's first
+    //  row (21): the list blanks its rows when it is redrawn, which happens
+    //  after the footer is back, so it must not reach the footer. Its closing
+    //  rule is on the footer's rule row.
     AMSGQUOT: {
         prompt: true,
         pad: true,
@@ -312,7 +316,7 @@ const Screens = {
             ...blank(5),
             rule(2, 38),
             at(2, '%VM3'),
-            ...blank(6),
+            ...blank(5),
             rule(2, 38),
             '',
         ],

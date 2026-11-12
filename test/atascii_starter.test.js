@@ -283,6 +283,25 @@ describe('ATASCII starter menus (#593)', () => {
                 if (art.quote) {
                     const bottom = lastRow(art.quote, header + 1);
                     assert.ok(bottom <= 24, `${name} quote ends on row ${bottom}`);
+                    //  the quote builder's views are redrawn after the footer
+                    //  is back (a list blanks every row it has): none may
+                    //  reach the footer's rows
+                    const quote = starterTheme().customization.menus[name][5].mci;
+                    const parser = new AtasciiArtParser({
+                        mciReplaceChar: ' ',
+                        termWidth: 40,
+                        termHeight: 24,
+                        startRow: header + 1,
+                    });
+                    parser.on('mci', m => {
+                        const key = `${m.mci}${m.id}`;
+                        const last = m.position[0] + (quote[key].height || 1) - 1;
+                        assert.ok(
+                            last < footerRow,
+                            `${name} quote ${key} reaches row ${last}; footer starts on ${footerRow}`
+                        );
+                    });
+                    parser.parse(artBytes(art.quote));
                 }
             }
         );

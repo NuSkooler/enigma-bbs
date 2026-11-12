@@ -329,7 +329,7 @@
                         }
                     }
                 }
-                //  rows match AMSGQUOT.ata
+                //  rows match AMSGQUOT.ata (see dev_util/petscii_art/atascii_screens.js)
                 5: {
                     mci: {
                         MT1: {
@@ -338,7 +338,8 @@
                         }
                         VM3: {
                             width: 38
-                            height: 7
+                            //  ends above the footer's first row (21)
+                            height: 6
                             focusTextStyle: normal
                             //  the quote lines are plain strings: the view's
                             //  own styles mark the one in focus
