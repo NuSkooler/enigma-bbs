@@ -100,14 +100,14 @@ describe('terminal emulation selection', () => {
             });
         });
 
-        it('TTYPE RIP: a layer on ANSI, not implemented yet', () => {
+        it('TTYPE RIP: the rip layer on ANSI (#989)', () => {
             assert.deepEqual(resolveEmulation({ termType: 'rip' }), {
                 requested: 'rip',
                 source: 'termType',
                 kind: 'layer',
                 base: 'ansi',
-                layers: [],
-                fallback: true,
+                layers: ['rip'],
+                fallback: false,
             });
         });
 
@@ -202,19 +202,23 @@ describe('terminal emulation selection', () => {
             assert.equal(client.logged[0].info.emulation, 'atascii');
         });
 
-        it('TTYPE RIP: stays ANSI, records the request, logs the fallback', () => {
+        it('TTYPE RIP: stays ANSI, records the request, attaches the rip layer', () => {
             const client = makeClient('RIP');
             selectClientEmulation(client, { firstMenu: 'telnetConnected' });
 
             assert.equal(client.term.emulation.name, 'ansi');
+            assert.equal(client.term.emulation.hasLayer('rip'), true);
             assert.equal(client.term.outputEncoding, undefined);
             assert.deepEqual(client.term.requestedEmulation, {
                 name: 'rip',
                 source: 'termType',
             });
-            assert.equal(client.logged.length, 1);
-            assert.equal(client.logged[0].level, 'info');
-            assert.match(client.logged[0].msg, /"rip" is not implemented; using "ansi"/);
+            //  the layer at info, the selection itself at debug as usual
+            assert.deepEqual(
+                client.logged.map(l => l.level),
+                ['info', 'debug']
+            );
+            assert.match(client.logged[0].msg, /layer "rip" attached \(termType\)/);
         });
 
         it("a named listener's emulation is used and named in the log", () => {

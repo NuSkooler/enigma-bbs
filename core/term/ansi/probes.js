@@ -11,6 +11,7 @@
 const ansi = require('../../ansi_term.js');
 const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
+const Rip = require('../rip');
 
 //
 //  Clients whose DA reply already tells us they are CTerm-shaped: they answer
@@ -401,6 +402,16 @@ const probes = [
         run(client, callback) {
             const term = client.term;
             term.rawWrite(ansi.queryDeviceAttributes(0));
+
+            //
+            //  The RIPscrip version query (#989), see core/term/rip. It waits
+            //  for nothing: a RIP terminal answers while the probes below
+            //  wait on their own replies, and the input decoder takes the
+            //  answer out of the input whenever it comes (core/client.js
+            //  attaches the layer). Other terminals do not answer.
+            //
+            term.rawWrite(Rip.VERSION_PROBE);
+
             term.write('\nDetecting client features...');
             return callback(null);
         },

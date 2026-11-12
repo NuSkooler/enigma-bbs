@@ -165,8 +165,9 @@ ClientTerminal.prototype.disconnect = function () {
 
     //
     //  An input decoder that holds a pending decision on a timer (ATASCII's
-    //  Escape) is told the session is over, so nothing is reported after it.
-    //  The ANSI and PETSCII decoders hold nothing and have no dispose().
+    //  Escape, ANSI's possible start of a RIPscrip reply) is told the session
+    //  is over, so nothing is reported after it. The PETSCII decoder holds
+    //  nothing and has no dispose().
     //
     const decoder = this.emulation && this.emulation.inputDecoder;
     if (decoder && 'function' === typeof decoder.dispose) {

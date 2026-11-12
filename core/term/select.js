@@ -16,9 +16,21 @@
 //
 //  What was asked for is always recorded. What the connection actually gets
 //  is the emulation if it is implemented, otherwise ANSI, and that is logged.
-//  ANSI, PETSCII and ATASCII are implemented so far.
+//  ANSI, PETSCII and ATASCII are implemented so far, and the RIPscrip layer
+//  on ANSI.
 //
-const { emulationExists, createEmulation, DEFAULT_EMULATION } = require('./index.js');
+//  A layer can also be found later: a RIP terminal answers the version query
+//  the ANSI probes send (core/term/rip), and core/client.js hands the answer
+//  to attachRipLayer() below, whenever it arrives.
+//
+const {
+    emulationExists,
+    layerExists,
+    createEmulation,
+    createLayer,
+    DEFAULT_EMULATION,
+} = require('./index.js');
+const Rip = require('./rip');
 
 //
 //  Names we recognise. A base emulation replaces ANSI; a layer is an addition
@@ -89,13 +101,78 @@ function resolveEmulation({ termType, listenerEmulation } = {}) {
 
     if ('base' === kind && emulationExists(requested)) {
         resolved.base = requested;
+    } else if ('layer' === kind && layerExists(requested)) {
+        //  a layer is an addition to ANSI
+        resolved.layers.push(requested);
     } else {
-        //  an unimplemented base, any layer (none exist yet), or a name we
-        //  do not know: ANSI
+        //  an unimplemented base or layer, or a name we do not know: ANSI
         resolved.fallback = true;
     }
 
     return resolved;
+}
+
+//
+//  Attach the layer |name| to |client|'s emulation, made from |info|. Logs at
+//  info how it was found. Returns the layer, or undefined when the emulation
+//  takes no layers (PETSCII, ATASCII).
+//
+function attachLayer(client, name, info) {
+    const term = client.term;
+    const emulation = term.emulation;
+    const layer = createLayer(name, info);
+
+    if (!emulation || !emulation.addLayer(layer)) {
+        if (client.log) {
+            client.log.debug(
+                { layer: name, emulation: emulation && emulation.name, ...info },
+                `Terminal emulation "${emulation && emulation.name}" takes no layers; "${name}" not attached`
+            );
+        }
+        return undefined;
+    }
+
+    if (client.log) {
+        client.log.info(
+            {
+                layer: name,
+                source: info.source,
+                version: layer.version,
+                termType: term.termType,
+            },
+            `Terminal emulation layer "${name}" attached (${info.source})`
+        );
+    }
+    return layer;
+}
+
+//
+//  A RIPscrip terminal has made itself known: by its terminal type (IcyTerm,
+//  at selection) or by answering the version query (|source| 'probe',
+//  |version| what it answered, e.g. 'RIPSCRIP015410'). Attaches the 'rip'
+//  layer the first time; after that, records a version not yet known.
+//
+//  Only an emulation that takes layers (ANSI) gets one; PETSCII and ATASCII
+//  sessions are never sent the query, and a reply on one is ignored.
+//
+function attachRipLayer(client, { source, version } = {}) {
+    const emulation = client.term.emulation;
+    const existing =
+        emulation && emulation.layers && emulation.layers.get(Rip.LAYER_NAME);
+
+    if (!existing) {
+        return attachLayer(client, Rip.LAYER_NAME, { source, version });
+    }
+
+    if (version && !existing.version && existing.setVersion(version)) {
+        if (client.log) {
+            client.log.info(
+                { layer: Rip.LAYER_NAME, source, version, firstSource: existing.source },
+                'RIPscrip version reported'
+            );
+        }
+    }
+    return existing;
 }
 
 //
@@ -133,6 +210,10 @@ function selectClientEmulation(client, readyOptions) {
         }
     }
 
+    for (const name of resolved.layers) {
+        attachLayer(client, name, { source: resolved.source });
+    }
+
     const info = {
         requested: resolved.requested,
         source: resolved.source,
@@ -165,4 +246,6 @@ module.exports = {
     emulationFromTermType,
     resolveEmulation,
     selectClientEmulation,
+    attachLayer,
+    attachRipLayer,
 };

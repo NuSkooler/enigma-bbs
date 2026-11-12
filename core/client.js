@@ -43,6 +43,7 @@ const Events = require('./events.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
 const UserProps = require('./user_property.js');
 const { emulationOf } = require('./term');
+const { attachRipLayer } = require('./term/select.js');
 const DeviceAttributes = require('./term/ansi/device_attributes.js');
 const AnsiInput = require('./term/ansi/input_decoder.js');
 
@@ -177,6 +178,15 @@ function Client(/*input, output*/) {
                 );
             }
             self.emit('cterm device attributes', caps);
+        },
+
+        //
+        //  A RIPscrip terminal's answer to the version query sent at connect
+        //  (#989), whenever it arrives; never seen as keys.
+        //
+        'rip version': reply => {
+            attachRipLayer(self, { source: 'probe', version: reply });
+            self.emit('rip version', reply);
         },
 
         'key press': (ch, key) => {

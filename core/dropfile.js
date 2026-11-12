@@ -12,6 +12,7 @@ const UserProps = require('./user_property.js');
 const UserTime = require('./user_time.js');
 const { Errors } = require('./enig_error.js');
 const SysProps = require('./system_property.js');
+const { emulationOf } = require('./term');
 
 //  deps
 const fs = require('graceful-fs');
@@ -580,7 +581,15 @@ module.exports = class DropFile {
                 //  about a session that is about to receive escape sequences.
                 //
                 'Y',
-                'N', //  RIP: not supported
+                //
+                //  RIP: whether the terminal draws RIPscrip (#989). The other
+                //  formats written here have no RIP field to set: DOOR.SYS
+                //  line 20 is GR/NG/7E only, and DOOR32.SYS line 10 stays 1
+                //  (ANSI) even though its spec has 3 for RIP -- Synchronet
+                //  writes 1, and a door that takes only 1 as ANSI would drop
+                //  to plain text.
+                //
+                emulationOf(term).supports('rip', term) ? 'Y' : 'N',
                 term.ctermVersion || '', //  empty unless the caller answered DA as CTerm
                 this.bbsDevLogoffTime, //  when the budget runs out; empty if it does not
                 bbsDevEncodingName(this.doorEncoding),

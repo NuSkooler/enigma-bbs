@@ -207,7 +207,9 @@ describe('ATASCII emulation', () => {
             assert.equal(term.outputEncoding, 'cp437');
             term.write('\x1b[1;31mHi\x1b[0m');
             assert.equal(wire(output).toString('latin1'), '\x1b[1;31mHi\x1b[0m');
-            assert.equal(typeof term.emulation.inputDecoder.dispose, 'undefined');
+            //  the ANSI decoder has a dispose() too since #989 (it can hold
+            //  back the start of a RIPscrip reply)
+            assert.equal(typeof term.emulation.inputDecoder.dispose, 'function');
             term.disconnect();
             assert.equal(term.output, null);
         });
