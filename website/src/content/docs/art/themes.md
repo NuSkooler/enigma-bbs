@@ -59,7 +59,9 @@ If no theme exists for an emulation, its callers get the system default theme an
 :::note
 ENiGMA½ has three emulations today: `ansi`, `petscii` and `atascii`. A theme for any other emulation loads but is never offered to anyone until that emulation exists.
 
-A `petscii` or `atascii` theme in your themes directory is given to every caller of that kind, with or without a `theme.emulations` entry, and art for such a caller is then looked up in that theme and `art/general` only, never in an ANSI theme. Add one together with menus made for it: see [PETSCII (Commodore) Callers](../servers/loginservers/petscii.md#starter-menus-and-theme).
+A `petscii` or `atascii` theme in your themes directory is given to every caller of that kind, with or without a `theme.emulations` entry, and art for such a caller is then looked up in that theme and `art/general` only, never in an ANSI theme. Add one together with menus made for it: see the starter menus for [PETSCII (Commodore) callers](../servers/loginservers/petscii.md#starter-menus-and-theme) and [ATASCII (Atari) callers](../servers/loginservers/atascii.md#starter-menus-and-theme).
+
+An `atascii` theme is drawn on a screen with one colour: only reverse video, or a background colour other than black, shows (as inverse characters). Show focus that way in such a theme; a focus style that only changes the colour or brightness cannot be seen.
 :::
 
 ### Customization Block
@@ -181,6 +183,10 @@ messageAreaChangeCurrentArea: {
            petscii: {
                default: your_c64_theme
                preLogin: your_c64_theme
+           }
+           atascii: {
+               default: your_atari_theme
+               preLogin: your_atari_theme
            }
        }
    }

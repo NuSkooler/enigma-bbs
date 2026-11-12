@@ -515,4 +515,5 @@ const Screens = {
     pause: { prompt: true, rows: [at(3, '{lightBlue}-- press a key --')] },
 };
 
-module.exports = { Screens, WIDTH };
+//  the layout helpers are shared with ./atascii_screens.js
+module.exports = { Screens, WIDTH, visibleLength, spaces, at, row, center };

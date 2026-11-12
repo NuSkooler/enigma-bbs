@@ -55,30 +55,64 @@ starter themes), so the checkout's `art/themes/` is not touched.
 `petscii_walk.js` is a PETSCII caller for such an instance (Node, no pyte): it
 answers TTYPE with `PETSCII` and NAWS with 40x25, renders on the PETSCII screen
 model from `test/term_petscii_screens.js` (which rejects bytes a Commodore
-terminal must never get), walks the starter tree and prints every screen:
+terminal must never get), walks the starter tree and prints every screen, each with a map of its
+reversed cells (`#`), which is where focus shows:
 
     node dev_util/term_harness/petscii_walk.js --port 48901 --user tester
     node dev_util/term_harness/petscii_walk.js --port 48902 --term ''   # the listener route
 
 It exits non-zero on any ESC byte or screen-model error.
 
-`--emulation atascii` makes it an ATASCII caller instead (TTYPE `ATASCII`,
-NAWS 40x24, the ATASCII screen model from `test/term_atascii_screens.js`; ESC
-bytes are allowed, as ATASCII quotes glyphs with them). It has two walks so
-far: `--walk connect` (the first screen) and `--walk native`, which goes
-through the stock matrix and login menus, logs in and prints each screen with
-a map of its inverse cells; it is for checking native `.ata` art placed on
-those menus by a theme in the instance:
-
-    node dev_util/term_harness/make_instance.js .work/ata 49201 49202 login --second-emulation=atascii
-    node dev_util/term_harness/petscii_walk.js --emulation atascii --walk native --port 49201 --user tester
-
 `--walk messages` goes through the starter's message menus instead of who's
 online and last callers: conference and area lists, two posts (the editor
 menu opened once with F1 and once with a real ESC byte), the message list,
 reading, the reader's help, and a reply with a quoted line. Run it on a fresh
 instance (it expects an area holding only what it posts), then look at the
-posts with `sqlite3 <instanceDir>/db/message.sqlite3`.
+posts with `sqlite3 <instanceDir>/db/message.sqlite3`. `--walk newscan`
+answers Yes to the new-message scan after login (log in as a user someone else
+has posted for since), reads a new message, writes a long message and pages
+and finds in it, then finds a word with two matches in the reader.
+
+### ATASCII starter instance
+
+    node dev_util/term_harness/make_instance.js .work/both 49301 49302 atasciiConnected --petscii --atascii --second-emulation=atascii
+
+`--atascii` opts the instance in to the ATASCII starter the same way
+(`theme.emulations.atascii`, the ATASCII menu file, a `TE[atascii]` branch).
+With `--petscii` too, `telnetConnected` gets both branches, PETSCII first, as
+`config new` writes them when both questions are answered Yes.
+
+`--emulation atascii` makes `petscii_walk.js` an ATASCII caller (TTYPE
+`ATASCII`, NAWS 40x24, the ATASCII screen model from
+`test/term_atascii_screens.js`). ESC bytes are allowed, as ATASCII quotes
+glyphs with them, but an ESC before 0x1B-0x1F (which SyncTERM draws as the
+wrong characters) is counted and fails the run. Every screen is printed with a
+map of its inverse cells (`#`), which is where focus shows. The walks `full`,
+`messages` and `newscan` go through the ATASCII starter the way they do for
+PETSCII, with Atari keys (ESC for F1, CTRL W / CTRL Z for F3 / F5, CTRL N for
+CTRL G, CTRL X for CLR; the second post in `messages` is saved with CTRL S).
+Two options pick how keys are sent:
+
+* `--return syncterm` (default) sends Return as SyncTERM does, `0D 0A`;
+  `--return icy` as IcyTerm does, `9B`.
+* `--arrows bare` (default) sends the arrow keys as `1C`-`1F`, as SyncTERM
+  does; `--arrows esc` puts ESC before them, as IcyTerm does.
+
+For example:
+
+    node dev_util/term_harness/petscii_walk.js --emulation atascii --walk full --port 49301 --user tester
+    node dev_util/term_harness/petscii_walk.js --emulation atascii --walk messages --return icy --arrows esc --port 49301 --user tester
+    node dev_util/term_harness/petscii_walk.js --emulation atascii --walk messages --term '' --port 49302 --user poster   # the listener route
+
+`--walk native` goes through the stock matrix and login menus instead, logs
+in and prints each screen; it is for checking native `.ata` art placed on
+those menus by a theme of your own:
+
+    node dev_util/term_harness/make_instance.js .work/ata 49201 49202 login --second-emulation=atascii
+    node dev_util/term_harness/petscii_walk.js --emulation atascii --walk native --port 49201 --user tester
+
+The walks log in as an existing user: create users first with `walk_nua.py`
+(an ANSI caller, below), one per user name.
 
 ## Run a walk
 

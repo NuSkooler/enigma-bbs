@@ -293,7 +293,7 @@ describe('ATASCII native art', function () {
             });
         });
 
-        it('positions match the native screen model on random art', () => {
+        it('the final cursor matches the native screen model on random art', () => {
             const rnd = prng(593);
             const pool = [
                 ...text('abc %'),

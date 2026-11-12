@@ -37,7 +37,7 @@ The Telnet server can listen on more ports than its main one. Add each under `lo
 | `port` | Yes | Port to listen on. |
 | `address` | No | Bind address. Defaults to the main Telnet `address`. |
 | `firstMenu` | No | First menu for callers on this port. Defaults to the main Telnet `firstMenu`. |
-| `emulation` | No | Terminal emulation for callers on this port, for example `petscii`. |
+| `emulation` | No | Terminal emulation for callers on this port, for example `petscii` or `atascii`. |
 | `enabled` | No | Defaults to `true`. Set to `false` to leave the listener out without removing it. Read at startup: a change to `port`, `address` or `enabled` needs a restart. |
 
 `ansi`, `petscii` and `atascii` are implemented today; see [PETSCII (Commodore) Callers](./petscii.md) and [ATASCII (Atari) Callers](./atascii.md). Any other value is recorded and falls back to ANSI.
@@ -55,6 +55,11 @@ Additional listeners run only while the main Telnet server is enabled. A listene
           port: 6400
           firstMenu: retroConnected
           emulation: petscii
+        }
+        atari: {
+          port: 6800
+          firstMenu: atasciiConnected
+          emulation: atascii
         }
         local: {
           port: 8890

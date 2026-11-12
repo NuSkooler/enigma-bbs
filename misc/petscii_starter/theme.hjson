@@ -242,7 +242,7 @@
                 4: {
                     mci: {
                         HM1: {
-                            styleSGR1: "|00|11"
+                            styleSGR1: "|16|11"
                             styleSGR2: "|00|23"
                         }
                     }
@@ -277,7 +277,7 @@
                 3: {
                     mci: {
                         HM1: {
-                            styleSGR1: "|00|11"
+                            styleSGR1: "|16|11"
                             styleSGR2: "|00|23"
                         }
                     }
@@ -319,7 +319,7 @@
                 3: {
                     mci: {
                         HM1: {
-                            styleSGR1: "|00|11"
+                            styleSGR1: "|16|11"
                             styleSGR2: "|00|23"
                         }
                     }
@@ -342,15 +342,24 @@
                             width: 38
                             height: 7
                             focusTextStyle: normal
+                            //  the line in focus, reversed (the others keep
+                            //  the colour of the art)
+                            styleSGR2: "|00|23"
                         }
                     }
                 }
             }
 
+            //
+            //  A pipe code for a foreground colour alone keeps the background
+            //  before it, so an unfocused style after a focused (reversed)
+            //  one names the black background too: |16, here and in the
+            //  editor and reader menus (HM1) above.
+            //
             petsciiLoginNewScanConfirm: {
                 mci: {
                     TM1: {
-                        styleSGR1: "|00|11"
+                        styleSGR1: "|16|11"
                         styleSGR2: "|00|23"
                     }
                 }

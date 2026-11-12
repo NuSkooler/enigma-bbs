@@ -1,21 +1,21 @@
 ---
 title: ATASCII (Atari) Callers
-description: "How ENiGMA½ serves Atari 8-bit style terminals: detection, a dedicated port, what is translated, keys, and current limits."
+description: "How ENiGMA½ serves Atari 8-bit style terminals: detection, a dedicated port, starter menus and theme, native ATASCII (.ata) art, keys, what is translated, and current limits."
 sidebar:
     order: 6
 ---
 ## ATASCII
 
-ENiGMA½ can serve Atari 8-bit style terminals that speak ATASCII in place of ANSI: SyncTERM and IcyTerm in their Atari modes, and terminal programs on real Atari hardware.
+ENiGMA½ can serve Atari 8-bit style terminals that speak ATASCII in place of ANSI: SyncTERM and IcyTerm in their Atari modes. It is also meant for terminal programs on real Atari computers, but it has not been tested on real hardware.
 
-This is early support, earlier than [PETSCII](./petscii.md). The board is still ANSI inside: menus, prompts and views are translated on the way out. Art can be native ATASCII (`.ata` files, see [Native ATASCII art](#native-atascii-art)), but there is no starter menu tree or theme yet, so on a board without ATASCII art an ATASCII caller sees your existing menus and art, translated, in one colour, wrapped at 40 columns. Nothing changes for ANSI callers.
+This is early support. The board is still ANSI inside: menus, prompts and views are translated on the way out. Art can be native ATASCII (`.ata` files, see [Native ATASCII art](#native-atascii-art)), and ENiGMA½ comes with a small set of [starter menus and a theme](#starter-menus-and-theme) laid out for a 40x24 screen in one colour. A board with no ATASCII theme at all shows ATASCII callers its ANSI menus and art, translated: in one colour, wrapped at 40 columns, and with focus in most menus invisible (see [Limits](#limits)), but the caller gets something rather than a screen of escape codes. Nothing changes for ANSI or PETSCII callers.
 
 ### How a caller gets ATASCII
 
 A session is ATASCII in either of two ways:
 
 * **The terminal says so.** SyncTERM and IcyTerm send the Telnet terminal type `ATASCII` when set to an Atari mode. In SyncTERM that means setting the directory entry's **Screen Mode** to `Atari` (40x24) or `Atari XEP80` (80x25).
-* **The port says so.** Give terminal programs on real hardware their own port with an [additional Telnet listener](./telnet.md#additional-listeners):
+* **The port says so.** A terminal program that does not announce `ATASCII` needs a port of its own, an [additional Telnet listener](./telnet.md#additional-listeners):
 
 ```hjson
 {
@@ -32,29 +32,175 @@ A session is ATASCII in either of two ways:
 }
 ```
 
-Every caller on that port is treated as ATASCII, whatever its terminal announces. To send ATASCII callers down menus of their own, branch a connect menu on `TE[atascii]`; see [Flow Control](../../configuration/menu-hjson.md#flow-control).
+Every caller on that port is treated as ATASCII, whatever its terminal announces. A listener may also name its own `firstMenu`, for example the first menu of the [starter menus](#starter-menus-and-theme).
 
-### What is translated
+### Starter menus and theme
 
-* **Text** is mapped to ATASCII. Box drawing characters become ATASCII's line graphics; block characters become ATASCII blocks, some through inverse video; a character with no equivalent becomes `?`.
-* **No colour.** An Atari screen has one colour. Colours are dropped. Reverse video, and any background colour other than black, are shown as inverse characters. Bold and bright colours look the same as plain text.
-* **Cursor movement.** ATASCII has no "go to row, column" and no "home": only a screen clear puts the cursor in a known place. ENiGMA½ tracks the cursor and sends relative moves.
-* **Screen size** is what the terminal reports, otherwise 40x24, up to 160x100.
-* Nothing is asked of the terminal at connect, so there is no feature detection pause.
+The stock menus are drawn for 80 column ANSI screens in colour. ENiGMA½ ships a small, separate menu tree for ATASCII callers instead, and a starter theme with art for exactly those menus. It is the same tree as the [PETSCII starter](./petscii.md#starter-menus-and-theme), menu for menu, made over for an Atari screen (40x24, one colour) and keyboard:
 
-### Keys
+* **Connect screen and login matrix**: log in, apply, log off. New user applications are not offered to ATASCII callers yet: "apply" tells the caller to apply from an ANSI terminal and goes back to the matrix.
+* **Login**, including two-factor (2FA/OTP) login for accounts that use it, and short screens for an account that is already logged in, locked, disabled or not yet active.
+* **Last callers** after login, then the offer of a **new-message scan**, then a **main menu** with messages, who's online, last callers and log off.
+* **Messages**: join a conference, pick a message area, list the area's messages, read them (next, previous, reply, quit), find text in them, and post a new message or a reply, quoting lines from the message, with the full-screen editor. See [Messages](#messages).
 
-The decoder accepts what SyncTERM, IcyTerm and a real Atari each send for Return, Backspace, Tab, Escape and the cursor keys. An Atari keyboard has no Home, End or Page keys, so three Ctrl combinations stand in:
+The menus are in `misc/menu_templates/atascii.in.hjson`, every one named `atascii...`; none of them leads to a stock menu or to a PETSCII one. The theme is in `misc/atascii_starter/` (`info.emulation: atascii`). Its art is plain placeholder screens (`.ata` files), generated by `dev_util/petscii_art/`. Besides the starter menus' own art it has `CONNECT.ata` (the stock connect menu's art, so an ATASCII caller's first screen is ATASCII), `IDLELOG.ata` (the idle logoff screen) and `pause.ata` (the system pause prompt).
 
-| Key | Acts as |
-|-----|---------|
-| CTRL W | Page Up |
-| CTRL Z | Page Down |
-| CTRL X | End |
+**Focus is shown in inverse video.** An Atari screen has one colour, so the item in focus in every menu and list of the starter theme is drawn inverse, and the others plain. The theme says so with a background colour (`|00|23`, black on light grey), which an ATASCII session shows as inverse; see [What is translated](#what-is-translated). Keep to that when you change the layouts: a focus style that differs from the plain one only in colour or brightness is invisible to an Atari caller.
 
-The message editor already has CTRL A and CTRL E for the start and end of a line.
+:::caution[A partial ATASCII theme strands callers]
+Once an ATASCII theme is in use, an ATASCII caller's art is looked for in that theme and in `art/general` only: the ANSI theme is not consulted, and nothing is translated from it. An ATASCII theme over the stock menus therefore leaves the caller on blank screens at the first menu it has no art for. Use the starter menus (or menus of your own with art for every one) together with an ATASCII theme. This is also why the starter theme is kept outside `art/themes/`: any ATASCII theme there is given to ATASCII callers.
+:::
 
-Escape is also the prefix IcyTerm puts before cursor keys, so ENiGMA½ waits a tenth of a second after an Escape to see which it is.
+#### A new board
+
+`oputil.js config new` asks, after the PETSCII question:
+
+```
+Include starter menus and theme for ATASCII (Atari 8-bit) callers? (y/N)
+```
+
+The answer defaults to no. Answering no to both starter questions produces exactly what `config new` has always produced. On yes it also:
+
+1. copies `atascii.in.hjson` into `config/menus/` as `<board>-atascii.hjson` and adds it to the main menu file's `includes`;
+2. writes `<board>-login.hjson` with the ATASCII branch on `telnetConnected` (below);
+3. copies `misc/atascii_starter/` to `art/themes/atascii_starter/` (an existing directory of that name is left alone);
+4. sets `theme.emulations.atascii` in `config.hjson`:
+
+```hjson
+theme: {
+    emulations: {
+        atascii: {
+            default: atascii_starter
+            preLogin: atascii_starter
+        }
+    }
+}
+```
+
+With yes to both questions you get both starters: both menu files, both themes, both `theme.emulations` entries, and a connect menu with a branch for each (below). If a step cannot be done (a `<board>-login.hjson` already in the way, or a theme that cannot be copied), `config new` finishes the rest and then lists what is left, under "The ATASCII starter is not complete"; a theme that could not be copied is left out of `theme.emulations`.
+
+#### An existing board
+
+Nothing is changed for you; the same four steps by hand:
+
+1. Copy `misc/menu_templates/atascii.in.hjson` to your menus directory (for example `config/menus/myboard-atascii.hjson`) and add that file name to the `includes` list in your main menu file.
+2. Branch the connect menu. In `telnetConnected` (in `myboard-login.hjson` on a board made by `config new`), replace `next: matrix` with:
+
+   ```hjson
+   next: [
+       {
+           acs: TE[atascii]
+           next: atasciiMatrix
+       }
+       {
+           next: matrix
+       }
+   ]
+   ```
+
+   If your `telnetConnected` goes somewhere other than `matrix`, keep that as the last entry. If you already have the PETSCII branch, add the ATASCII entry beside it, before the last one:
+
+   ```hjson
+   next: [
+       {
+           acs: TE[petscii]
+           next: petsciiMatrix
+       }
+       {
+           acs: TE[atascii]
+           next: atasciiMatrix
+       }
+       {
+           next: matrix
+       }
+   ]
+   ```
+
+   This is exactly what `config new` writes when both questions are answered yes. The entries are tried in order and the first that matches wins; a session has one emulation, so the order of the two branches does not matter, but the entry without `acs` must be last.
+3. Copy the directory `misc/atascii_starter/` into your themes directory as `atascii_starter` (`art/themes/atascii_starter/` unless you set `paths.themes`).
+4. Add `theme.emulations.atascii` to `config.hjson` as shown above, beside `petscii` if you have it.
+
+Then run `./oputil.js config validate`, and restart ENiGMA½ so that the new theme is loaded.
+
+#### How callers get in
+
+* **On the main Telnet port**, the `telnetConnected` branch sends a session whose terminal announced `ATASCII` (the `TE[atascii]` [ACS](../../configuration/acs.md) code) to `atasciiMatrix`; everyone else goes on as before. The connect screen itself is `telnetConnected`'s `CONNECT` art, which the starter theme has as `CONNECT.ata`, so an ATASCII caller sees only the version banner line before it and no ANSI art. WebSocket callers enter `telnetConnected` too and take the same branch.
+* **On a port of its own**, an [additional Telnet listener](./telnet.md#additional-listeners) with `emulation: atascii` and `firstMenu: atasciiConnected` (the same connect screen, then the matrix). No menu changes are needed for this route, and every caller on the port is ATASCII, which is what a terminal that announces nothing needs:
+
+  ```hjson
+  loginServers: {
+      telnet: {
+          listeners: {
+              atari: {
+                  port: 6800
+                  emulation: atascii
+                  firstMenu: atasciiConnected
+              }
+          }
+      }
+  }
+  ```
+
+  Without `firstMenu`, the listener's callers enter `telnetConnected` and take the branch, if you added it.
+* **SSH** is not routed to the starter menus: SSH logs the caller in, and picks the user's theme, before the session's emulation is known, so an ATASCII caller over SSH keeps today's translated ANSI menus.
+
+The starter is drawn for 40x24. A caller in SyncTERM's `Atari XEP80` mode (80x25) gets the same 40 column screens, at the left of the wider screen.
+
+#### Messages
+
+After login, an ATASCII caller is asked whether to look for new messages (**Y** or **N**; from the second call on, as the stock login does). On yes, every area with something new is listed in turn (`atasciiNewScanMessageList`): RETURN reads a message, **Q** goes on to the next area, **X** stops the scan, **M** marks the area read, **P** posts. The scan is the stock `new_scan` module with `skipFileBase: true`, so it does not go on to the file base, which has no ATASCII menus; see [New Scan](../../modules/new-scan.md). The message menu offers the same scan as **N**.
+
+From the main menu, **M** opens the message menu, which shows the current conference and area: **N** scans for new messages, **L** lists the area's messages, **P** posts a message, **A** picks another area of the conference, **J** joins another conference, **Q** goes back. In the message list, RETURN reads the message in focus and **P** posts a new one.
+
+These are the stock message modules (`msg_conf_list`, `msg_area_list`, `msg_list`, `msg_area_view_fse`, `msg_area_post_fse`) with 40 column art. The full-screen editor's screen is put together from pieces of art: a header (`AMSGEHDR` writing, `AMSGVHDR` reading), the body (`AMSGBODY`, shared), and a footer below it (`AMSGEFTR` while typing, `AMSGEMFT` for the editor menu, `AMSGVFTR` while reading, `AMSGFIND` while asking what to find). Both headers are six rows high so the one body fits under either; the footer starts on the body's last row. The body shows 14 lines, one fewer than the PETSCII starter's, because an Atari screen has 24 rows. The quote builder (`AMSGQUOT`) is drawn below the header. When you redraw these, keep the heights, or adjust the view heights in the theme to match.
+
+Keys for ATASCII callers:
+
+| Where | Key | Does |
+|---|---|---|
+| Editor | arrow keys, BACKSPACE, RETURN | move, delete left, new line |
+| Editor | CTRL E or CTRL X; CTRL V | end of the line; insert or overwrite |
+| Editor | **CTRL W**, **CTRL Z** | page up, page down |
+| Editor | **ESC** | the editor menu: **S** save, **D** discard, **Q** quote (replies), **?** or **H** help; ESC again goes back to typing |
+| Editor | **CTRL S** | save at once |
+| Editor | CTRL F | find: type the text and RETURN; the cursor goes to the first match (the editor keeps no list of matches to step through; the stock editor behaves the same); ESC cancels |
+| Editor | CTRL Y, CTRL A, CTRL O | delete the line; edit the subject; help |
+| Header | RETURN | next field (To, then Subject, then the body); ESC leaves without saving |
+| Quote builder | arrow keys, RETURN, ESC | move; add the line in focus; done |
+| Reader | arrow up and down; **CTRL W**, **CTRL Z** | scroll; page up, page down |
+| Reader | arrow left and right, RETURN | pick from the menu at the bottom |
+| Reader | **N**, **P**, **R**, **Q** or ESC, **?** | next, previous, reply, back to the list, help |
+| Reader | CTRL F | find: type the text and RETURN; the match in focus is shown in inverse video |
+| Reader | CTRL N, CTRL P | next match, previous match |
+| Reader | CTRL F, then ESC | stop finding |
+| Lists and menus | arrow keys, CTRL W and CTRL Z, CTRL X, RETURN, the bracketed letter; **Q** or ESC | move, page, last item, pick; go back |
+| Login | ESC | back to the matrix (in the two-factor prompt, ESC logs off) |
+
+Most of these are the stock menus' keys: an Atari has a real ESC key, and CTRL N, CTRL P and CTRL S reach ENiGMA½ as themselves. CTRL W, CTRL Z and CTRL X are Page Up, Page Down and End because the ATASCII input decoder reports them so (see [Keys](#keys)); an Atari keyboard has none of those keys. There is no key for the start of a line or the first item of a list: the editor's CTRL A edits the subject, as in the stock menus.
+
+While finding in the reader, only the match in focus is marked (in inverse video). The other matches are not marked: on one colour, a second kind of mark would look like the first. CTRL N and CTRL P step through them.
+
+Left out on purpose, because they lead out of the ATASCII menus: uploading a message body, and adding a message to the download queue. Not in the starter menus yet: message search, private mail and deleting from the list.
+
+On a board with ActivityPub areas, the new-message scan shows those areas in the same plain message list and reader as any other area, without threads, attachments or reactions, and counts what it shows as read. There is no ATASCII version of the ActivityPub browser.
+
+#### Extending it
+
+Add menus to your copy of `atascii.in.hjson` the way you would to any menu file, using the stock menus as examples, and keep every `next` and `action` inside the ATASCII tree: a stock menu has no art in an ATASCII theme. For each new menu, add its art to the theme as an `.ata` file and its view layout (widths, heights, item formats) under `customization.menus` in the theme's `theme.hjson`. Lay views out for 40 columns and 24 rows, prefer vertical menus to horizontal ones, and show focus with a background colour or reverse video. Bind only keys an Atari-mode terminal can send (see [Keys](#keys)).
+
+The shipped `atascii.in.hjson` and `petscii.in.hjson` are kept the same shape on purpose: a test in ENiGMA½'s source (`test/atascii_starter.test.js`) checks that they have the same menus, modules and flow, apart from a short list of differences (the reader's CTRL N for the PETSCII tree's CTRL G, and the editor's CTRL S). Your own copies are yours to change.
+
+#### Artists wanted
+
+The starter art is functional placeholder art: a title band, some text and the MCI codes the menus need. Draw your own in an ATASCII editor, save each screen under the same name as an `.ata` file in your copy of the theme, and adjust the layouts in its `theme.hjson` to match. If you make a set you are happy to share, please offer it to the project so ENiGMA½ can ship real ATASCII art.
+
+Editors that save `.ata` files:
+
+| Tool | Notes |
+|------|-------|
+| [Icy Draw](https://github.com/mkrueger/icy_tools) | Part of icy_tools, alongside IcyTerm. Draws ATASCII screens and saves them as `.ata` (an 80 column XEP80 screen as `.xep`: the bytes are the same, so rename it to `.ata`). |
+
+An `.ata` file is the raw ATASCII an Atari terminal would be sent, with no header, so screens saved from an Atari BBS should work as well. See [Native ATASCII art](#native-atascii-art) for what ENiGMA½ expects, including where to type MCI codes. The starter's own screens are generated by `dev_util/petscii_art/build.js` from the descriptions in `atascii_screens.js`, which is one more way to make simple ones.
 
 ### Native ATASCII art
 
@@ -66,42 +212,81 @@ art/themes/my_atari_theme/MATRIX.ata
 art/themes/my_atari_theme/LOGIN.ata
 ```
 
-and give ATASCII callers that theme in `config.hjson`:
+and give ATASCII callers that theme in `config.hjson` with `theme.emulations.atascii`, as the [starter](#a-new-board) does. Read the caution under [Starter menus and theme](#starter-menus-and-theme) first: such a theme needs art for every menu its callers can reach.
 
-```hjson
-theme: {
-    emulations: {
-        atascii: {
-            default: my_atari_theme
-            preLogin: my_atari_theme
-        }
-    }
-}
-```
-
-:::caution[A partial ATASCII theme strands callers]
-Once an ATASCII theme is in use, an ATASCII caller's art is looked for in that theme and in `art/general` only: the ANSI theme is not consulted, and nothing is translated from it. A theme with art for only some menus leaves the caller on blank screens at the first menu it has no art for. Until ENiGMA½ ships starter menus for ATASCII callers, give such a theme art for every menu its callers can reach, or keep ATASCII callers on the translated ANSI theme.
-:::
-
-* **Making it.** [Icy Draw](https://github.com/mkrueger/icy_tools) draws ATASCII screens and saves them as `.ata`. It saves an 80 column (XEP80) screen as `.xep`: the bytes are the same, so rename the file to `.ata`; ENiGMA½ looks only for `.ata`.
-* **Selection.** An ATASCII caller is given `NAME.ata` in preference to any other file called `NAME` in the same place, with the usual random selection (`NAME1.ata`, `NAME2.ata`, ...). The search still goes one place at a time (theme, then default theme, then `art/general`), so a `NAME.ans` in the caller's theme is used before a `NAME.ata` in the default theme: keep an ATASCII theme's art in that theme. Where a place has no `NAME.ata`, its ANSI art is translated, as before.
+* **Making it.** See [Artists wanted](#artists-wanted). ENiGMA½ looks only for `.ata`.
+* **Selection.** An ATASCII caller is given `NAME.ata` in preference to any other file called `NAME` in the same place, with the usual random selection (`NAME1.ata`, `NAME2.ata`, ...). The search still goes one place at a time (theme, then default theme, then `art/general`), so a `NAME.ans` in the caller's theme is used before a `NAME.ata` in the default theme: keep an ATASCII theme's art in that theme. Translated ANSI art only reaches an ATASCII caller from those same places: once the caller has an ATASCII theme, the ANSI theme's art is not looked at.
 * **Only ATASCII callers get `.ata` art.** An `.ata` file sitting beside `.ans` or `.seq` files changes nothing for ANSI or PETSCII callers, and an ATASCII caller is never given a `.seq`. Art named with its extension (`art: MATRIX.ata`) shown to another caller anyway is shown as plain text: the characters and the line ends, without inverse video or cursor movement, never as ATASCII bytes.
-* **The bytes go out as they are.** Inverse video, cursor movement, CLEAR, tabs and the insert and delete codes in the file all work as on an Atari, and ENiGMA½ follows them so that views drawn afterwards land in the right place. Art is not paged (`pause: pageBreak` shows it whole), and no ANSI preparation is applied to it. Start each screen with CLEAR (0x7D), or let the menu clear the screen first (`cls: true`): ATASCII has no other way to put the cursor in a known place, so if the position is not known when the art starts (after a door or a file transfer) and the art does not begin with CLEAR, ENiGMA½ sends one first.
-* **Screen size.** Draw for 40x24: SyncTERM's `Atari` mode, IcyTerm and a real Atari. An 80x25 XEP80 screen (SyncTERM's `Atari XEP80` mode) is the same format, for callers whose terminal is 80 columns wide. There is one `.ata` per name, shown at whatever width the caller has, so art drawn for 80 columns wraps on a 40 column screen. Writing a character in the last column wraps to the next row at once, so a full-width row needs no END OF LINE (Icy Draw saves full rows without one). Writing the bottom row's last cell scrolls the whole screen up a line: leave that cell empty. An END OF LINE at the very end of the file is dropped when it would scroll.
+* **The bytes go out as they are.** Inverse video, cursor movement, CLEAR, tabs and the insert and delete codes in the file all reach the terminal unchanged, and ENiGMA½ follows them so that views drawn afterwards land in the right place. Art is not paged (`pause: pageBreak` shows it whole), and no ANSI preparation is applied to it. Start each screen with CLEAR (0x7D), or let the menu clear the screen first (`cls: true`): ATASCII has no other way to put the cursor in a known place, so if the position is not known when the art starts (after a door or a file transfer) and the art does not begin with CLEAR, ENiGMA½ sends one first.
+* **Screen size.** Draw for 40x24: SyncTERM's `Atari` mode and IcyTerm. An 80x25 XEP80 screen (SyncTERM's `Atari XEP80` mode) is the same format, for callers whose terminal is 80 columns wide. There is one `.ata` per name, shown at whatever width the caller has, so art drawn for 80 columns wraps on a 40 column screen. Writing a character in the last column wraps to the next row at once, so a full-width row needs no END OF LINE (Icy Draw saves full rows without one). The starter's screens never write the last column and end every row with END OF LINE, so they draw the same on an 80 column screen. Writing the bottom row's last cell scrolls the whole screen up a line: leave that cell empty. An END OF LINE at the very end of the file is dropped when it would scroll.
 * **Inverse video.** An Atari screen has no colour. Each character is normal or inverse (bit 7 of its byte). A view takes the inverse video of the place its MCI code was typed.
 * **MCI codes** are typed into the art as ordinary characters, as in ANSI art: `%TL1`, `%ET2`, `%VM1`, and so on (see [MCI Codes](../../art/mci.md)), in upper or lower case (`%tl1` is `%TL1`). A code may be typed in inverse video, for example inside an inverse bar: the view is then drawn in inverse, and the code's cells are blanked with inverse spaces, so the bar stays whole. Whether a code is inverse is taken from its `%`. A code is one unbroken run of characters: a cursor movement or END OF LINE inside it means it is not a code.
-* **Cursor movement at the edges.** On a real Atari and in SyncTERM, the cursor codes wrap to the opposite edge of the screen (UP on the top row goes to the bottom row); IcyTerm stops at the edge. ENiGMA½ follows the Atari, so art that moves the cursor across an edge looks different in IcyTerm, and views placed after it are out of place there: do not rely on it. In the same way, TAB uses the Atari's default stops (every 8 columns) and any the art sets or clears itself, but a caller can change the stops in their own terminal; and DELETE LINE and INSERT LINE are taken to leave the cursor in the first column, as SyncTERM does. Avoid tabs ahead of MCI codes.
-* **Escaped characters.** The arrows, the escape symbol, the clear screen arrow and the two triangles share their bytes with control codes; an Atari draws them when the byte follows ESC (0x1B). They go out as they are. SyncTERM draws five of them wrongly (ESC followed by 0x1B to 0x1F, the escape symbol and the four arrows, and their inverse forms, come out as `[`, `\`, `]`, `^` and `_`); IcyTerm and a real Atari draw them correctly. Text that ENiGMA½ itself writes avoids them, but native art is not changed: if your callers use SyncTERM, draw arrows another way. ESC before END OF LINE (0x9B) is still a line end, so the inverse escape symbol cannot be drawn. An ESC as the last byte of the file is dropped.
+* **Cursor movement at the edges.** In SyncTERM the cursor codes wrap to the opposite edge of the screen (UP on the top row goes to the bottom row); IcyTerm stops at the edge. ENiGMA½ follows SyncTERM (how a real Atari behaves here has not been tested), so art that moves the cursor across an edge looks different in IcyTerm, and views placed after it are out of place there: do not rely on it. In the same way, TAB uses the default stops (every 8 columns) and any the art sets or clears itself, but a caller can change the stops in their own terminal; and DELETE LINE and INSERT LINE are taken to leave the cursor in the first column, as SyncTERM does. Avoid tabs ahead of MCI codes.
+* **Escaped characters.** The arrows, the escape symbol, the clear screen arrow and the two triangles share their bytes with control codes; ATASCII draws them when the byte follows ESC (0x1B). They go out as they are. In a side-by-side check of SyncTERM and IcyTerm, IcyTerm drew all of them correctly, and SyncTERM drew five of them wrongly: ESC followed by 0x1B to 0x1F (the escape symbol and the four arrows) came out as `[`, `\`, `]`, `^` and `_`; ESC followed by 0x7D to 0x7F (the clear screen arrow and the triangles) was right in both. How a real Atari draws them has not been tested. Text that ENiGMA½ itself writes avoids the five, but native art is not changed: if your callers use SyncTERM, draw arrows another way (the starter's screens contain no ESC at all). ESC before END OF LINE (0x9B) is still a line end, so the inverse escape symbol cannot be drawn. An ESC as the last byte of the file is dropped.
 * **SAUCE.** Icy Draw can add a SAUCE record to the file; it is removed (with its comment block and the end-of-file byte in front of it) and not shown. Its width is used only for the plain text other callers get. Byte 0x1A is a line drawing character in ATASCII, not an end-of-file marker, so 0x1A bytes at the end of a file without SAUCE are shown: a file that has been through an XMODEM transfer may end in a run of them as padding, drawn as corners; remove it.
+
+### Keys
+
+The input decoder accepts what SyncTERM and IcyTerm send for Return, Backspace, Tab, Escape and the arrow keys, and the bytes an Atari keyboard produces for them (not tested on real hardware). An Atari keyboard has no Home, End or Page keys, so three Ctrl combinations stand in, for every ATASCII session, whatever menus it is in:
+
+| Key | Acts as |
+|-----|---------|
+| CTRL W | Page Up |
+| CTRL Z | Page Down |
+| CTRL X | End |
+
+CTRL W, CTRL Z and CTRL X as such are therefore not available to ATASCII callers. Nothing in the stock menus binds them. The message editor already has CTRL A and CTRL E for the start and end of a line, where a menu does not take CTRL A for something else (the starter's editor and the stock one use it to edit the subject).
+
+Escape is also the prefix IcyTerm puts before arrow keys, Backspace and End, so ENiGMA½ waits a tenth of a second after an Escape to see which it is. One side effect: Escape and then, very quickly, Return, Backspace or an arrow key may be read as one of IcyTerm's prefixed keys.
+
+These cannot be typed from an Atari-mode terminal, because ATASCII has no such characters or uses their codes for something else:
+
+* the characters `` ` ``, `{`, `}` and `~` (a typed `~` arrives as Backspace, a `{` or `` ` `` as a graphics character, and a `}` not at all);
+* CTRL H, CTRL I, CTRL J and CTRL M as Ctrl combinations: they are Backspace, Tab, line feed and Return.
+
+Menus for ATASCII callers should not rely on any of them, or on function keys, Home, Page Up or Page Down as such.
+
+### Testing with SyncTERM and IcyTerm
+
+You do not need an Atari to try this.
+
+* **SyncTERM:** edit the directory entry and set **Screen Mode** to `Atari` (40x24) or `Atari XEP80` (80x25), with **Connection Type** Telnet. That makes SyncTERM an ATASCII terminal and announce itself as one.
+* **IcyTerm:** choose the ATASCII emulation for the entry, with Telnet.
+* **A dedicated port** (an [additional listener](./telnet.md#additional-listeners) with `emulation: atascii`) treats every caller as ATASCII whatever the terminal announces, which is the quickest way to tell a detection problem from a display problem.
+
+To see what a session was given, look in the log for the caller's terminal type and emulation: a session that asked for an emulation ENiGMA½ does not have is logged as falling back to ANSI.
+
+The two terminals send some keys differently, and ENiGMA½ accepts both:
+
+| Key | SyncTERM | IcyTerm |
+|-----|----------|---------|
+| Return | 0x0D (followed by 0x0A) | 0x9B |
+| Backspace | 0x08; its Delete key sends 0x7E, also Backspace | ESC 0x7E |
+| Tab | 0x09 | not sent |
+| Arrow keys | 0x1C to 0x1F | ESC, then 0x1C to 0x1F |
+| End | not sent | ESC 0x9B |
+| Insert | 0xFF | not sent |
+
+Neither sends Home, Page Up, Page Down or function keys: use CTRL W, CTRL Z and CTRL X ([Keys](#keys)).
+
+### What is translated
+
+* **Text** is mapped to ATASCII. Box drawing characters become ATASCII's line graphics; block characters become ATASCII blocks, some through inverse video; a character with no equivalent becomes `?`.
+* **No colour.** An Atari screen has one colour. Colours are dropped. Reverse video (SGR 7), and any background colour other than black, are shown as inverse characters; this is how a theme shows focus to an ATASCII caller. Bold and bright colours look the same as plain text.
+* **Cursor movement.** ATASCII has no "go to row, column" and no "home": only a screen clear puts the cursor in a known place. ENiGMA½ tracks the cursor and sends relative moves.
+* **Screen size** is what the terminal reports, otherwise 40x24, up to 160x100.
+* **Keys**: see [Keys](#keys).
+* Nothing is asked of the terminal at connect, so there is no feature detection pause.
 
 ### Limits
 
-* **Focus may be invisible.** With one colour, a menu item that a theme highlights only with a brighter colour looks the same focused or not. Themes that highlight with a background colour, or with a different text style, show focus correctly. A theme for ATASCII callers (`info.emulation: atascii`) should use reverse video for focus.
-* The stock menus and art are laid out for 80 column ANSI. Expect wrapped art.
-* Four characters cannot be typed from a PC keyboard in an Atari mode, because ATASCII has no such characters: `` ` ``, `{`, `}` and `~`. A typed `~` arrives as Backspace.
+* The stock menus and art are laid out for 80 column ANSI in colour. On a board with no ATASCII theme, expect wrapped art, and focus that cannot be seen in most menus: in the stock theme, most focused items differ from the others only in brightness, which is invisible on one colour. The [starter menus](#starter-menus-and-theme) cover connecting, logging in, messages, who's online and last callers, with focus in inverse video; anything more needs menus and art of your own. A theme declares `emulation: atascii` in its `info` block to be used for these callers, and should show focus with reverse video or a background colour.
+* A form is chosen by the MCI codes in its art: a 40 column screen that leaves a view out needs a matching form in the theme.
+* Art that is not shown through a menu or prompt (achievement and node message headers and footers, for example) uses the ANSI art, translated, or plain text from an `.ata` file named with its extension.
 * After a door or a file transfer, the cursor position is unknown, and there is no way to find it again short of clearing the screen. The next menu normally clears; until then, output that needs a position clears the screen first.
-* The bottom right screen cell is never drawn, because writing it scrolls an Atari screen.
-* The four arrow characters are shown as `^`, `v`, `<` and `>`. ATASCII has real arrow glyphs, but they can only be drawn with its escape prefix, and SyncTERM draws those five prefixed glyphs as other characters.
+* The bottom right screen cell is never drawn, because writing it scrolls the screen.
+* The four arrow characters are shown as `^`, `v`, `<` and `>` in text ENiGMA½ writes. ATASCII has arrow glyphs, but they can only be drawn with its escape prefix, which SyncTERM draws as other characters (see [Native ATASCII art](#native-atascii-art)).
 * Doors expect an ANSI terminal; their output is translated but their input is not. Use the `TE` [ACS](../../configuration/acs.md) code to keep doors away from ATASCII callers, for example `TE[ansi]` on a door menu entry.
 * File transfers, and bridged connections such as the Telnet bridge and door networks, are passed through untranslated in both directions.
 * The screen size is settled at connect. If the terminal reports a different size later, ENiGMA½'s views use it but the ATASCII translation does not, and the screen will go wrong until the caller reconnects. Atari modes in SyncTERM and IcyTerm have a fixed size, so this only matters to other clients.
+* Nothing here has been tested on a real Atari: everything above was checked with SyncTERM, IcyTerm and ENiGMA½'s own test screens.

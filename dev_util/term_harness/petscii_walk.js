@@ -7,7 +7,8 @@
 //  commands, and renders everything else on the PETSCII screen model from
 //  test/term_petscii_screens.js, which throws on any byte a Commodore
 //  terminal must never be sent (those are counted as errors). Walks the
-//  starter tree and prints each screen as text.
+//  starter tree and prints each screen as text, with a map of its reversed
+//  cells (where focus shows).
 //
 //  Only for a throwaway local instance (see README.md): it logs in.
 //
@@ -29,8 +30,16 @@
 //  40x24, rendered on the ATASCII screen model from
 //  test/term_atascii_screens.js (same rule: a byte an Atari terminal must
 //  never get from ENiGMA's translator is an error; ESC is allowed, ATASCII
-//  quotes glyphs with it). Only --walk connect and --walk native exist for
-//  it so far; --walk native goes through the stock matrix and login menus
+//  quotes glyphs with it, but an ESC before 0x1B-0x1F, which SyncTERM
+//  misdraws, is counted and fails the run). Every screen is printed with a
+//  map of its inverse cells. The walks full, messages and newscan go
+//  through the ATASCII starter the same way as for PETSCII, with Atari keys:
+//  ESC for F1, CTRL W / CTRL Z for F3 / F5, CTRL N for CTRL G, CTRL X for
+//  CLR, and in the messages walk CTRL S (quick save) for the second post.
+//  --return syncterm sends Return as SyncTERM does (0D 0A, the default),
+//  --return icy as IcyTerm does (9B); --arrows bare sends arrows as bytes
+//  1C-1F (SyncTERM, the default), --arrows esc with an ESC before them
+//  (IcyTerm). --walk native goes through the stock matrix and login menus
 //  (for checking native .ata art on them) and logs in.
 //
 //  --walk newscan answers Yes to the scan (run it as a user someone else has
@@ -45,8 +54,42 @@ const paths = require('path');
 const root = paths.resolve(__dirname, '../..');
 const { PetsciiScreen } = require(paths.join(root, 'test/term_petscii_screens.js'));
 const { AtasciiScreen } = require(paths.join(root, 'test/term_atascii_screens.js'));
-const { encode, Controls } = require(paths.join(root, 'core/term/petscii/charset.js'));
+const { encode } = require(paths.join(root, 'core/term/petscii/charset.js'));
 const atascii = require(paths.join(root, 'core/term/atascii/charset.js'));
+
+//  arrows: [up, down, left, right]
+const PETSCII_KEYS = {
+    ret: [0x0d],
+    menu: [0x85], //  F1
+    pageUp: [0x86], //  F3
+    pageDown: [0x87], //  F5
+    findNext: [0x07], //  CTRL G
+    end: [0x93], //  CLR
+    quickSave: null,
+    arrows: [[0x91], [0x11], [0x9d], [0x1d]],
+    welcome: /Commodore caller/,
+    machine: 'a C64',
+    editorFooter: /F1: save/,
+    menuKey: 'F1',
+};
+
+function atasciiKeys(ret, arrows) {
+    const esc = 'esc' === arrows ? [0x1b] : [];
+    return {
+        ret: 'icy' === ret ? [0x9b] : [0x0d, 0x0a],
+        menu: [0x1b],
+        pageUp: [0x17], //  CTRL W
+        pageDown: [0x1a], //  CTRL Z
+        findNext: [0x0e], //  CTRL N
+        end: [0x18], //  CTRL X
+        quickSave: [0x13], //  CTRL S
+        arrows: [0x1c, 0x1d, 0x1e, 0x1f].map(b => [...esc, b]),
+        welcome: /Atari caller/,
+        machine: 'an Atari',
+        editorFooter: /ESC: save/,
+        menuKey: 'ESC',
+    };
+}
 
 const EMULATIONS = {
     petscii: {
@@ -56,6 +99,8 @@ const EMULATIONS = {
         screen: () => new PetsciiScreen(40, 25, { row: 0, col: 0 }),
         encode: text => encode(text, 'lower'),
         escIsError: true,
+        keys: () => PETSCII_KEYS,
+        cellMap: 'reverse',
     },
     atascii: {
         term: 'ATASCII',
@@ -64,6 +109,9 @@ const EMULATIONS = {
         screen: () => new AtasciiScreen(40, 24, { row: 0, col: 0 }),
         encode: text => atascii.encode(text),
         escIsError: false,
+        keys: args => atasciiKeys(args.return, args.arrows),
+        showInverse: true,
+        cellMap: 'inverse',
     },
 };
 
@@ -86,6 +134,8 @@ function parseArgs() {
         password: 'harnesspass1',
         emulation: 'petscii',
         walk: 'full',
+        return: 'syncterm',
+        arrows: 'bare',
     };
     const argv = process.argv.slice(2);
     for (let i = 0; i < argv.length; i += 2) {
@@ -102,9 +152,13 @@ function parseArgs() {
 }
 
 class Caller {
-    constructor({ port, term, emulation = 'petscii' }) {
+    constructor(args) {
+        const { port, term, emulation = 'petscii' } = args;
         this.term = term;
         this.emu = EMULATIONS[emulation];
+        this.k = this.emu.keys(args);
+        this.badEsc = 0; //  ESC before 0x1B-0x1F (ATASCII; SyncTERM misdraws it)
+        this.afterEsc = false;
         this.cols = this.emu.cols;
         this.rows = this.emu.rows;
         this.screen = this.emu.screen();
@@ -189,6 +243,10 @@ class Caller {
 
     _render(b) {
         ++this.dataBytes;
+        if (this.afterEsc && b >= 0x1b && b <= 0x1f) {
+            ++this.badEsc;
+        }
+        this.afterEsc = 0x1b === b && !this.afterEsc;
         if (0x1b === b) {
             ++this.escBytes;
         }
@@ -237,6 +295,16 @@ class Caller {
         this._send([byte]);
         await sleep(150);
     }
+
+    //  a key that is one or more bytes (this.k)
+    async keys(bytes) {
+        this._send(bytes);
+        await sleep(150);
+    }
+
+    async ret() {
+        return this.keys(this.k.ret);
+    }
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -252,15 +320,18 @@ function dump(caller, label) {
         .split('\n')
         .forEach(l => console.log('|' + l.padEnd(caller.cols) + '|'));
     console.log(bar);
+    dumpInverse(caller, label);
 }
 
-//  inverse cells as a second picture: '#' inverse, '.' normal (ATASCII)
+//  inverse (ATASCII) or reverse (PETSCII) cells as a second picture: '#'
+//  inverse or reverse, '.' normal; rows with none are left out
 function dumpInverse(caller, label) {
-    console.log(`[${label}: inverse cells]`);
+    const flag = caller.emu.cellMap;
+    console.log(`[${label}: ${flag} cells]`);
     for (let r = 0; r < caller.rows; ++r) {
         let line = '';
         for (let c = 0; c < caller.cols; ++c) {
-            line += caller.screen.actual(r, c).inverse ? '#' : '.';
+            line += caller.screen.actual(r, c)[flag] ? '#' : '.';
         }
         if (line.includes('#')) {
             console.log(`${String(r + 1).padStart(2)} ${line}`);
@@ -273,17 +344,14 @@ async function atasciiNativeWalk(c, args) {
     const EOL = atascii.Controls.eol;
     await c.expect(/Pick one|MATRIX|login/);
     dump(c, 'matrix');
-    dumpInverse(c, 'matrix');
     await c.key(EOL); //  the first item: login
     await c.expect(/User:|LOGIN|ogin/);
     dump(c, 'login');
-    dumpInverse(c, 'login');
     await c.type(args.user);
     await c.key(EOL);
     await c.type(args.password);
     await c.settle();
     dump(c, 'login, typed');
-    dumpInverse(c, 'login, typed');
     await c.key(EOL);
     for (let i = 0; i < 3; ++i) {
         await sleep(2500);
@@ -297,30 +365,39 @@ async function main() {
     const args = parseArgs();
     const c = new Caller(args);
 
-    if ('atascii' === args.emulation) {
-        if ('native' === args.walk) {
-            await atasciiNativeWalk(c, args);
-        } else {
-            await c.expect(/\S/);
-            await c.settle(1500);
-            dump(c, 'connect');
-        }
+    if ('atascii' === args.emulation && 'native' === args.walk) {
+        await atasciiNativeWalk(c, args);
+        return finish(c);
+    }
+    if ('atascii' === args.emulation && '' === args.term && 'connect' === args.walk) {
+        await c.expect(/\S/);
+        await c.settle(1500);
+        dump(c, 'connect');
         return finish(c);
     }
 
-    await c.expect(/Commodore caller/);
+    await c.expect(c.k.welcome);
     dump(c, 'connect');
     await c.expect(/Pick one/);
     dump(c, 'matrix');
     if ('connect' === args.walk) {
         return finish(c);
     }
+    if (c.emu.showInverse) {
+        //  focus moves with the arrow keys and shows as inverse video
+        await c.keys(c.k.arrows[1]);
+        await c.settle();
+        dump(c, 'matrix, arrow down');
+        await c.keys(c.k.arrows[0]);
+        await c.settle();
+        dump(c, 'matrix, arrow up');
+    }
 
     await c.type('a');
     await c.expect(/New users/);
     await c.expect(/press a key/);
     dump(c, 'apply notice');
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/Pick one/);
     dump(c, 'matrix again');
 
@@ -328,13 +405,13 @@ async function main() {
     await c.expect(/User name/);
     dump(c, 'login');
     await c.type(args.user);
-    await c.key(Controls.return);
+    await c.ret();
     await c.type(args.password);
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/last callers/);
     await c.expect(/press a key/);
     dump(c, 'last callers (login)');
-    await c.key(Controls.return);
+    await c.ret();
     //  the new-message scan question; anything the system shows on its own
     //  in between (an achievement popup on a return call, say) waits for a key
     for (let i = 0; i < 8 && !/main menu/.test(c.text()); ++i) {
@@ -349,7 +426,7 @@ async function main() {
             await c.settle();
         } else if (!/main menu/.test(c.text())) {
             dump(c, 'interstitial');
-            await c.key(Controls.return);
+            await c.ret();
             await c.settle();
         }
     }
@@ -380,14 +457,14 @@ async function whosOnlineAndLastCallers(c) {
     await c.expect(/who's online/);
     await c.expect(/press a key/);
     dump(c, "who's online");
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/main menu/);
 
     await c.type('l');
     await c.expect(/last callers/);
     await c.expect(/press a key/);
     dump(c, 'last callers (main menu)');
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/main menu/);
     dump(c, 'main menu again');
 }
@@ -401,18 +478,14 @@ async function expectThrough(c, re) {
             return;
         }
         dump(c, 'interstitial');
-        await c.key(Controls.return);
+        await c.ret();
         await c.settle();
     }
     await c.expect(re);
 }
 
-const F1 = 0x85;
-const F3 = 0x86; //  page up for a PETSCII caller
-const F5 = 0x87; //  page down
 const ESC = 0x1b;
-const CTRL_F = 0x06; //  find
-const CTRL_G = 0x07; //  next match (in the reader)
+const CTRL_F = 0x06; //  find (both emulations)
 
 //  --walk newscan: yes to the scan, read the first new message, back out
 async function newScanAtLogin(c) {
@@ -420,7 +493,7 @@ async function newScanAtLogin(c) {
     await c.expect(/new messages/);
     await c.expect(/RETURN read/);
     dump(c, 'new scan: new messages');
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/read a message/);
     dump(c, 'new scan: reading');
     await c.type('q');
@@ -428,7 +501,7 @@ async function newScanAtLogin(c) {
     await c.type('q'); //  on to the next area
     await expectThrough(c, /Done\./);
     dump(c, 'new scan: done');
-    await c.key(Controls.return);
+    await c.ret();
 }
 
 //  --walk newscan, after login: page and find in the editor on a long
@@ -439,65 +512,65 @@ async function findAndPageWalk(c) {
     dump(c, 'message menu');
     await c.type('p');
     await c.expect(/write a message/);
-    await c.key(Controls.return);
+    await c.ret();
     await c.type('Fruit, a long list');
-    await c.key(Controls.return);
+    await c.ret();
     for (let i = 1; i <= 24; ++i) {
         const fruit = 3 === i || 21 === i ? 'apple' : 'pear';
         await c.type(`Row ${i}: a ${fruit} a day.`);
         if (i < 24) {
-            await c.key(Controls.return);
+            await c.ret();
         }
     }
     await c.settle();
     dump(c, 'editor: 24 rows typed');
-    await c.key(F3);
+    await c.keys(c.k.pageUp);
     await c.settle();
-    dump(c, 'editor: F3 (page up)');
-    await c.key(F3);
+    dump(c, 'editor: page up');
+    await c.keys(c.k.pageUp);
     await c.settle();
-    dump(c, 'editor: F3 again');
-    await c.key(F5);
+    dump(c, 'editor: page up again');
+    await c.keys(c.k.pageDown);
     await c.settle();
-    dump(c, 'editor: F5 (page down)');
+    dump(c, 'editor: page down');
     await c.key(CTRL_F);
     await c.expect(/RETURN finds/);
     dump(c, 'editor: CTRL F');
     await c.type('apple');
-    await c.key(Controls.return);
-    await c.expect(/F1: save/);
+    await c.ret();
+    await c.expect(c.k.editorFooter);
     dump(c, 'editor: found');
-    await c.key(F1);
+    await c.keys(c.k.menu);
     await c.expect(/save/);
     await c.type('s');
     await expectThrough(c, /list messages/);
 
     await c.type('l');
     await expectThrough(c, /RETURN read/);
-    await c.key(0x93); //  CLR, i.e. End: the last message
-    await c.key(Controls.return);
+    await c.keys(c.k.end); //  End: the last message
+    await c.ret();
     await c.expect(/Row 1: a pear/);
     dump(c, 'reader: the long message');
-    await c.key(F5);
+    await c.keys(c.k.pageDown);
     await c.settle();
-    dump(c, 'reader: F5 (page down)');
-    await c.key(F3);
+    dump(c, 'reader: page down');
+    await c.keys(c.k.pageUp);
     await c.settle();
-    dump(c, 'reader: F3 (page up)');
+    dump(c, 'reader: page up');
     await c.key(CTRL_F);
     await c.expect(/RETURN finds/);
     await c.type('apple');
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/prev {2}next/);
     dump(c, 'reader: found, first of two');
-    await c.key(CTRL_G);
+    await c.keys(c.k.findNext);
     await c.settle();
-    dump(c, 'reader: CTRL G, second match');
+    dump(c, 'reader: find next, second match');
     await c.key(CTRL_F);
     await c.expect(/RETURN finds/);
-    await c.key(F1);
+    await c.keys(c.k.menu);
     await c.expect(/prev {2}next/);
-    dump(c, 'reader: find left (CTRL F, F1)');
+    dump(c, 'reader: find left (CTRL F, then the menu key)');
     await c.type('q');
     await c.expect(/RETURN read/);
     await c.type('q');
@@ -506,23 +579,27 @@ async function findAndPageWalk(c) {
     await c.expect(/main menu/);
 }
 
-//  writes a new message from the message menu; |menuKey| opens the editor menu
-async function postMessage(c, subject, lines, menuKey, label) {
+//  writes a new message from the message menu; |menuKey| (bytes) opens the
+//  editor menu, or with |quickSave| saves at once
+async function postMessage(c, subject, lines, menuKey, label, quickSave = false) {
     await c.type('p');
     await c.expect(/write a message/);
     dump(c, `${label}: editor`);
-    await c.key(Controls.return); //  To: keep "All"
+    await c.ret(); //  To: keep "All"
     await c.type(subject);
-    await c.key(Controls.return);
+    await c.ret();
     for (let i = 0; i < lines.length; ++i) {
         await c.type(lines[i]);
         if (i < lines.length - 1) {
-            await c.key(Controls.return);
+            await c.ret();
         }
     }
     await c.settle();
     dump(c, `${label}: written`);
-    await c.key(menuKey);
+    await c.keys(menuKey);
+    if (quickSave) {
+        return;
+    }
     await c.expect(/save/);
     dump(c, `${label}: editor menu`);
 }
@@ -535,51 +612,67 @@ async function messagesWalk(c) {
     await c.type('j');
     await c.expect(/Join a conference/);
     dump(c, 'conference list');
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/list messages/);
 
     await c.type('a');
     await c.expect(/Pick a message area/);
     dump(c, 'area list');
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/list messages/);
     dump(c, 'message menu, area picked');
 
-    //  saved through the editor menu opened with F1, saving with S
+    //  saved through the editor menu opened with F1 (ESC on an Atari),
+    //  saving with S
+    const machine = c.k.machine;
     await postMessage(
         c,
-        'Hello from a C64',
-        ['First line from a Commodore.', 'Second line, typed at 40 columns, wraps here.'],
-        F1,
-        'post (F1)'
+        `Hello from ${machine}`,
+        [`First line from ${machine}.`, 'Second line, typed at 40 columns, wraps here.'],
+        c.k.menu,
+        `post (${c.k.menuKey})`
     );
     await c.type('s');
     await expectThrough(c, /list messages/);
-    dump(c, 'message menu after post (F1)');
+    dump(c, `message menu after post (${c.k.menuKey})`);
 
-    //  the same with a real ESC byte, saving with RETURN (save is first)
-    await postMessage(
-        c,
-        'Second post via ESC',
-        ['Escape works too.', 'Bye.'],
-        ESC,
-        'post (ESC)'
-    );
-    await c.key(Controls.return);
-    await expectThrough(c, /list messages/);
-    dump(c, 'message menu after post (ESC)');
+    if (c.k.quickSave) {
+        //  CTRL S saves at once (ATASCII)
+        await postMessage(
+            c,
+            'Second post via CTRL S',
+            ['Quick save works too.', 'Bye.'],
+            c.k.quickSave,
+            'post (CTRL S)',
+            true
+        );
+        await expectThrough(c, /list messages/);
+        dump(c, 'message menu after post (CTRL S)');
+    } else {
+        //  the same with a real ESC byte, saving with RETURN (save is first)
+        await postMessage(
+            c,
+            'Second post via ESC',
+            ['Escape works too.', 'Bye.'],
+            [ESC],
+            'post (ESC)'
+        );
+        await c.ret();
+        await expectThrough(c, /list messages/);
+        dump(c, 'message menu after post (ESC)');
+    }
 
     await c.type('l');
-    await expectThrough(c, /Hello from a C64/);
+    await expectThrough(c, /Hello from/);
     dump(c, 'message list');
 
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/read a message/);
     await c.expect(/wraps here/);
     dump(c, 'read message 1');
 
     await c.type('n');
-    await c.expect(/Escape works too/);
+    await c.expect(/(Escape|Quick save) works too/);
     dump(c, 'read message 2 (N)');
 
     await c.type('p');
@@ -589,7 +682,7 @@ async function messagesWalk(c) {
     await c.type('?');
     await c.expect(/reader keys/);
     dump(c, 'reader help');
-    await c.key(Controls.return);
+    await c.ret();
     await c.expect(/read a message/);
 
     //  reply, quoting a line
@@ -597,24 +690,24 @@ async function messagesWalk(c) {
     await c.expect(/write a message/);
     await c.expect(/RE: Hello/);
     dump(c, 'reply: editor');
-    await c.key(Controls.return); //  To: the author
-    await c.key(Controls.return); //  Subject: RE: ...
+    await c.ret(); //  To: the author
+    await c.ret(); //  Subject: RE: ...
     await c.settle();
-    await c.key(F1);
+    await c.keys(c.k.menu);
     await c.expect(/quote/);
     dump(c, 'reply: editor menu');
     await c.type('q');
     await c.expect(/Quote: RETURN/);
     dump(c, 'reply: quote builder');
-    await c.key(Controls.return); //  the first line
+    await c.ret(); //  the first line
     await c.settle();
     dump(c, 'reply: quote builder, a line picked');
-    await c.key(F1);
+    await c.keys(c.k.menu);
     await c.settle();
-    await c.type('A reply from the C64.');
+    await c.type(`A reply from ${c.k.machine}.`);
     await c.settle();
     dump(c, 'reply: written');
-    await c.key(F1);
+    await c.keys(c.k.menu);
     await c.expect(/save/);
     await c.type('s');
     await expectThrough(c, /read a message/);
@@ -632,11 +725,12 @@ async function messagesWalk(c) {
 
 function finish(c) {
     console.log(
-        `\nbytes=${c.dataBytes} esc=${c.escBytes} modelErrors=${c.errors.length} closedByServer=${c.closed}`
+        `\nbytes=${c.dataBytes} esc=${c.escBytes} escBefore1Bto1F=${c.badEsc} modelErrors=${c.errors.length} closedByServer=${c.closed}`
     );
     c.errors.slice(0, 10).forEach(e => console.log(`  ${e}`));
     c.sock.destroy();
-    process.exitCode = c.errors.length || (c.emu.escIsError && c.escBytes) ? 1 : 0;
+    process.exitCode =
+        c.errors.length || c.badEsc || (c.emu.escIsError && c.escBytes) ? 1 : 0;
 }
 
 module.exports = { Caller, dump };
