@@ -1169,4 +1169,67 @@ describe('ATASCII output translator', function () {
             assert.equal(out[out.length - 1], 0x59);
         });
     });
+    describe("quoted: 'portable'", () => {
+        const bytesOf = (text, quoted = 'portable') =>
+            [
+                ...createAtasciiTranslator({ quoted }).translate(
+                    Buffer.from('\x1b[2J' + text)
+                ),
+            ].slice(1);
+
+        it('arrows and the escape glyph use their stand-ins, never ESC', () => {
+            //  SyncTERM draws ESC + 1B..1F as [ \\ ] ^ _
+            assert.deepEqual(bytesOf('↑↓←→␛'), [0x5e, 0x76, 0x3c, 0x3e, 0x3f]);
+        });
+
+        it('the up-left arrow and the triangles are still quoted', () => {
+            assert.deepEqual(bytesOf('↖◀▶'), [0x1b, 0x7d, 0x1b, 0x7e, 0x1b, 0x7f]);
+        });
+
+        it('in inverse too', () => {
+            assert.deepEqual(bytesOf('\x1b[7m↑↖'), [0x5e | 0x80, 0x1b, 0xfd]);
+        });
+
+        it('everything else is as with quoting on', () => {
+            const text = 'Hello ┌─┐│└┘ █▀▄▌▐ ♥♦♣♠ \x1b[7m inverse █ \x1b[0m';
+            assert.deepEqual(bytesOf(text), bytesOf(text, true));
+        });
+
+        it('no BMP code point is ever sent as ESC + 1B..1F or 9B..9F', function () {
+            this.timeout(30000);
+            for (const prefix of ['', '\x1b[7m']) {
+                const t = createAtasciiTranslator({ quoted: 'portable' });
+                t.translate(Buffer.from('\x1b[2J' + prefix));
+                for (let cp = 0x20; cp < 0x10000; ++cp) {
+                    if (cp >= 0xd800 && cp <= 0xdfff) {
+                        continue;
+                    }
+                    const out = t.translate(
+                        Buffer.from(String.fromCharCode(cp) + '\x1b[H')
+                    );
+                    for (let i = 0; i < out.length; ++i) {
+                        if (0x1b === out[i]) {
+                            const next = out[i + 1] & 0x7f;
+                            assert.ok(
+                                next >= 0x7d && next <= 0x7f,
+                                `U+${cp.toString(16)} -> ESC ${out[i + 1].toString(16)}`
+                            );
+                            ++i;
+                        }
+                    }
+                }
+            }
+        });
+
+        it('is what an ATASCII session uses', () => {
+            const { createEmulation } = require('../core/term');
+            const emulation = createEmulation('atascii');
+            assert.equal(emulation.outputTranslator.state().quoted, 'portable');
+            emulation.inputDecoder.dispose();
+        });
+
+        it('any other value is refused', () => {
+            assert.throws(() => createAtasciiTranslator({ quoted: 'some' }), TypeError);
+        });
+    });
 });

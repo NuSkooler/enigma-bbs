@@ -63,7 +63,7 @@ Escape is also the prefix IcyTerm puts before cursor keys, so ENiGMA½ waits a t
 * Four characters cannot be typed from a PC keyboard in an Atari mode, because ATASCII has no such characters: `` ` ``, `{`, `}` and `~`. A typed `~` arrives as Backspace.
 * After a door or a file transfer, the cursor position is unknown, and there is no way to find it again short of clearing the screen. The next menu normally clears; until then, output that needs a position clears the screen first.
 * The bottom right screen cell is never drawn, because writing it scrolls an Atari screen.
-* Some glyphs (the arrows, among others) need ATASCII's escape prefix to be drawn and may not look right in every terminal.
+* The four arrow characters are shown as `^`, `v`, `<` and `>`. ATASCII has real arrow glyphs, but they can only be drawn with its escape prefix, and SyncTERM draws those five prefixed glyphs as other characters.
 * Doors expect an ANSI terminal; their output is translated but their input is not. Use the `TE` [ACS](../../configuration/acs.md) code to keep doors away from ATASCII callers, for example `TE[ansi]` on a door menu entry.
 * File transfers, and bridged connections such as the Telnet bridge and door networks, are passed through untranslated in both directions.
 * A window resize during a session is not followed.

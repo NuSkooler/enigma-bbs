@@ -89,10 +89,18 @@
 //                the clear-screen arrow, the two triangles, and their inverse
 //                halves) is sent as ESC + byte when |quoted| is on (the default);
 //                with |quoted: false| its charset.js fallback is used instead
-//                (arrows become ^ v < >), because SyncTERM's quoted path draws
-//                through a different conversion and may show the wrong glyph
-//                (open question, to settle live). No glyph ever needs 0x9B; the
-//                one that would (the inverse escape glyph) is an inverse '?'.
+//                (arrows become ^ v < >).
+//
+//                |quoted: 'portable'| quotes only what every terminal draws
+//                right. SyncTERM's quoted path runs the byte through a screen
+//                code conversion that its plain path does not, so ESC + 0x1B-0x1F
+//                (the escape glyph and the four arrows) come out there as
+//                [ \ ] ^ _ ; ESC + 0x7D-0x7F (the up-left arrow and the two
+//                triangles) are not converted and draw correctly. Seen live in
+//                SyncTERM against IcyTerm, which draws all eight. In this mode
+//                the first five use their fallbacks and the last three are
+//                quoted. No glyph ever needs 0x9B; the one that would (the
+//                inverse escape glyph) is an inverse '?'.
 //
 //  Line ends     CRLF is END OF LINE when that is the shortest move, also on the
 //                bottom row, where its scroll is the scroll ANSI does. A bare CR is
@@ -241,6 +249,9 @@ const ZERO_WIDTH_RE = /[\p{Mn}\p{Me}\p{Cf}]/u;
 const MAX_COLS = 160;
 const MAX_ROWS = 100;
 
+//  createAtasciiTranslator({ quoted: PORTABLE }): see "ESC quoting" in the header
+const PORTABLE = 'portable';
+
 function checkSize(cols, rows) {
     if (
         !Number.isInteger(cols) ||
@@ -259,8 +270,20 @@ function checkSize(cols, rows) {
 //  inverse cell (a complement glyph); the caller flips bit 7 for inverse video.
 //  The result may be a control byte only when |quoted| (it is then sent quoted).
 //
+//  control bytes whose quoted glyph SyncTERM draws wrongly (and their inverse
+//  halves); see "ESC quoting" above
+const isMisdrawnWhenQuoted = b => (b & 0x7f) >= 0x1b && (b & 0x7f) <= 0x1f;
+
 function glyphBaseByte(ch, quoted) {
     const exact = unicodeToByte(ch);
+    if (PORTABLE === quoted) {
+        if (undefined !== exact && isControlByte(exact) && isMisdrawnWhenQuoted(exact)) {
+            //  as with quoting off: the one-cell fallback, else '?'
+            const plain = encode(ch, { quoted: false, fallbackByte: UNMAPPED });
+            return 1 === plain.length && !isControlByte(plain[0]) ? plain[0] : UNMAPPED;
+        }
+        quoted = true;
+    }
     if (undefined !== exact && (quoted || !isControlByte(exact))) {
         return exact;
     }
@@ -282,8 +305,10 @@ function glyphBaseByte(ch, quoted) {
 function createAtasciiTranslator(options) {
     const { cols = 40, rows = 24, quoted = true } = options || {};
     checkSize(cols, rows);
-    if ('boolean' !== typeof quoted) {
-        throw new TypeError(`ATASCII quoted must be true or false: ${quoted}`);
+    if ('boolean' !== typeof quoted && PORTABLE !== quoted) {
+        throw new TypeError(
+            `ATASCII quoted must be true, false or 'portable': ${quoted}`
+        );
     }
 
     const geo = { cols, rows, quoted };
@@ -672,7 +697,10 @@ function createAtasciiTranslator(options) {
             glyphCache.set(ch, base);
         }
         let b = base ^ (inverse ? INVERSE_BIT : 0);
-        if (Controls.eol === b) {
+        if (
+            Controls.eol === b ||
+            (PORTABLE === geo.quoted && isMisdrawnWhenQuoted(b) && isControlByte(b))
+        ) {
             //  the inverse escape glyph would need ESC 0x9B, which is a newline
             b = UNMAPPED | INVERSE_BIT;
         }
@@ -1011,4 +1039,4 @@ function createAtasciiTranslator(options) {
     };
 }
 
-module.exports = { createAtasciiTranslator, MAX_COLS, MAX_ROWS };
+module.exports = { createAtasciiTranslator, MAX_COLS, MAX_ROWS, PORTABLE };

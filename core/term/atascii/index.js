@@ -20,7 +20,12 @@
 //  No ENiGMA imports here or in the files beside this one.
 //
 const { createAtasciiInputDecoder } = require('./input_decoder.js');
-const { createAtasciiTranslator, MAX_COLS, MAX_ROWS } = require('./output_translator.js');
+const {
+    createAtasciiTranslator,
+    MAX_COLS,
+    MAX_ROWS,
+    PORTABLE,
+} = require('./output_translator.js');
 
 const DEFAULT_COLS = 40;
 const DEFAULT_ROWS = 24;
@@ -100,7 +105,12 @@ module.exports = {
     probes,
     createInputDecoder: createAtasciiInputDecoder,
     createOutputTranslator: () =>
-        createAtasciiTranslator({ cols: DEFAULT_COLS, rows: DEFAULT_ROWS }),
+        //  'portable': only the quoted glyphs SyncTERM and IcyTerm both draw right
+        createAtasciiTranslator({
+            cols: DEFAULT_COLS,
+            rows: DEFAULT_ROWS,
+            quoted: PORTABLE,
+        }),
     codec,
     supports: () => false,
     defaults: {
