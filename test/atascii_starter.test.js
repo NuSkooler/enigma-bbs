@@ -22,6 +22,7 @@ const {
     artNamesOf,
     mciNeeded,
 } = require('./starter_tree.js');
+const { focusableViews, focusProblems } = require('./starter_focus.js');
 
 const ROOT = paths.join(__dirname, '..');
 const TEMPLATE_DIR = paths.join(ROOT, 'misc/menu_templates');
@@ -550,33 +551,36 @@ describe('ATASCII starter art (#593)', () => {
 
 describe('ATASCII starter theme shows focus in inverse video (#593)', () => {
     let pipeToAnsi;
-    let format;
 
     before(() => {
         ({ pipeToAnsi } = require('../core/color_codes.js'));
-        format = require('../core/string_format.js');
     });
 
-    //  modules whose VM1 is a display list, never focused
-    const DISPLAY_ONLY = ['last_callers', 'whos_online'];
-
-    //  [menu, form id, MCI key] for every menu or list view a caller moves
-    //  focus in
-    function focusableViews(t) {
-        const out = [];
-        _.forEach(t.menus, (menu, name) => {
-            _.forEach(menu.form || {}, (form, id) => {
-                Object.keys(form.mci || {})
-                    .filter(k => /^(VM|HM|TM)\d+$/.test(k))
-                    .filter(() => !DISPLAY_ONLY.includes(menu.module))
-                    .forEach(k => out.push([name, id, k]));
-            });
-        });
-        return out;
+    //  the ATASCII emulation as starter_focus.js needs it
+    function atasciiEmulation() {
+        const { AtasciiArtParser } = require('../core/term/atascii/art_parser.js');
+        return {
+            artDir: STARTER_DIR,
+            ext: '.ata',
+            termWidth: 40,
+            termHeight: 24,
+            parseArt: bytes => {
+                const out = [];
+                const parser = new AtasciiArtParser({ mciReplaceChar: ' ' });
+                parser.on('mci', m =>
+                    out.push({ key: `${m.mci}${m.id}`, SGR: m.SGR, position: m.position })
+                );
+                parser.parse(bytes);
+                return out;
+            },
+            render: renderAtascii,
+            flagged: (screen, row, col) => screen.actual(row - 1, col - 1).inverse,
+            cellText: (screen, row, col) => screen.actual(row - 1, col - 1).ch,
+        };
     }
 
-    //  the inverse flags of the cells |ansi| draws on a cleared ATASCII screen
-    function inverseCells(ansi, width) {
+    //  |ansi| drawn on a cleared ATASCII screen through the real translator
+    function renderAtascii(ansi) {
         const {
             createAtasciiTranslator,
         } = require('../core/term/atascii/output_translator.js');
@@ -584,69 +588,35 @@ describe('ATASCII starter theme shows focus in inverse video (#593)', () => {
         const t = createAtasciiTranslator({ cols: 40, rows: 24, quoted: 'portable' });
         const screen = new AtasciiScreen(40, 24, { row: 0, col: 0 });
         screen.write(t.translate('\x1b[2J\x1b[1;1H' + ansi));
-        return _.range(width).map(c => screen.actual(0, c).inverse);
+        return screen;
     }
 
-    const SAMPLE = {
-        text: 'sample',
-        index: 1,
-        name: 'General',
-        msgNum: 1,
-        subject: 'Subject',
-        fromUserName: 'someone',
-        newIndicator: '*',
-    };
-
-    function renderPair(layout) {
-        if (layout.focusItemFormat) {
-            assert.ok(layout.itemFormat, 'focusItemFormat without itemFormat');
-            return [layout.itemFormat, layout.focusItemFormat].map(f =>
-                pipeToAnsi(format(f, SAMPLE))
-            );
-        }
-        assert.ok(layout.styleSGR1 && layout.styleSGR2, 'no focus style');
-        //  as the views do: the style, then the text
-        return [layout.styleSGR1, layout.styleSGR2].map(s => pipeToAnsi(s) + 'sample');
-    }
-
-    it('finds the views it checks', () => {
-        assert.ok(focusableViews(tree()).length >= 12);
+    it('checks every menu, list, toggle and footer menu', () => {
+        const views = focusableViews(tree()).map(v => `${v.menu}.${v.formId}.${v.key}`);
+        assert.equal(views.length, 12);
+        [
+            'atasciiMatrix.0.VM1',
+            'atasciiLoginNewScanConfirm.0.TM1',
+            'atasciiMessageList.0.VM1',
+            'atasciiMessageRead.4.HM1',
+            'atasciiMessagePost.3.HM1',
+            'atasciiMessageReply.3.HM1',
+            'atasciiMessageReply.5.VM3',
+        ].forEach(v => assert.ok(views.includes(v), v));
     });
 
-    it('every focusable menu and list has a focus style that is inverse video', () => {
-        const t = tree();
-        const theme = starterTheme().customization.menus;
-        const problems = [];
-        focusableViews(t).forEach(([name, id, key]) => {
-            const custom = theme[name] || {};
-            const layout = _.get(custom, [id, 'mci', key]) || _.get(custom, ['mci', key]);
-            const where = `${name}.form.${id}.${key}`;
-            if (!layout) {
-                problems.push(`${where}: no layout in the theme`);
-                return;
-            }
-            let normal;
-            let focus;
-            try {
-                [normal, focus] = renderPair(layout).map(a => inverseCells(a, 6));
-            } catch (e) {
-                problems.push(`${where}: ${e.message}`);
-                return;
-            }
-            //  normal is plain, focus is inverse, over the whole sample
-            if (normal.some(Boolean)) problems.push(`${where}: unfocused is inverse`);
-            if (!focus.every(Boolean)) problems.push(`${where}: focus is not inverse`);
-        });
-        assert.deepEqual(problems, []);
+    it('only the item in focus is inverse, in every one of them', () => {
+        assert.deepEqual(focusProblems(tree(), starterTheme(), atasciiEmulation()), []);
     });
 
     it('a plain style after a focused one is plain again', () => {
         //  a foreground pipe code alone keeps the background before it
         const theme = starterTheme().customization.menus;
         const tm = theme.atasciiLoginNewScanConfirm.mci.TM1;
-        const both =
-            pipeToAnsi(tm.styleSGR2) + 'yes' + pipeToAnsi(tm.styleSGR1) + ' / no';
-        const cells = inverseCells(both, 8);
+        const screen = renderAtascii(
+            pipeToAnsi(tm.styleSGR2) + 'yes' + pipeToAnsi(tm.styleSGR1) + ' / no'
+        );
+        const cells = _.range(8).map(c => screen.actual(0, c).inverse);
         assert.deepEqual(cells, [true, true, true, false, false, false, false, false]);
     });
 });

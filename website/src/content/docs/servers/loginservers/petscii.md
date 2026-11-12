@@ -102,6 +102,15 @@ Nothing is changed for you; the same four steps by hand:
 
 Then run `./oputil.js config validate`, and restart ENiGMA½ so that the new theme is loaded.
 
+:::note[A fix to the starter theme]
+In the first version of the starter theme, menus with items side by side (the yes/no question before the new-message scan, and the menus at the bottom of the message editor and reader) showed every item after the focused one reversed as well, so the item in focus could not be told apart; and the quote builder showed no focus at all. The fix is in `misc/petscii_starter/theme.hjson`. `config new` never overwrites a theme directory that is already there, so if you copied the starter theme before the fix, copy the new `theme.hjson` over yours, or make the same changes in your copy:
+
+* `styleSGR1: "|00|11"` becomes `styleSGR1: "|16|11"` in four places: `petsciiLoginNewScanConfirm` `TM1`, `petsciiMessageRead` form 4 `HM1`, and `petsciiMessagePost` and `petsciiMessageReply` form 3 `HM1`. (`|16` sets the black background; a foreground colour alone keeps the reversed background of the item drawn before it.)
+* `petsciiMessageReply` form 5 `VM3` gains `styleSGR2: "|00|23"`.
+
+No `.seq` file changed.
+:::
+
 #### How callers get in
 
 * **On the main Telnet port**, the `telnetConnected` branch sends a session whose terminal announced `PETSCII` (the `TE[petscii]` [ACS](../../configuration/acs.md) code) to `petsciiMatrix`; everyone else goes on to the stock matrix as before. The connect screen itself is `telnetConnected`'s `CONNECT` art, which the starter theme has as `CONNECT.seq`, so a PETSCII caller sees only the version banner line before it and no ANSI art. WebSocket callers enter `telnetConnected` too and take the same branch.

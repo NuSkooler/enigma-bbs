@@ -29,6 +29,7 @@ const {
     artNamesOf,
     mciNeeded,
 } = require('./starter_tree.js');
+const { focusableViews, focusProblems } = require('./starter_focus.js');
 
 function mciInArt(name) {
     const { PetsciiArtParser } = require('../core/term/petscii/art_parser.js');
@@ -318,6 +319,58 @@ describe('PETSCII starter menus (#593)', () => {
                 screen.write(bytes);
                 assert.equal(screen.scrolls, 0, `${file} scrolled the screen`);
             });
+    });
+});
+
+describe('PETSCII starter theme shows focus in reverse video (#593)', () => {
+    //  the PETSCII emulation as starter_focus.js needs it
+    function petsciiEmulation() {
+        const { PetsciiArtParser } = require('../core/term/petscii/art_parser.js');
+        const {
+            createPetsciiTranslator,
+        } = require('../core/term/petscii/output_translator.js');
+        const { PetsciiScreen } = require('./term_petscii_screens.js');
+        return {
+            artDir: STARTER_DIR,
+            ext: '.seq',
+            termWidth: 40,
+            termHeight: 25,
+            parseArt: bytes => {
+                const out = [];
+                const parser = new PetsciiArtParser({ mciReplaceChar: ' ' });
+                parser.on('mci', m =>
+                    out.push({ key: `${m.mci}${m.id}`, SGR: m.SGR, position: m.position })
+                );
+                parser.parse(bytes);
+                return out;
+            },
+            render: ansi => {
+                const t = createPetsciiTranslator({ cols: 40, rows: 25 });
+                const screen = new PetsciiScreen(40, 25, { row: 0, col: 0 });
+                screen.write(t.translate('\x1b[2J\x1b[1;1H' + ansi));
+                return screen;
+            },
+            flagged: (screen, row, col) => screen.actual(row - 1, col - 1).reverse,
+            cellText: (screen, row, col) => screen.actual(row - 1, col - 1).ch,
+        };
+    }
+
+    it('checks every menu, list, toggle and footer menu', () => {
+        const views = focusableViews(tree()).map(v => `${v.menu}.${v.formId}.${v.key}`);
+        assert.equal(views.length, 12);
+        [
+            'petsciiMatrix.0.VM1',
+            'petsciiLoginNewScanConfirm.0.TM1',
+            'petsciiMessageList.0.VM1',
+            'petsciiMessageRead.4.HM1',
+            'petsciiMessagePost.3.HM1',
+            'petsciiMessageReply.3.HM1',
+            'petsciiMessageReply.5.VM3',
+        ].forEach(v => assert.ok(views.includes(v), v));
+    });
+
+    it('only the item in focus is reversed, in every one of them', () => {
+        assert.deepEqual(focusProblems(tree(), starterTheme(), petsciiEmulation()), []);
     });
 });
 

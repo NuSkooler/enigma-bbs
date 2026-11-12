@@ -55,7 +55,8 @@ starter themes), so the checkout's `art/themes/` is not touched.
 `petscii_walk.js` is a PETSCII caller for such an instance (Node, no pyte): it
 answers TTYPE with `PETSCII` and NAWS with 40x25, renders on the PETSCII screen
 model from `test/term_petscii_screens.js` (which rejects bytes a Commodore
-terminal must never get), walks the starter tree and prints every screen:
+terminal must never get), walks the starter tree and prints every screen, each with a map of its
+reversed cells (`#`), which is where focus shows:
 
     node dev_util/term_harness/petscii_walk.js --port 48901 --user tester
     node dev_util/term_harness/petscii_walk.js --port 48902 --term ''   # the listener route

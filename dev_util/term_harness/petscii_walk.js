@@ -7,7 +7,8 @@
 //  commands, and renders everything else on the PETSCII screen model from
 //  test/term_petscii_screens.js, which throws on any byte a Commodore
 //  terminal must never be sent (those are counted as errors). Walks the
-//  starter tree and prints each screen as text.
+//  starter tree and prints each screen as text, with a map of its reversed
+//  cells (where focus shows).
 //
 //  Only for a throwaway local instance (see README.md): it logs in.
 //
@@ -99,6 +100,7 @@ const EMULATIONS = {
         encode: text => encode(text, 'lower'),
         escIsError: true,
         keys: () => PETSCII_KEYS,
+        cellMap: 'reverse',
     },
     atascii: {
         term: 'ATASCII',
@@ -109,6 +111,7 @@ const EMULATIONS = {
         escIsError: false,
         keys: args => atasciiKeys(args.return, args.arrows),
         showInverse: true,
+        cellMap: 'inverse',
     },
 };
 
@@ -317,18 +320,18 @@ function dump(caller, label) {
         .split('\n')
         .forEach(l => console.log('|' + l.padEnd(caller.cols) + '|'));
     console.log(bar);
-    if (caller.emu.showInverse) {
-        dumpInverse(caller, label);
-    }
+    dumpInverse(caller, label);
 }
 
-//  inverse cells as a second picture: '#' inverse, '.' normal (ATASCII)
+//  inverse (ATASCII) or reverse (PETSCII) cells as a second picture: '#'
+//  inverse or reverse, '.' normal; rows with none are left out
 function dumpInverse(caller, label) {
-    console.log(`[${label}: inverse cells]`);
+    const flag = caller.emu.cellMap;
+    console.log(`[${label}: ${flag} cells]`);
     for (let r = 0; r < caller.rows; ++r) {
         let line = '';
         for (let c = 0; c < caller.cols; ++c) {
-            line += caller.screen.actual(r, c).inverse ? '#' : '.';
+            line += caller.screen.actual(r, c)[flag] ? '#' : '.';
         }
         if (line.includes('#')) {
             console.log(`${String(r + 1).padStart(2)} ${line}`);
