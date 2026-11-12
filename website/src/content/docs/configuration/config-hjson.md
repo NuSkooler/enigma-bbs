@@ -40,8 +40,12 @@ You will be asked a series of questions to create an initial configuration, whic
 written to `config/config.hjson`. The same run also produces your menu files under
 `config/menus/` — see [Menu HJSON](menu-hjson.md).
 
-The last question offers starter menus and a theme for PETSCII (Commodore 64/128)
-callers; it defaults to no. See [Starter menus and theme](../servers/loginservers/petscii.md#starter-menus-and-theme).
+The last two questions offer starter menus and a theme for PETSCII (Commodore 64/128)
+callers and for ATASCII (Atari 8-bit) callers; each defaults to no. A yes adds that
+starter's menu file, a branch on the connect menu, its theme, and its entry under
+`theme.emulations` (`petscii` or `atascii`; see [Themes](../art/themes.md#creating-your-own)).
+See the [PETSCII](../servers/loginservers/petscii.md#starter-menus-and-theme) and
+[ATASCII](../servers/loginservers/atascii.md#starter-menus-and-theme) starter menus.
 
 ## Overriding Defaults
 The file `core/config_default.js` provides various defaults to the system that you can override via `config.hjson`. For example, the default system name is defined as follows:

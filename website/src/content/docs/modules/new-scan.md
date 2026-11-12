@@ -25,7 +25,7 @@ Available `config` block entries:
 
 The status text goes to `%TL1`, which the menu's art must have.
 
-`skipFileBase` is for menu trees that have no file base menus, for example the [PETSCII starter menus](../servers/loginservers/petscii.md#starter-menus-and-theme), or for a "new messages" entry on a message menu:
+`skipFileBase` is for menu trees that have no file base menus, for example the [PETSCII](../servers/loginservers/petscii.md#starter-menus-and-theme) and [ATASCII](../servers/loginservers/atascii.md#starter-menus-and-theme) starter menus, or for a "new messages" entry on a message menu:
 
 ```hjson
 messageBaseNewScan: {

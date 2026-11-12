@@ -75,6 +75,8 @@ theme: {
 }
 ```
 
+The next question offers the same for Atari callers, the [ATASCII starter](./atascii.md#starter-menus-and-theme). With yes to both, `telnetConnected` gets a branch for each (`TE[petscii]`, then `TE[atascii]`, then the stock matrix) and `theme.emulations` an entry for each.
+
 #### An existing board
 
 Nothing is changed for you; the same four steps by hand:
@@ -94,7 +96,7 @@ Nothing is changed for you; the same four steps by hand:
    ]
    ```
 
-   If your `telnetConnected` goes somewhere other than `matrix`, keep that as the second entry.
+   If your `telnetConnected` goes somewhere other than `matrix`, keep that as the last entry. To add the ATASCII starter as well, see [An existing board](./atascii.md#an-existing-board) on the ATASCII page for the connect menu with both branches.
 3. Copy the directory `misc/petscii_starter/` into your themes directory as `petscii_starter` (`art/themes/petscii_starter/` unless you set `paths.themes`).
 4. Add `theme.emulations.petscii` to `config.hjson` as shown above.
 
