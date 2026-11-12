@@ -1142,4 +1142,31 @@ describe('ATASCII output translator', function () {
             });
         }
     });
+    describe('review fixes', () => {
+        const hex = buf => [...buf].map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+        it('a foreign ESC left hanging by a pass-through string is seen too', () => {
+            const asBuffer = createAtasciiTranslator();
+            asBuffer.passThrough(Buffer.from([0x1b]));
+            const asString = createAtasciiTranslator();
+            asString.passThrough('\x1b');
+            const next = Buffer.from('\x1b[2JA');
+            assert.equal(hex(asString.translate(next)), hex(asBuffer.translate(next)));
+            //  the hanging ESC is given a harmless byte to quote first
+            assert.notEqual(asString.translate(Buffer.from('B'))[0], 0x1b);
+        });
+
+        it('null options mean the defaults', () => {
+            const t = createAtasciiTranslator(null);
+            assert.deepEqual([t.state().cols, t.state().rows], [40, 24]);
+        });
+
+        it('a glyph held at the bottom-right cell is dropped by a move, by design', () => {
+            const t = createAtasciiTranslator();
+            const out = t.translate(Buffer.from('\x1b[2J\x1b[24;40HX\x1b[24;1HY'));
+            //  writing that cell would scroll an Atari screen: X is never sent
+            assert.equal(out.includes(0x58), false);
+            assert.equal(out[out.length - 1], 0x59);
+        });
+    });
 });

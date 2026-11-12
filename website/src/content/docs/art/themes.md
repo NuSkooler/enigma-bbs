@@ -57,9 +57,9 @@ A caller is only ever given a theme for the emulation their session uses:
 If no theme exists for an emulation, its callers get the system default theme and a warning is logged once.
 
 :::note
-ENiGMA½ has two emulations today, `ansi` and `petscii`. A theme for any other emulation loads but is never offered to anyone until that emulation exists.
+ENiGMA½ has three emulations today: `ansi`, `petscii` and `atascii`. A theme for any other emulation loads but is never offered to anyone until that emulation exists.
 
-A `petscii` theme in your themes directory is given to every PETSCII caller, with or without a `theme.emulations` entry, and art for such a caller is then looked up in that theme and `art/general` only, never in an ANSI theme. Add one together with menus made for it: see [PETSCII (Commodore) Callers](../servers/loginservers/petscii.md#starter-menus-and-theme).
+A `petscii` or `atascii` theme in your themes directory is given to every caller of that kind, with or without a `theme.emulations` entry, and art for such a caller is then looked up in that theme and `art/general` only, never in an ANSI theme. Add one together with menus made for it: see [PETSCII (Commodore) Callers](../servers/loginservers/petscii.md#starter-menus-and-theme).
 :::
 
 ### Customization Block

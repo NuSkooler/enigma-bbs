@@ -48,17 +48,18 @@ function shoutingTranslator() {
 
 describe('terminal emulation', () => {
     describe('registry', () => {
-        it('ANSI is the default; PETSCII is the other base emulation', () => {
+        it('ANSI is the default; PETSCII and ATASCII are the other base emulations', () => {
             assert.equal(Term.DEFAULT_EMULATION, 'ansi');
-            assert.deepEqual(Term.emulationNames(), ['ansi', 'petscii']);
+            assert.deepEqual(Term.emulationNames(), ['ansi', 'petscii', 'atascii']);
             assert.equal(Term.emulationExists('ansi'), true);
             assert.equal(Term.emulationExists('petscii'), true);
-            assert.equal(Term.emulationExists('atascii'), false);
+            assert.equal(Term.emulationExists('atascii'), true);
+            assert.equal(Term.emulationExists('viewdata'), false);
             assert.equal(Term.createEmulation().name, 'ansi');
         });
 
         it('an unknown emulation is an error, not a silent ANSI', () => {
-            assert.throws(() => Term.createEmulation('atascii'), /Unknown terminal/);
+            assert.throws(() => Term.createEmulation('viewdata'), /Unknown terminal/);
         });
 
         it('each client gets its own instance', () => {

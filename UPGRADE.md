@@ -22,6 +22,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.1-beta to 0.6.0-beta
 
+* **ATASCII (Atari) callers (new, early).** SyncTERM and IcyTerm in their Atari modes, and anything on a Telnet listener marked `emulation: atascii`, are now sent ATASCII in place of ANSI: text, cursor movement and keys are translated, in one colour. There are no ATASCII menus, art or theme yet, so such a caller sees your existing board translated and wrapped at 40 columns. See [ATASCII (Atari) Callers](website/src/content/docs/servers/loginservers/atascii.md).
+
+  **Action:** none. Nothing changes for ANSI callers.
+
 * **PETSCII (Commodore) callers (new, optional).** ENiGMA½ can now talk to Commodore-style terminals: SyncTERM and IcyTerm in their C64 or C128 modes, and terminal programs on real hardware through a dedicated Telnet port. See [PETSCII (Commodore) Callers](website/src/content/docs/servers/loginservers/petscii.md).
 
   **What changes by itself:** a caller whose terminal announces the Telnet terminal type `PETSCII` is now sent PETSCII. Before, such a caller was sent ANSI, which a PETSCII terminal prints as a screen of escape codes. They see your existing menus and art translated and wrapped at 40 columns: readable, not pretty. Nothing changes for ANSI callers, and nothing in your configuration, menus or themes is touched.

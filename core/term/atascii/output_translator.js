@@ -279,7 +279,8 @@ function glyphBaseByte(ch, quoted) {
     return UNMAPPED;
 }
 
-function createAtasciiTranslator({ cols = 40, rows = 24, quoted = true } = {}) {
+function createAtasciiTranslator(options) {
+    const { cols = 40, rows = 24, quoted = true } = options || {};
     checkSize(cols, rows);
     if ('boolean' !== typeof quoted) {
         throw new TypeError(`ATASCII quoted must be true or false: ${quoted}`);
@@ -952,6 +953,11 @@ function createAtasciiTranslator({ cols = 40, rows = 24, quoted = true } = {}) {
         st.csi = '';
         st.pendingCR = false;
         st.decoder = new StringDecoder('utf8');
+
+        //  a string is looked at as the bytes it is written as
+        if ('string' === typeof data) {
+            data = Buffer.from(data, 'latin1');
+        }
 
         if (data && 'number' === typeof data.length) {
             let quote = st.foreignQuote;

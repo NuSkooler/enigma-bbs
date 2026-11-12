@@ -162,6 +162,16 @@ function ClientTerminal(output) {
 
 ClientTerminal.prototype.disconnect = function () {
     this.output = null;
+
+    //
+    //  An input decoder that holds a pending decision on a timer (ATASCII's
+    //  Escape) is told the session is over, so nothing is reported after it.
+    //  The ANSI and PETSCII decoders hold nothing and have no dispose().
+    //
+    const decoder = this.emulation && this.emulation.inputDecoder;
+    if (decoder && 'function' === typeof decoder.dispose) {
+        decoder.dispose();
+    }
 };
 
 ClientTerminal.prototype.isNixTerm = function () {
