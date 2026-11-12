@@ -148,8 +148,10 @@ const PUA_BASE = 0xee00;
 //                           Atari's Ctrl+> insert character)
 //  *   0xFE Delete          real Atari Ctrl+Backspace (delete character)
 //
-//  Neither SyncTERM nor icy_term sends anything for Home, End (icy sends ESC 0x9B),
-//  Page Up/Down or function keys that is distinct from the above.
+//  Neither SyncTERM nor icy_term sends Home, Page Up/Down or function keys at
+//  all. End: SyncTERM sends nothing; icy sends ESC 0x9B (see EscPrefixedKeys).
+//  Note that ESC 0x9B in *output* is still an end of line (decode treats it as
+//  a newline); only as *input* from icy does it mean the End key.
 const KeyBytes = Object.freeze({
     0x9b: 'return',
     0x0d: 'return',
@@ -638,13 +640,16 @@ function decode(buffer) {
 //  { char: '\n', inverse: false }. `inverse` is bit 7 of the byte that drew it, which
 //  for a quoted control byte is its inverse glyph (ESC 0x9C draws an inverse up arrow).
 function decodeCells(buffer) {
-    if (!buffer || 'number' !== typeof buffer.length) {
+    //  bytes only: a string or an array holding anything else has no meaning
+    //  here, and would otherwise come out as the text "undefined"
+    if (!buffer || 'string' === typeof buffer || 'number' !== typeof buffer.length) {
         throw new TypeError('decode needs a Buffer or Uint8Array');
     }
     const cells = [];
     let quoted = false;
     for (let i = 0; i < buffer.length; ++i) {
         const b = buffer[i];
+        checkByte(b);
         if (quoted) {
             quoted = false;
             if (b === Controls.eol) {

@@ -1032,6 +1032,16 @@ describe('ATASCII charset tables', function () {
             assert.deepEqual(encode(decode(buf)), buf);
         });
     });
+    describe('review fixes', () => {
+        it('decode refuses anything that is not bytes', () => {
+            assert.throws(() => charset.decode('abc'), TypeError);
+            assert.throws(() => charset.decode([0x41, 256, 0x42]), RangeError);
+            assert.throws(() => charset.decode([0x1b, NaN]), RangeError);
+            assert.throws(() => charset.decodeCells([256]), RangeError);
+            assert.equal(charset.decode([0x41, 0x42]), 'AB');
+            assert.equal(charset.decode(Buffer.alloc(0)), '');
+        });
+    });
 });
 
 function quoteByteOrNothing(b) {
