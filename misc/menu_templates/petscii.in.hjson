@@ -27,6 +27,16 @@
         New user applications are not offered here yet: "apply" tells the
         caller to apply from an ANSI terminal.
 
+        Messages (conferences, areas, the message list, reading, replying
+        and posting with the full-screen editor) are here; new-scan,
+        search, private mail and the file base are not yet.
+
+        A Commodore keyboard has no Escape key: for a PETSCII caller F1 is
+        Escape (the PETSCII input decoder reports it so), which is how the
+        editor's menu is reached. Keep shortcuts to keys a Commodore
+        keyboard has: not CTRL E, N, Q, R, S or T (those are colour, cursor
+        and delete codes there), and not function keys other than F1.
+
         Extend it the same way as the stock menus: add a menu here, its art
         to the theme as a .seq file, and its view layout to the theme.
     */
@@ -253,12 +263,17 @@
                             focus: true
                             argName: navSelect
                             hotKeys: {
-                                W: 0
-                                L: 1
-                                G: 2
+                                M: 0
+                                W: 1
+                                L: 2
+                                G: 3
                             }
                             hotKeySubmit: true
                             items: [
+                                {
+                                    text: "[M] messages"
+                                    data: messages
+                                }
                                 {
                                     text: "[W] who's online"
                                     data: whosOnline
@@ -276,6 +291,10 @@
                     }
                     submit: {
                         *: [
+                            {
+                                value: { navSelect: "messages" }
+                                action: @menu:petsciiMessageMenu
+                            }
                             {
                                 value: { navSelect: "whosOnline" }
                                 action: @menu:petsciiWhosOnline
@@ -307,6 +326,695 @@
             desc: Last Callers
             module: last_callers
             art: PLASTCALL
+            config: {
+                pause: petsciiPause
+            }
+        }
+
+        //
+        //  Messages: pick a conference and an area, list the area's
+        //  messages, read them, reply, and post. The stock equivalents are
+        //  in message_base.in.hjson (messageBaseMainMenu and the menus it
+        //  leads to); these are the same modules with 40 column art and
+        //  only keys a Commodore keyboard has. F1 is Escape for a PETSCII
+        //  caller, so "escape" below is F1 (or ESC, where the terminal has
+        //  one). Not here yet: new-scan, search, private mail, find in the
+        //  editor and reader, uploads and downloads.
+        //
+        petsciiMessageMenu: {
+            desc: Message Menu
+            art: PMSGMENU
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            submit: true
+                            focus: true
+                            argName: navSelect
+                            hotKeys: {
+                                L: 0
+                                P: 1
+                                A: 2
+                                J: 3
+                                Q: 4
+                            }
+                            hotKeySubmit: true
+                            items: [
+                                {
+                                    text: "[L] list messages"
+                                    data: list
+                                }
+                                {
+                                    text: "[P] post a message"
+                                    data: post
+                                }
+                                {
+                                    text: "[A] change area"
+                                    data: area
+                                }
+                                {
+                                    text: "[J] join conference"
+                                    data: conf
+                                }
+                                {
+                                    text: "[Q] main menu"
+                                    data: quit
+                                }
+                            ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: "list" }
+                                action: @menu:petsciiMessageList
+                            }
+                            {
+                                value: { navSelect: "post" }
+                                action: @menu:petsciiMessagePost
+                            }
+                            {
+                                value: { navSelect: "area" }
+                                action: @menu:petsciiMessageAreaList
+                            }
+                            {
+                                value: { navSelect: "conf" }
+                                action: @menu:petsciiMessageConfList
+                            }
+                            {
+                                value: { navSelect: "quit" }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        petsciiMessageConfList: {
+            desc: Changing Confs
+            art: PMSGCONF
+            module: msg_conf_list
+            config: {
+                //  for a conference with art of its own
+                changeConfPreArtMenu: petsciiMessageConfPreArt
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: conf
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { conf: null }
+                                action: @method:changeConference
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        petsciiMessageAreaList: {
+            desc: Message Area List
+            art: PMSGAREA
+            module: msg_area_list
+            config: {
+                //  for an area with art of its own
+                changeAreaPreArtMenu: petsciiMessageAreaPreArt
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: area
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { area: null }
+                                action: @method:changeArea
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  A conference can name art of its own ("art" in its config.hjson
+        //  entry), shown when a caller picks it. A PETSCII caller sees it
+        //  only if the PETSCII theme has a .seq file of that name; otherwise
+        //  nothing is shown ("optional"). An area can name art too, but the
+        //  show_art module does not show area art yet (stock or PETSCII);
+        //  the menu is here so that an area with art stays in this tree.
+        //
+        petsciiMessageConfPreArt: {
+            desc: Viewing Art
+            module: show_art
+            config: {
+                method: messageConf
+                key: confTag
+                optional: true
+                pause: petsciiPause
+                cls: true
+                menuFlags: [ "noHistory" ]
+            }
+        }
+
+        petsciiMessageAreaPreArt: {
+            desc: Viewing Art
+            module: show_art
+            config: {
+                method: messageArea
+                key: areaTag
+                optional: true
+                pause: petsciiPause
+                cls: true
+                menuFlags: [ "noHistory" ]
+            }
+        }
+
+        petsciiMessageList: {
+            desc: Message List
+            module: msg_list
+            art: PMSGLIST
+            config: {
+                menuViewPost: petsciiMessageRead
+                menuNewPost: petsciiMessagePost
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: messageIndex
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { messageIndex: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  The full-screen editor reading a message. Its screen is a header,
+        //  the body and a footer, each its own art, and each its own form:
+        //  0 header, 1 body, 4 the reader's footer. The help screen is the
+        //  art named "help".
+        //
+        petsciiMessageRead: {
+            desc: Viewing Message
+            module: msg_area_view_fse
+            config: {
+                art: {
+                    header: PMSGVHDR
+                    body: PMSGBODY
+                    footerView: PMSGVFTR
+                    help: PMSGVHLP
+                }
+                editorMode: view
+                editorType: area
+            }
+            form: {
+                0: {
+                    mci: {
+                    }
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            mode: preview
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: message
+                                action: @method:editModeEscPressed
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                    ]
+                }
+                4: {
+                    mci: {
+                        HM1: {
+                            items: [ "prev", "next", "reply", "quit", "help" ]
+                            focusItemIndex: 1
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { 1: 0 }
+                                action: @method:prevMessage
+                            }
+                            {
+                                value: { 1: 1 }
+                                action: @method:nextMessage
+                            }
+                            {
+                                value: { 1: 2 }
+                                action: @method:replyMessage
+                                extraArgs: {
+                                    menu: petsciiMessageReply
+                                }
+                            }
+                            {
+                                value: { 1: 3 }
+                                action: @systemMethod:prevMenu
+                            }
+                            {
+                                value: { 1: 4 }
+                                action: @method:viewModeMenuHelp
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:prevMessage
+                        }
+                        {
+                            keys: [ "n", "shift + n" ]
+                            action: @method:nextMessage
+                        }
+                        {
+                            keys: [ "r", "shift + r" ]
+                            action: @method:replyMessage
+                            extraArgs: {
+                                menu: petsciiMessageReply
+                            }
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "?" ]
+                            action: @method:viewModeMenuHelp
+                        }
+                        {
+                            keys: [ "down arrow", "up arrow" ]
+                            action: @method:movementKeyPressed
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  The full-screen editor writing a new message: forms 0 header
+        //  (to, subject), 1 body, 2 the editing footer, 3 the editor menu
+        //  that F1 opens (save, discard, help). There is no upload here, and
+        //  no quick-save key: CTRL S is HOME on a Commodore keyboard.
+        //
+        petsciiMessagePost: {
+            desc: Posting Message
+            module: msg_area_post_fse
+            config: {
+                art: {
+                    header: PMSGEHDR
+                    body: PMSGBODY
+                    footerEditor: PMSGEFTR
+                    footerEditorMenu: PMSGEMFT
+                    help: PMSGEHLP
+                }
+                editorMode: edit
+                editorType: area
+                messageBasePostMessageNoAccess: petsciiMessagePostNoAccess
+                //  so that leaving for the no access notice comes back to
+                //  the menu before this one, not here
+                menuFlags: [ "noHistory" ]
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL1: {
+                            argName: from
+                        }
+                        ET2: {
+                            argName: to
+                            focus: true
+                            text: All
+                            validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:headerEscapePressed
+                        }
+                    ]
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            argName: message
+                            mode: edit
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: message
+                                action: @method:editModeEscPressed
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
+                        {
+                            keys: [ "ctrl + a" ]
+                            action: @method:editModeChangeSubject
+                        }
+                    ]
+                }
+                2: {
+                    mci: {
+                        SB1: {
+                            width: 9
+                            anchor: left
+                            justify: left
+                            separator: " "
+                            panels: [
+                                {
+                                    name: mode
+                                    width: 3
+                                    justify: right
+                                }
+                                {
+                                    name: pos
+                                    width: 5
+                                    justify: left
+                                }
+                            ]
+                        }
+                    }
+                }
+                3: {
+                    mci: {
+                        HM1: {
+                            items: [ "save", "discard", "help" ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { 1: 0 }
+                                action: @method:editModeMenuSave
+                            }
+                            {
+                                value: { 1: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                            {
+                                value: { 1: 2 }
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:editModeEscPressed
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:editModeMenuSave
+                        }
+                        {
+                            keys: [ "d", "shift + d" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "?", "h", "shift + h" ]
+                            action: @method:editModeMenuHelp
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  A reply: as petsciiMessagePost, with "quote" in the editor menu
+        //  and form 5, the quote builder (MT1 the lines picked so far, VM3
+        //  the message's lines to pick from), drawn below the header.
+        //
+        petsciiMessageReply: {
+            desc: Replying to Message
+            module: msg_area_post_fse
+            config: {
+                art: {
+                    header: PMSGEHDR
+                    body: PMSGBODY
+                    quote: PMSGQUOT
+                    footerEditor: PMSGEFTR
+                    footerEditorMenu: PMSGEMFT
+                    help: PMSGEHLP
+                }
+                editorMode: edit
+                editorType: area
+                messageBasePostMessageNoAccess: petsciiMessagePostNoAccess
+                //  so that leaving for the no access notice comes back to
+                //  the menu before this one, not here
+                menuFlags: [ "noHistory" ]
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL1: {
+                            argName: from
+                        }
+                        ET2: {
+                            argName: to
+                            focus: true
+                            validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:headerEscapePressed
+                        }
+                    ]
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            argName: message
+                            mode: edit
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: message
+                                action: @method:editModeEscPressed
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
+                        {
+                            keys: [ "ctrl + a" ]
+                            action: @method:editModeChangeSubject
+                        }
+                    ]
+                }
+                2: {
+                    mci: {
+                        SB1: {
+                            width: 9
+                            anchor: left
+                            justify: left
+                            separator: " "
+                            panels: [
+                                {
+                                    name: mode
+                                    width: 3
+                                    justify: right
+                                }
+                                {
+                                    name: pos
+                                    width: 5
+                                    justify: left
+                                }
+                            ]
+                        }
+                    }
+                }
+                3: {
+                    mci: {
+                        HM1: {
+                            items: [ "save", "discard", "quote", "help" ]
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { 1: 0 }
+                                action: @method:editModeMenuSave
+                            }
+                            {
+                                value: { 1: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                            {
+                                value: { 1: 2 }
+                                action: @method:editModeMenuQuote
+                            }
+                            {
+                                value: { 1: 3 }
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:editModeEscPressed
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:editModeMenuSave
+                        }
+                        {
+                            keys: [ "d", "shift + d" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "q", "shift + q" ]
+                            action: @method:editModeMenuQuote
+                        }
+                        {
+                            keys: [ "?", "h", "shift + h" ]
+                            action: @method:editModeMenuHelp
+                        }
+                    ]
+                }
+                5: {
+                    mci: {
+                        MT1: {
+                        }
+                        VM3: {
+                            argName: quote
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { quote: null }
+                                action: @method:appendQuoteEntry
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:quoteBuilderEscPressed
+                        }
+                    ]
+                }
+            }
+        }
+
+        petsciiMessagePostNoAccess: {
+            desc: No Access
+            art: PMSGNOACC
             config: {
                 pause: petsciiPause
             }

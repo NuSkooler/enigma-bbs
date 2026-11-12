@@ -31,6 +31,37 @@ const ALLOWED_SYSTEM_METHODS = [
     'nextMenu',
 ];
 
+//
+//  Module methods the tree may use. Each stays in its module, goes back, or
+//  goes to a menu named in the menu's config or extraArgs, which targetsOf()
+//  collects and the tree check follows (menuViewPost, menuNewPost, the
+//  pre-art menus, messageBasePostMessageNoAccess, extraArgs.menu).
+//
+const ALLOWED_METHODS = [
+    //  msg_conf_list, msg_area_list
+    'changeConference',
+    'changeArea',
+    //  msg_list
+    'selectMessage',
+    'postNewMessage',
+    //  fse.js and its view / post modules
+    'headerSubmit',
+    'headerEscapePressed',
+    'editModeEscPressed',
+    'editModeQuickHelp',
+    'editModeChangeSubject',
+    'editModeMenuSave',
+    'editModeMenuHelp',
+    'editModeMenuQuote',
+    'appendQuoteEntry',
+    'quoteBuilderEscPressed',
+    'prevMessage',
+    'nextMessage',
+    'replyMessage',
+    'viewModeMenuHelp',
+    'movementKeyPressed',
+];
+
 //  Every menu or prompt a menu entry can lead to: [where, spec]
 function targetsOf(name, menu) {
     const out = [];
@@ -54,7 +85,19 @@ function targetsOf(name, menu) {
         out.push([`${name}.prompt`, `@prompt:${menu.prompt}`]);
     }
     const config = menu.config || {};
-    ['tooNodeMenu', 'inactive', 'disabled', 'locked', 'toomany'].forEach(k => {
+    [
+        'tooNodeMenu',
+        'inactive',
+        'disabled',
+        'locked',
+        'toomany',
+        //  message modules
+        'menuViewPost',
+        'menuNewPost',
+        'changeConfPreArtMenu',
+        'changeAreaPreArtMenu',
+        'messageBasePostMessageNoAccess',
+    ].forEach(k => {
         if (config[k]) {
             out.push([`${name}.config.${k}`, config[k]]);
         }
@@ -69,24 +112,91 @@ function targetsOf(name, menu) {
                 add(`${name}.form.${formId}.submit.${key}[${i}].action`, e.action)
             );
         });
-        (form.actionKeys || []).forEach((ak, i) =>
-            add(`${name}.form.${formId}.actionKeys[${i}].action`, ak.action)
-        );
+        (form.actionKeys || []).forEach((ak, i) => {
+            add(`${name}.form.${formId}.actionKeys[${i}].action`, ak.action);
+            if (_.has(ak, 'extraArgs.menu')) {
+                out.push([
+                    `${name}.form.${formId}.actionKeys[${i}].extraArgs.menu`,
+                    ak.extraArgs.menu,
+                ]);
+            }
+        });
+        _.forEach(form.submit || {}, (entries, key) => {
+            (entries || []).forEach((e, i) => {
+                if (_.has(e, 'extraArgs.menu')) {
+                    out.push([
+                        `${name}.form.${formId}.submit.${key}[${i}].extraArgs.menu`,
+                        e.extraArgs.menu,
+                    ]);
+                }
+            });
+        });
     });
     return out;
 }
 
-//  { menu: [MCI keys its views need] }, menu forms plus theme layouts
+//
+//  The full-screen editor (core/fse.js) draws its screen from several pieces
+//  of art, each with a form of its own: form id -> config.art name.
+//
+const FSE_MODULES = ['msg_area_view_fse', 'msg_area_post_fse'];
+const FSE_FORM_ART = {
+    0: 'header',
+    1: 'body',
+    2: 'footerEditor',
+    3: 'footerEditorMenu',
+    4: 'footerView',
+    5: 'quote',
+    6: 'footerFind',
+};
+
+const isFse = menu => FSE_MODULES.includes(menu.module);
+
+//  every art name a menu shows: [art, ...]
+function artNamesOf(menu) {
+    if (isFse(menu)) {
+        return Object.values(_.get(menu, 'config.art', {}));
+    }
+    return menu.art ? [menu.art] : [];
+}
+
+//  [[art name, form id], ...] for each form of a menu
+function formArts(menu) {
+    if (isFse(menu)) {
+        return Object.keys(menu.form || {}).map(id => [
+            _.get(menu, ['config', 'art', FSE_FORM_ART[id]]),
+            id,
+        ]);
+    }
+    return [[menu.art, '0']];
+}
+
+//
+//  { art name: [MCI keys its views need] }, from the menu forms plus the theme
+//  layouts (a theme gives a layout per form id for a menu with several forms,
+//  and one 'mci' block for a menu with one)
+//
 function mciNeeded(menus, theme) {
     const needed = {};
-    const push = (name, keys) => {
-        needed[name] = _.uniq((needed[name] || []).concat(keys));
+    const push = (art, keys) => {
+        needed[art] = _.uniq((needed[art] || []).concat(keys));
     };
     _.forEach(menus, (menu, name) => {
-        _.forEach(menu.form || {}, form => push(name, Object.keys(form.mci || {})));
-    });
-    _.forEach(_.get(theme, 'customization.menus', {}), (custom, name) => {
-        push(name, Object.keys(custom.mci || {}));
+        const arts = _.fromPairs(formArts(menu).map(([art, id]) => [id, art]));
+        _.forEach(menu.form || {}, (form, id) => {
+            assert.ok(arts[id], `${name}: form ${id} has no art`);
+            push(arts[id], Object.keys(form.mci || {}));
+        });
+        const custom = _.get(theme, ['customization', 'menus', name], {});
+        if (custom.mci) {
+            push(arts['0'] || menu.art, Object.keys(custom.mci));
+        }
+        Object.keys(custom)
+            .filter(k => /^\d+$/.test(k))
+            .forEach(id => {
+                assert.ok(arts[id], `${name}: theme layout for form ${id} has no art`);
+                push(arts[id], Object.keys(custom[id].mci || {}));
+            });
     });
     return needed;
 }
@@ -134,6 +244,10 @@ describe('PETSCII starter menus (#593)', () => {
                     if (!ALLOWED_SYSTEM_METHODS.includes(m[1])) {
                         problems.push(`${where}: ${spec}`);
                     }
+                } else if ((m = /^@method:(.+)$/.exec(spec))) {
+                    if (!ALLOWED_METHODS.includes(m[1])) {
+                        problems.push(`${where}: ${spec}`);
+                    }
                 } else if ((m = /^@menu:(.+)$/.exec(spec))) {
                     if (!t.menus[m[1]]) problems.push(`${where}: ${spec}`);
                 } else if ((m = /^@prompt:(.+)$/.exec(spec))) {
@@ -157,11 +271,11 @@ describe('PETSCII starter menus (#593)', () => {
     it('every art name has a .seq file in the starter theme', () => {
         const t = tree();
         const arts = _.uniq(
-            Object.values(t.menus)
-                .map(m => m.art)
+            _.flatMap(Object.values(t.menus), artNamesOf)
                 .concat(Object.values(t.prompts).map(p => p.art))
                 .filter(Boolean)
         );
+        assert.ok(arts.includes('PMSGQUOT'), 'editor art not found');
         assert.ok(arts.length > 10);
         arts.forEach(art =>
             assert.ok(fs.existsSync(paths.join(STARTER_DIR, `${art}.seq`)), art)
@@ -172,17 +286,139 @@ describe('PETSCII starter menus (#593)', () => {
         const t = tree();
         const needed = mciNeeded(t.menus, starterTheme());
         let checked = 0;
-        _.forEach(needed, (keys, name) => {
-            const art = mciInArt(t.menus[name].art);
+        _.forEach(needed, (keys, art) => {
+            const found = mciInArt(art);
             keys.forEach(key => {
-                assert.ok(
-                    art.includes(key),
-                    `${name}: ${key} not in ${t.menus[name].art}`
-                );
+                assert.ok(found.includes(key), `${key} not in ${art}`);
                 ++checked;
             });
         });
-        assert.ok(checked >= 8, `only ${checked} views checked`);
+        assert.ok(checked >= 30, `only ${checked} views checked`);
+    });
+
+    it('the editor and reader art has the views each mode of the editor needs', () => {
+        //  core/fse.js MciViewIds: what each piece is looked up by
+        const t = tree();
+        const required = {
+            read: { header: ['TL2', 'TL3'], body: ['MT1'], footerView: ['HM1'] },
+            post: {
+                header: ['TL1', 'ET2', 'ET3', 'TL4'],
+                body: ['MT1'],
+                footerEditor: ['SB1'],
+                footerEditorMenu: ['HM1'],
+            },
+            reply: { quote: ['MT1', 'VM3'] },
+        };
+        const menus = {
+            read: t.menus.petsciiMessageRead,
+            post: t.menus.petsciiMessagePost,
+            reply: t.menus.petsciiMessageReply,
+        };
+        _.forEach(required, (pieces, mode) => {
+            _.forEach(pieces, (keys, piece) => {
+                const art = menus[mode].config.art[piece];
+                assert.ok(art, `${mode}: no ${piece} art`);
+                const found = mciInArt(art);
+                keys.forEach(key => assert.ok(found.includes(key), `${art}: ${key}`));
+            });
+            //  a help screen for the help item
+            assert.ok(menus[mode].config.art.help, `${mode}: no help art`);
+        });
+        //  the reply shares the post's art, plus the quote builder
+        assert.deepEqual(_.omit(menus.reply.config.art, 'quote'), menus.post.config.art);
+    });
+
+    it('the editor pieces fit together on a 40x25 screen', () => {
+        //  core/fse.js: body below the header, footer from the body's last row
+        const { PetsciiArtParser } = require('../core/term/petscii/art_parser.js');
+        const heightOf = (art, startRow) => {
+            const parser = new PetsciiArtParser({
+                mciReplaceChar: ' ',
+                termWidth: 40,
+                termHeight: 25,
+                startRow,
+            });
+            let height;
+            parser.on('complete', () => (height = parser.row - 1));
+            parser.parse(fs.readFileSync(paths.join(STARTER_DIR, `${art}.seq`)));
+            return height;
+        };
+        const lastRow = art => {
+            const lines = fs.readFileSync(paths.join(STARTER_DIR, `${art}.seq`));
+            const { PetsciiScreen } = require('./term_petscii_screens.js');
+            const screen = new PetsciiScreen(40, 25, { row: 0, col: 0 });
+            screen.write(lines);
+            return screen.row; //  rows the piece takes, less one
+        };
+        const t = tree();
+        ['petsciiMessageRead', 'petsciiMessagePost', 'petsciiMessageReply'].forEach(
+            name => {
+                const art = t.menus[name].config.art;
+                const header = heightOf(art.header, 1);
+                const bodyEnd = heightOf(art.body, header + 1);
+                const footerRow = bodyEnd; //  header.height + body.height
+                ['footerEditor', 'footerEditorMenu', 'footerView']
+                    .filter(f => art[f])
+                    .forEach(f => {
+                        const bottom = footerRow + lastRow(art[f]);
+                        assert.ok(bottom <= 25, `${name} ${f} ends on row ${bottom}`);
+                    });
+                if (art.quote) {
+                    const bottom = header + 1 + lastRow(art.quote);
+                    assert.ok(bottom <= 25, `${name} quote ends on row ${bottom}`);
+                }
+            }
+        );
+    });
+
+    it('no shortcut uses a key a Commodore keyboard does not have', () => {
+        //  CTRL E N Q R S T are colour, cursor and delete codes there; F1 is
+        //  Escape, the other function keys and PC keys do not exist
+        const unusable =
+            /^(ctrl \+ [enqrst]|f\d+|page up|page down|delete|ctrl \+ (home|end|left arrow|right arrow))$/;
+        const problems = [];
+        _.forEach(tree().menus, (menu, name) => {
+            _.forEach(menu.form || {}, (form, id) => {
+                (form.actionKeys || []).forEach(ak =>
+                    (ak.keys || []).forEach(k => {
+                        if (unusable.test(k)) {
+                            problems.push(`${name}.form.${id}: ${k}`);
+                        }
+                    })
+                );
+            });
+        });
+        assert.deepEqual(problems, []);
+    });
+
+    it('the editor offers nothing that leaves the tree', () => {
+        //  upload goes to the stock file transfer menus; download to the file base
+        const t = tree();
+        _.forEach(t.menus, (menu, name) => {
+            _.forEach(menu.form || {}, (form, id) => {
+                _.forEach(form.mci || {}, (mci, key) => {
+                    (mci.items || [])
+                        .filter(i => _.isString(i))
+                        .forEach(item =>
+                            assert.ok(
+                                !['upload', 'download'].includes(item),
+                                `${name}.form.${id}.${key}: ${item}`
+                            )
+                        );
+                });
+                _.forEach(form.submit || {}, entries =>
+                    (entries || []).forEach(e =>
+                        assert.ok(
+                            ![
+                                '@method:editModeMenuUpload',
+                                '@method:addToDownloadQueue',
+                            ].includes(e.action),
+                            `${name}.form.${id}: ${e.action}`
+                        )
+                    )
+                );
+            });
+        });
     });
 
     it('the theme is a PETSCII theme customising only menus of the tree', () => {

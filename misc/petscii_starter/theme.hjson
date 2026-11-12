@@ -66,7 +66,7 @@
                 mci: {
                     VM1: {
                         width: 24
-                        height: 3
+                        height: 4
                         itemFormat: "|11{text}"
                         focusItemFormat: "|00|23{text}"
                     }
@@ -107,6 +107,217 @@
                         height: 10
                         width: 38
                         itemFormat: "|07{node:<5.4}|15{userName:<16.15}|11{action:<17.17}"
+                    }
+                }
+            }
+
+            petsciiMessageMenu: {
+                mci: {
+                    VM1: {
+                        width: 24
+                        height: 5
+                        itemFormat: "|11{text}"
+                        focusItemFormat: "|00|23{text}"
+                    }
+                }
+            }
+
+            //  columns match PMSGCONF.seq and PMSGAREA.seq
+            petsciiMessageConfList: {
+                mci: {
+                    VM1: {
+                        width: 36
+                        height: 12
+                        itemFormat: "|15{index:>2} |03{name:<33.32}"
+                        focusItemFormat: "|00|23{index:>2} {name:<33.32}"
+                    }
+                    TL2: {
+                        width: 36
+                    }
+                }
+            }
+
+            petsciiMessageAreaList: {
+                mci: {
+                    VM1: {
+                        width: 36
+                        height: 12
+                        itemFormat: "|15{index:>2} |03{name:<33.32}"
+                        focusItemFormat: "|00|23{index:>2} {name:<33.32}"
+                    }
+                    TL2: {
+                        width: 36
+                    }
+                }
+            }
+
+            //  columns match the headings in PMSGLIST.seq
+            petsciiMessageList: {
+                config: {
+                    dateTimeFormat: MM/DD/YY hh:mma
+                    allViewsInfoFormat10: "|07{msgNumSelected}/{msgNumTotal} |15{fromUserName:<16.15} |11{ts}"
+                }
+                mci: {
+                    VM1: {
+                        height: 14
+                        width: 38
+                        itemFormat: "|15{msgNum:>3} |03{subject:<20.19}|11{fromUserName:<13.12}|15{newIndicator}"
+                        focusItemFormat: "|00|23{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}"
+                    }
+                    TL10: {
+                        width: 38
+                    }
+                }
+            }
+
+            //
+            //  The full-screen editor menus have a form per part of the
+            //  screen, so their layouts are given per form: 0 header, 1 body,
+            //  2 editing footer, 3 editor menu, 4 reader footer, 5 quote
+            //  builder.
+            //
+            petsciiMessageRead: {
+                config: {
+                    modTimestampFormat: MM/DD/YY hh:mma
+                    quoteStyleLevel1: [
+                        "|00|11"
+                        "|00|08"
+                        "|00|03"
+                    ]
+                    tearLineStyle: [
+                        "|00|08"
+                        "|00|02"
+                    ]
+                    originStyle: [
+                        "|00|08"
+                        "|00|06"
+                        "|00|03"
+                    ]
+                }
+                0: {
+                    mci: {
+                        TL1: {
+                            width: 33
+                            textOverflow: ...
+                        }
+                        TL2: {
+                            width: 33
+                            textOverflow: ...
+                        }
+                        TL3: {
+                            width: 33
+                            textOverflow: ...
+                        }
+                        TL5: {
+                            width: 16
+                        }
+                        TL6: {
+                            width: 4
+                            justify: right
+                        }
+                        TL7: {
+                            width: 4
+                        }
+                    }
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            width: 38
+                            height: 15
+                        }
+                    }
+                }
+                4: {
+                    mci: {
+                        HM1: {
+                            styleSGR1: "|00|11"
+                            styleSGR2: "|00|23"
+                        }
+                    }
+                }
+            }
+
+            petsciiMessagePost: {
+                0: {
+                    mci: {
+                        TL1: {
+                            width: 33
+                        }
+                        ET2: {
+                            width: 33
+                        }
+                        ET3: {
+                            width: 33
+                        }
+                        TL4: {
+                            width: 33
+                        }
+                    }
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            width: 38
+                            height: 15
+                        }
+                    }
+                }
+                3: {
+                    mci: {
+                        HM1: {
+                            styleSGR1: "|00|11"
+                            styleSGR2: "|00|23"
+                        }
+                    }
+                }
+            }
+
+            petsciiMessageReply: {
+                0: {
+                    mci: {
+                        TL1: {
+                            width: 33
+                        }
+                        ET2: {
+                            width: 33
+                        }
+                        ET3: {
+                            width: 33
+                        }
+                        TL4: {
+                            width: 33
+                        }
+                    }
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            width: 38
+                            height: 15
+                        }
+                    }
+                }
+                3: {
+                    mci: {
+                        HM1: {
+                            styleSGR1: "|00|11"
+                            styleSGR2: "|00|23"
+                        }
+                    }
+                }
+                //  rows match PMSGQUOT.seq
+                5: {
+                    mci: {
+                        MT1: {
+                            width: 38
+                            height: 6
+                        }
+                        VM3: {
+                            width: 38
+                            height: 7
+                            focusTextStyle: normal
+                        }
                     }
                 }
             }

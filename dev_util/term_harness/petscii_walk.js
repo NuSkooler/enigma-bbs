@@ -12,10 +12,17 @@
 //  Only for a throwaway local instance (see README.md): it logs in.
 //
 //      node petscii_walk.js --port 48901 [--user tester] [--password harnesspass1]
-//                           [--term PETSCII] [--walk full|connect]
+//                           [--term PETSCII] [--walk full|connect|messages]
 //
 //  --walk connect stops after the first menu (to check a route in); --term ''
 //  sends no terminal type (a dedicated PETSCII listener does not need one).
+//
+//  --walk messages logs in and goes through the message menus instead of
+//  who's online and last callers: conference and area lists, a post saved
+//  through the editor menu opened with F1, a second one opened with a real
+//  ESC byte, the message list, reading, the reader's help, a reply with a
+//  quoted line, and back out to log off. Run it once per fresh instance:
+//  it expects an area holding only what it posts.
 //
 const net = require('net');
 const paths = require('path');
@@ -243,6 +250,24 @@ async function main() {
     await c.expect(/main menu/);
     dump(c, 'main menu');
 
+    if ('messages' === args.walk) {
+        await messagesWalk(c);
+    } else {
+        await whosOnlineAndLastCallers(c);
+    }
+
+    await c.type('g');
+    await c.expect(/Thanks for calling/);
+    dump(c, 'log off');
+    const start = Date.now();
+    while (!c.closed && Date.now() - start < 10000) {
+        await sleep(100);
+    }
+    dump(c, 'after hang up');
+    return finish(c);
+}
+
+async function whosOnlineAndLastCallers(c) {
     await c.type('w');
     await c.expect(/who's online/);
     await c.expect(/press a key/);
@@ -257,16 +282,148 @@ async function main() {
     await c.key(Controls.return);
     await c.expect(/main menu/);
     dump(c, 'main menu again');
+}
 
-    await c.type('g');
-    await c.expect(/Thanks for calling/);
-    dump(c, 'log off');
-    const start = Date.now();
-    while (!c.closed && Date.now() - start < 10000) {
-        await sleep(100);
+//  waits for |re|; anything the system shows on its own in between (an
+//  achievement after a post, say) waits for a key, which it gets
+async function expectThrough(c, re) {
+    for (let i = 0; i < 5; ++i) {
+        await c.expect(new RegExp(`${re.source}|press a key`));
+        if (re.test(c.text())) {
+            return;
+        }
+        dump(c, 'interstitial');
+        await c.key(Controls.return);
+        await c.settle();
     }
-    dump(c, 'after hang up');
-    return finish(c);
+    await c.expect(re);
+}
+
+const F1 = 0x85;
+const ESC = 0x1b;
+
+//  writes a new message from the message menu; |menuKey| opens the editor menu
+async function postMessage(c, subject, lines, menuKey, label) {
+    await c.type('p');
+    await c.expect(/write a message/);
+    dump(c, `${label}: editor`);
+    await c.key(Controls.return); //  To: keep "All"
+    await c.type(subject);
+    await c.key(Controls.return);
+    for (let i = 0; i < lines.length; ++i) {
+        await c.type(lines[i]);
+        if (i < lines.length - 1) {
+            await c.key(Controls.return);
+        }
+    }
+    await c.settle();
+    dump(c, `${label}: written`);
+    await c.key(menuKey);
+    await c.expect(/save/);
+    dump(c, `${label}: editor menu`);
+}
+
+async function messagesWalk(c) {
+    await c.type('m');
+    await c.expect(/list messages/);
+    dump(c, 'message menu');
+
+    await c.type('j');
+    await c.expect(/Join a conference/);
+    dump(c, 'conference list');
+    await c.key(Controls.return);
+    await c.expect(/list messages/);
+
+    await c.type('a');
+    await c.expect(/Pick a message area/);
+    dump(c, 'area list');
+    await c.key(Controls.return);
+    await c.expect(/list messages/);
+    dump(c, 'message menu, area picked');
+
+    //  saved through the editor menu opened with F1, saving with S
+    await postMessage(
+        c,
+        'Hello from a C64',
+        ['First line from a Commodore.', 'Second line, typed at 40 columns, wraps here.'],
+        F1,
+        'post (F1)'
+    );
+    await c.type('s');
+    await expectThrough(c, /list messages/);
+    dump(c, 'message menu after post (F1)');
+
+    //  the same with a real ESC byte, saving with RETURN (save is first)
+    await postMessage(
+        c,
+        'Second post via ESC',
+        ['Escape works too.', 'Bye.'],
+        ESC,
+        'post (ESC)'
+    );
+    await c.key(Controls.return);
+    await expectThrough(c, /list messages/);
+    dump(c, 'message menu after post (ESC)');
+
+    await c.type('l');
+    await expectThrough(c, /Hello from a C64/);
+    dump(c, 'message list');
+
+    await c.key(Controls.return);
+    await c.expect(/read a message/);
+    await c.expect(/wraps here/);
+    dump(c, 'read message 1');
+
+    await c.type('n');
+    await c.expect(/Escape works too/);
+    dump(c, 'read message 2 (N)');
+
+    await c.type('p');
+    await c.expect(/First line from/);
+    dump(c, 'read message 1 again (P)');
+
+    await c.type('?');
+    await c.expect(/reader keys/);
+    dump(c, 'reader help');
+    await c.key(Controls.return);
+    await c.expect(/read a message/);
+
+    //  reply, quoting a line
+    await c.type('r');
+    await c.expect(/write a message/);
+    await c.expect(/RE: Hello/);
+    dump(c, 'reply: editor');
+    await c.key(Controls.return); //  To: the author
+    await c.key(Controls.return); //  Subject: RE: ...
+    await c.settle();
+    await c.key(F1);
+    await c.expect(/quote/);
+    dump(c, 'reply: editor menu');
+    await c.type('q');
+    await c.expect(/Quote: RETURN/);
+    dump(c, 'reply: quote builder');
+    await c.key(Controls.return); //  the first line
+    await c.settle();
+    dump(c, 'reply: quote builder, a line picked');
+    await c.key(F1);
+    await c.settle();
+    await c.type('A reply from the C64.');
+    await c.settle();
+    dump(c, 'reply: written');
+    await c.key(F1);
+    await c.expect(/save/);
+    await c.type('s');
+    await expectThrough(c, /read a message/);
+    dump(c, 'reader after reply');
+
+    await c.type('q');
+    await c.expect(/RE: Hello/);
+    dump(c, 'message list after reply');
+    await c.type('q');
+    await c.expect(/list messages/);
+    await c.type('q');
+    await c.expect(/main menu/);
+    dump(c, 'main menu after messages');
 }
 
 function finish(c) {
