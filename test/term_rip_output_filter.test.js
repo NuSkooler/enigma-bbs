@@ -1,0 +1,905 @@
+'use strict';
+
+//
+//  The RIPscrip output filter (#989): what a RIP session is sent, what is
+//  left alone, and proof that a session without the RIP layer is sent
+//  exactly what origin/master sent it.
+//
+const { strict: assert } = require('assert');
+const { EventEmitter } = require('events');
+const crypto = require('crypto');
+
+const { ClientTerminal } = require('../core/client_term.js');
+const Term = require('../core/term');
+const Rip = require('../core/term/rip');
+const {
+    INTRODUCER_BREAK,
+    INTRODUCER_REPLACEMENT,
+    COMMAND_LINE_END,
+    createRipOutputFilter,
+} = require('../core/term/rip/output_filter.js');
+const { attachRipLayer } = require('../core/term/select.js');
+
+const bytes = s => Buffer.from(s, 'latin1');
+const latin1 = b => Buffer.from(b).toString('latin1');
+
+//  A filter that has already sent one ordinary byte, so a leading '|' is not
+//  taken as possibly following an introducer
+function warmFilter() {
+    const f = createRipOutputFilter();
+    f.filter(bytes('x'));
+    return f;
+}
+
+const filterAll = (chunks, f = warmFilter()) =>
+    latin1(Buffer.concat(chunks.map(c => f.filter(bytes(c)))));
+
+//  A RIP session: a real ClientTerminal with the layer attached, as a TTYPE
+//  'RIP' caller gets it, and what reached its socket
+function ripSession({ encoding = 'cp437' } = {}) {
+    const wire = [];
+    const term = new ClientTerminal({
+        writable: true,
+        write(data, cb) {
+            wire.push('string' === typeof data ? bytes(data) : Buffer.from(data));
+            if (cb) {
+                cb(null);
+            }
+        },
+    });
+    term.outputEncoding = encoding;
+    term.termWidth = 80;
+    term.termHeight = 25;
+    const client = { term, log: { info() {}, debug() {}, warn() {} } };
+    attachRipLayer(client, { source: 'termType' });
+    return { term, client, wire, sent: () => latin1(Buffer.concat(wire)) };
+}
+
+//
+//  Master identity: the corpus below goes through every write path of a
+//  session without the RIP layer (ANSI CP437, ANSI UTF-8, PETSCII, ATASCII).
+//  MASTER_PINS holds, per case, a hash of what reached the socket on
+//  origin/master b8f708e1 (each socket write: a string as it is, or a
+//  Buffer's bytes and whether it was the very Buffer the caller passed).
+//  writeDoorOutput() is pinned to master's write() and writeUnfilteredRip()
+//  to master's rawWrite(), which are what those callers used there.
+//
+
+//  Text: RIP attack strings, CP437 glyphs (U+263A/B become 0x01/0x02 in
+//  CP437), UTF-8 text, pipe codes, CR/LF, a bit of art
+const TEXT = [
+    'Hello, world!\n',
+    '!|1K\r\n!|c0F|B0000A0A0\r\n',
+    'abc !|* mid-line, and \u263A|* and \u263B|1Q00000000\n',
+    'raw \x01|* and \x02|* bytes, ESC[1! \x1b[1! ESC[! \x1b[!_ \x1b[0! \x1b[2!x\n',
+    '\x1b[0m\x1b[2J\x1b[1;34m\u2554\u2550\u2557 \u2591\u2592\u2593\u2588 caf\u00E9 \u2620 na\u00EFve\r\n',
+    '|04red |15white!|07 back |00\n',
+    'split !',
+    '|start of the next write and \x1b[',
+    '1!x end\n',
+];
+
+//  Bytes: every byte value, then the attack strings as bytes
+const ALL_BYTES = Buffer.from([...Array(256).keys()]);
+const BYTES = [
+    ALL_BYTES,
+    Buffer.from('!|1K\r\n\x01|*\x02|*\x1b[1!\x1b[!_ !', 'latin1'),
+    Buffer.from('|after a split\x1b[0m', 'latin1'),
+];
+
+const SESSIONS = [
+    { name: 'ansi/cp437', emulation: 'ansi', encoding: 'cp437' },
+    { name: 'ansi/utf8', emulation: 'ansi', encoding: 'utf8' },
+    { name: 'petscii', emulation: 'petscii' },
+    { name: 'atascii', emulation: 'atascii' },
+];
+
+function makeTerm(ClientTerminal, Term, session) {
+    const calls = [];
+    const term = new ClientTerminal({
+        writable: true,
+        write(data, cb) {
+            calls.push(data);
+            if (cb) {
+                cb(null);
+            }
+        },
+    });
+    if ('ansi' !== session.emulation) {
+        term.emulation = Term.createEmulation(session.emulation);
+        term.outputEncoding = term.emulation.encoding;
+    } else {
+        term.outputEncoding = session.encoding;
+    }
+    term.termWidth = 80;
+    term.termHeight = 25;
+    return { term, calls };
+}
+
+//  What reached the socket: strings as they are, Buffers as hex, and whether
+//  a Buffer is the very object a caller handed in
+function record(calls, inputs) {
+    return calls.map(d =>
+        'string' === typeof d
+            ? { s: d }
+            : { b: Buffer.from(d).toString('hex'), same: inputs.includes(d) }
+    );
+}
+
+const tryCall = fn => {
+    try {
+        fn();
+        return null;
+    } catch (e) {
+        return e.message;
+    }
+};
+
+//
+//  Every write path, for every session. |opts.master| names the calls that
+//  exist on origin/master: writeDoorOutput() is write() there, and
+//  writeUnfilteredRip() is rawWrite().
+//
+async function runCorpus(ClientTerminal, Term, opts = {}) {
+    const doorWrite = (term, s, lf) =>
+        opts.master ? term.write(s, lf) : term.writeDoorOutput(s, lf);
+    const unfilteredRip = (term, d) =>
+        opts.master ? term.rawWrite(d) : term.writeUnfilteredRip(d);
+
+    const paths = {
+        write: term => TEXT.forEach(s => term.write(s)),
+        writeNoLf: term => TEXT.forEach(s => term.write(s, false)),
+        rawWriteString: term => TEXT.forEach(s => term.rawWrite(s)),
+        rawWriteBytes: term => BYTES.forEach(b => term.rawWrite(b)),
+        pipeWrite: term => TEXT.forEach(s => term.pipeWrite(s)),
+        passThroughWrite: term => BYTES.forEach(b => term.passThroughWrite(b)),
+        nativeWrite: term => BYTES.map(b => tryCall(() => term.nativeWrite(b))),
+        doorOutput: term => TEXT.forEach(s => doorWrite(term, s)),
+        doorOutputNoLf: term => TEXT.forEach(s => doorWrite(term, s, false)),
+        unfilteredRip: term => BYTES.forEach(b => unfilteredRip(term, b)),
+        batch: term => {
+            term.beginWrite();
+            TEXT.slice(0, 3).forEach(s => term.write(s));
+            term.rawWrite(BYTES[1]);
+            term.beginWrite();
+            term.passThroughWrite(BYTES[1]);
+            term.write(TEXT[6]);
+            term.commitWrite();
+            if (term.canWriteNative()) {
+                term.nativeWrite(BYTES[2]);
+            }
+            term.rawWrite(BYTES[2]);
+            TEXT.slice(3).forEach(s => term.pipeWrite(s));
+            unfilteredRip(term, BYTES[1]);
+            term.commitWrite();
+        },
+    };
+
+    const asyncPaths = {
+        dripWrite: (term, done) =>
+            term.dripWrite(
+                Buffer.concat([...BYTES, Buffer.from(TEXT.join(''))]),
+                1e9,
+                done
+            ),
+        nativeDripWrite: (term, done) =>
+            term.nativeDripWrite(BYTES[1], {}, 1e9, err => done(err && err.message)),
+    };
+
+    const result = {};
+    for (const session of SESSIONS) {
+        for (const [name, run] of Object.entries(paths)) {
+            const { term, calls } = makeTerm(ClientTerminal, Term, session);
+            const ret = run(term);
+            result[`${session.name} ${name}`] = {
+                ret: ret === undefined ? null : ret,
+                wire: record(calls, BYTES),
+            };
+        }
+        for (const [name, run] of Object.entries(asyncPaths)) {
+            const { term, calls } = makeTerm(ClientTerminal, Term, session);
+            const ret = await new Promise(resolve => run(term, resolve));
+            result[`${session.name} ${name}`] = {
+                ret: ret === undefined ? null : ret,
+                wire: record(calls, BYTES),
+            };
+        }
+        if ('ansi' === session.emulation) {
+            const { term, calls } = makeTerm(ClientTerminal, Term, session);
+            const client = new EventEmitter();
+            client.term = term;
+            client.log = { info() {}, debug() {}, warn() {} };
+            const basic = term.emulation.probes.find(p => 'basicPrepWork' === p.name);
+            await new Promise(resolve => basic.run(client, resolve));
+            result[`${session.name} probe`] = { ret: null, wire: record(calls, BYTES) };
+        }
+    }
+    return result;
+}
+
+const MASTER_PINS = {
+    'ansi/cp437 write': 'bf25ffa520d04653a32ff161ad6ed032',
+    'ansi/cp437 writeNoLf': '5d439ccbc944a0e75e46eeefd8f366b4',
+    'ansi/cp437 rawWriteString': '555614bd78dcd682d1083f36c8f7ad74',
+    'ansi/cp437 rawWriteBytes': '3767c2b281ee1335ff131ee1a995370c',
+    'ansi/cp437 pipeWrite': '2a9f9beaa05a7970de4150d39e002ad1',
+    'ansi/cp437 passThroughWrite': '3767c2b281ee1335ff131ee1a995370c',
+    'ansi/cp437 nativeWrite': 'f81be824662652846d9048595edb287f',
+    'ansi/cp437 doorOutput': 'bf25ffa520d04653a32ff161ad6ed032',
+    'ansi/cp437 doorOutputNoLf': '5d439ccbc944a0e75e46eeefd8f366b4',
+    'ansi/cp437 unfilteredRip': '3767c2b281ee1335ff131ee1a995370c',
+    'ansi/cp437 batch': '016e903761c5bc5e88a453cd219343f8',
+    'ansi/cp437 dripWrite': '53b15fbaf5d6963ef6fbe5fae950fcc2',
+    'ansi/cp437 nativeDripWrite': '8f733ebf6d38ec371b1f3593fe9ac845',
+    'ansi/cp437 probe': '9e1a10aa728ba5bef9d8ad648f68468a',
+    'ansi/utf8 write': '13a5a6991fad882990e6e52186ecd090',
+    'ansi/utf8 writeNoLf': 'cbc4d37837178401b2b5b1093bc98b8a',
+    'ansi/utf8 rawWriteString': '555614bd78dcd682d1083f36c8f7ad74',
+    'ansi/utf8 rawWriteBytes': '3767c2b281ee1335ff131ee1a995370c',
+    'ansi/utf8 pipeWrite': 'e3d3f912412f98e055c677b36d6cda14',
+    'ansi/utf8 passThroughWrite': '3767c2b281ee1335ff131ee1a995370c',
+    'ansi/utf8 nativeWrite': 'f81be824662652846d9048595edb287f',
+    'ansi/utf8 doorOutput': '13a5a6991fad882990e6e52186ecd090',
+    'ansi/utf8 doorOutputNoLf': 'cbc4d37837178401b2b5b1093bc98b8a',
+    'ansi/utf8 unfilteredRip': '3767c2b281ee1335ff131ee1a995370c',
+    'ansi/utf8 batch': '71cdb2515e5b426f7763aa5e129aeadd',
+    'ansi/utf8 dripWrite': '53b15fbaf5d6963ef6fbe5fae950fcc2',
+    'ansi/utf8 nativeDripWrite': '8f733ebf6d38ec371b1f3593fe9ac845',
+    'ansi/utf8 probe': '9e1a10aa728ba5bef9d8ad648f68468a',
+    'petscii write': '3d07189ea7e71697bbd0206586c01f8f',
+    'petscii writeNoLf': 'aed0fe8fd1a6093f2bc4910b0ee44e86',
+    'petscii rawWriteString': 'aed0fe8fd1a6093f2bc4910b0ee44e86',
+    'petscii rawWriteBytes': '60ada766ce40016b2aae7f72f43e269c',
+    'petscii pipeWrite': 'b98ba073dbd11e6e314ca042fa03a2fe',
+    'petscii passThroughWrite': '3767c2b281ee1335ff131ee1a995370c',
+    'petscii nativeWrite': '0495496335238609739613d62f73e9fa',
+    'petscii doorOutput': '3d07189ea7e71697bbd0206586c01f8f',
+    'petscii doorOutputNoLf': 'aed0fe8fd1a6093f2bc4910b0ee44e86',
+    'petscii unfilteredRip': '60ada766ce40016b2aae7f72f43e269c',
+    'petscii batch': 'b228a8f125d0d10b15bc3fccce740a55',
+    'petscii dripWrite': '6645bd27f3217fdf6f32f892b427f693',
+    'petscii nativeDripWrite': '2e3d74e1d1e6dd14dc8854abc50ef9e5',
+    'atascii write': '77aeb8f23a39ea6d3caabfa94e29e969',
+    'atascii writeNoLf': '0ebf542e19bb3df7ef633d18f9172c73',
+    'atascii rawWriteString': '0ebf542e19bb3df7ef633d18f9172c73',
+    'atascii rawWriteBytes': '5c034ee66949c343284914ef56455705',
+    'atascii pipeWrite': '8f66b5072985507415ba53102d6fd365',
+    'atascii passThroughWrite': '3767c2b281ee1335ff131ee1a995370c',
+    'atascii nativeWrite': '0b394de7de39d66e81ec87d9cd658300',
+    'atascii doorOutput': '77aeb8f23a39ea6d3caabfa94e29e969',
+    'atascii doorOutputNoLf': '0ebf542e19bb3df7ef633d18f9172c73',
+    'atascii unfilteredRip': '5c034ee66949c343284914ef56455705',
+    'atascii batch': '86fa005894c22ced7de584be9727c3b7',
+    'atascii dripWrite': 'e4dd98a4da1eec5319a39de4b6828ee3',
+    'atascii nativeDripWrite': '5bc4295abf9c14969659954c0946a7a5',
+};
+
+const pinHash = value =>
+    crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 32);
+
+//
+//  The documented changes, applied to a whole wire at once: a reference for
+//  the fuzz, written apart from the filter. |segments| are { bytes, filtered }
+//  in wire order. Returns the wire, which bytes came from filtered writes,
+//  and each filtered segment's place in the wire.
+//
+const isIntroducer = b => 0x21 === b || 0x01 === b || 0x02 === b;
+
+function csiOpenAtEnd(wire, end = wire.length) {
+    let i = end - 1;
+    const isControl = b => (b < 0x20 && 0x1b !== b) || 0x7f === b;
+    while (
+        i >= 0 &&
+        ((wire[i] >= 0x30 && wire[i] <= 0x39) || 0x3b === wire[i] || isControl(wire[i]))
+    ) {
+        --i;
+    }
+    if (i < 0 || 0x5b !== wire[i]) {
+        return false;
+    }
+    --i;
+    while (i >= 0 && isControl(wire[i])) {
+        --i;
+    }
+    return i >= 0 && 0x1b === wire[i];
+}
+
+function ripCommandOpen(wire) {
+    let open = false;
+    let backslashes = 0;
+    for (let i = 0; i < wire.length; ++i) {
+        const b = wire[i];
+        if (!open) {
+            open = 0x7c === b && i > 0 && isIntroducer(wire[i - 1]);
+            backslashes = 0;
+        } else if (0x5c === b) {
+            ++backslashes;
+        } else if (0x0d === b) {
+            if (backslashes & 1) {
+                --backslashes;
+            } else {
+                open = false;
+            }
+        } else if (0x0a !== b) {
+            backslashes = 0;
+        }
+    }
+    return open ? { oddBackslashes: Boolean(backslashes & 1) } : null;
+}
+
+//  ESC [ <digits and ;> ! starting at |i|: the index after it, or 0
+function pureSequenceAt(input, i) {
+    if (0x1b !== input[i] || 0x5b !== input[i + 1]) {
+        return 0;
+    }
+    let j = i + 2;
+    while (
+        j < input.length &&
+        ((input[j] >= 0x30 && input[j] <= 0x39) || 0x3b === input[j])
+    ) {
+        ++j;
+    }
+    return 0x21 === input[j] ? j + 1 : 0;
+}
+
+//  is input[i..] all a possible start of one (ESC, ESC [, ESC [ params)?
+function pureStartToEnd(input, i) {
+    if (0x1b !== input[i]) {
+        return false;
+    }
+    if (i + 1 === input.length) {
+        return true;
+    }
+    if (0x5b !== input[i + 1]) {
+        return false;
+    }
+    for (let j = i + 2; j < input.length; ++j) {
+        if (!((input[j] >= 0x30 && input[j] <= 0x39) || 0x3b === input[j])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function referenceWire(rawSegments) {
+    //  filtered writes straight after one another are one stream
+    const segments = [];
+    for (const seg of rawSegments) {
+        const last = segments[segments.length - 1];
+        if (seg.filtered && last && last.filtered) {
+            last.bytes = last.bytes.concat(seg.bytes);
+        } else {
+            segments.push({ bytes: [...seg.bytes], filtered: seg.filtered });
+        }
+    }
+
+    const wire = [];
+    const fromFilter = [];
+    const placed = [];
+    const push = (b, filtered) => {
+        wire.push(b);
+        fromFilter.push(filtered);
+    };
+    segments.forEach(({ bytes: input, filtered }, n) => {
+        if (!filtered) {
+            input.forEach(b => push(b, false));
+            return;
+        }
+        if (0 === input.length) {
+            return; //  an empty write sends nothing
+        }
+        const isLast = n === segments.length - 1;
+        const start = wire.length;
+        const open = ripCommandOpen(wire);
+        if (open) {
+            if (open.oddBackslashes) {
+                push(0x00, true);
+            }
+            push(0x0d, true);
+            push(0x0a, true);
+        }
+        let heldTail = false;
+        for (let i = 0; i < input.length; ++i) {
+            const after = pureSequenceAt(input, i);
+            if (after) {
+                i = after - 1;
+                continue;
+            }
+            if (isLast && pureStartToEnd(input, i)) {
+                heldTail = true; //  held back, never sent
+                break;
+            }
+            const b = input[i];
+            if (0x21 === b && csiOpenAtEnd(wire)) {
+                continue;
+            }
+            if (0x01 === b || 0x02 === b) {
+                push(0x2a, true);
+                continue;
+            }
+            if (
+                0x7c === b &&
+                (0 === wire.length || isIntroducer(wire[wire.length - 1]))
+            ) {
+                push(0x00, true);
+            }
+            push(b, true);
+        }
+        placed.push({ input, start, end: wire.length, closed: Boolean(open), heldTail });
+    });
+    return { wire, fromFilter, placed };
+}
+
+//
+//  Undo a filtered segment: walk its input against its output allowing only
+//  the documented changes. Returns an error string, or null.
+//
+function undoFiltered(wire, { input, start, end, closed, heldTail }) {
+    let j = start;
+    if (closed) {
+        if (0x00 === wire[j] && 0x0d === wire[j + 1]) {
+            ++j;
+        }
+        if (0x0d !== wire[j] || 0x0a !== wire[j + 1]) {
+            return 'missing command line end';
+        }
+        j += 2;
+    }
+    for (let i = 0; i < input.length; ++i) {
+        const b = input[i];
+        const after = pureSequenceAt(input, i);
+        if (after) {
+            i = after - 1; //  removed whole
+            continue;
+        }
+        if (heldTail && pureStartToEnd(input, i)) {
+            break; //  held back at the end
+        }
+        if (0x01 === b || 0x02 === b) {
+            if (0x2a !== wire[j]) {
+                return `0x0${b} at ${i} not replaced`;
+            }
+            ++j;
+        } else if (j < end && wire[j] === b) {
+            ++j;
+        } else if (0x7c === b && 0x00 === wire[j] && 0x7c === wire[j + 1]) {
+            j += 2;
+        } else if (0x21 === b) {
+            if (!csiOpenAtEnd(wire, j)) {
+                return `'!' at ${i} removed outside ESC [ params`;
+            }
+        } else {
+            return `input byte ${b} at ${i} does not match wire byte ${wire[j]}`;
+        }
+    }
+    return j === end ? null : `${end - j} extra bytes`;
+}
+
+//  mulberry32
+function prng(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+describe('RIPscrip output filter (#989)', () => {
+    describe('the filter', () => {
+        it('names its break, its replacement and its command line end', () => {
+            assert.equal(INTRODUCER_BREAK, 0x00);
+            assert.equal(INTRODUCER_REPLACEMENT, 0x2a);
+            assert.deepEqual([...COMMAND_LINE_END], [0x0d, 0x0a]);
+        });
+
+        it('puts a NUL between every introducer and |, wherever it is', () => {
+            assert.equal(filterAll(['!|1K\r\n']), '!\x00|1K\r\n');
+            assert.equal(filterAll(['abc !|*']), 'abc !\x00|*');
+            assert.equal(filterAll(['!!|']), '!!\x00|');
+            assert.equal(filterAll(['!|!|']), '!\x00|!\x00|');
+            assert.equal(
+                filterAll(['\x1b[0m!|c0F|B0000A0A0']),
+                '\x1b[0m!\x00|c0F|B0000A0A0'
+            );
+        });
+
+        it('the NUL it adds is always followed by |, never by !', () => {
+            const out = filterAll(['!|!|!!||!x|!\x01|\x02|']);
+            for (let i = 0; i < out.length; ++i) {
+                if ('\x00' === out[i]) {
+                    assert.equal(out[i + 1], '|');
+                }
+            }
+        });
+
+        it('replaces 0x01 and 0x02 one for one', () => {
+            assert.equal(filterAll(['a\x01|*b\x02|1Q']), 'a*|*b*|1Q');
+            assert.equal(filterAll(['\x01\x02']), '**');
+        });
+
+        it('removes ESC [ <digits and ;> ! whole, and nothing else', () => {
+            assert.equal(filterAll(['\x1b[1!x']), 'x');
+            assert.equal(filterAll(['ESC \x1b[1! end']), 'ESC  end');
+            assert.equal(filterAll(['\x1b[!_']), '_');
+            assert.equal(filterAll(['\x1b[0!\x1b[2!']), '');
+            assert.equal(filterAll(['\x1b[16!text!']), 'text!');
+            assert.equal(filterAll(['\x1b[10;1;2!']), '');
+            //  not RIP sequences
+            assert.equal(
+                filterAll(['\x1b[?1! \x1b[1 ! \x1b[1m! \x1b!']),
+                '\x1b[?1! \x1b[1 ! \x1b[1m! \x1b!'
+            );
+            //  removing it never joins a ! and a | on the wire
+            assert.equal(filterAll(['!\x1b[!|']), '!\x00|');
+            //  nor two halves of another one
+            assert.equal(filterAll(['\x1b[1\x1b[!!x']), '\x1b[1x');
+        });
+
+        it('a control byte inside the sequence: only the ! is removed', () => {
+            assert.equal(filterAll(['\x1b[1\r!x']), '\x1b[1\rx');
+        });
+
+        it('holds a possible start of one back until the next write shows what it is', () => {
+            const f = warmFilter();
+            assert.equal(latin1(f.filter(bytes('text \x1b[1'))), 'text ');
+            assert.equal(f.state.held, 3);
+            assert.equal(latin1(f.filter(bytes('0m more'))), '\x1b[10m more');
+            assert.equal(latin1(f.filter(bytes('a\x1b'))), 'a');
+            assert.equal(latin1(f.filter(bytes('[2!b'))), 'b');
+        });
+
+        it('an unfiltered write sends what was held back first', () => {
+            const f = warmFilter();
+            f.filter(bytes('x\x1b['));
+            assert.equal(latin1(f.observe(bytes('!door'))), '\x1b[!door');
+            assert.equal(f.state.held, 0);
+            assert.equal(f.observe('str'), 'str');
+            f.filter(bytes('\x1b'));
+            assert.equal(f.observe(''), '\x1b');
+        });
+
+        it('keeps its state across writes: every split of every attack string', () => {
+            const attacks = [
+                '!|1K',
+                'x!|c0F|B0000A0A0\r\n',
+                'abc !|* \x01|* \x02|1Q',
+                '\x1b[1!\x1b[!_\x1b[0!\x1b[2!',
+                '!!||!\x1b[!|',
+            ];
+            for (const attack of attacks) {
+                const whole = filterAll([attack]);
+                for (let at = 0; at <= attack.length; ++at) {
+                    assert.equal(
+                        filterAll([attack.slice(0, at), attack.slice(at)]),
+                        whole,
+                        `${JSON.stringify(attack)} split at ${at}`
+                    );
+                }
+            }
+        });
+
+        it('hands back the same object when nothing has to change', () => {
+            const f = warmFilter();
+            const b = bytes('plain text, ESC[0m \x1b[0m, | and ! apart');
+            assert.equal(f.filter(b), b);
+            const s = 'a string';
+            assert.equal(f.filter(s), s);
+        });
+
+        it('a | first thing after it is made gets a break: the byte before is unknown', () => {
+            assert.equal(latin1(createRipOutputFilter().filter(bytes('|x'))), '\x00|x');
+        });
+
+        it('judges a string by the low byte of each unit and gives back a string', () => {
+            const f = warmFilter();
+            assert.equal(f.filter('a!|b\u0101|c\u263A'), 'a!\x00|b*|c\u263A');
+            assert.equal(f.filter('\u0121|'), '\u0121\x00|');
+        });
+
+        describe('after unfiltered output', () => {
+            it('a | straight after an unfiltered introducer gets its break', () => {
+                for (const intro of ['!', '\x01', '\x02']) {
+                    const f = warmFilter();
+                    f.observe(bytes(`text${intro}`));
+                    assert.equal(latin1(f.filter(bytes('|1K'))), '\x00|1K');
+                }
+            });
+
+            it('a ! after unfiltered ESC [ digits: only the ! is removed', () => {
+                const f = warmFilter();
+                f.observe(bytes('\x1b[1'));
+                assert.equal(latin1(f.filter(bytes('!x'))), 'x');
+            });
+
+            it('a RIP command it leaves open is ended before filtered text', () => {
+                const f = warmFilter();
+                f.observe(bytes('!|c0F'));
+                assert.equal(latin1(f.filter(bytes('text'))), '\r\ntext');
+                assert.equal(latin1(f.filter(bytes('more'))), 'more');
+            });
+
+            it('a command that ends in a continuation backslash gets a NUL first', () => {
+                const f = warmFilter();
+                f.observe(bytes('!|c0F\\'));
+                assert.equal(latin1(f.filter(bytes('t'))), '\x00\r\nt');
+                const g = warmFilter();
+                g.observe(bytes('!|c0F\\\n'));
+                assert.equal(latin1(g.filter(bytes('t'))), '\x00\r\nt');
+                const h = warmFilter();
+                h.observe(bytes('!|c0F\\\\'));
+                assert.equal(latin1(h.filter(bytes('t'))), '\r\nt');
+            });
+
+            it('a command ended by CR, or continued and then ended, needs nothing', () => {
+                for (const art of ['!|c0F|e\r\n', '!|c0F\\\r\n|e\r', '!|*\r']) {
+                    const f = warmFilter();
+                    f.observe(bytes(art));
+                    assert.equal(latin1(f.filter(bytes('text'))), 'text', art);
+                }
+            });
+        });
+    });
+
+    describe('the emulation', () => {
+        it('an ANSI session has no output filter until the RIP layer is attached', () => {
+            const emulation = Term.createEmulation('ansi');
+            assert.equal(emulation.outputFilter, null);
+            emulation.addLayer(Rip.createRipLayer({ source: 'probe' }));
+            assert.equal('function', typeof emulation.outputFilter.filter);
+            assert.equal('function', typeof emulation.outputFilter.observe);
+        });
+
+        it('PETSCII and ATASCII take no layer and so never have a filter', () => {
+            for (const name of ['petscii', 'atascii']) {
+                const emulation = Term.createEmulation(name);
+                assert.equal(emulation.addLayer(Rip.createRipLayer({})), false);
+                assert.equal(emulation.outputFilter, null);
+            }
+        });
+
+        it('a second report of the same layer keeps the filter and its state', () => {
+            const { term, client } = ripSession();
+            const filter = term.emulation.outputFilter;
+            term.rawWrite(bytes('ends with !'));
+            attachRipLayer(client, { source: 'probe', version: 'RIPSCRIP015410' });
+            assert.equal(term.emulation.outputFilter, filter);
+            assert.equal(filter.state.prev, 0x21);
+        });
+
+        it('a filter starts with the write after it is attached', () => {
+            const wire = [];
+            const term = new ClientTerminal({
+                writable: true,
+                write: (d, cb) => (wire.push(Buffer.from(d)), cb && cb(null)),
+            });
+            term.rawWrite(bytes('before !|1K'));
+            attachRipLayer({ term, log: null }, { source: 'probe' });
+            term.rawWrite(bytes('after !|1K'));
+            assert.deepEqual(wire.map(latin1), ['before !|1K', 'after !\x00|1K']);
+        });
+    });
+
+    describe('a RIP session', () => {
+        it('write, rawWrite and pipeWrite are filtered, after the codec', () => {
+            const { term, sent } = ripSession();
+            term.write('a \u263A|* b \u263B|1Q !|1K\n');
+            term.rawWrite(bytes('\x01|*\x1b[1!'));
+            term.pipeWrite('|04red !|e|07\n');
+            assert.equal(
+                sent(),
+                'a *|* b *|1Q !\x00|1K\r\n*|*' + '\x1b[22;31mred !\x00|e\x1b[22;37m\r\n'
+            );
+        });
+
+        it('a batch is filtered as one piece; unfiltered chunks keep their place', () => {
+            const { term, sent } = ripSession();
+            term.beginWrite();
+            term.write('one !');
+            term.passThroughWrite(bytes('|door!'));
+            term.write('|two');
+            term.writeUnfilteredRip(bytes('!|c0F'));
+            term.write('three');
+            term.commitWrite();
+            //  the door's | is its own: not changed, and with the ! before it
+            //  the filter takes a RIP command as open, so ends it before |two
+            assert.equal(sent(), 'one !|door!\r\n|two!|c0F\r\nthree');
+        });
+
+        it('dripWrite is filtered', done => {
+            const { term, sent } = ripSession();
+            term.dripWrite(bytes('drip !|1K \x01|*'), 1e9, err => {
+                assert.ifError(err);
+                assert.equal(sent(), 'drip !\x00|1K *|*');
+                return done();
+            });
+        });
+
+        it('passThroughWrite, writeDoorOutput and writeUnfilteredRip are not', () => {
+            const { term, sent } = ripSession();
+            term.passThroughWrite(bytes('!|1K\r\n'));
+            term.writeDoorOutput('!|e\r\n\u263A|*\r\n', false);
+            term.writeUnfilteredRip(bytes('!|c0F|B0000A0A0\r\n\x1b[2!'));
+            assert.equal(sent(), '!|1K\r\n!|e\r\n\x01|*\r\n!|c0F|B0000A0A0\r\n\x1b[2!');
+        });
+
+        it('writeDoorOutput encodes as write() does, line feeds included', () => {
+            const { term, sent } = ripSession();
+            term.writeDoorOutput('a\nb');
+            term.writeDoorOutput('c\nd', false);
+            assert.equal(sent(), 'a\r\nbc\nd');
+        });
+
+        it("a door's output reaches the caller unfiltered", () => {
+            const Door = require('../core/door.js');
+            const { term, client, sent } = ripSession();
+            const door = new Door(client);
+            door.encoding = 'cp437';
+            door.doorDataHandler(bytes('!|1K\n\x01|*'));
+            assert.equal(sent(), '!|1K\r\n\x01|*');
+            assert.equal(term.emulation.outputFilter.state.prev, 0x2a);
+        });
+
+        it('a caller that announced RIP still gets the version query whole', done => {
+            const { term, client, sent } = ripSession();
+            const events = new EventEmitter();
+            Object.assign(events, client);
+            const basic = term.emulation.probes.find(p => 'basicPrepWork' === p.name);
+            basic.run(events, err => {
+                assert.ifError(err);
+                assert.ok(sent().includes(Rip.VERSION_PROBE), JSON.stringify(sent()));
+                return done();
+            });
+        });
+
+        it('the version query would be taken apart by the filter', () => {
+            assert.notEqual(filterAll([Rip.VERSION_PROBE]), Rip.VERSION_PROBE);
+        });
+
+        it('a UTF-8 RIP session: only literal U+0001 / U+0002 become *', () => {
+            const { term, sent } = ripSession({ encoding: 'utf8' });
+            term.write('\u263A|* \u0001|* caf\u00E9 !|1K');
+            assert.equal(
+                sent(),
+                latin1(Buffer.from('\u263A|* *|* caf\u00E9 !', 'utf8')) + '\x00|1K'
+            );
+        });
+    });
+
+    describe('a session without the RIP layer is sent what origin/master sent', () => {
+        let results;
+        before(async () => {
+            results = await runCorpus(ClientTerminal, Term);
+        });
+
+        Object.keys(MASTER_PINS).forEach(key => {
+            it(key, () => {
+                assert.equal(pinHash(results[key]), MASTER_PINS[key]);
+            });
+        });
+
+        it('the corpus covers every case pinned, and only those', () => {
+            assert.deepEqual(
+                Object.keys(results).sort(),
+                Object.keys(MASTER_PINS).sort()
+            );
+        });
+    });
+
+    describe('differential fuzz', () => {
+        const CASES = 3000;
+        const ALPHABET = [
+            0x21, 0x21, 0x21, 0x7c, 0x7c, 0x7c, 0x01, 0x02, 0x1b, 0x1b, 0x5b, 0x5b, 0x30,
+            0x31, 0x39, 0x3b, 0x0d, 0x0a, 0x5c, 0x5c, 0x00, 0x61, 0x20, 0x3f, 0xe9, 0xff,
+        ];
+        const DOOR_TEXT = [
+            '!',
+            '|',
+            '\u263A',
+            '\u263B',
+            '\x1b',
+            '[',
+            '1',
+            '\\',
+            '\r',
+            'a',
+        ];
+
+        it(`${CASES} seeded cases: random streams, random chunkings, every path`, () => {
+            const rand = prng(0x989);
+            const pick = list => list[Math.floor(rand() * list.length)];
+            const randomBytes = () =>
+                Buffer.from(
+                    Array.from({ length: Math.floor(rand() * 12) }, () => pick(ALPHABET))
+                );
+
+            for (let n = 0; n < CASES; ++n) {
+                const { term, sent } = ripSession();
+                const segments = [];
+
+                const filtered = b => segments.push({ bytes: [...b], filtered: true });
+                const unfiltered = b => segments.push({ bytes: [...b], filtered: false });
+
+                const one = inBatch => {
+                    const b = randomBytes();
+                    switch (
+                        pick(['raw', 'raw', 'string', 'drip', 'pass', 'rip', 'door'])
+                    ) {
+                        case 'raw':
+                            term.rawWrite(b);
+                            return filtered(b);
+                        case 'string':
+                            term.rawWrite(latin1(b));
+                            return filtered(inBatch ? Buffer.from(latin1(b), 'utf8') : b);
+                        case 'drip':
+                            if (inBatch) {
+                                term.rawWrite(b);
+                            } else {
+                                term.dripWrite(b, 1e9, () => {});
+                            }
+                            return filtered(b);
+                        case 'pass':
+                            term.passThroughWrite(b);
+                            return unfiltered(b);
+                        case 'rip':
+                            term.writeUnfilteredRip(b);
+                            return unfiltered(b);
+                        case 'door': {
+                            const text = Array.from({ length: 6 }, () =>
+                                pick(DOOR_TEXT)
+                            ).join('');
+                            term.writeDoorOutput(text);
+                            return unfiltered(term.encode(text));
+                        }
+                    }
+                };
+
+                const steps = 1 + Math.floor(rand() * 8);
+                for (let s = 0; s < steps; ++s) {
+                    if (rand() < 0.25) {
+                        term.beginWrite();
+                        const count = 1 + Math.floor(rand() * 5);
+                        for (let c = 0; c < count; ++c) {
+                            one(true);
+                        }
+                        term.commitWrite();
+                    } else {
+                        one(false);
+                    }
+                }
+
+                const ref = referenceWire(segments);
+                const actual = sent();
+                const tag = `case ${n}: ${JSON.stringify(segments)}`;
+                assert.equal(actual, latin1(ref.wire), tag);
+
+                //  what filtered writes put on the wire is never a RIP command
+                const wire = [...bytes(actual)];
+                for (let i = 0; i < wire.length; ++i) {
+                    if (!ref.fromFilter[i]) {
+                        continue;
+                    }
+                    assert.ok(
+                        0x01 !== wire[i] && 0x02 !== wire[i],
+                        `${tag}: 0x01/0x02 at ${i}`
+                    );
+                    if (0x7c === wire[i]) {
+                        assert.ok(
+                            i > 0 && !isIntroducer(wire[i - 1]),
+                            `${tag}: !| at ${i}`
+                        );
+                    }
+                    if (0x21 === wire[i]) {
+                        assert.ok(!csiOpenAtEnd(wire, i), `${tag}: ESC[n! at ${i}`);
+                    }
+                }
+                //  and undoing the documented changes gives back the input
+                for (const place of ref.placed) {
+                    assert.equal(undoFiltered(wire, place), null, tag);
+                }
+            }
+        });
+    });
+});

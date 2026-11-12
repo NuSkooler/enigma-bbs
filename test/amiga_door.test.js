@@ -91,6 +91,10 @@ function fakeClient() {
         write(s) {
             this.written.push(s);
         },
+        //  door output as text: write() but never RIP-filtered
+        writeDoorOutput(s) {
+            this.written.push(s);
+        },
         rawWrite(b) {
             this.raw.push(Buffer.from(b));
         },

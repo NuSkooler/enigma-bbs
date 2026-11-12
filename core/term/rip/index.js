@@ -1,13 +1,16 @@
 /* jslint node: true */
 'use strict';
 
+const { createRipOutputFilter } = require('./output_filter.js');
+
 //
 //  The RIPscrip layer (#989): an addition to the ANSI emulation for a
 //  terminal that draws RIPscrip graphics (SyncTERM with RIP enabled for the
 //  entry, IcyTerm in RIP mode). See ../emulation.js for what a layer is.
 //
-//  For now the layer only says the terminal is there: art, output filtering
-//  and menus come later. Node built-ins only; no ENiGMA imports.
+//  The layer says the terminal is there, and filters what is sent to it so
+//  that only RIP ENiGMA means to send is run (./output_filter.js). Art and
+//  menus come later. Node built-ins only; no ENiGMA imports.
 //
 //  DETECTION
 //  ---------
@@ -86,6 +89,9 @@ function majorVersionOf(reply) {
 //      majorVersion    1, 3, ... from |version|
 //      source          how it was first found: 'termType' | 'probe'
 //      supports(q)     true for 'rip'
+//      createOutputFilter()
+//                      the session's output filter (./output_filter.js),
+//                      made by the emulation when the layer is attached
 //
 function createRipLayer({ version, source } = {}) {
     const layer = {
@@ -94,6 +100,7 @@ function createRipLayer({ version, source } = {}) {
         majorVersion: undefined,
         source,
         supports: query => LAYER_NAME === query,
+        createOutputFilter: createRipOutputFilter,
         setVersion(reply) {
             const major = majorVersionOf(reply);
             if (undefined === major) {

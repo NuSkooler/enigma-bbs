@@ -1479,7 +1479,7 @@ class AmigaDoorSession extends EventEmitter {
             const tail = this.decoder.end();
             this.decoder = null;
             if (tail) {
-                this.client.term.write(tail, false);
+                this.client.term.writeDoorOutput(tail, false);
             }
         }
     }
@@ -1491,9 +1491,10 @@ class AmigaDoorSession extends EventEmitter {
         if (this.rawOutput) {
             this.client.term.passThroughWrite(bytes);
         } else {
+            //  door output: never put through the RIP output filter
             const text = this.decoder ? this.decoder.write(bytes) : '';
             if (text) {
-                this.client.term.write(text, false);
+                this.client.term.writeDoorOutput(text, false);
             }
         }
     }

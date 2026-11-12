@@ -172,6 +172,7 @@ describe('RIPscrip detection', () => {
                     termWidth: 40,
                     termHeight: 25,
                     rawWrite: s => client.writes.push(s),
+                    writeUnfilteredRip: s => client.writes.push(s),
                     write: s => client.writes.push(s),
                 };
                 return client;

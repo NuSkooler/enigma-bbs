@@ -16,6 +16,9 @@
 //      defaults            { cols, rows, artTypes(term) }
 //      layers              additive features on top of the base, by name
 //                          (RIP, later Sixel); empty until one is detected
+//      outputFilter        null, or what a layer needs done to everything
+//                          ENiGMA sends after the translator (RIP: keep RIP
+//                          commands out of text); see addLayer()
 //
 //  A base emulation is built from a definition (see ./ansi/index.js); each
 //  client gets its own instance because capabilities, layers and any decoder
@@ -34,6 +37,12 @@ class Emulation {
         this.capabilities = {};
         this.defaults = definition.defaults;
         this.layers = new Map();
+
+        //  null unless an attached layer filters output: the one thing the
+        //  output path checks, so a session without such a layer does no
+        //  more work than before
+        this.outputFilter = null;
+        this.outputFilters = new Map(); //  layer name -> its filter
     }
 
     //
@@ -76,21 +85,48 @@ class Emulation {
     }
 
     //
-    //  Attach an additive |layer|: { name, supports?(query, term), artTypes? }.
-    //  Only a base that takes layers (ANSI) accepts one; returns whether it
-    //  was attached.
+    //  Attach an additive |layer|: { name, supports?(query, term), artTypes?,
+    //  createOutputFilter? }. Only a base that takes layers (ANSI) accepts
+    //  one; returns whether it was attached.
+    //
+    //  createOutputFilter() makes the layer's output filter: { filter(data),
+    //  observe(data) }. filter() is given everything ENiGMA sends after the
+    //  output translator and returns what goes on the wire; observe() is
+    //  given what goes on the wire around it (pass-through, native and
+    //  unfiltered writes; see core/client_term.js) and returns it, after
+    //  anything filter() held back. It is made once per layer name and
+    //  filters from the next write on.
     //
     addLayer(layer) {
         if (!this.definition.acceptsLayers || !layer || !layer.name) {
             return false;
         }
         this.layers.set(layer.name, layer);
+
+        if (
+            'function' === typeof layer.createOutputFilter &&
+            !this.outputFilters.has(layer.name)
+        ) {
+            this.outputFilters.set(layer.name, layer.createOutputFilter());
+            this.outputFilter = composeFilters([...this.outputFilters.values()]);
+        }
         return true;
     }
 
     hasLayer(name) {
         return this.layers.has(name);
     }
+}
+
+//  One filter from several, applied in the order the layers were attached
+function composeFilters(filters) {
+    if (1 === filters.length) {
+        return filters[0];
+    }
+    return {
+        filter: data => filters.reduce((d, f) => f.filter(d), data),
+        observe: data => filters.reduce((d, f) => f.observe(d), data),
+    };
 }
 
 module.exports = { Emulation };

@@ -39,6 +39,7 @@ function makeClient(uniqueId) {
             termWidth: 80,
             termHeight: 25,
             write: noop,
+            writeDoorOutput: noop,
             output: { writableLength: 0, pipe: noop, unpipe: noop, resume: noop },
         },
         log: { warn: noop, debug: noop, info: noop, trace: noop },
