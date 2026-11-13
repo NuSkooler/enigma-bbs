@@ -665,7 +665,8 @@ function canDisplayRip(client, rip) {
         TRUSTED_RIP_ART === rip &&
         termHasRip(term) &&
         _.isFunction(term.writeUnfilteredRip) &&
-        _.isFunction(term.ripDripWrite)
+        _.isFunction(term.ripDripWrite) &&
+        _.isFunction(term.ripScreenShown)
     );
 }
 
