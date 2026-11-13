@@ -6,6 +6,7 @@ const Log = require('./logger.js').log;
 const renegadeToAnsi = require('./color_codes.js').renegadeToAnsi;
 const Config = require('./config.js').get;
 const { createEmulation } = require('./term');
+const { LAYER_NAME: RIP_LAYER, RIP_KILL_MOUSE_FIELDS } = require('./term/rip');
 const assert = require('assert');
 const _ = require('lodash');
 
@@ -273,6 +274,63 @@ ClientTerminal.prototype.writeUnfilteredRip = function (data, cb) {
         return this.rawWrite(data, cb);
     }
     return this._write(data, UNFILTERED, cb);
+};
+
+//
+//  ripDripWrite() -- writeUnfilteredRip() at |bytesPerSec|, as dripWrite() is
+//  rawWrite() at a rate: for a .rip art file shown with baud emulation. The
+//  output filter is shown each piece as it is sent, so that a write landing
+//  between two pieces meets it in wire order. The same rules as
+//  writeUnfilteredRip() apply: operator-installed RIP only. For a session
+//  without the filter it is dripWrite().
+//
+ClientTerminal.prototype.ripDripWrite = function (buf, bytesPerSec, cb) {
+    if (!this.emulation.outputFilter) {
+        return this.dripWrite(buf, bytesPerSec, cb);
+    }
+    if (!buf || buf.length === 0) {
+        return cb(null);
+    }
+
+    return this._drip(
+        this._unfilteredTranslate(buf, UNFILTERED),
+        bytesPerSec,
+        cb,
+        chunk => this._observeOutput(chunk)
+    );
+};
+
+//
+//  ripScreenShown() -- a .rip art file has just been shown to this session:
+//  whatever mouse fields (buttons, click regions) it drew are live. Remembered
+//  by the RIP layer until leaveRipScreen(). Does nothing for a session
+//  without the layer.
+//
+ClientTerminal.prototype.ripScreenShown = function () {
+    const layer = this.emulation.layers.get(RIP_LAYER);
+    if (layer) {
+        layer.mouseFieldsShown = true;
+    }
+};
+
+//
+//  leaveRipScreen() -- the session is leaving the screen it is on (the menu
+//  stack is about to enter another menu). If a .rip was shown on it, the
+//  terminal is told to forget its mouse fields (RIP_KILL_MOUSE_FIELDS, sent
+//  unfiltered), since clearing the screen leaves them live and clickable,
+//  though no longer drawn. Sent once per .rip screen; a session that has not
+//  been shown a .rip (every session without the RIP layer) is sent nothing.
+//
+ClientTerminal.prototype.leaveRipScreen = function (cb) {
+    const layer = this.emulation.layers.get(RIP_LAYER);
+    if (!layer || !layer.mouseFieldsShown) {
+        if (cb) {
+            cb(null);
+        }
+        return;
+    }
+    layer.mouseFieldsShown = false;
+    return this.writeUnfilteredRip(Buffer.from(RIP_KILL_MOUSE_FIELDS, 'latin1'), cb);
 };
 
 ClientTerminal.prototype.rawWrite = function (s, cb) {

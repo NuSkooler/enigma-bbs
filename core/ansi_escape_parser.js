@@ -14,6 +14,41 @@ exports.ANSIEscapeParser = ANSIEscapeParser;
 const CR = 0x0d;
 const LF = 0x0a;
 
+//  The control sequences the parser acts on (and passes on)
+const ESCAPE_SEQUENCE_RE_SOURCE =
+    '(?:\\x1b)(?:(?:\\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZt@PXhlnpt]))|([78DEHM]))';
+
+//
+//  With |ripCommands| (.rip art only; see core/art.js), a RIPscrip command
+//  line as well, as group 4: '!|', 0x01 '|' or 0x02 '|' at the start of a
+//  line (the start of the art, or straight after a CR or LF), through the
+//  line break that ends it. A line break after an odd number of backslashes
+//  is a continuation, and the command carries on into the next line (pairs
+//  of backslashes are escaped backslashes): SyncTERM's rule (ripper.c), and
+//  IcyTerm's. The break that ends the command is CR LF, CR or LF, or the
+//  end of the art.
+//
+//  A RIP terminal takes such a line, its line break included, as a command:
+//  nothing of it is drawn as text, and the text cursor does not move (seen
+//  in SyncTERM's ripper.c: the CR ends the command and the byte after it is
+//  swallowed; IcyTerm's parser keeps both from its text parser). So the
+//  parser passes it on whole as a 'rip' event and counts no columns or rows
+//  for it, and MCI codes inside it are not looked for.
+//
+const RIP_COMMAND_RE_SOURCE =
+    '((?<![^\\r\\n])[\\x21\\x01\\x02]\\|' +
+    '(?:[^\\r\\n\\\\]|\\\\[^\\r\\n]|\\\\(?:\\r\\n|\\r|\\n))*' +
+    '(?:\\r\\n|\\r|\\n|$))';
+
+function parseRegExp(ripCommands) {
+    return new RegExp(
+        ripCommands
+            ? `${ESCAPE_SEQUENCE_RE_SOURCE}|${RIP_COMMAND_RE_SOURCE}`
+            : ESCAPE_SEQUENCE_RE_SOURCE,
+        'g'
+    );
+}
+
 function ANSIEscapeParser(options) {
     var self = this;
 
@@ -22,16 +57,20 @@ function ANSIEscapeParser(options) {
     this.column = 1;
     this.graphicRendition = {};
 
-    this.parseState = {
-        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZt@PXhlnpt]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
-    };
-
     options = miscUtil.valueWithDefault(options, {
         mciReplaceChar: '',
         termHeight: 25,
         termWidth: 80,
         trailingLF: 'default', //  default|omit|no|yes, ...
     });
+
+    //  RIPscrip command lines are passed on as 'rip' events, taking no room
+    //  on the screen: for .rip art only (see RIP_COMMAND_RE_SOURCE)
+    this.ripCommands = true === options.ripCommands;
+
+    this.parseState = {
+        re: parseRegExp(this.ripCommands),
+    };
 
     this.mciReplaceChar = miscUtil.valueWithDefault(options.mciReplaceChar, '');
     this.termHeight = miscUtil.valueWithDefault(options.termHeight, 25);
@@ -247,7 +286,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZt@PXhlnpt]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
+            re: parseRegExp(self.ripCommands),
             stop: false,
         };
     };
@@ -282,6 +321,12 @@ function ANSIEscapeParser(options) {
             if (null !== match) {
                 if (match.index > pos) {
                     parseMCI(buffer.slice(pos, match.index));
+                }
+
+                if (undefined !== match[4]) {
+                    //  a RIPscrip command line (ripCommands only): as it is
+                    self.emit('rip', match[0]);
+                    continue;
                 }
 
                 opCode = match[2];

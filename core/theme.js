@@ -855,6 +855,11 @@ function getThemeArt(options, cb) {
     //      asAnsi
     //      readSauce
     //      random
+    //      acceptNative - native art (.seq, .ata) is shown as it is
+    //      acceptRip - .rip art is shown as RIP, unfiltered (core/art.js, RIP
+    //                  ART): only when |name| is the operator's choice, never
+    //                  a name a user supplied or influenced. Never applies to
+    //                  a name holding a path.
     //
     const config = Config();
     if (!options.themeId && options.client) {
@@ -897,7 +902,14 @@ function getThemeArt(options, cb) {
                     return callback(null, null);
                 }
 
-                art.getArt(options.name, options, (err, artInfo) => {
+                //  a path can name any file on the system, uploads included:
+                //  never RIP art (see |acceptRip| above)
+                const fromPathOptions =
+                    true === options.acceptRip
+                        ? Object.assign({}, options, { acceptRip: false })
+                        : options;
+
+                art.getArt(options.name, fromPathOptions, (err, artInfo) => {
                     return callback(null, artInfo);
                 });
             },
@@ -954,6 +966,10 @@ function displayPreparedArt(options, artInfo, cb) {
         //  native art (.seq, .ata): see art.display()
         displayOpts.native = artInfo.native;
     }
+    if (artInfo.rip) {
+        //  RIP art, marked so by core/art.js alone: see art.display()
+        displayOpts.rip = artInfo.rip;
+    }
     art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
         return cb(err, { mciMap: mciMap, artInfo: artInfo, extraInfo: extraInfo });
     });
@@ -969,11 +985,21 @@ function displayThemeArt(options, cb) {
             function getArt(callback) {
                 //  displayPreparedArt() shows native art (.seq, .ata) too
                 options.acceptNative = true;
+                //  and .rip art as RIP, unless the caller says |name| may not
+                //  be the operator's choice (see getThemeArt())
+                if (false !== options.acceptRip) {
+                    options.acceptRip = true;
+                }
                 return getThemeArt(options, callback);
             },
             function prepWork(artInfo, callback) {
-                //  ANSI preparation does not apply to native art: drawn as it is
-                if (_.isObject(options.ansiPrepOptions) && !artInfo.native) {
+                //  ANSI preparation does not apply to native or RIP art: drawn
+                //  as it is
+                if (
+                    _.isObject(options.ansiPrepOptions) &&
+                    !artInfo.native &&
+                    !artInfo.rip
+                ) {
                     AnsiPrep(artInfo.data, options.ansiPrepOptions, (err, prepped) => {
                         if (!err && prepped) {
                             artInfo.data = prepped;

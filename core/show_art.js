@@ -90,6 +90,10 @@ exports.getModule = class ShowArtModule extends MenuModule {
             const options = {
                 pause: this.shouldPause(),
                 desc: 'extraArgs',
+                //  the name comes from the menu that led here, possibly from
+                //  form data a user typed: never shown as RIP, unfiltered
+                //  (see theme.getThemeArt())
+                acceptRip: false,
             };
             return this.displaySingleArtWithOptions(artSpec, options, cb);
         });
@@ -176,6 +180,10 @@ exports.getModule = class ShowArtModule extends MenuModule {
     displaySingleArtWithOptions(artSpec, options, cb) {
         const self = this;
         const pauseMode = self.getPauseMode();
+        const artOptions =
+            false === options.acceptRip
+                ? Object.assign({}, self.menuConfig.config, { acceptRip: false })
+                : self.menuConfig.config;
 
         async.waterfall(
             [
@@ -184,7 +192,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
                     if (pauseMode === 'pageBreak') {
                         return self._displayArtPaginated(
                             artSpec,
-                            self.menuConfig.config,
+                            artOptions,
                             (err, artData) => {
                                 if (err) {
                                     return callback(err);
@@ -195,7 +203,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
                         );
                     }
 
-                    self.displayAsset(artSpec, self.menuConfig.config, (err, artData) => {
+                    self.displayAsset(artSpec, artOptions, (err, artData) => {
                         if (err) {
                             return callback(err);
                         }

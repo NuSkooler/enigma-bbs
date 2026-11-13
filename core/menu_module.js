@@ -528,12 +528,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
     _paginateAndDisplay(artInfo, artOptions, cb) {
         const self = this;
 
-        //  native art (.seq, .ata) positions itself on the screen: never paged
-        const { pages, hasAbsolutePositioning } = artInfo.native
-            ? { pages: [], hasAbsolutePositioning: true }
-            : artUtil.paginate(artInfo.data, {
-                  termHeight: self.client.term.termHeight,
-              });
+        //  native art (.seq, .ata) positions itself on the screen, and RIP art
+        //  draws by its own coordinates: never paged
+        const { pages, hasAbsolutePositioning } =
+            artInfo.native || artInfo.rip
+                ? { pages: [], hasAbsolutePositioning: true }
+                : artUtil.paginate(artInfo.data, {
+                      termHeight: self.client.term.termHeight,
+                  });
 
         if (hasAbsolutePositioning || pages.length <= 1) {
             //  Not pageable — display normally and return
@@ -667,6 +669,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
         theme.getThemeArt(
             Object.assign({ client: self.client, name: artSpec }, artOptions, {
                 acceptNative: true, //  _paginateAndDisplay() shows native art
+                //  and RIP art, unless the caller says |artSpec| may not be the
+                //  operator's choice (see theme.getThemeArt())
+                acceptRip: false !== artOptions.acceptRip,
             }),
             (err, artInfo) => {
                 if (err) {
