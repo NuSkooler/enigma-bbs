@@ -284,7 +284,12 @@ ClientTerminal.prototype.writeUnfilteredRip = function (data, cb) {
 //  writeUnfilteredRip() apply: operator-installed RIP only. For a session
 //  without the filter it is dripWrite().
 //
-ClientTerminal.prototype.ripDripWrite = function (buf, bytesPerSec, cb) {
+//  With |markScreen|, the session is marked as showing a RIP screen
+//  (ripScreenShown()) as each piece is sent, not once at the start or the
+//  end: a menu change in the middle of the drip (leaveRipScreen()) cannot
+//  leave the mark off while later pieces still go out.
+//
+ClientTerminal.prototype.ripDripWrite = function (buf, bytesPerSec, cb, markScreen) {
     if (!this.emulation.outputFilter) {
         return this.dripWrite(buf, bytesPerSec, cb);
     }
@@ -296,7 +301,12 @@ ClientTerminal.prototype.ripDripWrite = function (buf, bytesPerSec, cb) {
         this._unfilteredTranslate(buf, UNFILTERED),
         bytesPerSec,
         cb,
-        chunk => this._observeOutput(chunk)
+        chunk => {
+            if (markScreen) {
+                this.ripScreenShown();
+            }
+            return this._observeOutput(chunk);
+        }
     );
 };
 

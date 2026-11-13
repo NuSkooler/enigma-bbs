@@ -26,7 +26,7 @@ const ESCAPE_SEQUENCE_RE_SOURCE =
 //  is a continuation, and the command carries on into the next line (pairs
 //  of backslashes are escaped backslashes): SyncTERM's rule (ripper.c), and
 //  IcyTerm's. The break that ends the command is CR LF, CR or LF, or the
-//  end of the art.
+//  end of the art (a lone backslash at the very end included).
 //
 //  A RIP terminal takes such a line, its line break included, as a command:
 //  nothing of it is drawn as text, and the text cursor does not move (seen
@@ -37,7 +37,7 @@ const ESCAPE_SEQUENCE_RE_SOURCE =
 //
 const RIP_COMMAND_RE_SOURCE =
     '((?<![^\\r\\n])[\\x21\\x01\\x02]\\|' +
-    '(?:[^\\r\\n\\\\]|\\\\[^\\r\\n]|\\\\(?:\\r\\n|\\r|\\n))*' +
+    '(?:[^\\r\\n\\\\]|\\\\[^\\r\\n]|\\\\(?:\\r\\n|\\r|\\n)|\\\\$)*' +
     '(?:\\r\\n|\\r|\\n|$))';
 
 function parseRegExp(ripCommands) {

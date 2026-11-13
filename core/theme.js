@@ -862,6 +862,14 @@ function getThemeArt(options, cb) {
     //                  a name holding a path.
     //
     const config = Config();
+
+    //  a name holding a path can name any file on the system, uploads
+    //  included: never RIP art, in any of the lookups below (see |acceptRip|
+    //  above). Only |acceptRip| is touched; it applies to nothing else.
+    if (art.nameHasPath(options.name)) {
+        options.acceptRip = false;
+    }
+
     if (!options.themeId && options.client) {
         options.themeId = getSessionThemeId(options.client);
     }
@@ -902,14 +910,7 @@ function getThemeArt(options, cb) {
                     return callback(null, null);
                 }
 
-                //  a path can name any file on the system, uploads included:
-                //  never RIP art (see |acceptRip| above)
-                const fromPathOptions =
-                    true === options.acceptRip
-                        ? Object.assign({}, options, { acceptRip: false })
-                        : options;
-
-                art.getArt(options.name, fromPathOptions, (err, artInfo) => {
+                art.getArt(options.name, options, (err, artInfo) => {
                     return callback(null, artInfo);
                 });
             },

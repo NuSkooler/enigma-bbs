@@ -25,6 +25,7 @@ exports.getArtTypePolicy = getArtTypePolicy;
 exports.display = display;
 exports.paginate = paginate;
 exports.defaultEncodingFromExtension = defaultEncodingFromExtension;
+exports.nameHasPath = nameHasPath;
 
 //  :TODO: Return MCI code information
 //  :TODO: process SAUCE comments
@@ -175,6 +176,12 @@ function nativeEmulationOfType(ext) {
 function isRipArtType(ext) {
     const artType = SUPPORTED_ART_TYPES[ext];
     return Boolean(artType && artType.rip);
+}
+
+//  does |name| hold a path (a separator, or an absolute name)? RIP art is
+//  never trusted by such a name: see RIP ART
+function nameHasPath(name) {
+    return _.isString(name) && (/[\\/]/.test(name) || paths.isAbsolute(name));
 }
 
 //  does |term|'s session have the RIP layer?
@@ -490,6 +497,13 @@ const defaultTypeLists = new WeakSet();
 
 function getArt(name, options, cb) {
     const ext = paths.extname(name);
+
+    //  defence in depth (core/theme.js does this too): a name holding a path
+    //  is never trusted RIP art. Theme lookups give a bare name and a base
+    //  path, which is unaffected.
+    if (nameHasPath(name)) {
+        options.acceptRip = false;
+    }
 
     //  Only consult Config when no base path was given.
     if (undefined === options.basePath) {
@@ -861,6 +875,10 @@ function display(client, art, options, cb) {
     //  native art: every byte as it is, written in one piece on completion
     const nativeChunks = native ? [] : null;
 
+    //  RIP art: a command line was found (drip display marks the session as
+    //  the pieces are sent: see ClientTerminal's ripDripWrite())
+    let sawRipCommand = false;
+
     //  RIP art goes out unfiltered, all of it; anything else is ENiGMA's
     //  ANSI output as usual
     const write = rip
@@ -890,9 +908,20 @@ function display(client, art, options, cb) {
         }
     });
 
-    //  RIP art only: a command line, as it is (line breaks too)
+    //
+    //  RIP art only: a command line, as it is (line breaks too). RIP is bytes
+    //  (CP437 as the art was read), whatever the session's encoding is.
+    //  The session is marked as showing a RIP screen once the first command
+    //  is handed to the terminal, so that leaving it clears its mouse fields
+    //  even if the display fails or is cut short after this.
+    //
     parser.on('rip', command => {
-        const encoded = client.term.encode(command, false);
+        const encoded = iconv.encode(command, 'cp437');
+        if (drip) {
+            sawRipCommand = true;
+        } else {
+            client.term.ripScreenShown();
+        }
         if (drip) {
             dripChunks.push(encoded);
         } else {
@@ -926,13 +955,14 @@ function display(client, art, options, cb) {
         }
 
         if (rip) {
-            //  its mouse fields are live until the session leaves the screen
-            client.term.ripScreenShown();
             if (!drip) {
                 return cb(null, mciMap, extraInfo);
             }
-            return client.term.ripDripWrite(Buffer.concat(dripChunks), bytesPerSec, err =>
-                cb(err, mciMap, extraInfo)
+            return client.term.ripDripWrite(
+                Buffer.concat(dripChunks),
+                bytesPerSec,
+                err => cb(err, mciMap, extraInfo),
+                sawRipCommand
             );
         }
 

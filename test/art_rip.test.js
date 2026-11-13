@@ -673,6 +673,25 @@ describe('RIPscrip art (.rip, #989)', function () {
             }
         });
 
+        it('a command ending in a lone backslash at the end of the art is still a command', function () {
+            for (const text of ['!|1K\\', '!|1K\\\\', 'a\r\n!|1U0\\']) {
+                const events = parseEvents(text, { ripCommands: true });
+                const command = text.slice(text.indexOf('!'));
+                assert.deepEqual(
+                    events.filter(([e]) => 'rip' === e),
+                    [['rip', command]],
+                    JSON.stringify(text)
+                );
+                assert.ok(
+                    !events.some(([e, d]) => 'literal' === e && d.includes('!|')),
+                    JSON.stringify(text)
+                );
+            }
+            //  with the option off it is text, as ever
+            const off = parseEvents('!|1K\\');
+            assert.ok(!off.some(([e]) => 'rip' === e));
+        });
+
         it('0x01 | and 0x02 | at the start of a line are commands too', function () {
             const events = parseEvents('\x01|1K\r\n\x02|e\r\n%TL1', {
                 ripCommands: true,
@@ -782,6 +801,40 @@ describe('RIPscrip art (.rip, #989)', function () {
             assert.deepEqual(mciMap.TL1.position, [1, 7]);
             assert.deepEqual(mciMap.TL2.position, [2, 15]);
             assert.deepEqual(extra, { height: 2 });
+        });
+
+        it('command lines go out as CP437 bytes, whatever the session encoding', async function () {
+            const text = '!|T\x80\xe9\xff\r\nab\xe9\r\n';
+            for (const encoding of ['cp437', 'utf8']) {
+                const dir = fs.mkdtempSync(paths.join(tmp, 'hi-'));
+                fs.writeFileSync(paths.join(dir, 'H.rip'), bytes(text));
+                const s = session({ rip: true, encoding });
+                // eslint-disable-next-line no-await-in-loop
+                const info = await pick('H', {
+                    basePath: dir,
+                    client: s.client,
+                    acceptRip: true,
+                });
+                // eslint-disable-next-line no-await-in-loop
+                const { err } = await show(s.client, info.data, { rip: info.rip });
+                assert.ifError(err);
+                const wire = Buffer.concat(s.wire);
+                //  the command: its original bytes, in either session
+                assert.ok(
+                    wire.includes(
+                        Buffer.from([0x21, 0x7c, 0x54, 0x80, 0xe9, 0xff, 0x0d, 0x0a])
+                    ),
+                    encoding
+                );
+                //  text parts keep the session's encoding (0xE9 is theta in CP437)
+                const textBytes = Buffer.from('ab\xe9', 'latin1');
+                assert.ok(
+                    'utf8' === encoding
+                        ? wire.includes(Buffer.from('ab\u0398', 'utf8'))
+                        : wire.includes(textBytes),
+                    encoding
+                );
+            }
         });
 
         it('what ENiGMA writes after the art is filtered again', async function () {
@@ -899,9 +952,12 @@ describe('RIPscrip art (.rip, #989)', function () {
     describe('leaving a RIP screen: kill mouse fields', function () {
         const KILL = '\r\n!|1K\r\n';
 
-        it('is the form seen working on SyncTERM and IcyTerm', function () {
+        //  (that this form works on a real terminal was verified by hand on
+        //  SyncTERM and IcyTerm; nothing here can check that)
+        it('is the kill command, never a reset or a text window', function () {
+            //  RIP_KILL_MOUSE_FIELDS is what the tests below expect on the wire
             assert.equal(Rip.RIP_KILL_MOUSE_FIELDS, KILL);
-            //  and never a reset or a text window (SyncTERM 1.10 loses input)
+            //  SyncTERM 1.10 loses input to a reset or a text window
             assert.ok(!/!\|\*|!\|w/.test(Rip.RIP_KILL_MOUSE_FIELDS));
         });
 
@@ -920,6 +976,101 @@ describe('RIPscrip art (.rip, #989)', function () {
             assert.equal(s.sent(), KILL);
             s.term.leaveRipScreen();
             assert.equal(s.sent(), KILL);
+        });
+
+        describe('the mark that a RIP screen was shown', function () {
+            const marked = s => s.term.emulation.layers.get('rip').mouseFieldsShown;
+
+            async function ripArt(text) {
+                const dir = fs.mkdtempSync(paths.join(tmp, 'mark-'));
+                fs.writeFileSync(paths.join(dir, 'M.rip'), bytes(text));
+                const s = session({ rip: true });
+                const info = await pick('M', {
+                    basePath: dir,
+                    client: s.client,
+                    acceptRip: true,
+                });
+                return { s, info };
+            }
+
+            it('is set when the first command is sent, not when the display completes', async function () {
+                //  ESC 7 makes the parser throw after the command went out
+                const { s, info } = await ripArt('!|1K\r\n\x1b7');
+                assert.equal(marked(s), false);
+                assert.throws(() =>
+                    art.display(s.client, info.data, { rip: info.rip }, () => {})
+                );
+                assert.ok(s.sent().includes('!|1K'));
+                assert.equal(marked(s), true);
+                s.clear();
+                s.term.leaveRipScreen();
+                assert.equal(s.sent(), KILL);
+            });
+
+            it('is not set by art with no RIP in it, shown as RIP', async function () {
+                const { s, info } = await ripArt('just text\r\n');
+                await show(s.client, info.data, { rip: info.rip });
+                assert.equal(marked(s), false);
+            });
+
+            describe('with baud emulation', function () {
+                let timers;
+                beforeEach(function () {
+                    timers = fakeTimers();
+                });
+                afterEach(function () {
+                    timers.restore();
+                });
+
+                it('is set as soon as the first piece is sent', async function () {
+                    const { s, info } = await ripArt('!|1U00\\\r\nAAAA\r\n');
+                    const done = show(s.client, info.data, {
+                        rip: info.rip,
+                        baudRate: 300,
+                    });
+                    assert.equal(marked(s), true); //  the first piece went out
+                    timers.runAll();
+                    await done;
+                    assert.equal(marked(s), true);
+                });
+
+                it('a menu change in the middle of the drip cannot leave it off', async function () {
+                    const { s, info } = await ripArt('!|1U00\\\r\nAAAA\r\n');
+                    const done = show(s.client, info.data, {
+                        rip: info.rip,
+                        baudRate: 300,
+                    });
+                    timers.tick();
+                    s.term.leaveRipScreen(); //  clears the mark
+                    assert.equal(marked(s), false);
+                    timers.tick(); //  a later piece of the art goes out
+                    assert.equal(marked(s), true);
+                    timers.runAll();
+                    await done;
+                    s.clear();
+                    s.term.leaveRipScreen();
+                    assert.equal(s.sent(), KILL);
+                });
+
+                it('an interrupted drip that sent a command still gets the kill', async function () {
+                    const { s, info } = await ripArt('!|1U00\\\r\nAAAA\r\n');
+                    show(s.client, info.data, { rip: info.rip, baudRate: 300 });
+                    timers.tick();
+                    s.term.output = { writable: false, write() {} };
+                    assert.equal(marked(s), true);
+                });
+
+                it('art with no RIP in it, dripped as RIP: never marked', async function () {
+                    const { s, info } = await ripArt('just text\r\n');
+                    const done = show(s.client, info.data, {
+                        rip: info.rip,
+                        baudRate: 300,
+                    });
+                    timers.runAll();
+                    await done;
+                    assert.equal(marked(s), false);
+                });
+            });
         });
 
         it('nothing when no .rip was shown, ANSI art or not', async function () {
@@ -1160,23 +1311,100 @@ describe('RIPscrip art (.rip, #989)', function () {
             );
         });
 
-        it('a name holding a path: never RIP, wherever the file is', async function () {
-            const s = ripSessionWithTheme();
-            const abs = await themeArt(
-                s.client,
-                paths.join(themesDir, 'ansi_one', 'TM'),
-                {
-                    acceptRip: true,
+        describe('a name holding a path: never RIP, in any lookup', function () {
+            let upDir;
+            before(function () {
+                //  a place outside the art directories, as an uploads dir is
+                upDir = paths.join(tmp, 'uploads');
+                fs.mkdirSync(upDir, { recursive: true });
+                fs.writeFileSync(paths.join(upDir, 'evil.rip'), '!|1K\r\nEVIL\r\n');
+            });
+
+            it('an absolute name', async function () {
+                const s = ripSessionWithTheme();
+                for (const name of [
+                    paths.join(themesDir, 'ansi_one', 'TM'),
+                    paths.join(themesDir, 'ansi_one', 'TM.rip'),
+                    paths.join(upDir, 'evil.rip'),
+                ]) {
+                    // eslint-disable-next-line no-await-in-loop
+                    const info = await themeArt(s.client, name, { acceptRip: true });
+                    assert.notEqual(info.file, 'none', name);
+                    assert.equal(info.rip, undefined, name);
                 }
-            );
-            assert.equal(paths.basename(abs.fromPath), 'TM.ans');
-            const absRip = await themeArt(
-                s.client,
-                paths.join(themesDir, 'ansi_one', 'TM.rip'),
-                { acceptRip: true }
-            );
-            assert.equal(paths.basename(absRip.fromPath), 'TM.rip');
-            assert.equal(absRip.rip, undefined);
+                const abs = await themeArt(
+                    s.client,
+                    paths.join(themesDir, 'ansi_one', 'TM'),
+                    { acceptRip: true }
+                );
+                assert.equal(paths.basename(abs.fromPath), 'TM.ans');
+            });
+
+            it('a relative name that resolves in the first lookup', async function () {
+                const s = ripSessionWithTheme();
+                const rel = paths.relative(
+                    paths.join(__dirname, '..'),
+                    paths.join(upDir, 'evil.rip')
+                );
+                const info = await themeArt(s.client, rel, { acceptRip: true });
+                assert.equal(paths.basename(info.fromPath), 'evil.rip');
+                assert.equal(info.rip, undefined);
+            });
+
+            it('a ../ name that only resolves in a later lookup: not trusted, filtered', async function () {
+                const s = ripSessionWithTheme();
+                //  misses the first lookup (relative to the BBS dir); found
+                //  from the theme's directory
+                const name = '../../uploads/evil.rip';
+                const missing = paths.join(__dirname, '..', name);
+                assert.ok(!fs.existsSync(missing));
+                assert.equal(
+                    paths.resolve(themesDir, 'ansi_one', name),
+                    paths.join(upDir, 'evil.rip')
+                );
+                const info = await themeArt(s.client, name, { acceptRip: true });
+                assert.equal(paths.basename(info.fromPath), 'evil.rip');
+                assert.equal(info.rip, undefined);
+
+                //  and through displayThemeArt(), which asks for RIP itself
+                s.clear();
+                await new Promise(resolve =>
+                    theme.displayThemeArt({ client: s.client, name }, (err, data) => {
+                        assert.ifError(err);
+                        assert.equal(data.artInfo.rip, undefined);
+                        resolve();
+                    })
+                );
+                const wire = s.sent();
+                assert.ok(wire.includes('EVIL'));
+                //  the filter broke the command up: nothing reads as one
+                assert.ok(!wire.includes('!|1K'));
+            });
+
+            it('getArt() itself refuses to mark such a name trusted', async function () {
+                const s = ripSessionWithTheme();
+                const info = await pick(paths.join(upDir, 'evil'), {
+                    basePath: upDir,
+                    client: s.client,
+                    acceptRip: true,
+                    types: ['.rip'],
+                });
+                assert.equal(info.file, 'evil.rip');
+                assert.equal(info.rip, undefined);
+                const direct = await pick(paths.join(upDir, 'evil.rip'), {
+                    basePath: upDir,
+                    client: s.client,
+                    acceptRip: true,
+                });
+                assert.equal(direct.rip, undefined);
+                //  a bare name from a base path is the legitimate case
+                const bare = await pick('evil.rip', {
+                    basePath: upDir,
+                    client: s.client,
+                    acceptRip: true,
+                });
+                assert.ok(bare.rip);
+            });
         });
 
         it('lookups that do not display (achievements, node messages): no RIP', async function () {
