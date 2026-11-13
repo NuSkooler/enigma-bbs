@@ -149,7 +149,7 @@ cat arguments:
 
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
-| `new`     | Generates a new/initial configuration. The last two questions offer the [PETSCII starter menus and theme](../servers/loginservers/petscii.md#starter-menus-and-theme) for Commodore 64/128 callers and the [ATASCII starter menus and theme](../servers/loginservers/atascii.md#starter-menus-and-theme) for Atari 8-bit callers (each defaults to no; no to both leaves the output exactly as before; yes to both gives the connect menu a branch for each). | `./oputil.js config new` (follow the prompts) |
+| `new`     | Generates a new/initial configuration. The last three questions offer the [PETSCII starter menus and theme](../servers/loginservers/petscii.md#starter-menus-and-theme) for Commodore 64/128 callers, the [ATASCII starter menus and theme](../servers/loginservers/atascii.md#starter-menus-and-theme) for Atari 8-bit callers and the [RIP starter menus](../servers/loginservers/rip.md#starter-menus) for RIPscrip callers (each defaults to no; no to all three leaves the output exactly as before; each yes gives the connect menu a branch of its own). | `./oputil.js config new` (follow the prompts) |
 | `cat` | Pretty prints current `config.hjson` configuration to stdout. | `./oputil.js config cat` |
 
 ## File Base Management
