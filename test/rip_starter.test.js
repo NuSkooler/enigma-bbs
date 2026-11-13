@@ -257,7 +257,7 @@ describe('RIP starter menus (#989)', () => {
         assert.equal(scan.module, stockScan.module);
         assert.equal(scan.art, stockScan.art);
         assert.equal(scan.next, undefined);
-        assert.deepEqual(scan.config, { skipFileBase: true });
+        assert.deepEqual(scan.config, { ...stockScan.config, skipFileBase: true });
     });
 
     it('every art name is a shipped file', () => {

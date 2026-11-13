@@ -34,8 +34,9 @@
         stock menu it copies, which are by menu name.
 
         Not here: a new user who applies from ripMatrix goes through the
-        stock application, and that ends, as on any board, in the stock
-        login sequence and main menu for the rest of that call. Files and
+        stock application, and that ends as on any board: in the stock
+        login sequence and main menu for the rest of that call, or in a
+        logoff where new accounts wait for activation. Files and
         doors have no RIP screens.
     */
     menus: {
@@ -243,6 +244,7 @@
             module: new_scan
             art: NEWSCAN
             config: {
+                messageListMenu: newScanMessageList
                 skipFileBase: true
             }
         }

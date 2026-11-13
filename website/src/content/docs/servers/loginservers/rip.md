@@ -247,7 +247,7 @@ The art is three `.rip` files, `RMATRIX`, `RMAIN` and `RMSGMENU`, each with an `
 
 Not in the starter menus:
 
-* **New users.** "Apply" is the stock new user application. As on any board, it ends in the stock login sequence and main menu, so a new caller stays on the stock (ANSI) menus for the rest of that call; from their next call they log in through `ripMatrix`.
+* **New users.** "Apply" is the stock new user application. It ends as it does on any board: an applicant who is let straight in goes on to the stock login sequence and main menu, and stays on the stock (ANSI) menus for the rest of that call; one who must wait for activation is logged off. From their next call they log in through `ripMatrix`.
 * **The login sequence.** Logging in goes straight to `ripMain`: the stock welcome screen, last callers, who's online, oneliners, new scan offer and statistics are not shown.
 * **Files and doors.** There are no RIP screens for them.
 
@@ -272,7 +272,7 @@ Nothing is added to `config.hjson`. If a step cannot be done (a `<board>-login.h
 Nothing is changed for you; the same three steps by hand:
 
 1. Copy `misc/menu_templates/rip.in.hjson` to your menus directory (for example `config/menus/myboard-rip.hjson`) and add that file name to the `includes` list in your main menu file.
-2. Branch the connect menu: in `telnetConnected` (in `myboard-login.hjson` on a board made by `config new`), add the `TE[rip]` entry shown in [Menus for RIP callers](#menus-for-rip-callers) before the last entry. Keep any PETSCII and ATASCII entries you have.
+2. Branch the connect menu: in `telnetConnected` (in `myboard-login.hjson` on a board made by `config new`), make `next` the list shown in [Menus for RIP callers](#menus-for-rip-callers), with `ripMatrix` as the menu for `TE[rip]`. A stock board has a single `next: matrix` there: replace that line with the whole list. If `next` is already a list (a board with the PETSCII or ATASCII starter), add the `TE[rip]` entry before the last entry and keep the others.
 3. Copy the six files in `misc/rip_starter/` into your general art directory (`art/general` unless you set `paths.art`).
 
 Then run `./oputil.js config validate`.
