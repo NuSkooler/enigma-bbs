@@ -1,0 +1,250 @@
+{
+    /*
+        RIP starter menus (#989)
+        ------------------------------- -   -
+        Three button screens for RIPscrip callers (SyncTERM with RIP on,
+        IcyTerm's RIP emulation): the login matrix, a main menu and a
+        message menu. Their art is in the general art directory
+        (art/general unless paths.art says otherwise) as RMATRIX.rip,
+        RMAIN.rip and RMSGMENU.rip, each with a same-named .ans holding
+        the same choices as text. "oputil.js config new" can set it all
+        up; see the RIP page in the documentation.
+
+        A RIP caller is an ANSI caller in every other respect, so
+        everything else here is the board's own: the login form, the new
+        user application, the message list, reader and editor, the new
+        scan, who's online, last callers and logging off are the stock
+        menus, with the board's theme and art. They come back here when
+        they are done. RIP is not a theme emulation: there is no starter
+        theme.
+
+        A caller reaches this tree from the stock connect menu,
+        telnetConnected, which branches on the session (the TE ACS code):
+        a RIP caller goes on to ripMatrix, everyone else to the stock
+        matrix. "config new" writes that branch; on an existing board,
+        change telnetConnected's "next" by hand (see the documentation).
+
+        Each button sends one key, without Enter, and the menu binds that
+        key, so typing it does the same as clicking. Buttons have no RIP
+        hotkey of their own.
+
+        Menus here that are copies of stock ones differ only in where
+        they go next (back into this tree rather than to the stock main
+        menu). A copy does not pick up the theme's customisations of the
+        stock menu it copies, which are by menu name.
+
+        Not here: a new user who applies from ripMatrix goes through the
+        stock application, and that ends, as on any board, in the stock
+        login sequence and main menu for the rest of that call. Files and
+        doors have no RIP screens.
+    */
+    menus: {
+        ripMatrix: {
+            desc: Login Matrix
+            art: RMATRIX
+            config: {
+                cls: true
+            }
+            form: {
+                0: {
+                    mci: {
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "l", "shift + l" ]
+                            action: @menu:ripLogin
+                        }
+                        {
+                            keys: [ "a", "shift + a" ]
+                            action: @menu:newUserApplicationPre
+                        }
+                        {
+                            keys: [ "g", "shift + g" ]
+                            action: @menu:logoff
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  The stock login menu, going on to ripMain (by way of the 2FA
+        //  step for accounts that use it) instead of the stock login
+        //  sequence, which ends in the stock main menu.
+        //
+        ripLogin: {
+            desc: Login
+            art: USERLOG
+            next: [
+                {
+                    //  users with 2FA/OTP enabled *must* go through it
+                    acs: AR2
+                    next: ripLoginTwoFactorAuthOTPLoop
+                }
+                {
+                    next: ripMain
+                }
+            ]
+            config: {
+                tooNodeMenu: loginAttemptTooNode
+                inactive: loginAttemptAccountInactive
+                disabled: loginAttemptAccountDisabled
+                locked: loginAttemptAccountLocked
+            }
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            maxLength: @config:users.usernameMax
+                            argName: username
+                            focus: true
+                        }
+                        ET2: {
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            argName: password
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { password: null }
+                                action: @systemMethod:login
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  Empty menu to hold a 2FA/OTP login in a loop until the user
+        //  authenticates or the system boots them, as the stock login does.
+        //
+        ripLoginTwoFactorAuthOTPLoop: {
+            next: ripLoginTwoFactorAuthOTP
+        }
+
+        ripLoginTwoFactorAuthOTP: {
+            desc: 2FA
+            art: 2FAOTP
+            next: ripMain
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: token
+                            focus: true
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { token: null }
+                                action: @systemMethod:login2FA_OTP
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            //  no turning back at this point...
+                            keys: [ "escape" ]
+                            action: @systemMethod:logoff
+                        }
+                    ]
+                }
+            }
+        }
+
+        ripMain: {
+            desc: Main Menu
+            art: RMAIN
+            config: {
+                cls: true
+            }
+            form: {
+                0: {
+                    mci: {
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "m", "shift + m" ]
+                            action: @menu:ripMessages
+                        }
+                        {
+                            keys: [ "w", "shift + w" ]
+                            action: @menu:mainMenuWhosOnline
+                        }
+                        {
+                            keys: [ "l", "shift + l" ]
+                            action: @menu:mainMenuLastCallers
+                        }
+                        {
+                            keys: [ "g", "shift + g" ]
+                            action: @menu:fullLogoffSequence
+                        }
+                    ]
+                }
+            }
+        }
+
+        ripMessages: {
+            desc: Message Menu
+            art: RMSGMENU
+            config: {
+                cls: true
+            }
+            form: {
+                0: {
+                    mci: {
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "l", "shift + l" ]
+                            action: @menu:messageBaseMessageList
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @menu:messageBaseNewPost
+                        }
+                        {
+                            keys: [ "c", "shift + c" ]
+                            action: @menu:messageBaseChangeCurrentArea
+                        }
+                        {
+                            keys: [ "n", "shift + n" ]
+                            action: @menu:ripNewScan
+                        }
+                        {
+                            keys: [ "q", "shift + q", "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        //
+        //  The stock new scan (mainMenuGlobalNewScan) for the message base
+        //  only: the button is on the message menu, and the file base has
+        //  no RIP screens. New messages are listed and read with the stock
+        //  menus, which come back here.
+        //
+        ripNewScan: {
+            desc: New Scan
+            module: new_scan
+            art: NEWSCAN
+            config: {
+                skipFileBase: true
+            }
+        }
+    }
+}

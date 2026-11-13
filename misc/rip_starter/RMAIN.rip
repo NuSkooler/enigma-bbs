@@ -1,0 +1,28 @@
+!|Y00000100
+!|S0100
+!|B0000HR9P
+!|S0108
+!|B0000HR0N
+!|S010A
+!|B000OHR0P
+!|S0102
+!|B000QHR0R
+!|c0A
+!|@0G08MAIN MENU
+!|c08
+!|R5420CN6Z
+!|c07
+!|R5I26C935
+!|R5I3EC94D
+!|R5I4MC95L
+!|R5I5UC96T
+!|1B00000200ZM000B080F080800000E08000000
+!|1U5K28C7330000<>[M] Messages<>M
+!|1U5K3GC74B0000<>[W] Who's Online<>W
+!|1U5K4OC75J0000<>[L] Last Callers<>L
+!|1U5K5WC76R0000<>[G] Goodbye<>G
+!|S0102
+!|B0G77HB78
+[6;3H[0;36mRead and post messages, see who is on, or log off.
+[7;3H[0;36mClick a button, or press the letter in brackets.
+[34;3H[0;36mLogged in as [1;32m%UN

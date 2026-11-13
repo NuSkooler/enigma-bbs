@@ -1,0 +1,30 @@
+!|Y00000100
+!|S0100
+!|B0000HR9P
+!|S0108
+!|B0000HR0N
+!|S010A
+!|B000OHR0P
+!|S0102
+!|B000QHR0R
+!|c0A
+!|@0G08MESSAGES
+!|c08
+!|R5420CN87
+!|c07
+!|R5I26C935
+!|R5I3EC94D
+!|R5I4MC95L
+!|R5I5UC96T
+!|R5I72C981
+!|1B00000200ZM000B080F080800000E08000000
+!|1U5K28C7330000<>[L] List / Read<>L
+!|1U5K3GC74B0000<>[P] Post<>P
+!|1U5K4OC75J0000<>[C] Change Area<>C
+!|1U5K5WC76R0000<>[N] New Scan<>N
+!|1U5K74C77Z0000<>[Q] Back<>Q
+!|S0102
+!|B0G8BHB8C
+[6;3H[0;36mRead, post, change area, or scan for new messages.
+[7;3H[0;36mClick a button, or press the letter in brackets.
+[39;3H[0;36mMessage area: [1;32m%MA

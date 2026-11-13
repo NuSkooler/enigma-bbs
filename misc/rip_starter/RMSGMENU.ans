@@ -1,0 +1,14 @@
+[0m [1;32mMESSAGES
+[0;32m ----------------------------------------------------------------------------
+
+[0;36m Read, post, change area, or scan for new messages.
+[0;36m Click a button, or press the letter in brackets.
+
+   [1;30m[[1;32mL[1;30m] [0;36mList / Read
+   [1;30m[[1;32mP[1;30m] [0;36mPost
+   [1;30m[[1;32mC[1;30m] [0;36mChange Area
+   [1;30m[[1;32mN[1;30m] [0;36mNew Scan
+   [1;30m[[1;32mQ[1;30m] [0;36mBack
+
+[0;32m ----------------------------------------------------------------------------
+[0;36m Message area: [1;32m%MA

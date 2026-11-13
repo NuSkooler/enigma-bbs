@@ -1,0 +1,26 @@
+!|Y00000100
+!|S0100
+!|B0000HR9P
+!|S0108
+!|B0000HR0N
+!|S010A
+!|B000OHR0P
+!|S0102
+!|B000QHR0R
+!|c0A
+!|@0G08WELCOME
+!|c08
+!|R5420CN5R
+!|c07
+!|R5I26C935
+!|R5I3EC94D
+!|R5I4MC95L
+!|1B00000200ZM000B080F080800000E08000000
+!|1U5K28C7330000<>[L] Login<>L
+!|1U5K3GC74B0000<>[A] Apply<>A
+!|1U5K4OC75J0000<>[G] Log Off<>G
+!|S0102
+!|B0G5VHB5W
+[6;3H[0;36mLog in, apply for an account, or log off.
+[7;3H[0;36mClick a button, or press the letter in brackets.
+[28;3H[0;36mWelcome to [1;32m%BN
