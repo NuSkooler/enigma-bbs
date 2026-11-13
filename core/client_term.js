@@ -11,6 +11,9 @@ const _ = require('lodash');
 
 exports.ClientTerminal = ClientTerminal;
 
+//  |how| for a write that is translated but not filtered (see _write())
+const UNFILTERED = Object.freeze({ unfiltered: true });
+
 function ClientTerminal(output) {
     this.output = output;
 
@@ -232,6 +235,46 @@ ClientTerminal.prototype.write = function (s, convertLineFeeds, cb) {
     this.rawWrite(this.encode(s, convertLineFeeds), cb);
 };
 
+//
+//  writeDoorOutput() -- write() for what a door program sends the caller,
+//  as text. Encoded and translated exactly as write() does, but never put
+//  through the emulation's output filter: the door is a program the operator
+//  installed, talking to the caller's terminal, and a RIP-aware door must be
+//  able to draw RIP for a RIP caller. So a door's output reaches a RIP
+//  caller as the door sent it: RIP commands in it are not filtered. For a
+//  session with no output filter (anything but RIP) this is write().
+//
+ClientTerminal.prototype.writeDoorOutput = function (s, convertLineFeeds, cb) {
+    if (!this.emulation.outputFilter) {
+        return this.write(s, convertLineFeeds, cb);
+    }
+    return this._write(this.encode(s, convertLineFeeds), UNFILTERED, cb);
+};
+
+//
+//  writeUnfilteredRip() -- RIPscrip for a RIP terminal, sent without the RIP
+//  output filter (core/term/rip/output_filter.js), so that the terminal runs
+//  it. ONLY for RIP the operator installed -- a .rip art file read from disk
+//  -- and for ENiGMA's own fixed RIP sequences (the version query). NEVER
+//  for anything holding text from a user, a message, a file description, a
+//  remote system, or a string built from any of those: the filter exists
+//  because such text can make a RIP terminal type for the caller, rebind
+//  keys or draw invisible buttons.
+//
+//  |data| is bytes as they go to the wire (encoded already), as for
+//  rawWrite(). The filter is shown them, so the filtered output after them
+//  is still made safe: a '|' straight after them gets its break, and a RIP
+//  command they leave open is ended before any filtered text.
+//
+//  For a session without the filter it is rawWrite().
+//
+ClientTerminal.prototype.writeUnfilteredRip = function (data, cb) {
+    if (!this.emulation.outputFilter) {
+        return this.rawWrite(data, cb);
+    }
+    return this._write(data, UNFILTERED, cb);
+};
+
 ClientTerminal.prototype.rawWrite = function (s, cb) {
     return this._write(s, false, cb);
 };
@@ -241,7 +284,10 @@ ClientTerminal.prototype.rawWrite = function (s, cb) {
 //  the terminal exactly as given: file transfer protocol data, the far end of
 //  a telnet or rlogin bridge, a raw door's output. They go around the
 //  emulation's output translator (which is told, so that one keeping cursor
-//  state knows it has gone stale).
+//  state knows it has gone stale), and around the output filter: what a
+//  door or a bridged system (telnet bridge, BBSLink, DoorParty, Goldmine,
+//  ArchaicNet) sends reaches a RIP caller unfiltered. The filter covers
+//  what ENiGMA itself sends.
 //
 //  Everything else, rawWrite() included, is ENiGMA speaking ANSI and goes
 //  through the translator. For an ANSI terminal the two are the same thing.
@@ -289,13 +335,54 @@ ClientTerminal.prototype.nativeWrite = function (data, options, cb) {
 //  by every path that writes the socket: immediate writes, a committed batch
 //  and dripWrite().
 //
+//  After the translator comes the emulation's output filter, when a layer has
+//  one (RIP); a session without one gets back exactly what the translator
+//  returned.
+//
 ClientTerminal.prototype.translateOutput = function (data) {
-    return this.emulation.outputTranslator.translate(data);
+    return this._filterOutput(this.emulation.outputTranslator.translate(data));
 };
 
 //
-//  |how| is false for ENiGMA's own (ANSI) output, true for pass-through, or
-//  { native: options } for nativeWrite().
+//  The bytes of a write that goes around the output filter: |how| as for
+//  _write(), never false. The filter, if there is one, is shown them.
+//
+ClientTerminal.prototype._unfilteredOutput = function (data, how) {
+    return this._observeOutput(this._unfilteredTranslate(data, how));
+};
+
+//  The translator's part of _unfilteredOutput()
+ClientTerminal.prototype._unfilteredTranslate = function (data, how) {
+    const translator = this.emulation.outputTranslator;
+    if (true === how) {
+        translator.passThrough(data);
+        return data;
+    }
+    if (how.unfiltered) {
+        //  UNFILTERED: translated as ENiGMA's own output is, not filtered
+        return translator.translate(data);
+    }
+    return translator.writeNative(data, how.native);
+};
+
+//  The filter's part of _unfilteredOutput(): it is shown |out|, which goes
+//  to the socket next, and may put a byte in front of it (see
+//  core/term/rip/output_filter.js)
+ClientTerminal.prototype._observeOutput = function (out) {
+    const filter = this.emulation.outputFilter;
+    return filter ? filter.observe(out) : out;
+};
+
+//  The filter's part of translateOutput(), for bytes already translated
+ClientTerminal.prototype._filterOutput = function (translated) {
+    const filter = this.emulation.outputFilter;
+    return filter ? filter.filter(translated) : translated;
+};
+
+//
+//  |how| is false for ENiGMA's own (ANSI) output, true for pass-through,
+//  { native: options } for nativeWrite(), or UNFILTERED for
+//  writeUnfilteredRip() and writeDoorOutput().
 //
 ClientTerminal.prototype._write = function (s, how, cb) {
     if (this._writeBuf) {
@@ -314,13 +401,7 @@ ClientTerminal.prototype._write = function (s, how, cb) {
         return;
     }
     if (this.output && this.output.writable) {
-        if (true === how) {
-            this.emulation.outputTranslator.passThrough(s);
-        } else if (how) {
-            s = this.emulation.outputTranslator.writeNative(s, how.native);
-        } else {
-            s = this.translateOutput(s);
-        }
+        s = how ? this._unfilteredOutput(s, how) : this.translateOutput(s);
         this.output.write(s, err => {
             if (cb) {
                 return cb(err);
@@ -375,10 +456,11 @@ ClientTerminal.prototype.commitWrite = function (cb) {
     }
 
     //
-    //  The batch goes through the output translator as one piece, so a
-    //  sequence split across writes is whole again by the time it is seen.
-    //  Pass-through and native chunks in the batch keep their place but are
-    //  not translated.
+    //  The batch goes through the output translator (and filter) as one
+    //  piece, so a sequence split across writes is whole again by the time
+    //  it is seen. Pass-through, native and unfiltered chunks in the batch
+    //  keep their place; the translator and filter are told about them in
+    //  wire order.
     //
     let combined;
     if (!passThroughChunks || 0 === passThroughChunks.size) {
@@ -394,13 +476,9 @@ ClientTerminal.prototype.commitWrite = function (cb) {
         };
         chunks.forEach((chunk, i) => {
             const how = passThroughChunks.get(i);
-            if (true === how) {
+            if (how) {
                 flushRun();
-                this.emulation.outputTranslator.passThrough(chunk);
-                out.push(chunk);
-            } else if (how) {
-                flushRun();
-                out.push(this.emulation.outputTranslator.writeNative(chunk, how.native));
+                out.push(this._unfilteredOutput(chunk, how));
             } else {
                 run.push(chunk);
             }
@@ -427,13 +505,20 @@ ClientTerminal.prototype.pipeWrite = function (s, cb) {
 //  Goes directly to this.output, intentionally bypassing _writeBuf batching (the two
 //  are mutually exclusive: batch = instant display; drip = throttled display).
 //  |buf| is translated for the terminal's emulation up front, as a whole, so
-//  what is dripped is what goes on the wire.
+//  what is dripped is what goes on the wire. The output filter (RIP) sees
+//  each piece as it is sent, so that a write landing between two pieces
+//  reaches it in wire order too.
 ClientTerminal.prototype.dripWrite = function (buf, bytesPerSec, cb) {
     if (!buf || buf.length === 0) {
         return cb(null);
     }
 
-    return this._drip(this.translateOutput(buf), bytesPerSec, cb);
+    return this._drip(
+        this.emulation.outputTranslator.translate(buf),
+        bytesPerSec,
+        cb,
+        chunk => this._filterOutput(chunk)
+    );
 };
 
 //  nativeDripWrite() -- dripWrite() for nativeWrite() bytes (see both)
@@ -448,14 +533,18 @@ ClientTerminal.prototype.nativeDripWrite = function (buf, options, bytesPerSec, 
     }
 
     return this._drip(
-        this.emulation.outputTranslator.writeNative(buf, options),
+        this._unfilteredTranslate(buf, { native: options }),
         bytesPerSec,
-        cb
+        cb,
+        chunk => this._observeOutput(chunk)
     );
 };
 
-//  |buf| as it goes on the wire, at |bytesPerSec|
-ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb) {
+//  |buf| as it goes on the wire, at |bytesPerSec|. Each piece goes through
+//  |onChunk| (the output filter's part) just before it is written; a piece
+//  the filter leaves empty is not written, and the drip goes on as if it had
+//  been. Without an output filter |onChunk| hands every piece back as it is.
+ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb, onChunk) {
     if (!buf || buf.length === 0) {
         return cb(null);
     }
@@ -469,9 +558,9 @@ ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb) {
             return cb(new Error('Connection closed during baud emulation'));
         }
         const end = Math.min(offset + bytesPerInterval, buf.length);
-        const chunk = buf.slice(offset, end);
+        const chunk = onChunk(buf.slice(offset, end));
         offset = end;
-        this.output.write(chunk, err => {
+        const written = err => {
             if (err) {
                 return cb(err);
             }
@@ -479,7 +568,11 @@ ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb) {
                 return cb(null);
             }
             setTimeout(sendChunk, INTERVAL_MS);
-        });
+        };
+        if (0 === chunk.length) {
+            return written(null);
+        }
+        this.output.write(chunk, written);
     };
 
     sendChunk();

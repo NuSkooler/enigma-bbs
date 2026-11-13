@@ -410,11 +410,16 @@ const probes = [
             //  for the answer from now, for a limited time (core/client.js
             //  attaches the layer). Other terminals do not answer.
             //
+            //  A terminal that announced itself as RIP (IcyTerm) already has
+            //  the layer, and with it the RIP output filter, which would
+            //  take the query apart: it goes around the filter. For any
+            //  other session writeUnfilteredRip() is rawWrite().
+            //
             const decoder = term.emulation && term.emulation.inputDecoder;
             if (decoder && 'function' === typeof decoder.expectRipReply) {
                 decoder.expectRipReply();
             }
-            term.rawWrite(Rip.VERSION_PROBE);
+            term.writeUnfilteredRip(Rip.VERSION_PROBE);
 
             term.write('\nDetecting client features...');
             return callback(null);

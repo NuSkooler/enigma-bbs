@@ -35,7 +35,7 @@ function makeDoor({ io = 'stdio', high = 100, low = 20, sharedRawSocket = false 
     const logged = { info: [], warn: [], debug: [] };
 
     const client = {
-        term: { output, write: () => {} },
+        term: { output, write: () => {}, writeDoorOutput: () => {} },
         rawSocket,
         log: {
             info: (obj, msg) => logged.info.push({ obj, msg }),

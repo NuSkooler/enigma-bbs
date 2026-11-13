@@ -309,8 +309,12 @@ module.exports = class Door {
         );
     }
 
+    //
+    //  The door's output, re-encoded for the caller as before; never put
+    //  through the RIP output filter (see ClientTerminal.writeDoorOutput()).
+    //
     doorDataHandler(data) {
-        this.client.term.write(decode(data, this.encoding));
+        this.client.term.writeDoorOutput(decode(data, this.encoding));
         this.checkOutputBackpressure();
     }
 
