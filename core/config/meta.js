@@ -712,7 +712,7 @@ module.exports = {
                 emulation: {
                     type: 'string',
                     description:
-                        'Terminal emulation for callers on this port, e.g. "petscii". Only "ansi" is implemented; anything else falls back to ANSI.',
+                        'Terminal emulation for callers on this port: "ansi", "petscii", "atascii", or "rip" (ANSI with RIPscrip on top). Anything else falls back to ANSI.',
                 },
                 firstMenu: {
                     type: 'string',
