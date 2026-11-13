@@ -1,0 +1,13 @@
+[0m [1;32mMAIN MENU
+[0;32m ----------------------------------------------------------------------------
+
+[0;36m Read and post messages, see who is on, or log off.
+[0;36m Click a button, or press the letter in brackets.
+
+   [1;30m[[1;32mM[1;30m] [0;36mMessages
+   [1;30m[[1;32mW[1;30m] [0;36mWho's Online
+   [1;30m[[1;32mL[1;30m] [0;36mLast Callers
+   [1;30m[[1;32mG[1;30m] [0;36mGoodbye
+
+[0;32m ----------------------------------------------------------------------------
+[0;36m Logged in as [1;32m%UN

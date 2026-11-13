@@ -59,7 +59,7 @@ Once an ATASCII theme is in use, an ATASCII caller's art is looked for in that t
 Include starter menus and theme for ATASCII (Atari 8-bit) callers? (y/N)
 ```
 
-The answer defaults to no. Answering no to both starter questions produces exactly what `config new` has always produced. On yes it also:
+The answer defaults to no. Answering no to every starter question produces exactly what `config new` has always produced. On yes it also:
 
 1. copies `atascii.in.hjson` into `config/menus/` as `<board>-atascii.hjson` and adds it to the main menu file's `includes`;
 2. writes `<board>-login.hjson` with the ATASCII branch on `telnetConnected` (below);

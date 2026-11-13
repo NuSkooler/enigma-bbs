@@ -366,7 +366,7 @@ login: {
 }
 ```
 
-The same mechanism sends different kinds of caller down different menus. The stock menus already start Telnet and SSH callers on different menus (`telnetConnected` and `sshConnected`); to branch on the caller's terminal emulation, use the `TE` ACS code. This sends [PETSCII callers](../servers/loginservers/petscii.md) and [ATASCII callers](../servers/loginservers/atascii.md) each to a menu tree of their own and everyone else to the usual login matrix:
+The same mechanism sends different kinds of caller down different menus. The stock menus already start Telnet and SSH callers on different menus (`telnetConnected` and `sshConnected`); to branch on the caller's terminal emulation, use the `TE` ACS code. This sends [PETSCII callers](../servers/loginservers/petscii.md), [ATASCII callers](../servers/loginservers/atascii.md) and [RIP callers](../servers/loginservers/rip.md) each to a menu tree of their own and everyone else to the usual login matrix:
 ```hjson
 telnetConnected: {
     desc: Telnet Connect
@@ -381,6 +381,10 @@ telnetConnected: {
             next: atasciiMatrix
         }
         {
+            acs: TE[rip]
+            next: ripMatrix
+        }
+        {
             next: matrix
         }
     ]
@@ -388,7 +392,7 @@ telnetConnected: {
 }
 ```
 
-The entries are tried in order and the first whose `acs` matches is used, so the entry without `acs` goes last. With only one of the two trees, leave out the other entry. This is what `oputil.js config new` writes when its starter questions are answered yes.
+The entries are tried in order and the first whose `acs` matches is used, so the entry without `acs` goes last. A RIP caller is an ANSI caller too (`TE[ansi]` matches it), so a `TE[rip]` entry goes before any `TE[ansi]` one. With only some of the trees, leave out the other entries. This is what `oputil.js config new` writes when its starter questions are answered yes.
 
 ### Art Asset Selection
 Another area in which you can apply ACS in a menu is art asset specs.

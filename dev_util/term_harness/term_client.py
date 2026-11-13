@@ -69,6 +69,10 @@ CSI_GOTO = re.compile(r'\x1b\[(\d*)(?:;(\d*))?[Hf]')
 #  --rip late     do not answer by itself; a walk calls s.send_rip_reply()
 #                 when it likes (walk_rip_login.py sends it mid user name)
 #  --rip-nul adds the NUL. s.rip_queries counts the queries received.
+#  Under --rip prompt or late the screen is drawn as a RIP terminal's text
+#  layer: a RIP command line (one that starts a line with !|) is taken off
+#  the text, up to and including its line end, and kept in s.rip_lines as
+#  (label, line). Graphics and buttons are not drawn.
 RIP_QUERY = re.compile(rb'\x1b\[0?!')
 RIP_MODES = ('off', 'prompt', 'late')
 DEFAULT_RIP_VERSION = 'RIPSCRIP015410'
@@ -136,6 +140,9 @@ class Session:
         self.rip_queries = 0
         self.rip_replies = 0
         self._rip_scanned = 0           # how far into self.raw queries were counted
+        self.rip_lines = []             # (label, RIP command line) under --rip on
+        self._rip_state = 'bol'         # bol, bang, cmd or mid (see _rip_text)
+        self._rip_cmd = []
         if outdir:
             os.makedirs(outdir, exist_ok=True)
         self.log = open(log, 'w') if log else None
@@ -226,6 +233,34 @@ class Session:
             for _ in range(found):
                 self.send_rip_reply()
 
+    def _rip_text(self, text):
+        #  what a RIP terminal's text layer gets: command lines taken out
+        if self.rip == 'off':
+            return text
+        out = []
+        for ch in text:
+            if self._rip_state == 'cmd':
+                if ch == '\n':
+                    self.rip_lines.append((self.label, ''.join(self._rip_cmd)))
+                    self._rip_cmd = []
+                    self._rip_state = 'bol'
+                elif ch != '\r':
+                    self._rip_cmd.append(ch)
+                continue
+            if self._rip_state == 'bang':
+                if ch == '|':
+                    self._rip_state = 'cmd'
+                    self._rip_cmd = ['!', '|']
+                    continue
+                out.append('!')
+                self._rip_state = 'mid'
+            if self._rip_state == 'bol' and ch == '!':
+                self._rip_state = 'bang'
+                continue
+            out.append(ch)
+            self._rip_state = 'bol' if ch in '\r\n' else 'mid'
+        return ''.join(out)
+
     # ---- charset (the seam) ---------------------------------------------
     def decode(self, data):
         return self._decoder.decode(data)
@@ -256,7 +291,7 @@ class Session:
                 col = int(m.group(2) or 1)
                 if row > self.rows or col > self.cols:
                     self.offscreen.append((self.label, row, col))
-            self.stream.feed(text)
+            self.stream.feed(self._rip_text(text))
         return True
 
     def settle(self, quiet=1.0, maximum=15.0):

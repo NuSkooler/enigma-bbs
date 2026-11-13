@@ -19,6 +19,12 @@
 //                              --petscii too, the connect menu gets both
 //                              branches, as "config new" writes them on
 //                              Yes to both questions.
+//    --rip                     the RIP starter (#989): the RIP menu file and a
+//                              TE[rip] branch, with the starter's art copied
+//                              into an art directory of the instance's own
+//                              (<instanceDir>/art: a copy of art/general and
+//                              the starter art), so nothing is added to the
+//                              checkout's art/general.
 //    --second-emulation=NAME   give the second listener "emulation: NAME"
 const fs = require('fs');
 const paths = require('path');
@@ -31,8 +37,11 @@ const args = process.argv.slice(2);
 const flags = args.filter(a => a.startsWith('--'));
 const petscii = flags.includes('--petscii');
 const atascii = flags.includes('--atascii');
+const rip = flags.includes('--rip');
 //  the starters asked for, by emulation name
-const starterNames = [petscii && 'petscii', atascii && 'atascii'].filter(Boolean);
+const starterNames = [petscii && 'petscii', atascii && 'atascii', rip && 'rip'].filter(
+    Boolean
+);
 const secondEmulationFlag = flags.find(f => f.startsWith('--second-emulation='));
 const secondEmulation = secondEmulationFlag && secondEmulationFlag.split('=')[1];
 const [
@@ -93,6 +102,7 @@ const {
     Starters,
     applyStarterConfig,
     copyStarterTheme,
+    copyStarterArt,
     addConnectBranches,
 } = require(paths.join(root, 'core/oputil/oputil_config.js'));
 const defaultConfig = require(paths.join(root, 'core/config_default'))();
@@ -169,7 +179,9 @@ const includes = [
     }
     return out;
 });
-if (starterNames.length > 0) {
+//  the starters with a theme
+const themeStarterNames = starterNames.filter(n => Starters[n].themeId);
+if (themeStarterNames.length > 0) {
     const themesDir = paths.join(inst, 'themes');
     fs.mkdirSync(themesDir, { recursive: true });
     const stock = paths.join(themesDir, 'luciano_blocktronics');
@@ -179,14 +191,8 @@ if (starterNames.length > 0) {
     });
     config.paths.themes = themesDir + '/';
 
-    starterNames.forEach(name => {
+    themeStarterNames.forEach(name => {
         const starter = Starters[name];
-        const out = `harness-${starter.menuTemplate.replace('.in', '')}`;
-        fs.copyFileSync(
-            paths.join(root, 'misc/menu_templates', starter.menuTemplate),
-            paths.join(inst, 'menus', out)
-        );
-        includes.push(out);
         fs.rmSync(paths.join(themesDir, starter.themeId), {
             recursive: true,
             force: true,
@@ -195,6 +201,23 @@ if (starterNames.length > 0) {
         applyStarterConfig(config, name);
     });
 }
+if (rip) {
+    const artDir = paths.join(inst, 'art');
+    fs.rmSync(artDir, { recursive: true, force: true });
+    fs.cpSync(paths.join(root, 'art/general'), artDir, { recursive: true });
+    copyStarterArt(artDir, 'rip');
+    config.paths.art = artDir + '/';
+}
+//  the starter menu files, in Starters order (as "config new" adds them)
+starterNames.forEach(name => {
+    const starter = Starters[name];
+    const out = `harness-${starter.menuTemplate.replace('.in', '')}`;
+    fs.copyFileSync(
+        paths.join(root, 'misc/menu_templates', starter.menuTemplate),
+        paths.join(inst, 'menus', out)
+    );
+    includes.push(out);
+});
 const main = fs
     .readFileSync(paths.join(root, 'misc/menu_templates/main.in.hjson'), 'utf8')
     .replace(/%INCLUDE_FILES%/g, includes.join('\n\t\t'));

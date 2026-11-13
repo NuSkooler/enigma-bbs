@@ -158,6 +158,33 @@ in the instance log:
     python3 term_client.py --walk walk_rip_login.py --user tester --rip prompt --term RIP
     python3 term_client.py --walk walk_rip_login.py --user tester           # does not answer
 
+Under `--rip prompt` or `--rip late` the screen is drawn as a RIP terminal's
+text layer: RIP command lines (a line starting `!|`) are taken out of the
+text and kept, with the step's label, in `s.rip_lines`. Graphics and buttons
+are not drawn.
+
+### RIP starter instance
+
+    node dev_util/term_harness/make_instance.js .work/rip 48989 --rip
+
+`--rip` opts the instance in to the RIP starter (#989) as `config new` does on
+Yes: the RIP menu file is included, `telnetConnected` branches on `TE[rip]`,
+and the starter's art is copied into an art directory of the instance's own
+(`<instanceDir>/art`, a copy of `art/general` plus the starter's files), so
+the checkout's `art/general` is not touched. It combines with `--petscii` and
+`--atascii`.
+
+`walk_rip_starter.py` walks it as a RIP caller (create the user first with
+`walk_nua.py`), pressing the keys the buttons send: matrix, login, main,
+messages, a post, the list, reading, change area, new scan, back, who's
+online, last callers, goodbye. It prints the RIP command lines received for
+each RIP screen and exits 1 if a screen is missing, a button sends a key the
+walk does not expect, or a RIP screen's buttons were not killed (`!|1K`)
+after the caller left it:
+
+    python3 term_client.py --port 48989 --rows 42 --rip prompt --walk walk_rip_starter.py --user tester
+    python3 term_client.py --port 48989 --rows 44 --rip prompt --rip-nul --term RIP --walk walk_rip_starter.py --user tester
+
 `--raw-out FILE` (here and on `petscii_walk.js`) writes every byte received,
 telnet stripped, so two builds can be compared byte for byte. `petscii_walk.js`
 also prints `ripQueries=`, which must be 0 for a PETSCII or ATASCII caller.

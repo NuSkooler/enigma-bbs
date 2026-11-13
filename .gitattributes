@@ -30,3 +30,7 @@ test/fixtures/area_lists/** -text
 # Native ATASCII art (Atari 8-bit screen streams) is binary
 *.ata binary
 *.ATA binary
+
+# RIPscrip art: CR LF line ends and ESC bytes, kept as they are
+*.rip binary
+*.RIP binary
