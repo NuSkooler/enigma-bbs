@@ -1022,6 +1022,20 @@ describe('RIPscrip art (.rip, #989)', function () {
                 }
             });
 
+            it('a RangeError thrown by the callback is not taken for a parse error', async function () {
+                const { s, info } = await ripArt('hi\r\n!|1K\r\n');
+                let calls = 0;
+                assert.throws(
+                    () =>
+                        art.display(s.client, info.data, { rip: info.rip }, () => {
+                            calls += 1;
+                            throw new RangeError('from the callback');
+                        }),
+                    /from the callback/
+                );
+                assert.equal(calls, 1);
+            });
+
             it('a command line too long to parse: an error, once, and no throw', function (done) {
                 ripArt('!|' + 'a'.repeat(9 * 1024 * 1024)).then(({ s, info }) => {
                     let calls = 0;

@@ -917,7 +917,12 @@ function display(client, art, options, cb) {
         }
     });
 
+    //  set once the parser is done: from there on, what is thrown comes from
+    //  |cb|, which has been called
+    let completed = false;
+
     parser.on('complete', () => {
+        completed = true;
         parser.removeAllListeners();
 
         const extraInfo = {
@@ -1014,7 +1019,7 @@ function display(client, art, options, cb) {
     //  Anything shown as RIP art may have left mouse fields behind, whether
     //  or not a command line was recognised in it: a terminal can run a
     //  command the parser took as text (mid-line on SyncTERM 1.10, say). The
-    //  session is marked before the first byte goes, so leaving the screen
+    //  session is marked before any of the art goes, so leaving the screen
     //  clears them even if the display fails part way.
     //
     if (rip && !drip) {
@@ -1032,7 +1037,7 @@ function display(client, art, options, cb) {
     try {
         return parser.parse();
     } catch (e) {
-        if (!(e instanceof RangeError)) {
+        if (completed || !(e instanceof RangeError)) {
             throw e;
         }
         parser.removeAllListeners();
