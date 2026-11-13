@@ -37,10 +37,10 @@ The Telnet server can listen on more ports than its main one. Add each under `lo
 | `port` | Yes | Port to listen on. |
 | `address` | No | Bind address. Defaults to the main Telnet `address`. |
 | `firstMenu` | No | First menu for callers on this port. Defaults to the main Telnet `firstMenu`. |
-| `emulation` | No | Terminal emulation for callers on this port, for example `petscii` or `atascii`. |
+| `emulation` | No | Terminal emulation for callers on this port, for example `petscii`, `atascii` or `rip`. |
 | `enabled` | No | Defaults to `true`. Set to `false` to leave the listener out without removing it. Read at startup: a change to `port`, `address` or `enabled` needs a restart. |
 
-`ansi`, `petscii` and `atascii` are implemented today; see [PETSCII (Commodore) Callers](./petscii.md) and [ATASCII (Atari) Callers](./atascii.md). Any other value is recorded and falls back to ANSI.
+`ansi`, `petscii` and `atascii` are implemented today, and `rip`, which is ANSI with RIPscrip on top; see [PETSCII (Commodore) Callers](./petscii.md), [ATASCII (Atari) Callers](./atascii.md) and [RIP (RIPscrip) Callers](./rip.md). Any other value is recorded and falls back to ANSI. RIP callers need no listener of their own: they are recognised on any port.
 
 Additional listeners run only while the main Telnet server is enabled. A listener with a missing or invalid port, one on a port already in use by the main server or another listener, or one that fails to bind is logged as an error and skipped; the main listener and the rest of the board start as normal.
 

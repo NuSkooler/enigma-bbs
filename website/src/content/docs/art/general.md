@@ -70,11 +70,12 @@ Art is looked up by name; the extension says what kind of file it is:
 | `.txt` | Text, CP437 |
 | `.seq` | Native PETSCII, shown only to [PETSCII callers](../servers/loginservers/petscii.md#native-petscii-art) |
 | `.ata` | Native ATASCII, shown only to [ATASCII callers](../servers/loginservers/atascii.md#native-atascii-art) |
+| `.rip` | RIPscrip graphics mixed with ANSI text, shown as RIP only to [RIP callers](../servers/loginservers/rip.md#rip-art) |
 
 ### Art Spec
 In the section above it is mentioned that the `art` member is a *spec*. The value of a `art` spec controls how the system looks for an asset. The following forms are supported:
 
-* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path (for a PETSCII caller, `FOO.SEQ` is preferred at each step of that path; for an ATASCII caller, `FOO.ATA`). Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
+* `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path (for a PETSCII caller, `FOO.SEQ` is preferred at each step of that path; for an ATASCII caller, `FOO.ATA`; for a RIP caller, `FOO.RIP`). Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
 * `FOO.ANS`: By specifying an extension, only the exact match will be searched for.
 * `rel/path/to/BAR.ANS`: Only match a path (relative to the system's `art` directory).
 * `/path/to/BAZ.ANS`: Exact path only.

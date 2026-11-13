@@ -57,7 +57,7 @@ A caller is only ever given a theme for the emulation their session uses:
 If no theme exists for an emulation, its callers get the system default theme and a warning is logged once.
 
 :::note
-ENiGMA½ has three emulations today: `ansi`, `petscii` and `atascii`. A theme for any other emulation loads but is never offered to anyone until that emulation exists.
+ENiGMA½ has three emulations today: `ansi`, `petscii` and `atascii`. A theme for any other emulation loads but is never offered to anyone until that emulation exists. RIP is not one of them: [RIP callers](../servers/loginservers/rip.md) are ANSI callers and use ANSI themes, with `.rip` files beside the `.ans` files they replace.
 
 A `petscii` or `atascii` theme in your themes directory is given to every caller of that kind, with or without a `theme.emulations` entry, and art for such a caller is then looked up in that theme and `art/general` only, never in an ANSI theme. Add one together with menus made for it: see the starter menus for [PETSCII (Commodore) callers](../servers/loginservers/petscii.md#starter-menus-and-theme) and [ATASCII (Atari) callers](../servers/loginservers/atascii.md#starter-menus-and-theme).
 
