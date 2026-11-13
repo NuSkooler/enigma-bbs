@@ -1190,6 +1190,46 @@ describe('RIPscrip output filter (#989)', () => {
             return null;
         }
 
+        //
+        //  The other half, by provenance alone: while a RIP command opened by
+        //  unfiltered output is open on the wire (SyncTERM's reading: a '|'
+        //  after an introducer opens it, a CR after an even number of
+        //  backslashes ends it, LF aside), no byte from filtered output may
+        //  become part of it. The only filtered bytes allowed in an open
+        //  command are the ones that end it: a CR that does, and a NUL in
+        //  front of that CR (it breaks a run of backslashes).
+        //
+        function checkCommandProvenance(wire, unfiltered) {
+            let open = false;
+            let backslashes = 0;
+            for (let i = 0; i < wire.length; ++i) {
+                const b = wire[i];
+                if (!open) {
+                    open = 0x7c === b && i > 0 && isIntroducer(wire[i - 1]);
+                    backslashes = 0;
+                    continue;
+                }
+                const closes = 0x0d === b && 0 === (backslashes & 1);
+                if (!unfiltered[i] && !closes && 0x00 !== b) {
+                    return `filtered ${JSON.stringify(
+                        String.fromCharCode(b)
+                    )} at ${i} inside an open RIP command`;
+                }
+                if (0x5c === b) {
+                    ++backslashes;
+                } else if (0x0d === b) {
+                    if (backslashes & 1) {
+                        --backslashes;
+                    } else {
+                        open = false;
+                    }
+                } else if (0x0a !== b) {
+                    backslashes = 0;
+                }
+            }
+            return null;
+        }
+
         function runFuzz(seed) {
             const rand = prng(seed);
             const pick = list => list[Math.floor(rand() * list.length)];
@@ -1342,6 +1382,11 @@ describe('RIPscrip output filter (#989)', () => {
                     assert.deepEqual(seen.problems, [], tag);
                     //  the invariant, by provenance alone
                     assert.equal(checkInvariant(seen.wire, seen.unfiltered), null, tag);
+                    assert.equal(
+                        checkCommandProvenance(seen.wire, seen.unfiltered),
+                        null,
+                        tag
+                    );
 
                     //  and against the reference: the same wire, the same
                     //  provenance, and undoing the documented changes gives
@@ -1366,6 +1411,96 @@ describe('RIPscrip output filter (#989)', () => {
         SEEDS.forEach(seed => {
             it(`seed 0x${seed.toString(16)}: ${CASES} cases, random streams, chunkings, drips and paths`, () =>
                 runFuzz(seed));
+        });
+
+        it('the command provenance check catches a filtered byte in an open command', () => {
+            const wire = [...bytes('!|1K\\\x00\r\nab')];
+            const marks = (...filtered) => wire.map((_, i) => !filtered.includes(i));
+            //  the NUL and the CR that end it may be filtered, and after it anything
+            assert.equal(checkCommandProvenance(wire, marks(5, 6, 7, 8, 9)), null);
+            //  but not a byte of the command itself
+            assert.ok(checkCommandProvenance(wire, marks(3)));
+            //  nor a CR that does not end it (odd backslashes)
+            const odd = [...bytes('!|1K\\\rab')];
+            assert.ok(
+                checkCommandProvenance(
+                    odd,
+                    odd.map((_, i) => 5 !== i)
+                )
+            );
+        });
+
+        //
+        //  A string goes to the transport unit by unit, and the filter judges
+        //  each unit by its low byte. Strings with units above 0xFF (what a
+        //  UTF-16 string holds, surrogates included) must be judged exactly
+        //  as the Buffer of their low bytes: the same changes, the same
+        //  state after, and the high units handed back untouched, in order,
+        //  never made up.
+        //
+        it('strings with units above 0xFF are filtered as the Buffer of their low bytes', () => {
+            const LOW = [
+                0x21, 0x21, 0x7c, 0x7c, 0x01, 0x02, 0x1b, 0x1b, 0x5b, 0x30, 0x31, 0x3b,
+                0x0d, 0x0a, 0x5c, 0x00, 0x61, 0x20,
+            ];
+            for (const seed of [0x989, 0xfeed]) {
+                const rand = prng(seed);
+                const pickOf = list => list[Math.floor(rand() * list.length)];
+                for (let n = 0; n < 3000; ++n) {
+                    const asString = createRipOutputFilter();
+                    const asBuffer = createRipOutputFilter();
+                    //  every high unit given and handed back so far: units held
+                    //  back from one write may go out with the next
+                    const highIn = [];
+                    let k = 0;
+                    const ops = 1 + Math.floor(rand() * 6);
+                    for (let o = 0; o < ops; ++o) {
+                        const units = Array.from(
+                            { length: Math.floor(rand() * 10) },
+                            () => {
+                                const low = pickOf(LOW);
+                                const r = rand();
+                                //  plain, Latin-1 high, BMP, surrogate
+                                const high =
+                                    r < 0.4
+                                        ? 0
+                                        : r < 0.6
+                                          ? 0
+                                          : r < 0.85
+                                            ? 1 + Math.floor(rand() * 0xd7)
+                                            : 0xd8 + Math.floor(rand() * 8);
+                                return (high << 8) | low;
+                            }
+                        );
+                        const str = String.fromCharCode(...units);
+                        const buf = Buffer.from(units.map(u => u & 0xff));
+                        const how = rand() < 0.7 ? 'filter' : 'observe';
+                        const outStr = asString[how](str);
+                        const outBuf = asBuffer[how](buf);
+                        const tag = `seed ${seed} case ${n} op ${o} ${how} ${JSON.stringify(
+                            str
+                        )}`;
+                        assert.equal(typeof outStr, 'string', tag);
+                        assert.ok(Buffer.isBuffer(outBuf), tag);
+                        //  code units, not code points: a surrogate pair is two units
+                        const unitsOut = Array.from({ length: outStr.length }, (_, i) =>
+                            outStr.charCodeAt(i)
+                        );
+                        const lows = unitsOut.map(u => u & 0xff);
+                        assert.deepEqual(lows, [...outBuf], tag);
+                        highIn.push(...units.filter(u => u > 0xff));
+                        const highOut = unitsOut.filter(u => u > 0xff);
+                        for (const u of highOut) {
+                            while (k < highIn.length && highIn[k] !== u) {
+                                ++k;
+                            }
+                            assert.ok(k < highIn.length, `${tag}: made up ${u}`);
+                            ++k;
+                        }
+                        assert.deepEqual(asString.state, asBuffer.state, tag);
+                    }
+                }
+            }
         });
 
         it('the provenance check catches a filtered byte in a sequence', () => {
