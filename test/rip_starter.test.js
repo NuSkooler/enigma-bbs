@@ -927,6 +927,21 @@ describe('oputil config new and the RIP starter (#989)', function () {
             );
         });
 
+        it('an empty file or a directory of the right name is not art: no branch', async () => {
+            for (const make of [p => fs.writeFileSync(p, ''), p => fs.mkdirSync(p)]) {
+                fs.rmSync(paths.join(tmp, 'art'), { recursive: true, force: true });
+                fs.mkdirSync(paths.join(tmp, 'art'), { recursive: true });
+                make(paths.join(tmp, 'art', 'RMAIN.rip'));
+                const out = await runConfigNew(false, false, true);
+                //  (the second pass also reports the menu file of the first)
+                assert.ok(
+                    out.result.ripNotes.some(n => /not in .*RMAIN\.rip/.test(n)),
+                    out.result.ripNotes.join(' / ')
+                );
+                noBranch(out);
+            }
+        });
+
         it('a RIP menu file in the way is kept, and the operator is told', async () => {
             const menuDir = paths.join(tmp, 'config', 'menus');
             fs.mkdirSync(menuDir, { recursive: true });

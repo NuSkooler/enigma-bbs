@@ -224,7 +224,11 @@ function checkScreen(screen) {
         checkText(screen, `${field} label`, label, {
             max: Math.floor((Layout.buttonX1 - Layout.buttonX0 + 1) / CELL) - 4,
             ripSafe: true,
+            noMci: true, //  the label is text in the .ans
         });
+        if (!label.trim()) {
+            throw new Error(`${screen.name}: ${field} label is empty`);
+        }
     });
     screen.help.forEach((line, i) => {
         checkText(screen, `help line ${i + 1}`, line, { max: 76, noMci: true });

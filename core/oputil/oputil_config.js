@@ -278,7 +278,8 @@ exports.copyStarterArt = copyStarterArt;
 //  The names of |emulation|'s art files that are not in |artDir|. Without
 //  every one a starter's menus are blank and take no keys (a menu's keys are
 //  only set up when its art loads), so a missing file here means the starter
-//  must not be routed to. An unreadable source counts as all missing.
+//  must not be routed to. A file counts only if it can be read and is not
+//  empty. An unreadable source counts as all missing.
 //
 function missingStarterArt(artDir, emulation) {
     const starter = startersFor([emulation])[0];
@@ -288,7 +289,22 @@ function missingStarterArt(artDir, emulation) {
     } catch (e) {
         return ['(the starter art files)'];
     }
-    return names.sort().filter(name => !fs.existsSync(paths.join(artDir, name)));
+    return names.sort().filter(name => !isUsableArtFile(paths.join(artDir, name)));
+}
+
+//  an ordinary file that can be read and is not empty: a directory, an empty
+//  or an unreadable file of the right name is no art
+function isUsableArtFile(path) {
+    try {
+        const stats = fs.statSync(path);
+        if (!stats.isFile() || 0 === stats.size) {
+            return false;
+        }
+        fs.accessSync(path, fs.constants.R_OK);
+        return true;
+    } catch (e) {
+        return false;
+    }
 }
 
 exports.missingStarterArt = missingStarterArt;
