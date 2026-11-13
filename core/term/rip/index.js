@@ -50,9 +50,10 @@ const { createRipOutputFilter } = require('./output_filter.js');
 //  no attributes of its own at that point in a session, and the screen is
 //  cleared (with ESC [ 0 m again) once the probes are done.
 //
-//  Only the bare ESC [ ! and ESC [ 0 ! forms have been seen answered by
-//  real SyncTERM and IcyTerm (2026-11-12); the form with '_' is read from
-//  their sources. Change VERSION_QUERY to try another.
+//  The form with '_' is answered by SyncTERM 1.8 and 1.10 with RIP on and
+//  by IcyTerm, and shows nothing on either with RIP off (seen on the real
+//  terminals, 2026-11-12). The bare ESC [ ! and ESC [ 0 ! forms are
+//  answered too, but print text on a SyncTERM with RIP off.
 //
 const VERSION_QUERY = '\x1b[!_';
 

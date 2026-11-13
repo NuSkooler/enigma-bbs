@@ -184,7 +184,7 @@ Numbers in RIP commands are "meganums": base 36, written with the digits `0` to 
 |---|---|---|
 | width, height | `00` `00` | 0: each button gives its own size |
 | orientation | `02` | label in the centre of the button |
-| flags | `ZM` | 1282 = 1024 (mouse button: clicking it sends its host command) + 256 (plain button: filled with the surface colour) + 2 (invertable: inverted when clicked, on a terminal that draws that) |
+| flags | `00ZM` | 1282 = 1024 (mouse button: clicking it sends its host command) + 256 (plain button: filled with the surface colour) + 2 (invertable: inverted when clicked, on a terminal that draws that) |
 | bevel size | `00` | no bevel |
 | label colour | `00` | black |
 | drop shadow colour | `08` | dark grey, not used without the drop shadow flag |
@@ -207,7 +207,7 @@ Numbers in RIP commands are "meganums": base 36, written with the digits `0` to 
 | reserved | `0` | |
 | text | `<>Messages<>M^M` | no icon, the label `Messages`, and the host command `M^M` |
 
-The other two buttons are the same size, at x 140 to 240 (`3W` to `6O`) and 260 to 360 (`78` to `A0`). The buttons cover pixel rows 48 to 80, which are text rows 7 to 11. The two text lines are rows 1 and 2, since the command lines take no room, and `%UN` is on row 13. In a label or host command, write `!`, `|` and `\` as `\!`, `\|` and `\\`.
+The other two buttons are the same size, at x 140 to 240 (`3W` to `6O`) and 260 to 360 (`78` to `A0`). The buttons cover pixel rows 48 to 80, which are text rows 7 to 10, with the bottom edge on the first pixel row of row 11. The two text lines are rows 1 and 2, since the command lines take no room, and `%UN` is on row 13. In a label or host command, write `!`, `|` and `\` as `\!`, `\|` and `\\`.
 
 ### Menus for RIP callers
 
@@ -231,16 +231,18 @@ RIP callers use ANSI themes: RIP is not a theme emulation, and `theme.emulations
 
 ### What is filtered
 
-A RIP terminal runs RIP commands wherever it finds them in what it is sent. Text written by other people (messages, user names, file descriptions, chat, oneliners) could otherwise draw over the screen, add invisible buttons, or make the terminal type input to the board as if the caller had. So for a RIP session, everything ENiGMA½ itself sends passes through a filter that makes three changes and no others:
+A RIP terminal runs RIP commands wherever it finds them in what it is sent. Text written by other people (messages, user names, file descriptions, chat, oneliners) could otherwise draw over the screen, add invisible buttons, or make the terminal type input to the board as if the caller had. So for a RIP session, everything ENiGMA½ itself sends passes through a filter. To the text it is given, it makes three changes and no others:
 
-* a NUL goes between `!` and a `|` straight after it (and between byte 0x01 or 0x02 and a `|` after it). That stops the command and shows nothing.
-* bytes 0x01 and 0x02 are shown as `*`. They are the CP437 smiley glyphs, and some RIP terminals start a command at them.
+* a NUL goes between `!` and a `|` straight after it. That stops the command and shows nothing.
+* bytes 0x01 and 0x02 are shown as `*`. They are the CP437 smiley glyphs, and RIP terminals start a command at them too.
 * RIP's own control sequences, `ESC[` digits `!` (which can turn RIP off, or make the terminal send its version as input), are removed.
+
+Where filtered text follows unfiltered output (a door's, or `.rip` art) that left a RIP command unfinished, the filter first ends that command with a line break, so the text cannot become part of it.
 
 Not filtered:
 
 * `.rip` art, as described above, and ENiGMA½'s own version query.
-* Door output. A door is a program you installed, and a RIP-aware door may draw RIP for a RIP caller.
+* Door output. A door is a program you installed, and a RIP-aware door may draw RIP for a RIP caller. The [Z-Machine door](../../doors/zmachine.md) is the exception: ENiGMA½ runs those games itself, and their text is filtered like its own.
 * Bridged systems (the telnet bridge, BBSLink, DoorParty, Goldmine, ArchaicNet): what the remote system sends reaches the caller as it was sent.
 * File transfers.
 
@@ -248,7 +250,7 @@ MRC chat shows `:)` and `:D` as typed for a RIP caller, never as the smiley glyp
 
 ### Doors and drop files
 
-A door's output reaches a RIP caller unfiltered (see above). In [BBSDEV.DRP](../../doors/scripts-and-binaries.md#bbsdevdrp), line 9 (RIP) is `Y` for a RIP caller and `N` otherwise. The other drop file formats do not report RIP: DOOR.SYS has no field for it, and DOOR32.SYS gives emulation `1` (ANSI), as Synchronet does.
+A door's output reaches a RIP caller unfiltered, the Z-Machine door's excepted (see above). In [BBSDEV.DRP](../../doors/scripts-and-binaries.md#bbsdevdrp), line 9 (RIP) is `Y` for a RIP caller and `N` otherwise. The other drop file formats do not report RIP: DOOR.SYS has no field for it, and DOOR32.SYS gives emulation `1` (ANSI), as Synchronet does.
 
 ### Limits
 
