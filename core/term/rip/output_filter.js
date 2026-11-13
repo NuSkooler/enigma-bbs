@@ -47,6 +47,15 @@
 //     wire with nothing held (it came in an unfiltered write, or a control
 //     byte came in between: terminals differ on whether C0 ends a sequence,
 //     and the filter takes the stricter reading), only the '!' is removed.
+//     Held bytes are only ever sent followed by the byte that showed what
+//     they are, so ENiGMA's output never leaves an ESC or ESC [ <params>
+//     open on the wire for a later unfiltered write to finish. Two cases
+//     of broken output are dropped instead of sent:
+//     * held bytes cut off by another ESC (ESC ESC, ESC [ 1 ESC): the
+//       ESC is held in turn, and nothing would follow the first run;
+//     * held bytes that would grow past MAX_HELD (no real sequence is
+//       that long): they are dropped, and what follows is judged afresh,
+//       so the filter never holds more than MAX_HELD units.
 //  4. After unfiltered output that leaves a RIP command open (a '|' after an
 //     introducer, and no CR since that ends it), the next filtered output
 //     starts with COMMAND_LINE_END, so the text that follows cannot be read
@@ -97,6 +106,10 @@ const INTRODUCER_REPLACEMENT = 0x2a;
 //  Ends a RIP command left open by unfiltered output (change 4)
 const COMMAND_LINE_END = Object.freeze([0x0d, 0x0a]); //  CR LF
 const LF = 0x0a;
+
+//  The most units held back at once (change 3). Real parameter runs are a
+//  few bytes; a 24-bit colour SGR for both colours is under 40.
+const MAX_HELD = 128;
 
 //  Nothing is known about what went before: a '|' as the first filtered byte
 //  gets a break, in case the byte before it on the wire was an introducer
@@ -179,9 +192,18 @@ function createRipOutputFilter() {
         prevFromFilter = false;
     }
 
-    //  |units| (numbers) as |data|'s type: code units, or bytes
-    const asType = (units, isString) =>
-        isString ? String.fromCharCode(...units) : Buffer.from(units.map(u => u & 0xff));
+    //  |units| (numbers) as |data|'s type: code units, or bytes. No spread:
+    //  it is a short list, but nothing here may throw on a long one
+    const asType = (units, isString) => {
+        if (!isString) {
+            return Buffer.from(units.map(u => u & 0xff));
+        }
+        let str = '';
+        for (const u of units) {
+            str += String.fromCharCode(u);
+        }
+        return str;
+    };
 
     //
     //  |data| goes to the wire as it is. Returns what to send:
@@ -194,8 +216,10 @@ function createRipOutputFilter() {
     //    '|', a NUL goes in front, so that the two do not meet on the wire.
     //    |data| itself is never changed.
     //
+    //  An empty write sends nothing, and so changes nothing.
+    //
     function observe(data) {
-        if (null === data || undefined === data) {
+        if (null === data || undefined === data || 0 === data.length) {
             return data;
         }
         carried = [];
@@ -254,7 +278,15 @@ function createRipOutputFilter() {
         let heldFrom = carried.length > 0 ? 0 : -1;
         let heldState = carriedState;
 
-        //  What is held goes on as it is: sent, in place
+        //  What is held is never sent: data[heldFrom, end) and |carried| go
+        const drop = end => {
+            carried = [];
+            insert(heldFrom, [], end - heldFrom);
+            heldFrom = -1;
+        };
+
+        //  What is held goes on as it is: sent, in place, followed by the
+        //  byte at |at| (which ends it)
         const release = at => {
             if (carried.length > 0) {
                 insert(0, carried, 0); //  before data[0]
@@ -283,21 +315,28 @@ function createRipOutputFilter() {
             const v = unitAt(data, i);
 
             if (heldFrom >= 0) {
-                if (CSI_ESC === heldState && LEFT_BRACKET === v) {
+                const continues =
+                    (CSI_ESC === heldState && LEFT_BRACKET === v) ||
+                    (CSI_PARAMS === heldState && isParamByte(v));
+                if (continues && carried.length + i - heldFrom < MAX_HELD) {
                     heldState = CSI_PARAMS;
                     continue;
                 }
-                if (CSI_PARAMS === heldState && isParamByte(v)) {
-                    continue;
-                }
-                if (CSI_PARAMS === heldState && BANG === v) {
+                if (continues) {
+                    //  too long to be a sequence: dropped, and |v| is
+                    //  judged afresh below
+                    drop(i);
+                } else if (CSI_PARAMS === heldState && BANG === v) {
                     //  change 3: none of ESC [ <params> ! is sent
-                    carried = [];
-                    insert(heldFrom, [], i + 1 - heldFrom);
-                    heldFrom = -1;
+                    drop(i + 1);
                     continue;
+                } else if (ESC === v) {
+                    //  cut off by another ESC, which is held in turn: sent,
+                    //  the held bytes would be left open on the wire
+                    drop(i);
+                } else {
+                    release(i);
                 }
-                release(i);
             }
 
             if (
@@ -363,5 +402,6 @@ module.exports = {
     INTRODUCER_BREAK,
     INTRODUCER_REPLACEMENT,
     COMMAND_LINE_END,
+    MAX_HELD,
     createRipOutputFilter,
 };

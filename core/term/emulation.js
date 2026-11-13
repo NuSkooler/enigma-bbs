@@ -93,9 +93,9 @@ class Emulation {
     //  observe(data) }. filter() is given everything ENiGMA sends after the
     //  output translator and returns what goes on the wire; observe() is
     //  given what goes on the wire around it (pass-through, native and
-    //  unfiltered writes; see core/client_term.js) and returns it, after
-    //  anything filter() held back. It is made once per layer name and
-    //  filters from the next write on.
+    //  unfiltered writes; see core/client_term.js), just before it is sent,
+    //  and returns what to send. It is made once per layer name and filters
+    //  from the next write on.
     //
     addLayer(layer) {
         if (!this.definition.acceptsLayers || !layer || !layer.name) {

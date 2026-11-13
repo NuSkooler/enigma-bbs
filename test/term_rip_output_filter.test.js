@@ -16,6 +16,7 @@ const {
     INTRODUCER_BREAK,
     INTRODUCER_REPLACEMENT,
     COMMAND_LINE_END,
+    MAX_HELD,
     createRipOutputFilter,
 } = require('../core/term/rip/output_filter.js');
 const { attachRipLayer } = require('../core/term/select.js');
@@ -53,6 +54,33 @@ function ripSession({ encoding = 'cp437' } = {}) {
     const client = { term, log: { info() {}, debug() {}, warn() {} } };
     attachRipLayer(client, { source: 'termType' });
     return { term, client, wire, sent: () => latin1(Buffer.concat(wire)) };
+}
+
+//  setTimeout() replaced by a queue the test runs by hand, so that a drip's
+//  pieces go out exactly when the test says. restore() puts it back.
+function fakeTimers() {
+    const real = global.setTimeout;
+    const queue = [];
+    global.setTimeout = (fn, ms) => {
+        queue.push({ fn, ms });
+        return { unref() {} };
+    };
+    return {
+        queue,
+        tick() {
+            const next = queue.shift();
+            next.fn();
+            return next;
+        },
+        runAll() {
+            while (queue.length > 0) {
+                this.tick();
+            }
+        },
+        restore() {
+            global.setTimeout = real;
+        },
+    };
 }
 
 //
@@ -343,6 +371,9 @@ function referenceWire(rawSegments) {
     //  filtered writes straight after one another are one stream
     const segments = [];
     for (const seg of rawSegments) {
+        if (!seg.filtered && 0 === seg.bytes.length) {
+            continue; //  an empty unfiltered write changes nothing
+        }
         const last = segments[segments.length - 1];
         if (seg.filtered && last && last.filtered) {
             last.bytes = last.bytes.concat(seg.bytes);
@@ -395,18 +426,23 @@ function referenceWire(rawSegments) {
             if (0x1b === b || (escOpen && 0x5b === b) || (paramsOpen && isParam(b))) {
                 //  a run that starts or carries on ESC [ params
                 let state = 0x1b === b ? 'esc' : 'params';
+                const continues = c =>
+                    ('esc' === state && 0x5b === c) || ('params' === state && isParam(c));
                 let k = i + 1;
-                while (k < input.length) {
-                    if ('esc' === state && 0x5b === input[k]) {
-                        state = 'params';
-                    } else if (!('params' === state && isParam(input[k]))) {
-                        break;
-                    }
+                while (k < input.length && continues(input[k]) && k - i < MAX_HELD) {
+                    state = 'params';
                     ++k;
                 }
                 if (k === input.length) {
                     removed.push([i, k]); //  held, then dropped or never sent
                     break;
+                }
+                if (continues(input[k]) || 0x1b === input[k]) {
+                    //  too long, or cut off by ESC: dropped; input[k] is
+                    //  judged afresh
+                    removed.push([i, k]);
+                    i = k;
+                    continue;
                 }
                 if ('params' === state && 0x21 === input[k]) {
                     removed.push([i, k + 1]);
@@ -457,7 +493,9 @@ function undoFiltered(wire, { input, start, end, closed, removed }) {
             0x21 === seg[seg.length - 1] &&
             seg.slice(0, -1).every(isRunByte);
         const isTail = b === input.length && seg.every(isRunByte);
-        if (!isBang && !isSequence && !isTail) {
+        const isCut = b < input.length && 0x1b === input[b] && seg.every(isRunByte);
+        const isTooLong = MAX_HELD === seg.length && seg.every(isRunByte);
+        if (!isBang && !isSequence && !isTail && !isCut && !isTooLong) {
             return `removed ${JSON.stringify(seg)} at ${a} has no documented shape`;
         }
         if (isBang) {
@@ -560,8 +598,9 @@ describe('RIPscrip output filter (#989)', () => {
             );
             //  removing it never joins a ! and a | on the wire
             assert.equal(filterAll(['!\x1b[!|']), '!\x00|');
-            //  nor two halves of another one
-            assert.equal(filterAll(['\x1b[1\x1b[!!x']), '\x1b[1x');
+            //  nor two halves of another one: ESC [ 1 cut off by an ESC is
+            //  dropped, never left open on the wire
+            assert.equal(filterAll(['\x1b[1\x1b[!!x']), '!x');
         });
 
         it('a control byte inside the sequence: only the ! is removed', () => {
@@ -589,8 +628,114 @@ describe('RIPscrip output filter (#989)', () => {
             f.filter(bytes('\x1b['));
             assert.equal(f.observe('str'), 'str');
             f.filter(bytes('\x1b'));
+            assert.equal(f.observe(bytes('[1!x')).toString('latin1'), '[1!x');
+        });
+
+        it('an empty unfiltered write sends nothing and changes nothing', () => {
+            const f = warmFilter();
+            assert.equal(latin1(f.filter(bytes('\x1b['))), '');
+            const empty = Buffer.alloc(0);
+            assert.equal(f.observe(empty), empty);
             assert.equal(f.observe(''), '');
-            assert.equal(latin1(f.filter(bytes('[1!x'))), '[1!x');
+            assert.equal(f.state.held, 2);
+            assert.equal(latin1(f.filter(bytes('1!x'))), 'x');
+            const g = warmFilter();
+            g.filter(bytes('hi!'));
+            g.observe('');
+            assert.equal(latin1(g.observe(bytes('|1K'))), '\x00|1K');
+        });
+
+        describe('never leaves ESC or ESC [ params of its own open on the wire', () => {
+            //  each: filtered write, unfiltered write, the whole wire
+            const CASES = [
+                ['\x1b[\x1b', '!|1K', 'hello!|1K'],
+                ['\x1b[1;2\x1b', '!', 'hello!'],
+                ['\x1b[0\x1b', '!|', 'hello!|'],
+                ['\x1b\x1b', '[1!', 'hello[1!'],
+                ['\x1b[\x1b', '|', 'hello|'],
+                ['\x1b[1\x1b\x1b[0', '1!', 'hello1!'],
+            ];
+            CASES.forEach(([filtered, unfiltered, wire]) => {
+                it(JSON.stringify([filtered, unfiltered]), () => {
+                    const f = createRipOutputFilter();
+                    const out = [f.filter(bytes('hello')), f.filter(bytes(filtered))];
+                    out.push(f.observe(bytes(unfiltered)));
+                    assert.equal(latin1(Buffer.concat(out)), wire);
+                });
+            });
+
+            it('held bytes cut off by ESC are dropped, even from the write before', () => {
+                const f = warmFilter();
+                assert.equal(latin1(f.filter(bytes('a\x1b['))), 'a');
+                assert.equal(latin1(f.filter(bytes('\x1b'))), '');
+                assert.equal(latin1(f.observe(bytes('!|1K'))), '!|1K');
+                const g = warmFilter();
+                g.filter(bytes('\x1b[1'));
+                assert.equal(latin1(g.filter(bytes('\x1b[2m'))), '\x1b[2m');
+                assert.equal(filterAll(['\x1b\x1b[1mx']), '\x1b[1mx');
+            });
+
+            it('and a run that carries on an unfiltered one is dropped the same way', () => {
+                const f = warmFilter();
+                f.observe(bytes('\x1b['));
+                assert.equal(latin1(f.filter(bytes('1\x1b'))), '');
+                assert.equal(latin1(f.observe(bytes('!'))), '!');
+            });
+        });
+
+        describe('holds at most MAX_HELD units', () => {
+            it('a longer run is dropped and what follows is judged afresh', () => {
+                assert.ok(MAX_HELD >= 64);
+                const f = warmFilter();
+                const run = '\x1b[' + '1'.repeat(MAX_HELD - 2);
+                assert.equal(latin1(f.filter(bytes(run))), '');
+                assert.equal(f.state.held, MAX_HELD);
+                assert.equal(latin1(f.filter(bytes('2m'))), '2m');
+                assert.equal(f.state.held, 0);
+                //  a run that fits is sent whole
+                const sgr = '\x1b[38;2;255;255;255;48;2;255;255;255m';
+                assert.equal(filterAll([sgr]), sgr);
+            });
+
+            it('many one-byte writes after ESC [ stay bounded', () => {
+                const f = warmFilter();
+                f.filter(bytes('\x1b['));
+                const wire = [];
+                for (let i = 0; i < 60000; ++i) {
+                    wire.push(f.filter(bytes('1')));
+                    assert.ok(f.state.held <= MAX_HELD);
+                }
+                wire.push(f.observe(bytes('!|1K')));
+                const sent = latin1(Buffer.concat(wire));
+                assert.ok(!sent.includes('\x1b'), 'no ESC of its own reaches the wire');
+            });
+
+            it('after an unfiltered ESC [ a long run is never sent', () => {
+                const f = warmFilter();
+                f.observe(bytes('\x1b['));
+                assert.equal(latin1(f.filter(bytes('1'.repeat(1000)))), '');
+                assert.ok(f.state.held <= MAX_HELD);
+                assert.equal(latin1(f.observe(bytes('!'))), '!');
+                const g = warmFilter();
+                g.observe(bytes('\x1b['));
+                g.filter(bytes('1'.repeat(1000)));
+                assert.equal(latin1(g.filter(bytes('!x'))), 'x');
+            });
+
+            it('never throws, on long strings or Buffers', () => {
+                const f = warmFilter();
+                assert.doesNotThrow(() => f.filter('\x1b[' + '1'.repeat(200000)));
+                assert.equal(f.filter('a'), 'a');
+                assert.equal(f.filter('\u0001'.repeat(200000)), '*'.repeat(200000));
+                const big = Buffer.concat([bytes('\x1b['), Buffer.alloc(1e6, 0x31)]);
+                assert.doesNotThrow(() => f.filter(big));
+                assert.ok(f.state.held <= MAX_HELD);
+                for (const held of ['\x1b', '\x1b[1', '\x1b[' + '2'.repeat(MAX_HELD)]) {
+                    const g = warmFilter();
+                    g.filter(held);
+                    assert.doesNotThrow(() => g.filter('x'.repeat(200000)));
+                }
+            });
         });
 
         it('(a) bytes that carry on a sequence the wire has open are held too', () => {
@@ -790,6 +935,74 @@ describe('RIPscrip output filter (#989)', () => {
             });
         });
 
+        it('dripWrite: a write between two pieces meets the filter in wire order', () => {
+            const timers = fakeTimers();
+            try {
+                //  rawWrite (filtered) lands after ESC [ went out: one stream
+                const a = ripSession();
+                let doneA = false;
+                a.term.rawWrite(bytes('hello'));
+                //  62.5 bytes a second: one byte every 16 ms tick
+                a.term.dripWrite(bytes('\x1b[1zzzz'), 62.5, err => {
+                    doneA = !err;
+                });
+                timers.tick();
+                a.term.rawWrite(bytes('!'));
+                timers.runAll();
+                assert.ok(doneA);
+                assert.equal(a.sent(), 'hello1zzzz');
+
+                //  an unfiltered write lands there: the held ESC [ is dropped
+                const b = ripSession();
+                b.term.rawWrite(bytes('hello'));
+                b.term.dripWrite(bytes('\x1b[1zzzz'), 62.5, () => {});
+                timers.tick();
+                b.term.passThroughWrite(bytes('!|1K'));
+                timers.runAll();
+                //  (and the RIP command the door left open is ended first)
+                assert.equal(b.sent(), 'hello!|1K\r\n1zzzz');
+
+                //  a filtered ! the drip ends with, then an unfiltered |
+                const c = ripSession();
+                c.term.rawWrite(bytes('x'));
+                c.term.dripWrite(bytes('ab!'), 62.5, () => {});
+                timers.tick();
+                timers.tick();
+                c.term.writeUnfilteredRip(bytes('|1K'));
+                assert.equal(c.sent(), 'xab!\x00|1K');
+            } finally {
+                timers.restore();
+            }
+        });
+
+        it('dripWrite without the RIP layer: the same pieces, timing and callback', () => {
+            const timers = fakeTimers();
+            try {
+                const { term, calls } = makeTerm(ClientTerminal, Term, SESSIONS[0]);
+                const buf = bytes('\x1b[1zzz!|1K');
+                let called = 0;
+                term.dripWrite(buf, 250, err => {
+                    assert.ifError(err);
+                    ++called;
+                });
+                term.rawWrite(bytes('!'));
+                const delays = [];
+                while (timers.queue.length > 0) {
+                    delays.push(timers.tick().ms);
+                }
+                assert.equal(called, 1);
+                //  250 bytes a second: 4 bytes a tick
+                assert.deepEqual(
+                    calls.map(c => latin1(c)),
+                    ['\x1b[1z', '!', 'zz!|', '1K']
+                );
+                assert.ok(calls.every(c => Buffer.isBuffer(c)));
+                assert.deepEqual(delays, [16, 16]);
+            } finally {
+                timers.restore();
+            }
+        });
+
         it('dripWrite is filtered', done => {
             const { term, sent } = ripSession();
             term.dripWrite(bytes('drip !|1K \x01|*'), 1e9, err => {
@@ -871,141 +1084,300 @@ describe('RIPscrip output filter (#989)', () => {
     });
 
     describe('differential fuzz', () => {
-        const CASES = 3000;
+        //  0x1234 is the seed a review found a hole with (case 3869)
+        const SEEDS = [0x989, 0x1234, 0x5eed, 0xc0ffee];
+        const CASES = 5000;
         const ALPHABET = [
             0x21, 0x21, 0x21, 0x7c, 0x7c, 0x7c, 0x01, 0x02, 0x1b, 0x1b, 0x5b, 0x5b, 0x30,
             0x31, 0x39, 0x3b, 0x0d, 0x0a, 0x5c, 0x5c, 0x00, 0x61, 0x20, 0x3f, 0xe9, 0xff,
+            0x07, 0x7f,
         ];
-        const DOOR_TEXT = [
-            '!',
-            '|',
-            '\u263A',
-            '\u263B',
+        const DOOR_TEXT = ['!', '|', '☺', '☻', '\x1b', '[', '1', '\\', '\r', 'a'];
+        //  what a filtered write may end with: open, or cut off by ESC
+        const FILTERED_TAILS = [
             '\x1b',
-            '[',
-            '1',
-            '\\',
-            '\r',
-            'a',
+            '\x1b[',
+            '\x1b[1',
+            '\x1b[12;',
+            '\x1b[\x1b',
+            '\x1b[0\x1b',
+            '\x1b[1;2\x1b',
         ];
+        //  what an unfiltered write may start or end with
+        const UNFILTERED_HEADS = ['!', '|', '1!', ';1!', '[1!', '!|', '!|1K', '\\'];
+        const UNFILTERED_TAILS = ['\x1b', '\x1b[', '\x1b[1', '\x1b[1;', '!|1K\\', '\r'];
 
-        it(`${CASES} seeded cases: random streams, random chunkings, every path`, () => {
-            const rand = prng(0x989);
+        //
+        //  What the filter itself takes in and gives out, byte by byte, and
+        //  which bytes of what it gave out came from unfiltered input: all of
+        //  observe()'s but anything it put in front, none of filter()'s. This
+        //  is the provenance the invariant is checked against, apart from
+        //  the reference model. After every filter() the wire must not end
+        //  in an ESC or ESC [ params holding a filtered byte.
+        //
+        function instrument(term) {
+            const f = term.emulation.outputFilter;
+            const wire = [];
+            const unfiltered = [];
+            const problems = [];
+            const toBytes = d => ('string' === typeof d ? bytes(d) : Buffer.from(d));
+            const append = (out, fromInput) => {
+                const b = toBytes(out);
+                const front = b.length - fromInput;
+                b.forEach((v, i) => {
+                    wire.push(v);
+                    unfiltered.push(i >= front);
+                });
+            };
+            const { filter, observe } = f;
+            f.filter = data => {
+                const out = filter(data);
+                if (out) {
+                    append(out, 0);
+                    let i = wire.length - 1;
+                    if (i < 0 || 0x1b !== wire[i]) {
+                        while (i >= 0 && isParam(wire[i])) {
+                            --i;
+                        }
+                        i =
+                            i >= 1 && 0x5b === wire[i] && 0x1b === wire[i - 1]
+                                ? i - 1
+                                : -1;
+                    }
+                    if (i >= 0 && !unfiltered.slice(i).every(Boolean)) {
+                        problems.push(
+                            `left open: ${JSON.stringify(latin1(wire.slice(i)))}`
+                        );
+                    }
+                }
+                return out;
+            };
+            f.observe = data => {
+                const out = observe(data);
+                if (out) {
+                    append(out, data.length);
+                }
+                return out;
+            };
+            return { wire, unfiltered, problems };
+        }
+
+        //  The invariant, by provenance: on the wire, ESC [ params ! and an
+        //  introducer before | only where every byte came from unfiltered
+        //  input; and no 0x01 / 0x02 from filtered input
+        function checkInvariant(wire, unfiltered) {
+            for (let i = 0; i < wire.length; ++i) {
+                if (0x21 === wire[i]) {
+                    let k = i - 1;
+                    while (k >= 0 && isParam(wire[k])) {
+                        --k;
+                    }
+                    if (k >= 1 && 0x5b === wire[k] && 0x1b === wire[k - 1]) {
+                        if (!unfiltered.slice(k - 1, i + 1).every(Boolean)) {
+                            return `ESC [ params ! with a filtered byte, ending at ${i}`;
+                        }
+                    }
+                }
+                if (0x7c === wire[i] && i > 0 && isIntroducer(wire[i - 1])) {
+                    if (!unfiltered[i] || !unfiltered[i - 1]) {
+                        return `introducer | with a filtered byte at ${i}`;
+                    }
+                }
+                if ((0x01 === wire[i] || 0x02 === wire[i]) && !unfiltered[i]) {
+                    return `filtered 0x0${wire[i]} at ${i}`;
+                }
+            }
+            return null;
+        }
+
+        function runFuzz(seed) {
+            const rand = prng(seed);
             const pick = list => list[Math.floor(rand() * list.length)];
             const randomBytes = () =>
                 Buffer.from(
-                    Array.from({ length: Math.floor(rand() * 12) }, () => pick(ALPHABET))
+                    Array.from(
+                        { length: rand() < 0.1 ? 0 : Math.floor(rand() * 12) },
+                        () => pick(ALPHABET)
+                    )
                 );
+            const paramRun = () =>
+                Array.from({ length: MAX_HELD - 8 + Math.floor(rand() * 40) }, () =>
+                    pick('0123456789;')
+                ).join('');
+            const filteredBytes = () => {
+                const r = rand();
+                if (r < 0.03) {
+                    //  a long parameter run, around MAX_HELD
+                    const head = rand() < 0.6 ? '\x1b[' : '';
+                    return bytes(head + paramRun() + pick(['', '!', 'm', '\x1b']));
+                }
+                const b = randomBytes();
+                return r < 0.25 ? Buffer.concat([b, bytes(pick(FILTERED_TAILS))]) : b;
+            };
+            const unfilteredBytes = () => {
+                const r = rand();
+                const b = randomBytes();
+                if (r < 0.3) {
+                    return Buffer.concat([bytes(pick(UNFILTERED_HEADS)), b]);
+                }
+                if (r < 0.45) {
+                    return Buffer.concat([b, bytes(pick(UNFILTERED_TAILS))]);
+                }
+                return r < 0.55 ? bytes(pick(UNFILTERED_TAILS)) : b;
+            };
 
-            for (let n = 0; n < CASES; ++n) {
-                const { term, sent } = ripSession();
-                const segments = [];
+            const timers = fakeTimers();
+            try {
+                for (let n = 0; n < CASES; ++n) {
+                    const { term, sent } = ripSession();
+                    const seen = instrument(term);
+                    const segments = [];
 
-                const filtered = b => segments.push({ bytes: [...b], filtered: true });
-                const unfiltered = b => segments.push({ bytes: [...b], filtered: false });
+                    const filtered = b =>
+                        segments.push({ bytes: [...b], filtered: true });
+                    const unfiltered = b =>
+                        segments.push({ bytes: [...b], filtered: false });
 
-                const one = inBatch => {
-                    const b = randomBytes();
-                    switch (
-                        pick(['raw', 'raw', 'string', 'drip', 'pass', 'rip', 'door'])
-                    ) {
-                        case 'raw':
-                            term.rawWrite(b);
-                            return filtered(b);
-                        case 'string':
-                            term.rawWrite(latin1(b));
-                            return filtered(inBatch ? Buffer.from(latin1(b), 'utf8') : b);
-                        case 'drip':
-                            if (inBatch) {
+                    //  slow drips under way, in the order their next piece is
+                    //  due (the timer queue's order)
+                    const drips = [];
+                    const tick = () => {
+                        const drip = drips.shift();
+                        filtered(drip.bytes.slice(drip.offset, drip.offset + drip.size));
+                        drip.offset += drip.size;
+                        if (drip.offset < drip.bytes.length) {
+                            drips.push(drip);
+                        }
+                        timers.tick();
+                    };
+
+                    const one = inBatch => {
+                        const op = pick([
+                            'raw',
+                            'raw',
+                            'string',
+                            'drip',
+                            'pass',
+                            'rip',
+                            'door',
+                        ]);
+                        const b =
+                            'pass' === op || 'rip' === op
+                                ? unfilteredBytes()
+                                : filteredBytes();
+                        switch (op) {
+                            case 'raw':
                                 term.rawWrite(b);
-                            } else {
-                                term.dripWrite(b, 1e9, () => {});
-                            }
-                            return filtered(b);
-                        case 'pass':
-                            term.passThroughWrite(b);
-                            return unfiltered(b);
-                        case 'rip':
-                            term.writeUnfilteredRip(b);
-                            return unfiltered(b);
-                        case 'door': {
-                            const text = Array.from({ length: 6 }, () =>
-                                pick(DOOR_TEXT)
-                            ).join('');
-                            term.writeDoorOutput(text);
-                            return unfiltered(term.encode(text));
-                        }
-                    }
-                };
-
-                const steps = 1 + Math.floor(rand() * 8);
-                for (let s = 0; s < steps; ++s) {
-                    if (rand() < 0.25) {
-                        term.beginWrite();
-                        const count = 1 + Math.floor(rand() * 5);
-                        for (let c = 0; c < count; ++c) {
-                            one(true);
-                        }
-                        term.commitWrite();
-                    } else {
-                        one(false);
-                    }
-                }
-
-                const ref = referenceWire(segments);
-                const actual = sent();
-                const tag = `case ${n}: ${JSON.stringify(segments)}`;
-                assert.equal(actual, latin1(ref.wire), tag);
-
-                //  what filtered writes put on the wire is never a RIP command
-                const wire = [...bytes(actual)];
-                //  the WHOLE wire: ESC [ params ! and an introducer before |
-                //  only where every byte of them came from unfiltered input
-                for (let i = 0; i < wire.length; ++i) {
-                    if (0x21 === wire[i]) {
-                        let k = i - 1;
-                        while (k >= 0 && isParam(wire[k])) {
-                            --k;
-                        }
-                        if (k >= 1 && 0x5b === wire[k] && 0x1b === wire[k - 1]) {
-                            for (let m = k - 1; m <= i; ++m) {
-                                assert.ok(
-                                    !ref.fromFilter[m],
-                                    `${tag}: mixed ESC[n! ending at ${i}`
+                                return filtered(b);
+                            case 'string':
+                                term.rawWrite(latin1(b));
+                                return filtered(
+                                    inBatch ? Buffer.from(latin1(b), 'utf8') : b
                                 );
+                            case 'drip': {
+                                if (inBatch) {
+                                    term.rawWrite(b);
+                                    return filtered(b);
+                                }
+                                //  62.5 or 250 bytes a second: 1 or 4 a tick;
+                                //  or all at once
+                                const rate = pick([62.5, 250, 1e9]);
+                                const size =
+                                    62.5 === rate ? 1 : 250 === rate ? 4 : b.length;
+                                term.dripWrite(b, rate, () => {});
+                                if (0 === b.length) {
+                                    return;
+                                }
+                                filtered(b.slice(0, size));
+                                if (size < b.length) {
+                                    drips.push({ bytes: b, offset: size, size });
+                                }
+                                return;
+                            }
+                            case 'pass':
+                                term.passThroughWrite(b);
+                                return unfiltered(b);
+                            case 'rip':
+                                term.writeUnfilteredRip(b);
+                                return unfiltered(b);
+                            case 'door': {
+                                const text = Array.from({ length: 6 }, () =>
+                                    pick(DOOR_TEXT)
+                                ).join('');
+                                term.writeDoorOutput(text);
+                                return unfiltered(term.encode(text));
                             }
                         }
+                    };
+
+                    const steps = 1 + Math.floor(rand() * 8);
+                    for (let s = 0; s < steps; ++s) {
+                        if (rand() < 0.25) {
+                            term.beginWrite();
+                            const count = 1 + Math.floor(rand() * 5);
+                            for (let c = 0; c < count; ++c) {
+                                one(true);
+                            }
+                            term.commitWrite();
+                        } else {
+                            one(false);
+                        }
+                        while (drips.length > 0 && rand() < 0.5) {
+                            tick();
+                        }
                     }
-                    if (0x7c === wire[i] && i > 0 && isIntroducer(wire[i - 1])) {
-                        assert.ok(
-                            !ref.fromFilter[i] && !ref.fromFilter[i - 1],
-                            `${tag}: !| with a filtered byte at ${i}`
-                        );
+                    while (drips.length > 0) {
+                        tick();
                     }
-                }
-                for (let i = 0; i < wire.length; ++i) {
-                    if (!ref.fromFilter[i]) {
-                        continue;
-                    }
-                    assert.ok(
-                        0x01 !== wire[i] && 0x02 !== wire[i],
-                        `${tag}: 0x01/0x02 at ${i}`
+                    assert.equal(timers.queue.length, 0);
+
+                    const actual = sent();
+                    const tag = `seed ${seed} case ${n}: ${JSON.stringify(
+                        segments.map(g => [g.filtered ? 'F' : 'U', latin1(g.bytes)])
+                    )} => ${JSON.stringify(actual)}`;
+
+                    //  the filter saw the writes in the order they reached
+                    //  the socket, and nothing reached it around the filter
+                    assert.equal(latin1(seen.wire), actual, tag);
+                    assert.deepEqual(seen.problems, [], tag);
+                    //  the invariant, by provenance alone
+                    assert.equal(checkInvariant(seen.wire, seen.unfiltered), null, tag);
+
+                    //  and against the reference: the same wire, the same
+                    //  provenance, and undoing the documented changes gives
+                    //  back the input
+                    const ref = referenceWire(segments);
+                    assert.equal(actual, latin1(ref.wire), tag);
+                    assert.deepEqual(
+                        seen.unfiltered,
+                        ref.fromFilter.map(f => !f),
+                        tag
                     );
-                    if (0x7c === wire[i]) {
-                        assert.ok(
-                            i > 0 && !isIntroducer(wire[i - 1]),
-                            `${tag}: !| at ${i}`
-                        );
-                    }
-                    if (0x21 === wire[i]) {
-                        assert.ok(!csiOpenAtEnd(wire, i), `${tag}: ESC[n! at ${i}`);
+                    const wire = [...bytes(actual)];
+                    for (const place of ref.placed) {
+                        assert.equal(undoFiltered(wire, place), null, tag);
                     }
                 }
-                //  and undoing the documented changes gives back the input
-                for (const place of ref.placed) {
-                    assert.equal(undoFiltered(wire, place), null, tag);
-                }
+            } finally {
+                timers.restore();
             }
+        }
+
+        SEEDS.forEach(seed => {
+            it(`seed 0x${seed.toString(16)}: ${CASES} cases, random streams, chunkings, drips and paths`, () =>
+                runFuzz(seed));
+        });
+
+        it('the provenance check catches a filtered byte in a sequence', () => {
+            const wire = [...bytes('a\x1b[1!b!|')];
+            const all = wire.map(() => true);
+            assert.equal(checkInvariant(wire, all), null);
+            const one = all.slice();
+            one[2] = false;
+            assert.ok(checkInvariant(wire, one));
+            const pipe = all.slice();
+            pipe[6] = false;
+            assert.ok(checkInvariant(wire, pipe));
         });
     });
 });
