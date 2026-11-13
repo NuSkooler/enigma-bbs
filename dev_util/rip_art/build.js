@@ -151,28 +151,91 @@ const Ansi = {
     sgr: (...params) => `${ESC}[${params.join(';')}m`,
 };
 
+//
+//  One text field of a screen, checked: printable ASCII only (no CR, LF,
+//  ESC or any other control character, nothing above 0x7E), at most |max|
+//  characters. |ripSafe| (text that goes inside a RIP command) also rejects
+//  "!", "|" and a backslash, which RIPscrip needs escaped, and "<>", its field
+//  separator; |noMci| rejects "|" and "%", which ENiGMA would read as codes.
+//  Errors name the screen and the field.
+//
+function checkText(screen, field, text, { max, ripSafe = false, noMci = false }) {
+    const where = `${screen.name}: ${field}`;
+    if ('string' !== typeof text) {
+        throw new Error(`${where} is not a string`);
+    }
+    if (/[^ -~]/.test(text)) {
+        throw new Error(
+            `${where} "${text}" has a character that is not printable ASCII (no control characters, line ends or non-ASCII)`
+        );
+    }
+    if (text.length > max) {
+        throw new Error(
+            `${where} "${text}" is ${text.length} characters; at most ${max}`
+        );
+    }
+    if (ripSafe && /[\\!|]/.test(text)) {
+        throw new Error(
+            `${where} "${text}" has "!", "|" or "\\", which RIPscrip needs escaped; leave them out`
+        );
+    }
+    if (ripSafe && text.includes('<>')) {
+        throw new Error(`${where} "${text}" has "<>", the RIP field separator`);
+    }
+    if (noMci && /[|%]/.test(text)) {
+        throw new Error(`${where} "${text}" has "|" or "%", which ENiGMA would expand`);
+    }
+}
+
 function checkScreen(screen) {
     if (!/^R[A-Z0-9]{1,7}$/.test(screen.name)) {
         throw new Error(`${screen.name}: art names are R + up to 7 letters or digits`);
     }
+    //  title: from column 3 in the RIP header, from column 2 in the .ans
+    checkText(screen, 'title', screen.title, { max: 78, ripSafe: true, noMci: true });
+    if (!Array.isArray(screen.help)) {
+        throw new Error(`${screen.name}: help is not a list`);
+    }
+    if (!Array.isArray(screen.buttons) || 0 === screen.buttons.length) {
+        throw new Error(`${screen.name}: buttons is not a list with at least one button`);
+    }
+    if (!Array.isArray(screen.status) || 2 !== screen.status.length) {
+        throw new Error(`${screen.name}: status is not [ text, MCI code ]`);
+    }
     const keys = new Set();
-    screen.buttons.forEach(([key, label]) => {
+    screen.buttons.forEach(([key, label], i) => {
+        const field = `button ${i + 1}`;
         if (!/^[A-Z]$/.test(key)) {
-            throw new Error(`${screen.name}: button key "${key}" is not one letter`);
+            throw new Error(`${screen.name}: ${field} key "${key}" is not one letter`);
         }
         if (keys.has(key)) {
             throw new Error(`${screen.name}: key ${key} used twice`);
         }
         keys.add(key);
-        if (/[^ -~]/.test(label) || label.length > 26) {
-            throw new Error(`${screen.name}: label "${label}"`);
+        //  the host command is the key: exactly one printable ASCII character
+        checkText(screen, `${field} host command`, key, {
+            max: 1,
+            ripSafe: true,
+        });
+        if (1 !== key.length) {
+            throw new Error(`${screen.name}: ${field} host command is not one character`);
         }
+        //  drawn as "[K] label" inside a 240 pixel (30 character) button
+        checkText(screen, `${field} label`, label, {
+            max: Math.floor((Layout.buttonX1 - Layout.buttonX0 + 1) / CELL) - 4,
+            ripSafe: true,
+        });
     });
-    screen.help.forEach(line => {
-        if (line.length > 76 || /[^ -~]|[|%]/.test(line)) {
-            throw new Error(`${screen.name}: help line "${line}"`);
-        }
+    screen.help.forEach((line, i) => {
+        checkText(screen, `help line ${i + 1}`, line, { max: 76, noMci: true });
     });
+    //  from column 3; what the MCI code expands to follows, so leave room
+    checkText(screen, 'status text', screen.status[0], { max: 50, noMci: true });
+    if (!/^%[A-Z0-9]{2}$/.test(screen.status[1])) {
+        throw new Error(
+            `${screen.name}: status MCI code "${screen.status[1]}" is not a % and two letters or digits`
+        );
+    }
 }
 
 //  where things go for |count| buttons
@@ -296,6 +359,7 @@ module.exports = {
     buildAll,
     buildRip,
     buildAns,
+    checkScreen,
     layoutFor,
     mn,
     Layout,

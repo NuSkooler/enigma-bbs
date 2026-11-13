@@ -360,6 +360,103 @@ describe('RIP starter screens (#989)', () => {
         });
     });
 
+    describe('the generator rejects screen descriptions that would break the output', () => {
+        const {
+            checkScreen,
+            buildRip,
+            buildAns,
+        } = require('../dev_util/rip_art/build.js');
+        const good = () => ({
+            name: 'RTEST',
+            title: 'TEST',
+            help: ['Some help.'],
+            buttons: [
+                ['A', 'Alpha'],
+                ['B', 'Beta'],
+            ],
+            status: ['Hello ', '%BN'],
+        });
+        const bad = (what, change, pattern) =>
+            it(what, () => {
+                const screen = good();
+                change(screen);
+                assert.throws(() => checkScreen(screen), pattern, what);
+                assert.throws(() => buildRip(screen), pattern, what);
+                assert.throws(() => buildAns(screen), pattern, what);
+            });
+
+        it('accepts a good description', () => {
+            checkScreen(good());
+        });
+
+        const Control = ['CR', 'LF', 'ESC', 'NUL', 'DEL'].map((n, i) => [
+            n,
+            ['\r', '\n', '\x1b', '\x00', '\x7f'][i],
+        ]);
+        Control.forEach(([name, c]) => {
+            bad(`title with ${name}`, s => (s.title = `A${c}B`), /RTEST: title/);
+            bad(
+                `help line with ${name}`,
+                s => (s.help = [`A${c}B`]),
+                /RTEST: help line 1/
+            );
+            bad(
+                `status text with ${name}`,
+                s => (s.status[0] = `A${c}B`),
+                /RTEST: status text/
+            );
+            bad(
+                `button label with ${name}`,
+                s => (s.buttons[1][1] = `A${c}B`),
+                /RTEST: button 2 label/
+            );
+        });
+        bad('non-ASCII title', s => (s.title = 'CAF\u00c9'), /RTEST: title/);
+        bad('non-ASCII label', s => (s.buttons[0][1] = 'Caf\u00e9'), /button 1 label/);
+        bad('non-ASCII help', s => (s.help = ['caf\u00e9']), /help line 1/);
+        bad('non-ASCII status', s => (s.status[0] = '\u00e9'), /status text/);
+        ['!', '|', '\\'].forEach(c => {
+            bad(`title with ${c}`, s => (s.title = `A${c}B`), /RTEST: title/);
+            bad(`label with ${c}`, s => (s.buttons[0][1] = `A${c}B`), /button 1 label/);
+        });
+        bad('"<>" in a label', s => (s.buttons[0][1] = 'A<>B'), /button 1 label.*<>/);
+        bad('"<>" in the title', s => (s.title = 'A<>B'), /RTEST: title.*<>/);
+        bad('"%" in the title', s => (s.title = '100%'), /RTEST: title/);
+        bad('"%" in the status text', s => (s.status[0] = '%BN'), /status text/);
+        bad('"|" in a help line', s => (s.help = ['a|b']), /help line 1/);
+        bad(
+            'title too long',
+            s => (s.title = 'T'.repeat(79)),
+            /RTEST: title.*at most 78/
+        );
+        bad(
+            'help line too long',
+            s => (s.help = ['h'.repeat(77)]),
+            /help line 1.*at most 76/
+        );
+        bad('status text too long', s => (s.status[0] = 's'.repeat(51)), /status text/);
+        bad(
+            'label too wide for its button',
+            s => (s.buttons[0][1] = 'L'.repeat(27)),
+            /button 1 label.*at most 26/
+        );
+        bad('a bad MCI code', s => (s.status[1] = 'BN'), /status MCI code/);
+        bad(
+            'a host command that is not one letter',
+            s => (s.buttons[0][0] = 'AB'),
+            /button 1 key/
+        );
+        bad('a lower case host command', s => (s.buttons[0][0] = 'a'), /button 1 key/);
+        bad(
+            'a control character as a host command',
+            s => (s.buttons[0][0] = '\r'),
+            /button 1 key/
+        );
+        bad('a repeated key', s => (s.buttons[1][0] = 'A'), /key A used twice/);
+        bad('no buttons', s => (s.buttons = []), /RTEST: buttons/);
+        bad('a title that is not text', s => (s.title = 5), /RTEST: title/);
+    });
+
     it('start with the font style and use only the commands seen working', () => {
         ripFiles().forEach(f => {
             const all = lines(f);
@@ -767,7 +864,13 @@ describe('oputil config new and the RIP starter (#989)', function () {
             assert.ok(errors.some(e => /RIP starter is not complete/.test(e)));
         });
 
-        it('art that cannot be copied is reported, and the menus still written', async () => {
+        const noBranch = out => {
+            const login = readHjson(paths.join(out.menuDir, 'test_board-login.hjson'));
+            assert.equal(login.menus.telnetConnected.next, 'matrix');
+            assert.ok(!/TE\[rip\]/.test(out.file('login').toString('utf8')));
+        };
+
+        it('art that cannot be copied: reported, menu file written, NO connect branch', async () => {
             const { RipStarter } = require('../core/oputil/oputil_config.js');
             const source = RipStarter.artSourceDir;
             const moved = `${source}.moved-by-test`;
@@ -775,12 +878,68 @@ describe('oputil config new and the RIP starter (#989)', function () {
             try {
                 const out = await runConfigNew(false, false, true);
                 assert.equal(out.result.ripNotes.length, 1);
-                assert.match(out.result.ripNotes[0], /art could not be copied/);
+                assert.match(out.result.ripNotes[0], /art could not be installed/);
+                assert.match(out.result.ripNotes[0], /standard menus/);
+                assert.match(out.result.ripNotes[0], /NOT added/);
+                assert.match(out.result.ripNotes[0], /RIP documentation/);
                 assert.ok(out.menus.includes('test_board-rip.hjson'));
+                noBranch(out);
                 assert.ok(errors.some(e => /RIP starter is not complete/.test(e)));
             } finally {
                 fs.renameSync(moved, source);
             }
+        });
+
+        it('art that is only partly copied: no connect branch, the missing file named', async () => {
+            const gfs = require('graceful-fs');
+            const realCopy = gfs.copyFileSync;
+            gfs.copyFileSync = (from, to, flags) => {
+                if (to.endsWith('RMSGMENU.ans')) {
+                    throw new Error('disk full');
+                }
+                return realCopy(from, to, flags);
+            };
+            try {
+                const out = await runConfigNew(false, false, true);
+                assert.ok(out.art.includes('RMAIN.rip'));
+                assert.ok(!out.art.includes('RMSGMENU.ans'));
+                assert.equal(out.result.ripNotes.length, 1);
+                assert.match(out.result.ripNotes[0], /disk full/);
+                assert.match(out.result.ripNotes[0], /RMSGMENU\.ans/);
+                assert.ok(out.menus.includes('test_board-rip.hjson'));
+                noBranch(out);
+            } finally {
+                gfs.copyFileSync = realCopy;
+            }
+        });
+
+        it('art already there (left as is) counts as present: the branch is added', async () => {
+            fs.mkdirSync(paths.join(tmp, 'art'), { recursive: true });
+            fs.readdirSync(ART_DIR).forEach(f =>
+                fs.writeFileSync(paths.join(tmp, 'art', f), 'mine')
+            );
+            const out = await runConfigNew(false, false, true);
+            assert.deepEqual(out.result.ripNotes, []);
+            assert.match(out.file('login').toString('utf8'), /TE\[rip\]/);
+            assert.equal(
+                fs.readFileSync(paths.join(tmp, 'art', 'RMAIN.rip'), 'utf8'),
+                'mine'
+            );
+        });
+
+        it('a RIP menu file in the way is kept, and the operator is told', async () => {
+            const menuDir = paths.join(tmp, 'config', 'menus');
+            fs.mkdirSync(menuDir, { recursive: true });
+            const mine = paths.join(menuDir, 'test_board-rip.hjson');
+            fs.writeFileSync(mine, '{ mine: true }');
+            const out = await runConfigNew(false, false, true);
+            assert.equal(fs.readFileSync(mine, 'utf8'), '{ mine: true }');
+            assert.equal(out.result.ripNotes.length, 1);
+            assert.match(out.result.ripNotes[0], /test_board-rip\.hjson already exists/);
+            assert.match(out.result.ripNotes[0], /kept/);
+            assert.match(out.result.ripNotes[0], /must define ripMatrix/);
+            assert.match(out.file('login').toString('utf8'), /TE\[rip\]/);
+            assert.ok(errors.some(e => /RIP starter is not complete/.test(e)));
         });
 
         it('a complete run has nothing to report', async () => {

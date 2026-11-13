@@ -274,6 +274,25 @@ function copyStarterArt(artDir, emulation) {
 
 exports.copyStarterArt = copyStarterArt;
 
+//
+//  The names of |emulation|'s art files that are not in |artDir|. Without
+//  every one a starter's menus are blank and take no keys (a menu's keys are
+//  only set up when its art loads), so a missing file here means the starter
+//  must not be routed to. An unreadable source counts as all missing.
+//
+function missingStarterArt(artDir, emulation) {
+    const starter = startersFor([emulation])[0];
+    let names;
+    try {
+        names = fs.readdirSync(starter.artSourceDir);
+    } catch (e) {
+        return ['(the starter art files)'];
+    }
+    return names.sort().filter(name => !fs.existsSync(paths.join(artDir, name)));
+}
+
+exports.missingStarterArt = missingStarterArt;
+
 const QUESTIONS = {
     Intro: [
         {
@@ -613,16 +632,46 @@ function buildNewConfig(dirs = {}, done = _.noop) {
         );
         const notes = _.mapValues(Starters, () => []);
 
+        //
+        //  A starter with art (RIP) is only routed to when every art file is
+        //  in place: a button menu without its art is blank and takes no
+        //  keys, so the caller would be stuck. Its art is copied first, and
+        //  the connect branch is left out when any file is still missing
+        //  (callers then get the stock menus).
+        //
+        const branched = starters.filter(starter => {
+            if (!starter.artSourceDir) {
+                return true;
+            }
+            let copyError = '';
+            try {
+                const kept = copyStarterArt(artDir, starter.emulation);
+                if (kept.length > 0) {
+                    console.info(`${kept.join(', ')} already in ${artDir}; left as is`);
+                }
+            } catch (e) {
+                copyError = ` (${e.message})`;
+            }
+            const missing = missingStarterArt(artDir, starter.emulation);
+            if (0 === missing.length) {
+                return true;
+            }
+            notes[starter.emulation].push(
+                `the art could not be installed${copyError}; not in ${artDir}: ${missing.join(', ')}. ${_.upperFirst(starter.callers)} will see the standard menus: the TE[${starter.emulation}] branch was NOT added to the connect menu. Without the art the ${starter.label} menus are blank and take no keys. To use them, copy the files in ${starter.artSourceDir} to ${artDir}, then add the branch to telnetConnected yourself (see the ${starter.label} documentation)`
+            );
+            return false;
+        });
+
         includeFilesIn.forEach(incFile => {
             const outName = `${boardName}-${incFile.replace('.in', '')}`;
             includeFiles.push(outName);
 
             //  with a starter, the connect menu branches to it (#593)
-            if (starters.length > 0 && 'login.in.hjson' === incFile) {
+            if (branched.length > 0 && 'login.in.hjson' === incFile) {
                 const why = writeStarterLoginMenu(
                     paths.join(__dirname, '../../misc/menu_templates', incFile),
                     paths.join(InstallConfigDir, 'menus', outName),
-                    starters
+                    branched
                 );
                 _.forEach(why, (note, emulation) => notes[emulation].push(note));
                 return;
@@ -640,24 +689,19 @@ function buildNewConfig(dirs = {}, done = _.noop) {
             const outName = `${boardName}-${starter.menuTemplate.replace('.in', '')}`;
             includeFiles.push(outName);
 
+            const menuPath = paths.join(InstallConfigDir, 'menus', outName);
+            const menuExisted = fs.existsSync(menuPath);
             copyFileSyncSilent(
                 paths.join(__dirname, '../../misc/menu_templates', starter.menuTemplate),
-                paths.join(InstallConfigDir, 'menus', outName),
+                menuPath,
                 fs.constants.COPYFILE_EXCL
             );
 
-            //  art only (RIP): into the general art directory
+            //  art only (RIP): copied above
             if (starter.artSourceDir) {
-                try {
-                    const kept = copyStarterArt(artDir, starter.emulation);
-                    if (kept.length > 0) {
-                        console.info(
-                            `${kept.join(', ')} already in ${artDir}; left as is`
-                        );
-                    }
-                } catch (e) {
+                if (menuExisted) {
                     notes[starter.emulation].push(
-                        `the starter art could not be copied to ${artDir} (${e.message}); copy the files in ${starter.artSourceDir} there yourself (see the ${starter.label} documentation)`
+                        `${menuPath} already exists and was kept; it must define ${starter.afterConnectMenu} (and the other ${starter.label} menus), or ${starter.callers} will be sent to a menu that does not exist`
                     );
                 }
                 return;

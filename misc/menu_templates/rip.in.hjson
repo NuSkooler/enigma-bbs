@@ -24,6 +24,13 @@
         matrix. "config new" writes that branch; on an existing board,
         change telnetConnected's "next" by hand (see the documentation).
 
+        The three button screens use queued interrupts (the default):
+        pages, node messages and achievement pop-ups that arrive while the
+        caller is on one wait, and are shown on arrival at the next menu
+        the caller moves to. The stock main menu sets "interrupt: realtime",
+        which shows them at once; add that to a menu's config here if you
+        want it.
+
         Each button sends one key, without Enter, and the menu binds that
         key, so typing it does the same as clicking. Buttons have no RIP
         hotkey of their own.
