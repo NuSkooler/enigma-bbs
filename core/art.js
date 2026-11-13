@@ -875,10 +875,6 @@ function display(client, art, options, cb) {
     //  native art: every byte as it is, written in one piece on completion
     const nativeChunks = native ? [] : null;
 
-    //  RIP art: a command line was found (drip display marks the session as
-    //  the pieces are sent: see ClientTerminal's ripDripWrite())
-    let sawRipCommand = false;
-
     //  RIP art goes out unfiltered, all of it; anything else is ENiGMA's
     //  ANSI output as usual
     const write = rip
@@ -911,17 +907,9 @@ function display(client, art, options, cb) {
     //
     //  RIP art only: a command line, as it is (line breaks too). RIP is bytes
     //  (CP437 as the art was read), whatever the session's encoding is.
-    //  The session is marked as showing a RIP screen once the first command
-    //  is handed to the terminal, so that leaving it clears its mouse fields
-    //  even if the display fails or is cut short after this.
     //
     parser.on('rip', command => {
         const encoded = iconv.encode(command, 'cp437');
-        if (drip) {
-            sawRipCommand = true;
-        } else {
-            client.term.ripScreenShown();
-        }
         if (drip) {
             dripChunks.push(encoded);
         } else {
@@ -962,7 +950,7 @@ function display(client, art, options, cb) {
                 Buffer.concat(dripChunks),
                 bytesPerSec,
                 err => cb(err, mciMap, extraInfo),
-                sawRipCommand
+                true
             );
         }
 
@@ -1022,8 +1010,34 @@ function display(client, art, options, cb) {
         }
     }
 
+    //
+    //  Anything shown as RIP art may have left mouse fields behind, whether
+    //  or not a command line was recognised in it: a terminal can run a
+    //  command the parser took as text (mid-line on SyncTERM 1.10, say). The
+    //  session is marked before the first byte goes, so leaving the screen
+    //  clears them even if the display fails part way.
+    //
+    if (rip && !drip) {
+        client.term.ripScreenShown();
+    }
+
     parser.reset(art);
-    return parser.parse();
+    if (!rip) {
+        return parser.parse();
+    }
+
+    //  one command line of many megabytes overflows the stack in the
+    //  parser's expression; that is a bad file, not a reason to bring the
+    //  board down
+    try {
+        return parser.parse();
+    } catch (e) {
+        if (!(e instanceof RangeError)) {
+            throw e;
+        }
+        parser.removeAllListeners();
+        return cb(Errors.Invalid(`RIP art cannot be parsed: ${e.message}`));
+    }
 }
 
 const _ABS_POS_RE = /\x1b\[\d+(?:;\d+)?[Hf]/;

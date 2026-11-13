@@ -1007,10 +1007,34 @@ describe('RIPscrip art (.rip, #989)', function () {
                 assert.equal(s.sent(), KILL);
             });
 
-            it('is not set by art with no RIP in it, shown as RIP', async function () {
-                const { s, info } = await ripArt('just text\r\n');
-                await show(s.client, info.data, { rip: info.rip });
-                assert.equal(marked(s), false);
+            //  a terminal can run a command the parser took as text (mid-line
+            //  on SyncTERM 1.10), so being shown as RIP is what counts
+            it('is set by anything shown as RIP, command line found or not', async function () {
+                for (const text of [
+                    'just text\r\n',
+                    '\x1b[2J!|1M00\r\n',
+                    '\x1b[0m!|1M00\r\n',
+                    'hello \x01|1M00\r\n',
+                ]) {
+                    const { s, info } = await ripArt(text);
+                    await show(s.client, info.data, { rip: info.rip });
+                    assert.equal(marked(s), true, JSON.stringify(text));
+                }
+            });
+
+            it('a command line too long to parse: an error, once, and no throw', function (done) {
+                ripArt('!|' + 'a'.repeat(9 * 1024 * 1024)).then(({ s, info }) => {
+                    let calls = 0;
+                    art.display(s.client, info.data, { rip: info.rip }, err => {
+                        calls += 1;
+                        assert.ok(err);
+                        assert.equal(marked(s), true);
+                        setImmediate(() => {
+                            assert.equal(calls, 1);
+                            done();
+                        });
+                    });
+                }, done);
             });
 
             describe('with baud emulation', function () {
@@ -1060,7 +1084,7 @@ describe('RIPscrip art (.rip, #989)', function () {
                     assert.equal(marked(s), true);
                 });
 
-                it('art with no RIP in it, dripped as RIP: never marked', async function () {
+                it('art with no RIP in it, dripped as RIP: marked all the same', async function () {
                     const { s, info } = await ripArt('just text\r\n');
                     const done = show(s.client, info.data, {
                         rip: info.rip,
@@ -1068,7 +1092,7 @@ describe('RIPscrip art (.rip, #989)', function () {
                     });
                     timers.runAll();
                     await done;
-                    assert.equal(marked(s), false);
+                    assert.equal(marked(s), true);
                 });
             });
         });
