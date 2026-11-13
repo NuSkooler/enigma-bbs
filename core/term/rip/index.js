@@ -8,9 +8,10 @@ const { createRipOutputFilter } = require('./output_filter.js');
 //  terminal that draws RIPscrip graphics (SyncTERM with RIP enabled for the
 //  entry, IcyTerm in RIP mode). See ../emulation.js for what a layer is.
 //
-//  The layer says the terminal is there, and filters what is sent to it so
-//  that only RIP ENiGMA means to send is run (./output_filter.js). Art and
-//  menus come later. Node built-ins only; no ENiGMA imports.
+//  The layer says the terminal is there, filters what is sent to it so that
+//  only RIP ENiGMA means to send is run (./output_filter.js), and makes
+//  '.rip' art preferred (see core/art.js). Menus come later. Node built-ins
+//  only; no ENiGMA imports.
 //
 //  DETECTION
 //  ---------
@@ -64,6 +65,25 @@ const REPLY_DIGITS = 6;
 
 const LAYER_NAME = 'rip';
 
+//  The art type a RIP session prefers, ahead of what ANSI would get
+const ART_TYPE = '.rip';
+
+//
+//  RIP_KILL_MOUSE_FIELDS: makes the terminal forget every mouse field
+//  (button, click region) drawn so far. A clear screen (ESC[2J) removes the
+//  drawing but leaves the fields live, invisible and clickable, on SyncTERM
+//  and IcyTerm alike (seen 2026-11-12), so this goes out when a session
+//  leaves a screen a '.rip' was shown on (see ClientTerminal's
+//  leaveRipScreen()). A command runs only at the start of a line on every
+//  terminal tested, hence the CR LF in front; the CR LF after it ends the
+//  command and is taken by the terminal with it. This form was seen working.
+//
+//  ENiGMA never sends RIP_RESET_WINDOWS (!|*) or a text window (!|w): either
+//  one makes SyncTERM 1.10a/1.10b stop sending keys for the rest of the call
+//  (the screen rebuild loses its keystroke callback; upstream bug).
+//
+const RIP_KILL_MOUSE_FIELDS = '\r\n!|1K\r\n';
+
 //
 //  The major version a reply names: RIPSCRIP015410 -> 1, RIPSCRIP030001 -> 3;
 //  undefined when |reply| is not one.
@@ -89,6 +109,11 @@ function majorVersionOf(reply) {
 //      majorVersion    1, 3, ... from |version|
 //      source          how it was first found: 'termType' | 'probe'
 //      supports(q)     true for 'rip'
+//      artTypes        '.rip' preferred over everything ANSI would get
+//      mouseFieldsShown
+//                      true once a '.rip' has been shown, until the session
+//                      leaves that screen (see ClientTerminal's
+//                      ripScreenShown() and leaveRipScreen())
 //      createOutputFilter()
 //                      the session's output filter (./output_filter.js),
 //                      made by the emulation when the layer is attached
@@ -100,6 +125,8 @@ function createRipLayer({ version, source } = {}) {
         majorVersion: undefined,
         source,
         supports: query => LAYER_NAME === query,
+        artTypes: { preferred: [[ART_TYPE]] },
+        mouseFieldsShown: false,
         createOutputFilter: createRipOutputFilter,
         setVersion(reply) {
             const major = majorVersionOf(reply);
@@ -119,6 +146,8 @@ function createRipLayer({ version, source } = {}) {
 
 module.exports = {
     LAYER_NAME,
+    ART_TYPE,
+    RIP_KILL_MOUSE_FIELDS,
     VERSION_QUERY,
     VERSION_PROBE,
     REPLY_PREFIX,

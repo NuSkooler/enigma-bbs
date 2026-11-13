@@ -203,6 +203,18 @@ module.exports = class MenuStack {
                     modInst.restoreSavedState(options.savedState);
                 }
 
+                //
+                //  Leaving the screen the menu before drew: when that was a
+                //  .rip, its mouse fields would stay live (clearing the screen
+                //  does not end them) and fire on this menu's screen, so the
+                //  terminal is told to forget them, before anything of this
+                //  menu (its clear screen included) is sent. Nothing at all
+                //  for a session that was not shown a .rip.
+                //
+                if (_.isFunction(_.get(this.client, 'term.leaveRipScreen'))) {
+                    this.client.term.leaveRipScreen();
+                }
+
                 if (this.client.log.level() <= bunyan.TRACE) {
                     const stackEntries = this.stack.map(stackEntry => {
                         let name = stackEntry.name;

@@ -185,19 +185,23 @@ function timeUpLogoff(client, cb) {
         return plainAndEnd();
     }
 
-    //  the menu shows native art (.seq, .ata) too, so it counts as being there
-    theme.getThemeArt({ client, name: artSpec, acceptNative: true }, err => {
-        if (err) {
-            return plainAndEnd(); //  the menu is there; its art is not
-        }
-
-        client.menuStack.goto(MenuName, err => {
+    //  the menu shows native art (.seq, .ata) and RIP art too, so it counts as
+    //  being there
+    theme.getThemeArt(
+        { client, name: artSpec, acceptNative: true, acceptRip: true },
+        err => {
             if (err) {
-                return plainAndEnd();
+                return plainAndEnd(); //  the menu is there; its art is not
             }
-            return done('menu');
-        });
-    });
+
+            client.menuStack.goto(MenuName, err => {
+                if (err) {
+                    return plainAndEnd();
+                }
+                return done('menu');
+            });
+        }
+    );
 }
 
 module.exports.timeUpLogoff = timeUpLogoff;

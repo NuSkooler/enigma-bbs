@@ -9,6 +9,7 @@ const aep = require('./ansi_escape_parser.js');
 const sauce = require('./sauce.js');
 const { Errors } = require('./enig_error.js');
 const { emulationOf } = require('./term');
+const { LAYER_NAME: RIP_LAYER } = require('./term/rip');
 const { PetsciiArtParser, petsciiArtToText } = require('./term/petscii/art_parser.js');
 const { AtasciiArtParser, atasciiArtToText } = require('./term/atascii/art_parser.js');
 
@@ -24,6 +25,7 @@ exports.getArtTypePolicy = getArtTypePolicy;
 exports.display = display;
 exports.paginate = paginate;
 exports.defaultEncodingFromExtension = defaultEncodingFromExtension;
+exports.nameHasPath = nameHasPath;
 
 //  :TODO: Return MCI code information
 //  :TODO: process SAUCE comments
@@ -50,7 +52,37 @@ const SUPPORTED_ART_TYPES = {
     //
     '.seq': { name: 'PETSCII', native: 'petscii' },
     '.ata': { name: 'ATASCII', native: 'atascii' },
+
+    //
+    //  RIPscrip art (#989): RIP command lines mixed with ANSI text, for a
+    //  session with the RIP layer only, and only from callers that ask for
+    //  it (|acceptRip|). See RIP ART below. |rip| holds what applies when it
+    //  is shown as RIP; anywhere else a .rip file is read exactly as before
+    //  the type existed (an unknown extension: UTF-8, no EOF marker).
+    //
+    '.rip': { name: 'RIPscrip', rip: { defaultEncoding: 'cp437', eof: 0x1a } },
 };
+
+//
+//  RIP ART
+//  -------
+//  A .rip file is operator-installed and trusted: its RIP commands go to the
+//  terminal unfiltered (ClientTerminal's writeUnfilteredRip()), around the
+//  RIP output filter that keeps RIP out of everything else ENiGMA sends.
+//  That is only safe for a file the operator put in place AND chose, so:
+//
+//  * getArtFromPath() marks art as RIP (|rip|: TRUSTED_RIP_ART) only when
+//    the file's extension is .rip, the caller passed |acceptRip| true, and
+//    the session has the RIP layer. Without the mark, a .rip file is text,
+//    and goes through the filter like any other.
+//  * Only theme art passes |acceptRip| (core/theme.js: displayThemeArt()
+//    and the menu module's paged art), and theme.js never passes it for an
+//    art name holding a path, nor for a caller that says its name may come
+//    from a user (|acceptRip| false; show_art's extraArgs).
+//  * display() takes the RIP path only for the mark itself, which is a
+//    Symbol: no configuration, form data or other value can carry it.
+//
+const TRUSTED_RIP_ART = Symbol('trusted .rip art');
 
 //
 //  Per emulation, what native art needs:
@@ -138,6 +170,29 @@ function isNativeArtEncoding(encoding) {
 function nativeEmulationOfType(ext) {
     const artType = SUPPORTED_ART_TYPES[ext];
     return artType ? artType.native : undefined;
+}
+
+//  is |ext| RIP art (shown only to a session with the RIP layer)?
+function isRipArtType(ext) {
+    const artType = SUPPORTED_ART_TYPES[ext];
+    return Boolean(artType && artType.rip);
+}
+
+//  does |name| hold a path (a separator, or an absolute name)? RIP art is
+//  never trusted by such a name: see RIP ART
+function nameHasPath(name) {
+    return _.isString(name) && (/[\\/]/.test(name) || paths.isAbsolute(name));
+}
+
+//  does |term|'s session have the RIP layer?
+function termHasRip(term) {
+    const emulation = emulationOf(term);
+    return _.isFunction(emulation.hasLayer) && emulation.hasLayer(RIP_LAYER);
+}
+
+//  may |options| (for getArt() / getArtFromPath()) be given RIP art?
+function acceptsRipArt(options) {
+    return true === options.acceptRip && termHasRip(_.get(options, 'client.term'));
 }
 
 function getFontNameFromSAUCE(sauce) {
@@ -267,10 +322,17 @@ function getArtFromPath(path, options, cb) {
             return cb(null, getNativeArt(path, data, nativeEmulation, options));
         }
 
+        //  RIP art, to be shown as RIP (see RIP ART above); otherwise, a .rip
+        //  file is read as any file of an unknown type is
+        const ripArt =
+            isRipArtType(ext) && acceptsRipArt(options)
+                ? SUPPORTED_ART_TYPES[ext].rip
+                : null;
+
         //  a native art encoding ('petscii_upper', 'atascii') says nothing about this type
         const encoding =
             (!isNativeArtEncoding(options.encodedAs) && options.encodedAs) ||
-            defaultEncodingFromExtension(ext);
+            (ripArt ? ripArt.defaultEncoding : defaultEncodingFromExtension(ext));
 
         //  :TODO: how are BOM's currently handled if present? Are they removed? Do we need to?
 
@@ -279,7 +341,7 @@ function getArtFromPath(path, options, cb) {
             if (options.fullFile === true) {
                 decoded = iconv.decode(data, encoding);
             } else {
-                const eofMarker = defaultEofFromExtension(ext);
+                const eofMarker = ripArt ? ripArt.eof : defaultEofFromExtension(ext);
                 decoded = iconv.decode(
                     eofMarker ? sliceAtEOF(data, eofMarker) : data,
                     encoding
@@ -301,6 +363,10 @@ function getArtFromPath(path, options, cb) {
 
             if (sauce) {
                 result.sauce = sauce;
+            }
+
+            if (ripArt) {
+                result.rip = TRUSTED_RIP_ART;
             }
 
             return result;
@@ -425,8 +491,19 @@ function getArtTypePolicy(client, types) {
     return { allowed, preferred };
 }
 
+//  |options.types| lists getArt() made up itself (every supported type), as
+//  opposed to ones a caller asked for
+const defaultTypeLists = new WeakSet();
+
 function getArt(name, options, cb) {
     const ext = paths.extname(name);
+
+    //  defence in depth (core/theme.js does this too): a name holding a path
+    //  is never trusted RIP art. Theme lookups give a bare name and a base
+    //  path, which is unaffected.
+    if (nameHasPath(name)) {
+        options.acceptRip = false;
+    }
 
     //  Only consult Config when no base path was given.
     if (undefined === options.basePath) {
@@ -441,6 +518,7 @@ function getArt(name, options, cb) {
     } else {
         if (options.types === undefined) {
             options.types = Object.keys(SUPPORTED_ART_TYPES);
+            defaultTypeLists.add(options.types);
         } else if (_.isString(options.types)) {
             options.types = [options.types.toLowerCase()];
         }
@@ -459,12 +537,19 @@ function getArt(name, options, cb) {
             return cb(err);
         }
 
-        //  native types only for a caller that can show native art
+        //  native types only for a caller that can show native art, and RIP
+        //  art only for one that shows it as such (see RIP ART above). A
+        //  caller that names '.rip' among its |types| gets what it did before
+        //  the type existed: the file, as text.
+        const ripTypeAllowed =
+            acceptsRipArt(options) || !defaultTypeLists.has(options.types);
         const policy = getArtTypePolicy(
             options.client,
-            true === options.acceptNative
-                ? options.types
-                : options.types.filter(t => !nativeEmulationOfType(t))
+            options.types.filter(
+                t =>
+                    (true === options.acceptNative || !nativeEmulationOfType(t)) &&
+                    (ripTypeAllowed || !isRipArtType(t))
+            )
         );
 
         const filtered = files.filter(file => {
@@ -584,6 +669,25 @@ function canDisplayNative(client, native) {
     );
 }
 
+//
+//  Can |client|'s session show art marked |rip| as RIP? Only the mark
+//  getArtFromPath() sets, and only for a session with the RIP layer.
+//
+function canDisplayRip(client, rip) {
+    const term = client.term;
+    return (
+        TRUSTED_RIP_ART === rip &&
+        termHasRip(term) &&
+        _.isFunction(term.writeUnfilteredRip) &&
+        _.isFunction(term.ripDripWrite) &&
+        _.isFunction(term.ripScreenShown)
+    );
+}
+
+//  a RIP command at the very start of |art| (see RIP_COMMAND_RE_SOURCE in
+//  core/ansi_escape_parser.js)
+const RIP_COMMAND_FIRST_RE = /^[\x21\x01\x02]\|/; //  eslint-disable-line no-control-regex
+
 //  :TODO: Implement the following
 //  * Pause (disabled | termHeight | keyPress )
 //  * Cancel (disabled | <keys> )
@@ -594,6 +698,14 @@ function canDisplayNative(client, native) {
 //  for a session of its emulation, with MCI codes found by that emulation's
 //  parser; any other session (an explicit 'NAME.seq' or 'NAME.ata', a forced
 //  theme) gets it as plain text through the ANSI path, never its raw bytes.
+//
+//  With |options.rip| set to the mark getArtFromPath() gives RIP art (see RIP
+//  ART above), and a session with the RIP layer, |art| is shown as RIP: all
+//  of it goes out unfiltered (writeUnfilteredRip(), ripDripWrite()), and the
+//  parser takes its RIP command lines as zero-width, so that MCI codes in
+//  its text parts land where the terminal draws them. Anything else in
+//  |options.rip| is ignored: the art is shown as ANSI text, filtered for a
+//  RIP session.
 //
 function display(client, art, options, cb) {
     if (_.isFunction(options) && !cb) {
@@ -613,6 +725,9 @@ function display(client, art, options, cb) {
         const text = toText ? toText(art, native, client.term.termWidth) : '';
         return display(client, text, textOptions, cb);
     }
+
+    //  RIP art: native art never is, and the mark is the only way in
+    const rip = !native && canDisplayRip(client, options.rip);
 
     options.mciReplaceChar = options.mciReplaceChar || ' ';
 
@@ -643,6 +758,7 @@ function display(client, art, options, cb) {
               artWidth: getWidthFromSAUCE(options.sauce),
               trailingLF: options.trailingLF,
               startRow: options.startRow,
+              ripCommands: rip,
           });
 
     const mciMap = {};
@@ -759,6 +875,12 @@ function display(client, art, options, cb) {
     //  native art: every byte as it is, written in one piece on completion
     const nativeChunks = native ? [] : null;
 
+    //  RIP art goes out unfiltered, all of it; anything else is ENiGMA's
+    //  ANSI output as usual
+    const write = rip
+        ? data => client.term.writeUnfilteredRip(data)
+        : data => client.term.rawWrite(data);
+
     parser.on('literal', literal => {
         if (native) {
             return nativeChunks.push(literal);
@@ -767,7 +889,7 @@ function display(client, art, options, cb) {
         if (drip) {
             dripChunks.push(encoded);
         } else {
-            client.term.rawWrite(encoded);
+            write(encoded);
         }
     });
 
@@ -778,11 +900,29 @@ function display(client, art, options, cb) {
         if (drip) {
             dripChunks.push(Buffer.isBuffer(control) ? control : Buffer.from(control));
         } else {
-            client.term.rawWrite(control);
+            write(rip && !Buffer.isBuffer(control) ? Buffer.from(control) : control);
         }
     });
 
+    //
+    //  RIP art only: a command line, as it is (line breaks too). RIP is bytes
+    //  (CP437 as the art was read), whatever the session's encoding is.
+    //
+    parser.on('rip', command => {
+        const encoded = iconv.encode(command, 'cp437');
+        if (drip) {
+            dripChunks.push(encoded);
+        } else {
+            write(encoded);
+        }
+    });
+
+    //  set once the parser is done: from there on, what is thrown comes from
+    //  |cb|, which has been called
+    let completed = false;
+
     parser.on('complete', () => {
+        completed = true;
         parser.removeAllListeners();
 
         const extraInfo = {
@@ -804,6 +944,18 @@ function display(client, art, options, cb) {
                 nativeOptions,
                 bytesPerSec,
                 err => cb(err, mciMap, extraInfo)
+            );
+        }
+
+        if (rip) {
+            if (!drip) {
+                return cb(null, mciMap, extraInfo);
+            }
+            return client.term.ripDripWrite(
+                Buffer.concat(dripChunks),
+                bytesPerSec,
+                err => cb(err, mciMap, extraInfo),
+                true
             );
         }
 
@@ -847,8 +999,50 @@ function display(client, art, options, cb) {
         client.term.rawWrite(initSeq);
     }
 
+    //
+    //  A RIP command runs only at the start of a line (after a CR or LF on
+    //  the wire; SyncTERM 1.8 and IcyTerm do not take the left margin as
+    //  one), and what came before is unknown: often a clear screen and
+    //  cursor home. A CR in front of art that starts with a command makes
+    //  sure it runs, and moves nothing: the parser takes the art as starting
+    //  at column 1 anyway.
+    //
+    if (rip && RIP_COMMAND_FIRST_RE.test(art)) {
+        if (drip) {
+            dripChunks.push(Buffer.from('\r'));
+        } else {
+            write(Buffer.from('\r'));
+        }
+    }
+
+    //
+    //  Anything shown as RIP art may have left mouse fields behind, whether
+    //  or not a command line was recognised in it: a terminal can run a
+    //  command the parser took as text (mid-line on SyncTERM 1.10, say). The
+    //  session is marked before any of the art goes, so leaving the screen
+    //  clears them even if the display fails part way.
+    //
+    if (rip && !drip) {
+        client.term.ripScreenShown();
+    }
+
     parser.reset(art);
-    return parser.parse();
+    if (!rip) {
+        return parser.parse();
+    }
+
+    //  one command line of many megabytes overflows the stack in the
+    //  parser's expression; that is a bad file, not a reason to bring the
+    //  board down
+    try {
+        return parser.parse();
+    } catch (e) {
+        if (completed || !(e instanceof RangeError)) {
+            throw e;
+        }
+        parser.removeAllListeners();
+        return cb(Errors.Invalid(`RIP art cannot be parsed: ${e.message}`));
+    }
 }
 
 const _ABS_POS_RE = /\x1b\[\d+(?:;\d+)?[Hf]/;
