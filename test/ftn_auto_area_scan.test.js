@@ -69,12 +69,12 @@ function makeConfig({ packetPassword } = {}) {
     };
 }
 
-function makeHeader({ password = '' } = {}) {
+function makeHeader({ password = '', zone = LOCAL_ZONE } = {}) {
     const ph = new PacketHeader();
-    ph.origZone = 21;
+    ph.origZone = zone;
     ph.origNet = 1;
     ph.origNode = 100;
-    ph.destZone = LOCAL_ZONE;
+    ph.destZone = zone;
     ph.destNet = LOCAL_NET;
     ph.destNode = LOCAL_NODE;
     ph.password = password;
@@ -284,7 +284,7 @@ describe('FTN automatic area creation: end to end', () => {
         delete require.cache[FTN_BSO_PATH];
     });
 
-    function writeConfigHjson(autoAreas) {
+    function writeConfigHjson(autoAreas, otherNetworks = {}) {
         const config = {
             includes: [autoAreaCreate.GeneratedIncludeFileName],
             debug: { assertsEnabled: false },
@@ -305,6 +305,7 @@ describe('FTN automatic area creation: end to end', () => {
                 ftn: {
                     networks: {
                         fsxnet: Object.assign({ localAddress: '21:1/121' }, autoAreas),
+                        ...otherNetworks,
                     },
                     areas: {
                         fsx_gen: {
@@ -528,6 +529,36 @@ describe('FTN automatic area creation: end to end', () => {
 
         //  ...and the packet is left for the import, as before
         assert.ok(fs.existsSync(paths.join(tempDir, 'in', 'e2e00005.pkt')));
+    });
+
+    it('says nothing about unsecure mail for a network that does not create areas', async () => {
+        writeConfigHjson(
+            { autoAreas: { confTag: 'fsxnet', onDemand: { enabled: true } } },
+            { othernet: { localAddress: '99:1/121' } }
+        );
+        await loadConfig();
+
+        await writePacket('e2e00007.pkt', makeHeader({ zone: 99 }), [
+            makeEchoMessage('OTHER_TAG', 'unknown'),
+        ]);
+
+        const Log = require('../core/logger.js').log;
+        const warned = [];
+        const priorWarn = Log.warn;
+        Log.warn = (...args) => warned.push(args);
+        const inst = makeModule();
+        try {
+            await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+        } finally {
+            Log.warn = priorWarn;
+        }
+
+        assert.deepEqual(
+            warned.filter(a => /unsecure inbound/.test(a[a.length - 1])),
+            [],
+            'no unsecure-inbound warning for a network without auto areas'
+        );
+        assert.ok(!inst._autoAreaUnsecureWarned, 'the once-only warning is still unused');
     });
 
     it('mail in the unsecure inbound creates areas when secureInOnly is false', async () => {

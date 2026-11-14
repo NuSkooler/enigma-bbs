@@ -6405,6 +6405,9 @@ FTNMessageScanTossModule.prototype.maybeAutoCreateAreas = function (cb) {
         },
         () => {
             Object.keys(collectedInsecure).forEach(networkName => {
+                if (!networkNames.includes(networkName)) {
+                    return; //  this network does not create areas at all
+                }
                 if (secureOnly(networkName)) {
                     //  say it once, then stay quiet until the config changes
                     const level = self._autoAreaUnsecureWarned ? 'debug' : 'warn';
