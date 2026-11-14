@@ -1,7 +1,7 @@
 'use strict';
 
 const Config = require('../config').get;
-const { readTextBody, isTooLarge } = require('../http_body');
+const { readTextBody, isTooLarge, closeAfterResponse } = require('../http_body');
 
 exports.jsonResponse = jsonResponse;
 exports.problemDetail = problemDetail;
@@ -101,6 +101,7 @@ function parseJsonBody(req, cb, maxBytes = MAX_JSON_BODY) {
 //  Respond to a parseJsonBody() error: 413 when over the cap, otherwise 400.
 function respondBodyError(resp, err, detail) {
     if (isTooLarge(err)) {
+        closeAfterResponse(resp);
         return problemDetail(resp, 413, 'Payload Too Large', err.message);
     }
     return problemDetail(resp, 400, 'Bad Request', detail || err.message);

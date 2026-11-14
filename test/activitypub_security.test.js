@@ -1040,17 +1040,15 @@ describe('readInboxBody()', function () {
         });
     });
 
-    it('destroys the request when the limit is exceeded', done => {
+    it('stops reading the request when the limit is exceeded', done => {
         const req = makeFakeReq(['x'.repeat(200)]);
+        let paused = false;
+        req.pause = () => (paused = true);
         readInboxBody(req, 100, err => {
             assert.ok(err);
-            //  closed on the following turn, once the caller has written its 413
-            setImmediate(() =>
-                setImmediate(() => {
-                    assert.ok(req.destroyed, 'req.destroy() should have been called');
-                    done();
-                })
-            );
+            //  the 413 response closes the connection once it has been sent
+            assert.ok(paused, 'req.pause() should have been called');
+            done();
         });
     });
 

@@ -50,8 +50,14 @@ function readBody(req, maxBytes, cb) {
             err.code = exports.ErrorCodes.TooLarge;
             //  Report first so the caller can write its 413; then close the
             //  connection once that response has been flushed.
+            //  Stop reading, and report. The caller writes its 413 and closes
+            //  the connection once that has gone out (closeAfterResponse());
+            //  the timer closes it anyway should no response ever be written.
+            if (typeof req.pause === 'function') {
+                req.pause();
+            }
             finish(err);
-            closeAfterResponse(req);
+            setTimeout(() => destroyConnection(req), UnansweredCloseMs).unref();
             return;
         }
         chunks.push(chunk);
@@ -66,20 +72,46 @@ function readBody(req, maxBytes, cb) {
     });
 }
 
-//
-//  Close |req|'s connection on the next turn, once whatever response the
-//  caller writes now has been flushed. For a request refused before its body
-//  is read (413): left open, the server would go on reading and discarding
-//  the whole body.
-//
-function closeAfterResponse(req) {
-    setImmediate(() => {
-        if (req.socket && typeof req.socket.destroySoon === 'function') {
-            req.socket.destroySoon();
-        } else if (typeof req.destroy === 'function') {
-            req.destroy();
+//  How long a request refused for its size may wait for a response before
+//  its connection is closed regardless
+const UnansweredCloseMs = 30 * 1000;
+
+function destroyConnection(req) {
+    const socket = req.socket;
+    if (socket && !socket.destroyed) {
+        if (typeof socket.destroySoon === 'function') {
+            return socket.destroySoon();
         }
-    });
+        return socket.destroy();
+    }
+    if (!socket && typeof req.destroy === 'function' && !req.destroyed) {
+        req.destroy();
+    }
+}
+
+//
+//  Close the connection |resp| answers once |resp| has been sent. For a
+//  request refused before its body was read through (413): left open, the
+//  server would go on reading and discarding the rest of the body. Waiting
+//  for 'finish' rather than a timer matters: a responder may do I/O of its
+//  own (an error page read from disk) before it writes anything.
+//
+function closeAfterResponse(resp) {
+    if (!resp) {
+        return;
+    }
+    if (!resp.headersSent && typeof resp.setHeader === 'function') {
+        resp.setHeader('Connection', 'close');
+    }
+    const req = resp.req || { socket: resp.socket };
+    const close = () => destroyConnection(req);
+    if (resp.writableFinished) {
+        return close();
+    }
+    if (typeof resp.once === 'function') {
+        resp.once('finish', close);
+        resp.once('close', close);
+    }
 }
 
 function readTextBody(req, maxBytes, cb) {

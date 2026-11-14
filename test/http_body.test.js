@@ -3,7 +3,9 @@
 const { strict: assert } = require('assert');
 const { EventEmitter } = require('events');
 
-const { readBody, readTextBody } = require('../core/http_body.js');
+const http = require('http');
+
+const { readBody, readTextBody, closeAfterResponse } = require('../core/http_body.js');
 
 function fakeReq() {
     const req = new EventEmitter();
@@ -29,8 +31,10 @@ describe('http_body', function () {
             req.emit('end');
         });
 
-        it('reports ENTITY_TOO_LARGE once, then closes the connection', function (done) {
+        it('reports ENTITY_TOO_LARGE once and stops reading', function (done) {
             const req = fakeReq();
+            let paused = false;
+            req.pause = () => (paused = true);
             const calls = [];
             readBody(req, 8, (err, buf) => {
                 calls.push({ err, buf });
@@ -43,8 +47,9 @@ describe('http_body', function () {
             setImmediate(() => {
                 assert.equal(calls.length, 1);
                 assert.equal(calls[0].err.code, 'ENTITY_TOO_LARGE');
-                assert.equal(req.destroyed, true);
-                assert.equal(calls.length, 1);
+                assert.equal(paused, true);
+                //  closing is left to the response (closeAfterResponse())
+                assert.equal(req.destroyed, false);
                 done();
             });
         });
@@ -107,6 +112,77 @@ describe('http_body', function () {
                 req.emit('data', Buffer.from([b]));
             }
             req.emit('end');
+        });
+    });
+
+    describe('closeAfterResponse()', function () {
+        //  A server whose 413 is written only after a delay, as one read from
+        //  disk would be, then the connection closed once it has gone out.
+        function startServer(delayMs, cb) {
+            const server = http.createServer((req, resp) => {
+                readBody(req, 1024, err => {
+                    if (!err) {
+                        resp.writeHead(200);
+                        return resp.end('ok');
+                    }
+                    closeAfterResponse(resp);
+                    setTimeout(() => {
+                        resp.writeHead(413, { 'Content-Type': 'text/plain' });
+                        resp.end('too large');
+                    }, delayMs);
+                });
+            });
+            server.listen(0, '127.0.0.1', () => cb(server));
+        }
+
+        function post(port, bytes, cb) {
+            const req = http.request(
+                { host: '127.0.0.1', port, method: 'POST', path: '/' },
+                resp => {
+                    let body = '';
+                    resp.on('data', c => (body += c));
+                    resp.on('end', () => cb(null, resp, body));
+                }
+            );
+            req.on('error', err => cb(err));
+            req.end(Buffer.alloc(bytes, 0x61));
+        }
+
+        it('delivers a 413 written after a delay, then closes the connection', function (done) {
+            startServer(30, server => {
+                post(server.address().port, 64 * 1024, (err, resp, body) => {
+                    server.close();
+                    assert.ifError(err);
+                    assert.equal(resp.statusCode, 413);
+                    assert.equal(body, 'too large');
+                    assert.equal(resp.headers.connection, 'close');
+                    done();
+                });
+            });
+        });
+
+        it('leaves an ordinary request alone', function (done) {
+            startServer(0, server => {
+                post(server.address().port, 10, (err, resp, body) => {
+                    server.close();
+                    assert.ifError(err);
+                    assert.equal(resp.statusCode, 200);
+                    assert.equal(body, 'ok');
+                    done();
+                });
+            });
+        });
+
+        it('closes at once when the response has already been sent', function () {
+            let destroyed = false;
+            closeAfterResponse({
+                headersSent: true,
+                writableFinished: true,
+                req: {
+                    socket: { destroyed: false, destroySoon: () => (destroyed = true) },
+                },
+            });
+            assert.ok(destroyed);
         });
     });
 });

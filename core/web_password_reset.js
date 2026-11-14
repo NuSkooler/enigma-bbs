@@ -340,12 +340,7 @@ class WebPasswordReset {
         readTextBody(req, MaxFormBodyBytes, (err, bodyData) => {
             if (err) {
                 if (isTooLarge(err)) {
-                    return webServer.instance.respondWithError(
-                        resp,
-                        413,
-                        'Payload Too Large.',
-                        'Payload Too Large'
-                    );
+                    return webServer.instance.requestEntityTooLarge(resp);
                 }
                 return; //  client went away or request errored
             }

@@ -498,6 +498,7 @@ function _uploadHandler(req, resp, log) {
             _parseMultipartUpload(req, resp, log, (err, uploadInfo) => {
                 if (err) {
                     if (err.code === ErrorCodes.TooLarge) {
+                        closeAfterResponse(resp);
                         return problemDetail(resp, 413, 'Payload Too Large', err.message);
                     }
                     return problemDetail(resp, 400, 'Bad Request', err.message);
@@ -663,7 +664,7 @@ function _parseMultipartUpload(req, resp, log, cb) {
 
     const declared = parseInt(req.headers['content-length'], 10);
     if (declared > MAX_UPLOAD_BYTES) {
-        closeAfterResponse(req);
+        //  refused before the body is read; the 413 closes the connection
         return cb(tooLargeError());
     }
 
