@@ -20,6 +20,7 @@ const msgDb = require('../database.js').dbs.message;
 const Message = require('../message.js');
 const TicFileInfo = require('../tic_file_info.js');
 const Errors = require('../enig_error.js').Errors;
+const ErrorCodes = require('../enig_error.js').ErrorCodes;
 const FileEntry = require('../file_entry.js');
 const scanFile = require('../file_base_area.js').scanFile;
 const getFileAreaByTag = require('../file_base_area.js').getFileAreaByTag;
@@ -78,8 +79,12 @@ exports.moduleInfo = {
 /*
     :TODO:
     * Support (approx) max bundle size
-    * Validate packet passwords!!!!
-        => secure vs insecure landing areas
+    * Secure vs unsecure inbound: packet headers are checked in one place,
+      validatePacketHeader(), and a configured packetPassword is enforced
+      from either inbound. TICs (tic.secureInOnly) and automatic area
+      creation (autoAreas.onDemand.secureInOnly) default to the secure
+      inbound only. A packet in the unsecure inbound from a node with no
+      packetPassword is still imported on its header alone.
 */
 
 exports.getModule = FTNMessageScanTossModule;
@@ -875,6 +880,47 @@ function FTNMessageScanTossModule() {
 
         const best = Address.findBestPatternMatch(this.moduleConfig.nodes, addr);
         return best ? best.value : undefined;
+    };
+
+    //
+    //  The checks an inbound packet header must pass before anything in the
+    //  packet is acted on -- by the import, or by the read-only scan that
+    //  creates areas ahead of it. One place, so the two cannot drift apart:
+    //  a packet whose messages the import would refuse must not be able to
+    //  create areas on its way past.
+    //
+    //  * addressed to one of our networks
+    //  * when the sending node has a packetPassword configured, the packet
+    //    carries it (case-insensitive, as FTS-0001 passwords are)
+    //
+    //  Returns { networkName } or { error }.
+    //
+    this.validatePacketHeader = function (packetHeader) {
+        const networkName = self.getNetworkNameByAddress(packetHeader.destAddress);
+        if (!_.isString(networkName)) {
+            const addrString = new Address(packetHeader.destAddress).toString();
+            return {
+                error: Errors.Invalid(
+                    `No local configuration for packet addressed to ${addrString}`
+                ),
+            };
+        }
+
+        const originAddr = new Address(packetHeader.origAddress);
+        const nodeConfig = self.getNodeConfigByAddress(originAddr);
+        if (nodeConfig && nodeConfig.packetPassword) {
+            const expected = nodeConfig.packetPassword.toUpperCase();
+            const actual = (packetHeader.password || '').toUpperCase();
+            if (expected !== actual) {
+                return {
+                    error: Errors.AccessDenied(
+                        `Packet password mismatch from ${originAddr.toString()}`
+                    ),
+                };
+            }
+        }
+
+        return { networkName };
     };
 
     this.exportNetMailMessagePacket = function (message, exportOpts, cb) {
@@ -2179,42 +2225,22 @@ function FTNMessageScanTossModule() {
                 if ('header' === entryType) {
                     packetHeader = entryData;
 
-                    const localNetworkName = self.getNetworkNameByAddress(
-                        packetHeader.destAddress
-                    );
-                    if (!_.isString(localNetworkName)) {
-                        const addrString = new Address(
-                            packetHeader.destAddress
-                        ).toString();
-
-                        //  hard abort — error propagates to final callback, no skipCount needed
-                        return next(
-                            new Error(
-                                `No local configuration for packet addressed to ${addrString}`
-                            )
-                        );
-                    } else {
-                        //  Validate packet password against node config (if configured)
-                        const originAddr = new Address(packetHeader.origAddress);
-                        const nodeConfig = self.getNodeConfigByAddress(originAddr);
-                        if (nodeConfig && nodeConfig.packetPassword) {
-                            const expected = nodeConfig.packetPassword.toUpperCase();
-                            const actual = (packetHeader.password || '').toUpperCase();
-                            if (expected !== actual) {
-                                //  hard abort — error propagates to final callback
-                                Log.warn(
-                                    { origin: originAddr.toString() },
-                                    'Packet rejected: password mismatch'
-                                );
-                                return next(
-                                    new Error(
-                                        `Packet password mismatch from ${originAddr.toString()}`
-                                    )
-                                );
-                            }
+                    //  hard abort — error propagates to final callback, no skipCount needed
+                    const { error } = self.validatePacketHeader(packetHeader);
+                    if (error) {
+                        if (ErrorCodes.AccessDenied === error.code) {
+                            Log.warn(
+                                {
+                                    origin: new Address(
+                                        packetHeader.origAddress
+                                    ).toString(),
+                                },
+                                'Packet rejected: password mismatch'
+                            );
                         }
-                        return next(null);
+                        return next(error);
                     }
+                    return next(null);
                 } else if ('message' === entryType) {
                     const message = entryData;
                     const areaTag = message.meta.FtnProperty.ftn_area;
@@ -2426,27 +2452,14 @@ function FTNMessageScanTossModule() {
             packetPath,
             (entryType, entryData, next) => {
                 if ('header' === entryType) {
-                    networkName = self.getNetworkNameByAddress(entryData.destAddress);
-                    if (!_.isString(networkName)) {
-                        //  not addressed to us; the import rejects it too
-                        return next(Errors.Invalid('Packet is not addressed to us'));
+                    //  The import's own header checks, so a packet it would
+                    //  refuse cannot create areas on its way past.
+                    const result = self.validatePacketHeader(entryData);
+                    if (result.error) {
+                        return next(result.error);
                     }
 
-                    //
-                    //  Apply the same packet password check the import
-                    //  applies.  A packet whose messages will be rejected must
-                    //  not be able to create areas on its way past.
-                    //
-                    const originAddr = new Address(entryData.origAddress);
-                    const nodeConfig = self.getNodeConfigByAddress(originAddr);
-                    if (nodeConfig && nodeConfig.packetPassword) {
-                        const expected = nodeConfig.packetPassword.toUpperCase();
-                        const actual = (entryData.password || '').toUpperCase();
-                        if (expected !== actual) {
-                            return next(Errors.AccessDenied('Packet password mismatch'));
-                        }
-                    }
-
+                    networkName = result.networkName;
                     return next(null);
                 }
 
@@ -5963,6 +5976,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 
         //  ...likewise for a secureInOnly that has just been changed
         this._ticUnsecureWarned = false;
+        this._autoAreaUnsecureWarned = false;
 
         //  ...and re-check what the new config says about the outbound spool:
         //  a reload can introduce a bad defaultNetwork, or move the default
@@ -6344,6 +6358,25 @@ FTNMessageScanTossModule.prototype.maybeAutoCreateAreas = function (cb) {
 
     const collected = {};
 
+    //
+    //  Which inbounds may create areas. Only the secure one by default: a
+    //  packet there came over a password-protected session. A network can
+    //  opt the unsecure inbound back in with "onDemand.secureInOnly: false"
+    //  -- the same switch, and the same default, as tic.secureInOnly -- for
+    //  an uplink that delivers without a session password.
+    //
+    //  Collected per inbound, then filtered per network, since the setting
+    //  is per network and a packet's network is only known once it is read.
+    //
+    const secureOnly = networkName =>
+        false !==
+        _.get(autoAreaCreate.getAutoAreasConfig(networkName), [
+            'onDemand',
+            'secureInOnly',
+        ]);
+
+    const collectedInsecure = {};
+
     async.eachSeries(
         ['inbound', 'secInbound'],
         (inboundType, nextDir) => {
@@ -6351,11 +6384,45 @@ FTNMessageScanTossModule.prototype.maybeAutoCreateAreas = function (cb) {
             if (!_.isString(importDir)) {
                 return nextDir(null);
             }
-            self.collectUnknownAreaTagsFromDirectory(importDir, collected, () =>
-                nextDir(null)
+
+            //  The same directory configured as both is the secure inbound.
+            if (
+                'inbound' === inboundType &&
+                _.isString(self.moduleConfig.paths.secInbound) &&
+                paths.resolve(importDir) ===
+                    paths.resolve(self.moduleConfig.paths.secInbound)
+            ) {
+                return nextDir(null);
+            }
+
+            //  Read even when no network will use it, so the operator can be
+            //  told what was not created and why.
+            self.collectUnknownAreaTagsFromDirectory(
+                importDir,
+                'secInbound' === inboundType ? collected : collectedInsecure,
+                () => nextDir(null)
             );
         },
         () => {
+            Object.keys(collectedInsecure).forEach(networkName => {
+                if (secureOnly(networkName)) {
+                    //  say it once, then stay quiet until the config changes
+                    const level = self._autoAreaUnsecureWarned ? 'debug' : 'warn';
+                    self._autoAreaUnsecureWarned = true;
+                    Log[level](
+                        {
+                            networkName,
+                            ftnTags: Array.from(collectedInsecure[networkName]),
+                        },
+                        'Not creating areas from mail in the unsecure inbound; set onDemand.secureInOnly to false to allow it'
+                    );
+                    return;
+                }
+                const set =
+                    collected[networkName] || (collected[networkName] = new Set());
+                collectedInsecure[networkName].forEach(t => set.add(t));
+            });
+
             const wanted = networkNames.filter(
                 n => collected[n] && collected[n].size > 0
             );
