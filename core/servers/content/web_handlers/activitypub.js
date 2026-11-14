@@ -42,6 +42,7 @@ const { getFullUrl } = require('../../../web_util');
 const {
     validateRequestDate,
     verifyDigestHeader,
+    missingSignedHeaders,
     normalizeHttpSigHeader,
     actorIdFromKeyId,
     hostsMatch,
@@ -274,6 +275,23 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return null;
         }
 
+        //  The signature must cover (request-target), host and date, and on a
+        //  POST also the Digest (see RequiredSignedHeaders in security.js)
+        const missing = missingSignedHeaders(signature.params.headers, req.method);
+        if (missing.length > 0) {
+            this.log.warn(
+                {
+                    url: req.url,
+                    method: req.method,
+                    keyId: signature.keyId,
+                    signedHeaders: signature.params.headers,
+                    missing,
+                },
+                'Rejected signed request: required headers are not signed'
+            );
+            return null;
+        }
+
         //  Sanity check: keyId must be a non-empty URL. The AP ecosystem uses
         //  many key ID conventions (#main-key, /main-key, /keys/1, etc.) so we
         //  only enforce that it looks like a URL; actual key verification happens below.
@@ -476,14 +494,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.internalServerError(resp, err);
             }
 
-            //  Independently verify the Digest header body hash when present.
-            //  The HTTP signature covers the Digest header, so a valid signature
-            //  proves the body hasn't been tampered with since signing — but only
-            //  if we also check that the Digest header matches the actual body.
+            //  The signature covers the Digest header (a POST must sign it, see
+            //  _parseAndValidateSignature); the Digest must also be present, use
+            //  a supported algorithm and match the body actually received.
             if (!verifyDigestHeader(req.headers['digest'], rawBody)) {
                 this.log.warn(
-                    { url: req.url, inboxType },
-                    'Digest body hash mismatch — request body may have been tampered with'
+                    { url: req.url, inboxType, digest: req.headers['digest'] },
+                    'Digest header missing, unsupported or not matching the body — rejected'
                 );
                 return this.webServer.badRequest(resp);
             }
