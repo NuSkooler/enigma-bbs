@@ -37,6 +37,8 @@ exports.getEncodingFromCharacterSetIdentifier = getEncodingFromCharacterSetIdent
 
 exports.getQuotePrefix = getQuotePrefix;
 
+exports.normalizeKludges = normalizeKludges;
+
 //
 //  Namespace for RFC-4122 name based UUIDs generated from
 //  FTN kludges MSGID + AREA
@@ -44,6 +46,79 @@ exports.getQuotePrefix = getQuotePrefix;
 //const ENIGMA_FTN_MSGID_NAMESPACE  = uuid.parse('a5c7ae11-420c-4469-a116-0e9a6d8d2654');
 
 //  See list here: https://github.com/Mithgol/node-fidonet-jam
+
+//
+//  Kludges that carry exactly one value per message, keyed as the packet
+//  parser stores them. Each names one thing -- the message's identity, its
+//  zone-crossing addresses, its character set -- so a second line cannot add
+//  to it, only contradict it.
+//
+//  * INTL, FMPT, TOPT  : FTS-4001
+//  * MSGID, REPLY      : FTS-0009
+//  * CHRS, CHARSET     : FTS-5003
+//  * TZUTC, TZUTCINFO  : FTS-4008
+//  * PID, TID          : FSC-0046
+//
+//  These are the ones the tosser and the offline/NNTP readers interpret.
+//  Kludges nobody interprets are left as they arrived, repeats and all, so a
+//  message passed on is passed on intact.
+//
+const SingleValuedKludges = new Set([
+    'INTL',
+    'FMPT',
+    'TOPT',
+    'MSGID',
+    'REPLY',
+    'CHRS',
+    'CHARSET',
+    'TZUTC',
+    'TZUTCINFO',
+    'PID',
+    'TID',
+]);
+
+//  Kludges that are lists by definition: one line per system the message
+//  passed through. FTS-0004 (PATH), FTS-4009 (Via).
+const ListKludges = new Set(['PATH', 'Via']);
+
+exports.SingleValuedKludges = SingleValuedKludges;
+exports.ListKludges = ListKludges;
+
+//
+//  Give every kludge the shape its consumers expect, in place:
+//
+//  * single-valued kludges are a string -- the first occurrence, which is
+//    what the originating system wrote; anything after it was appended on
+//    the way. It is also the line the packet parser has already used to
+//    choose the message's character set.
+//  * PATH and Via are always an array, even with one line.
+//  * everything else is untouched: a string, or an array when repeated.
+//
+//  The exporter writes a one-element array exactly as it writes a string, so
+//  this changes nothing on the wire for a well-formed message.
+//
+function normalizeKludges(kludges) {
+    if (!_.isObject(kludges)) {
+        return kludges;
+    }
+
+    Object.keys(kludges).forEach(key => {
+        const value = kludges[key];
+        if (SingleValuedKludges.has(key)) {
+            if (Array.isArray(value)) {
+                kludges[key] = value[0];
+            }
+        } else if (ListKludges.has(key)) {
+            if (undefined === value || null === value) {
+                delete kludges[key];
+            } else if (!Array.isArray(value)) {
+                kludges[key] = [value];
+            }
+        }
+    });
+
+    return kludges;
+}
 
 function stringToNullPaddedBuffer(s, bufLen) {
     let buffer = Buffer.alloc(bufLen);

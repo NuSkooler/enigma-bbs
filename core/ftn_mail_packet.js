@@ -809,7 +809,9 @@ function Packet(options) {
 
         self.processMessageBody(msgData.message, messageBodyData => {
             msg.message = messageBodyData.message;
-            msg.meta.FtnKludge = messageBodyData.kludgeLines;
+            //  One value for each single-valued kludge, a list for PATH/Via:
+            //  everything downstream reads them that way.
+            msg.meta.FtnKludge = ftn.normalizeKludges(messageBodyData.kludgeLines);
 
             if (messageBodyData.tearLine) {
                 msg.meta.FtnProperty.ftn_tear_line = messageBodyData.tearLine;

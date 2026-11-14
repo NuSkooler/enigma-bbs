@@ -467,7 +467,10 @@ function FTNMessageScanTossModule() {
 
         //  :TODO: create Address.toMeta() / similar
         message.meta.FtnProperty = message.meta.FtnProperty || {};
-        message.meta.FtnKludge = message.meta.FtnKludge || {};
+        //  A message loaded back from the database has a repeated meta value
+        //  as an array and a single one as a string, whatever the kludge.
+        //  Give it the shape a freshly parsed message has.
+        message.meta.FtnKludge = ftnUtil.normalizeKludges(message.meta.FtnKludge || {});
 
         message.meta.FtnProperty.ftn_orig_node = localAddress.node;
         message.meta.FtnProperty.ftn_orig_network = localAddress.net;
@@ -649,6 +652,10 @@ function FTNMessageScanTossModule() {
             'MSGID',
             (err, msgIdVal) => {
                 if (!err) {
+                    //  one MSGID per message; an older import may have stored two
+                    if (Array.isArray(msgIdVal)) {
+                        msgIdVal = msgIdVal[0];
+                    }
                     assert(
                         _.isString(msgIdVal),
                         'Expected string but got ' +
@@ -1855,7 +1862,9 @@ function FTNMessageScanTossModule() {
     this.getAddressesFromNetMailMessage = function (message) {
         const intlKludge = _.get(message, 'meta.FtnKludge.INTL');
 
-        if (!intlKludge) {
+        //  The parser keeps the first of a repeated INTL; anything else that
+        //  is not a string is not an INTL we can read.
+        if (!_.isString(intlKludge)) {
             return {};
         }
 
@@ -1905,6 +1914,24 @@ function FTNMessageScanTossModule() {
                         'MSGID',
                         message.meta.FtnKludge.MSGID,
                         (err, msgIds) => {
+                            //
+                            //  A lookup that failed has not shown the message
+                            //  is new. Importing it anyway would let a
+                            //  duplicate through, so refuse the message like
+                            //  any other import failure: the packet goes to
+                            //  the reject directory instead of into the base.
+                            //
+                            if (err) {
+                                Log.warn(
+                                    {
+                                        MSGID: message.meta.FtnKludge.MSGID,
+                                        error: err.message,
+                                    },
+                                    'Could not check MSGID for a duplicate; not importing'
+                                );
+                                return callback(err);
+                            }
+
                             if (msgIds && msgIds.length > 0) {
                                 const err = new Error('Duplicate MSGID');
                                 err.code = 'DUPE_MSGID';
