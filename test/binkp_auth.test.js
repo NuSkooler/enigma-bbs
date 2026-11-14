@@ -147,8 +147,11 @@ describe('BinkP answering-side authentication', () => {
     async function stillQueued(label) {
         try {
             return (await fsp.readFile(outFiles[label], 'utf8')) === `MAIL FOR ${label}`;
-        } catch (_) {
-            return false;
+        } catch (err) {
+            if ('ENOENT' === err.code) {
+                return false; //  sent and disposed of
+            }
+            throw err;
         }
     }
 
@@ -201,10 +204,12 @@ describe('BinkP answering-side authentication', () => {
             });
             server.on('error', reject);
             server.listen(0, '127.0.0.1', () => {
-                rawCaller(server.address().port, callerOpts).then(frames => {
-                    callerFrames = frames;
-                    maybeResolve();
-                });
+                rawCaller(server.address().port, callerOpts)
+                    .then(frames => {
+                        callerFrames = frames;
+                        maybeResolve();
+                    })
+                    .catch(reject);
             });
         });
     }
