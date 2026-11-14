@@ -453,6 +453,25 @@ describe('ftn_bso — importMailToArea', function () {
         assert.equal(messageCount(), 0);
     });
 
+    it('delivers NetMail addressed only to our FTN address to the SysOp', async () => {
+        const m = netmail('to an address', { to: '21:1/121' });
+
+        let err;
+        let thrown;
+        try {
+            err = await importPacket(writePacket([m]));
+        } catch (e) {
+            thrown = e;
+        }
+        assert.ok(!thrown, thrown && thrown.message);
+        assert.ok(!err, err && err.message);
+
+        const row = stored(m.subject);
+        assert.ok(row, 'the message should be in the base');
+        assert.equal(row.meta['System.local_to_user_id'], String(User.RootUserID));
+        assert.equal(row.to_user_name, 'SysOp');
+    });
+
     // ─── packet password ────────────────────────────────────────────────────
 
     it('refuses a packet without the password configured for its sender', async () => {

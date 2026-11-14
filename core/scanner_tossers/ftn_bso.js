@@ -2076,7 +2076,10 @@ function FTNMessageScanTossModule() {
                                         'No local "to" username for FTN message. Appears to be a FTN address only; assuming addressed to SysOp'
                                     );
 
-                                    User.getUserName(
+                                    //  return: without it the lookup's own
+                                    //  success path below ran as well, and
+                                    //  called back a second time.
+                                    return User.getUserName(
                                         User.RootUserID,
                                         (err, sysOpUserName) => {
                                             if (err) {
