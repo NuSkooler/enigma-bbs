@@ -241,6 +241,9 @@ module.exports = class TicFileInfo {
             fileName.includes('/') ||
             fileName.includes('\\') ||
             fileName.includes('..') ||
+            //  "." is not a file name at all: joined to a directory it
+            //  names the directory itself
+            '.' === fileName ||
             paths.isAbsolute(fileName)
         );
     }
