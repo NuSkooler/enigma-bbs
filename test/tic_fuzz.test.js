@@ -945,21 +945,30 @@ describe('TIC reader fuzzing', () => {
         });
 
         it('refuses to resolve a payload named "." or ".."', async () => {
-            //  "." is accepted by isSafeFileName -- it contains no separator,
-            //  no "..", and is not absolute -- so the guard against it is
-            //  resolveFilePath() declining to treat a directory as a payload.
-            const info = await parse(
-                'Area FSX_GEN\r\nOrigin 21:1/100\r\nFrom 21:1/100\r\nFile .\r\nCrc DEADBEEF\r\n'
-            );
-            const err = await new Promise(res => info.resolveFilePath(e => res(e)));
-            assert.ok(err);
-            assert.equal(err.reasonCode, TicFileInfo.ReasonCodes.PayloadPending);
-            assert.equal(info.resolvedFilePath, undefined);
+            //  Neither is a file name. Joined to the inbound, "." names the
+            //  inbound itself, so it must not reach the filePath getter that
+            //  the reject path archives and unlinks.
+            for (const name of ['.', '..']) {
+                const info = await parse(
+                    `Area FSX_GEN\r\nOrigin 21:1/100\r\nFrom 21:1/100\r\nFile ${name}\r\nCrc DEADBEEF\r\n`
+                );
+                const err = await new Promise(res => info.resolveFilePath(e => res(e)));
+                assert.ok(err);
+                assert.match(err.message, /unsafe File/);
+                assert.equal(info.resolvedFilePath, undefined);
+                assert.equal(info.filePath, undefined);
+            }
         });
 
         it('rejects traversal in File, Lfile and Fullname before touching disk', async () => {
             for (const field of ['File', 'Lfile', 'Fullname']) {
-                for (const bad of ['../../../etc/passwd', '..\\x', '/etc/passwd', '..']) {
+                for (const bad of [
+                    '../../../etc/passwd',
+                    '..\\x',
+                    '/etc/passwd',
+                    '..',
+                    '.',
+                ]) {
                     const fields = {
                         Area: 'FSX_GEN',
                         Origin: '21:1/100',

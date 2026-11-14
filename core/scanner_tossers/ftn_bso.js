@@ -24,7 +24,7 @@ const FileEntry = require('../file_entry.js');
 const scanFile = require('../file_base_area.js').scanFile;
 const getFileAreaByTag = require('../file_base_area.js').getFileAreaByTag;
 const getDescFromFileName = require('../file_base_area.js').getDescFromFileName;
-const { copyFileWithCollisionHandling, safeCopyFile } = require('../file_util.js');
+const { safeCopyFile } = require('../file_util.js');
 const getAreaStorageDirectoryByTag =
     require('../file_base_area.js').getAreaStorageDirectoryByTag;
 const isValidStorageTag = require('../file_base_area.js').isValidStorageTag;
@@ -50,6 +50,7 @@ const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
 const TicFileWriter = require('../tic_file_writer.js');
 const ticForward = require('../tic_forward.js');
 const ticPassthrough = require('../tic_passthrough.js');
+const ticStore = require('../tic_store.js');
 const autoAreaCreate = require('../auto_area_create.js');
 const areaInfoPack = require('../area_info_pack.js');
 const { AreaFixStatus, parseAreaFixReply } = require('../areafix_reply.js');
@@ -2957,16 +2958,14 @@ function FTNMessageScanTossModule() {
         return true;
     };
 
-    this.copyTicAttachment = function (src, dst, isUpdate, cb) {
-        if (isUpdate) {
-            safeCopyFile(src, dst, { overwrite: true }, err => {
-                return cb(err, dst);
-            });
-        } else {
-            copyFileWithCollisionHandling(src, dst, (err, finalPath) => {
-                return cb(err, finalPath);
-            });
-        }
+    //
+    //  |supersedes| is the stored file a "Replaces" matched, if any. It is
+    //  overwritten only when the payload lands on exactly that path; anything
+    //  else already at |dst| belongs to some other entry and is renamed
+    //  around. See tic_store.js.
+    //
+    this.copyTicAttachment = function (src, dst, supersedes, cb) {
+        return ticStore.storePayload(src, dst, { supersedes }, cb);
     };
 
     //
@@ -3483,7 +3482,7 @@ function FTNMessageScanTossModule() {
                     self.copyTicAttachment(
                         ticFileInfo.filePath,
                         dst,
-                        isUpdate,
+                        isUpdate ? localInfo.oldPath : undefined,
                         (err, finalPath) => {
                             if (err) {
                                 Log.info(
@@ -3592,8 +3591,12 @@ function FTNMessageScanTossModule() {
                         return callback(null, localInfo);
                     }
 
-                    //  if we updated a file in place, don't delete it!
-                    if (localInfo.newPath === oldPath) {
+                    //  if we updated a file in place, don't delete it! Compared
+                    //  the way tic_store.js decided to overwrite it.
+                    if (
+                        localInfo.newPath &&
+                        paths.resolve(localInfo.newPath) === paths.resolve(oldPath)
+                    ) {
                         Log.trace(
                             { path: oldPath },
                             'TIC file replaced in place. Nothing to remove.'

@@ -9,7 +9,7 @@ const configModule = require('./config.js');
 //  time -- it is rebound when the Config bootstrapper runs, and swapped by
 //  tests. Same reasoning as ftn_bso.js.
 const Config = (...args) => configModule.get(...args);
-const { copyFileWithCollisionHandling, safeCopyFile } = require('./file_util.js');
+const ticStore = require('./tic_store.js');
 
 //  deps
 const _ = require('lodash');
@@ -201,23 +201,21 @@ function storeTransitFile(
 
         fs.stat(dst, statErr => {
             if (statErr) {
-                //  Not there. Collision handling still, rather than a bare
-                //  copy: the stat above is a moment ago, and a rename around
-                //  an unexpected file is caught below either way.
-                return copyFileWithCollisionHandling(
+                //  Not there. Still an exact-name store rather than a bare
+                //  copy: the stat above is a moment ago, and a file that
+                //  appears in between is refused rather than overwritten.
+                return ticStore.storePayload(
                     sourcePath,
                     dst,
+                    { exactName: true },
                     (copyErr, finalPath) => {
                         if (copyErr) {
-                            return cb(copyErr);
-                        }
-                        if (finalPath !== dst) {
-                            return fs.unlink(finalPath, () =>
-                                cb(
-                                    Errors.General(
-                                        `Transit file ${fileName} appeared while we were writing it`
-                                    )
-                                )
+                            return cb(
+                                ticStore.ReasonCodes.NameTaken === copyErr.reasonCode
+                                    ? Errors.General(
+                                          `Transit file ${fileName} appeared while we were writing it`
+                                      )
+                                    : copyErr
                             );
                         }
                         return cb(null, finalPath);
@@ -237,9 +235,7 @@ function storeTransitFile(
                     { path: dst, area: externalAreaTag },
                     'Superseding a transit file in place'
                 );
-                return safeCopyFile(sourcePath, dst, { overwrite: true }, copyErr =>
-                    cb(copyErr, dst)
-                );
+                return ticStore.storePayload(sourcePath, dst, { supersedes }, cb);
             }
 
             isReferenced(dst, (refErr, referenced) => {
@@ -262,9 +258,8 @@ function storeTransitFile(
                     'Replacing an unreferenced transit file'
                 );
 
-                return safeCopyFile(sourcePath, dst, { overwrite: true }, copyErr =>
-                    cb(copyErr, dst)
-                );
+                //  A leftover nobody owes is what this file supersedes.
+                return ticStore.storePayload(sourcePath, dst, { supersedes: dst }, cb);
             });
         });
     });
