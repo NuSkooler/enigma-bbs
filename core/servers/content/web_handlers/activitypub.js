@@ -2272,7 +2272,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 });
             }
 
-            const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : 1;
+            //  A page past the end is answered as the one just after the last,
+            //  so its id and prev links stay pages that can be followed.
+            const lastPage = Math.max(1, Math.ceil(total / NoteContextPageSize));
+            const pageNum = page
+                ? Math.min(Math.max(1, parseInt(page, 10) || 1), lastPage + 1)
+                : 1;
             const offset = (pageNum - 1) * NoteContextPageSize;
 
             const answer = rows => {

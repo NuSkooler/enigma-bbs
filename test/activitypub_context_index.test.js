@@ -39,7 +39,7 @@ const PriorSchema = `
         ON collection (json_extract(object_json, '$.object.id'));
 `;
 
-function insertNote(db, { n, name = SHARED, context, conversation, type = 'Note' }) {
+function insertNote(db, { n, name = SHARED, context, conversation, type = 'Note', at }) {
     const object = { id: `https://remote.example/notes/${n}`, type };
     if (context) object.context = context;
     if (conversation) object.conversation = conversation;
@@ -49,7 +49,7 @@ function insertNote(db, { n, name = SHARED, context, conversation, type = 'Note'
     ).run(
         'https://www.w3.org/ns/activitystreams#Public',
         name,
-        new Date(Date.UTC(2026, 0, 1) + n * 1000).toISOString(),
+        new Date(Date.UTC(2026, 0, 1) + (undefined === at ? n : at) * 1000).toISOString(),
         'owner',
         `https://remote.example/activities/${n}`,
         JSON.stringify({
@@ -330,6 +330,23 @@ describe('ActivityPub thread (context) lookups', function () {
             assert.equal(last.prev, `${contextUrl}?page=2`);
         });
 
+        it('keeps the order across a page boundary between equal timestamps', async () => {
+            db.transaction(() => {
+                for (let n = 1; n <= 150; ++n) {
+                    insertNote(db, { n, context: noteId, at: 0 });
+                }
+            })();
+            const ids = page => page.orderedItems.map(o => o.id);
+            const first = ids((await get('?page=1')).body);
+            const second = ids((await get('?page=2')).body);
+            const expected = n => `https://remote.example/notes/${n}`;
+            assert.equal(first[0], expected(1));
+            assert.equal(first[99], expected(100));
+            assert.equal(second[0], expected(101));
+            assert.equal(second.length, 50);
+            assert.equal(new Set([...first, ...second]).size, 150);
+        });
+
         it('answers a page past the end, however large, with no items', async () => {
             thread(5);
             for (const page of ['2', '99999999999999999999999']) {
@@ -337,6 +354,9 @@ describe('ActivityPub thread (context) lookups', function () {
                 assert.equal(body.type, 'OrderedCollectionPage');
                 assert.deepEqual(body.orderedItems, []);
                 assert.equal(body.next, undefined);
+                //  answered as the page just after the last, so its links can be followed
+                assert.equal(body.id, `${contextUrl}?page=2`);
+                assert.equal(body.prev, `${contextUrl}?page=1`);
             }
         });
     });
