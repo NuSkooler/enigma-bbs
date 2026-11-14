@@ -494,6 +494,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     );
                     return this.webServer.requestEntityTooLarge(resp);
                 }
+                if (err.code === 'ECONNABORTED') {
+                    return; //  the client went away; nobody to answer
+                }
                 return this.webServer.internalServerError(resp, err);
             }
 

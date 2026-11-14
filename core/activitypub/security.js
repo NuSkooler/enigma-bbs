@@ -7,54 +7,23 @@
 
 const crypto = require('crypto');
 const net = require('net');
-const { AsyncResource } = require('async_hooks');
+const { readBody } = require('../http_body');
 
 //
-//  Read an HTTP request body up to maxBytes, accumulating chunks as they arrive.
+//  Read an inbox POST body up to maxBytes. A thin name over the shared reader
+//  (http_body.js), kept for the handler and its tests:
 //
 //  req      — Node.js IncomingMessage (or any EventEmitter emitting 'data'/'end'/'error')
-//  maxBytes — maximum number of bytes to accept; request is aborted if exceeded
-//  cb       — callback(err, rawBody: Buffer)
-//               err.code === 'ENTITY_TOO_LARGE' when the limit is exceeded
-//
-//  cb is called in the caller's async context. A server request's events
-//  run in the HTTP parser's, so without this anything after the body read
-//  would lose the inbox POST's fetch budget (see fetch_budget.js).
+//  maxBytes — maximum number of bytes to accept
+//  cb       — callback(err, rawBody: Buffer), called once, in the caller's
+//             async context (so the inbox POST keeps its fetch budget, see
+//             fetch_budget.js)
+//               err.code === 'ENTITY_TOO_LARGE' when the limit is exceeded; the
+//               connection is closed once the 413 has been written
+//               err.code === 'ECONNABORTED' when the client went away first
 //
 function readInboxBody(req, maxBytes, cb) {
-    cb = AsyncResource.bind(cb);
-    const chunks = [];
-    let totalBytes = 0;
-    let done = false;
-
-    const finish = (err, result) => {
-        if (!done) {
-            done = true;
-            return cb(err, result);
-        }
-    };
-
-    req.on('data', chunk => {
-        if (done) return;
-        totalBytes += chunk.length;
-        if (totalBytes > maxBytes) {
-            const err = new Error(`Request body exceeds limit of ${maxBytes} bytes`);
-            err.code = 'ENTITY_TOO_LARGE';
-            if (typeof req.destroy === 'function') {
-                req.destroy();
-            }
-            return finish(err);
-        }
-        chunks.push(chunk);
-    });
-
-    req.on('end', () => {
-        return finish(null, Buffer.concat(chunks));
-    });
-
-    req.on('error', err => {
-        return finish(err);
-    });
+    return readBody(req, maxBytes, cb);
 }
 exports.readInboxBody = readInboxBody;
 

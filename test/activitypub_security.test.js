@@ -1044,8 +1044,13 @@ describe('readInboxBody()', function () {
         const req = makeFakeReq(['x'.repeat(200)]);
         readInboxBody(req, 100, err => {
             assert.ok(err);
-            assert.ok(req.destroyed, 'req.destroy() should have been called');
-            done();
+            //  closed on the following turn, once the caller has written its 413
+            setImmediate(() =>
+                setImmediate(() => {
+                    assert.ok(req.destroyed, 'req.destroy() should have been called');
+                    done();
+                })
+            );
         });
     });
 

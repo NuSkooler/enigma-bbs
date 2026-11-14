@@ -23,7 +23,7 @@ describe('NNTP authentication', function () {
         for (const m of ['../core/servers/content/nntp.js', '../core/user.js']) {
             delete require.cache[require.resolve(m)];
         }
-        NNTPServer = require('../core/servers/content/nntp.js')._NNTPServer;
+        NNTPServer = require('../core/servers/content/nntp.js').NNTPServer;
         User = require('../core/user.js');
         origFactor1 = User.prototype.authenticateFactor1;
     });

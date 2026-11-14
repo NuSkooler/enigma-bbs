@@ -1249,9 +1249,6 @@ class NNTPServer extends NNTPServerBase {
 
 exports.NNTPServer = NNTPServer; //  exported for test; see content_server_body_prep.test.js
 
-//  exposed for tests
-exports._NNTPServer = NNTPServer;
-
 exports.getModule = class NNTPServerModule extends ServerModule {
     constructor() {
         super();
