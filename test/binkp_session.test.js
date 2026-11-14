@@ -190,25 +190,26 @@ describe('BinkpSession — CRAM authentication', () => {
         ]);
     });
 
-    it('results in non-secure session when passwords do not match', async () => {
+    it('refuses the session with M_ERR when passwords do not match', async () => {
         const { clientSess, serverSess } = await makeSessionPair(
             { getPassword: () => 'wrong' },
             { getPassword: () => 'right' }
         );
 
-        const serverAuth = waitFor(serverSess, 'authenticated');
-        const clientAuth = waitFor(clientSess, 'authenticated');
+        let authenticated = false;
+        serverSess.on('authenticated', () => {
+            authenticated = true;
+        });
+        const serverErr = waitFor(serverSess, 'error', null);
+        const clientErr = waitFor(clientSess, 'error', null);
 
         clientSess.start();
         serverSess.start();
 
-        const [[serverIsSecure]] = await Promise.all([serverAuth, clientAuth]);
-        assert.ok(!serverIsSecure, 'server should report non-secure (bad password)');
-
-        await Promise.all([
-            waitFor(clientSess, 'session-end', null),
-            waitFor(serverSess, 'session-end', null),
-        ]);
+        const [[sErr], [cErr]] = await Promise.all([serverErr, clientErr]);
+        assert.match(sErr.message, /Bad password/);
+        assert.match(cErr.message, /Bad password/, 'the caller is told why');
+        assert.ok(!authenticated, 'the answering side never authenticates');
     });
 });
 

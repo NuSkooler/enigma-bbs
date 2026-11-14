@@ -41,8 +41,11 @@ function _isCompressed(filename) {
 //    sysopName    : string
 //    location     : string
 //    mailerVer    : string     — e.g. 'ENiGMA/0.4.0'
-//    getPassword  : (remoteAddrs: string[]) => string|null
-//                             — called once remote addresses are known
+//    getPassword  : (remoteAddrs: string[]) => string|string[]|null
+//                             — called once remote addresses are known. An
+//                               array lists the distinct passwords configured
+//                               for those addresses; more than one means they
+//                               disagree, and an answering session refuses.
 //    sendIfPwd    : boolean    — refuse to send files on non-secure sessions
 //    tempDir      : string     — directory for inbound temp files
 //    hasFile      : (name, size, timestamp) => boolean
@@ -50,7 +53,9 @@ function _isCompressed(filename) {
 //
 //  Events emitted:
 //    'addresses'      (addrs: string[])                — remote's M_ADR received
-//    'authenticated'  (isSecure: boolean)              — auth complete
+//    'authenticated'  (isSecure, addresses: string[])  — auth complete; |addresses|
+//                                                        are the remote's addresses
+//                                                        this session may carry mail for
 //    'incoming-file'  (name, size, timestamp)          — inbound transfer started (M_FILE received)
 //    'file-received'  (name, size, timestamp, tempPath) — inbound file ready
 //    'file-sent'      (name, size, timestamp)          — outbound file acknowledged
@@ -85,6 +90,9 @@ class BinkpSession extends EventEmitter {
         this._gotRemoteADR = false;
         this._sentPwd = false;
         this._remoteAddresses = [];
+        //  The remote addresses this session may carry mail for. Empty until
+        //  authentication completes. See _authenticatedAddresses().
+        this._authAddresses = [];
         this._remoteOpts = new Set();
 
         // Negotiated capabilities
@@ -260,10 +268,69 @@ class BinkpSession extends EventEmitter {
     }
 
     _lookupPassword() {
-        if (typeof this._opts.getPassword === 'function') {
-            return this._opts.getPassword(this._remoteAddresses);
+        return this._expectedPassword().password;
+    }
+
+    //
+    //  The password configured for |addrs| (default: every address the remote
+    //  presented), as { password, inconsistent }. |inconsistent| is set when
+    //  the addresses carry different passwords: no single M_PWD can match
+    //  them all, so binkd refuses such a caller with "Bad password".
+    //
+    _expectedPassword(addrs = this._remoteAddresses) {
+        const raw =
+            typeof this._opts.getPassword === 'function'
+                ? this._opts.getPassword(addrs)
+                : this._opts.password;
+        if (Array.isArray(raw)) {
+            const distinct = Array.from(new Set(raw.filter(Boolean)));
+            return {
+                password: distinct.length === 1 ? distinct[0] : null,
+                inconsistent: distinct.length > 1,
+            };
         }
-        return this._opts.password || null;
+        return { password: raw || null, inconsistent: false };
+    }
+
+    //
+    //  The remote addresses this session may carry mail for, once it has
+    //  authenticated. A secure session covers every address presented -- the
+    //  password matched each one that has a password. A non-secure session
+    //  covers only addresses with no password configured. The answering side
+    //  never reaches a non-secure session with a passworded address in it
+    //  (_onPwd refuses first), so the filter only holds that line again.
+    //
+    _authenticatedAddresses(isSecure) {
+        if (isSecure || typeof this._opts.getPassword !== 'function') {
+            return this._remoteAddresses.slice();
+        }
+        return this._remoteAddresses.filter(a => {
+            const { password, inconsistent } = this._expectedPassword([a]);
+            return !password && !inconsistent;
+        });
+    }
+
+    //
+    //  The remote presented an address we hold a password for, and its M_PWD
+    //  does not match. binkd answers M_ERR "Bad password" and ends the session
+    //  before any transfer (protocol.c PWD()); do the same. Nothing is queued
+    //  or offered: the transfer phase is never entered.
+    //
+    _refuseAuth(why) {
+        Log.warn(
+            {
+                remoteAddresses: this._remoteAddresses,
+                peer: this._socket.remoteAddress,
+                why,
+            },
+            '[BinkP] Password does not match the one configured for the presented address; refusing session'
+        );
+        this._state = 'done';
+        if (this._timeoutHandle) clearTimeout(this._timeoutHandle);
+        this._sendCmd(Commands.M_ERR, 'Bad password');
+        //  Graceful, so the M_ERR reaches the remote before the close.
+        this._destroy(true);
+        this.emit('error', new Error('Bad password'));
     }
 
     // ── Frame dispatch ──────────────────────────────────────────────────────
@@ -384,7 +451,11 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
-        const password = this._lookupPassword();
+        const { password, inconsistent } = this._expectedPassword();
+        if (inconsistent) {
+            return this._refuseAuth('presented addresses have different passwords');
+        }
+
         let isSecure = false;
 
         if (arg.startsWith('CRAM-MD5-') && this._cramChallenge && password) {
@@ -396,9 +467,18 @@ class BinkpSession extends EventEmitter {
         } else if (password) {
             isSecure = arg === password;
         }
-        // If no password configured: non-secure (not an error)
+
+        //  A password is configured and the remote did not give it: refuse,
+        //  as binkd does. With no password configured for any presented
+        //  address the session is non-secure, which is not an error.
+        if (password && !isSecure) {
+            return this._refuseAuth(
+                arg.startsWith('CRAM-MD5-') ? 'CRAM-MD5 response' : 'plain password'
+            );
+        }
 
         this._authState = isSecure ? 'P_SECURE' : 'P_NONSECURE';
+        this._authAddresses = this._authenticatedAddresses(isSecure);
 
         const confirmedOpts = [];
         //  FTS-1028: "If remote sends the M_NUL \"OPT NR\" frame, a mailer
@@ -435,13 +515,25 @@ class BinkpSession extends EventEmitter {
         }
 
         this._sendCmd(Commands.M_OK, isSecure ? 'secure' : 'non-secure');
-        this.emit('authenticated', isSecure);
+        this.emit('authenticated', isSecure, this._authAddresses.slice());
         this._enterTransfer();
     }
 
     _onOk(arg) {
         const isSecure = arg.trim() === 'secure';
         this._authState = isSecure ? 'P_SECURE' : 'P_NONSECURE';
+        //  We dialled this node and know who it is meant to be; the session
+        //  covers every address it presented. binkd keeps going here too,
+        //  with a warning, when it sent a password and the answer comes back
+        //  non-secure (protocol.c OK()). We stay non-secure, so whatever it
+        //  sends lands in the non-secure inbound.
+        this._authAddresses = this._remoteAddresses.slice();
+        if (!isSecure && this._lookupPassword()) {
+            Log.warn(
+                { remoteAddresses: this._remoteAddresses },
+                '[BinkP] Remote answered non-secure although we sent a password'
+            );
+        }
 
         // Answering side confirms opts in M_NUL before M_OK; pick up what they confirmed
         if (this._remoteOpts.has(Opts.NR)) {
@@ -457,7 +549,7 @@ class BinkpSession extends EventEmitter {
             }
         }
 
-        this.emit('authenticated', isSecure);
+        this.emit('authenticated', isSecure, this._authAddresses.slice());
         this._enterTransfer();
     }
 
@@ -493,6 +585,11 @@ class BinkpSession extends EventEmitter {
             //  returning, or the batch reaches a finished state with nobody
             //  left to notice and the session hangs to its timeout.
             this._checkDone();
+            return;
+        }
+
+        //  Nothing goes out before authentication has completed.
+        if ('P_NULL' === this._authState) {
             return;
         }
 

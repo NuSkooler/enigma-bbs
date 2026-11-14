@@ -1236,9 +1236,9 @@ function nodeLabel(flowPath, addr) {
 //    synchronously before session.start() is called.
 //
 //  For the answering (inbound) side:
-//    Pass remoteAddrs = null. The function listens for the 'addresses' event,
-//    uses holdSend()/releaseSend() to gate file sending until the async spool
-//    read completes, then queues whatever is pending for the connecting node.
+//    Pass remoteAddrs = null. The function listens for the 'authenticated'
+//    event, holds M_EOB until the async spool read completes, then queues
+//    whatever is pending for the addresses the session authenticated.
 //
 //  Returns the disposeMap so callers can add extra entries if needed.
 //
@@ -1266,8 +1266,15 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         }
     } else {
         //
-        //  Answering side: learn remote addresses from the session handshake,
-        //  then resolve what we have queued for them.
+        //  Answering side: once the caller has authenticated, resolve what we
+        //  have queued for the addresses the session covers.
+        //
+        //  On 'authenticated', not on 'addresses' (M_ADR). Mail is only ever
+        //  looked up for addresses the session has authenticated for: every
+        //  presented address on a secure session, only the unpassworded ones
+        //  on a non-secure one (BinkpSession._authenticatedAddresses). A
+        //  caller that fails authentication is refused before this fires, so
+        //  nothing is queued for it at all.
         //
         //  holdEOB(), not holdSend(). The two are not interchangeable and the
         //  difference decides whether the peer gets its mail at all.
@@ -1284,17 +1291,19 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         //
         //  |_eobHold| is tested inside _sendNext() at the point M_EOB would go
         //  out, so it holds however _sendNext() was reached. That is what this
-        //  needs. The FREQ resolver already uses it for the same reason.
+        //  needs. The FREQ resolver already uses it for the same reason. It is
+        //  taken synchronously here: the session emits 'authenticated' before
+        //  _enterTransfer() schedules the first _sendNext().
         //
         //  Reported as #747, and it is not TIC-specific: it affects any
         //  answering session with something queued for the caller. It matters
         //  especially for file echoes, because a downlink normally polls its
         //  hub rather than being dialled.
         //
-        session.on('addresses', async addrStrings => {
+        session.on('authenticated', async (secure, addrStrings) => {
             session.holdEOB();
             try {
-                for (const addrStr of addrStrings) {
+                for (const addrStr of addrStrings || []) {
                     const addr = Address.fromString(addrStr);
                     if (!addr || !addr.isValid()) continue;
                     const files = await spool.getOutboundFilesForNode(addr);
