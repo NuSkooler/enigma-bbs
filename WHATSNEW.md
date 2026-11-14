@@ -115,7 +115,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * TIC: a `Replaces` only ever overwrites the file it supersedes; a payload whose name matches a different existing file is stored beside it.
   * NNTP refuses a password-only login for an account with two-factor authentication. REST refresh tokens and API keys require an active account, and are revoked when `oputil` disables, locks or deactivates one.
   * Web and REST request bodies are read with size limits (HTTP 413 beyond them), and multi-byte characters in REST message bodies arrive intact.
-  * ActivityPub: inbound signed requests must sign `(request-target)`, `host`, `date` and, on a POST, a matching `Digest`. A thread's `/note/context` collection is indexed and paged beyond 100 Notes, and the NodeInfo document is cached for 10 minutes.
+  * ActivityPub: inbound signed requests must sign `(request-target)`, `host`, `date` and, on a POST, a matching `Digest`. A thread's `/note/context` collection is indexed and paged beyond 100 Notes, and the NodeInfo usage counts are cached for 10 minutes.
 
 ## 0.5.1-beta
 
