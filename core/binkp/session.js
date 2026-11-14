@@ -10,6 +10,7 @@ const zlib = require('zlib');
 const { FrameParser, buildCommandFrame, buildDataFrame, EOF_FRAME } = require('./frame');
 const { Commands, CommandNames, Opts } = require('./commands');
 const { generateChallenge, computeResponse, verifyResponse } = require('./cram');
+const { plainFileName } = require('./file_name');
 const Log = require('../logger').log;
 
 const BINKP_VER = '1.1';
@@ -40,8 +41,11 @@ function _isCompressed(filename) {
 //    sysopName    : string
 //    location     : string
 //    mailerVer    : string     — e.g. 'ENiGMA/0.4.0'
-//    getPassword  : (remoteAddrs: string[]) => string|null
-//                             — called once remote addresses are known
+//    getPassword  : (remoteAddrs: string[]) => string|string[]|null
+//                             — called once remote addresses are known. An
+//                               array lists the distinct passwords configured
+//                               for those addresses; more than one means they
+//                               disagree, and an answering session refuses.
 //    sendIfPwd    : boolean    — refuse to send files on non-secure sessions
 //    tempDir      : string     — directory for inbound temp files
 //    hasFile      : (name, size, timestamp) => boolean
@@ -49,7 +53,9 @@ function _isCompressed(filename) {
 //
 //  Events emitted:
 //    'addresses'      (addrs: string[])                — remote's M_ADR received
-//    'authenticated'  (isSecure: boolean)              — auth complete
+//    'authenticated'  (isSecure, addresses: string[])  — auth complete; |addresses|
+//                                                        are the remote's addresses
+//                                                        this session may carry mail for
 //    'incoming-file'  (name, size, timestamp)          — inbound transfer started (M_FILE received)
 //    'file-received'  (name, size, timestamp, tempPath) — inbound file ready
 //    'file-sent'      (name, size, timestamp)          — outbound file acknowledged
@@ -58,6 +64,10 @@ function _isCompressed(filename) {
 //    'session-end'    ()                               — clean finish
 //    'disconnect'     ()                               — socket closed mid-session
 //    'error'          (err)                            — fatal error
+//
+//  The |name| on the two inbound events is always a plain file name: escapes
+//  decoded, no path components (see file_name.js). A file whose name does
+//  not reduce to one is answered with M_GOT and never reaches a listener.
 //
 //  API:
 //    queueFile(filePath, name, size, timestamp, disposition)
@@ -80,6 +90,9 @@ class BinkpSession extends EventEmitter {
         this._gotRemoteADR = false;
         this._sentPwd = false;
         this._remoteAddresses = [];
+        //  The remote addresses this session may carry mail for. Empty until
+        //  authentication completes. See _authenticatedAddresses().
+        this._authAddresses = [];
         this._remoteOpts = new Set();
 
         // Negotiated capabilities
@@ -255,10 +268,69 @@ class BinkpSession extends EventEmitter {
     }
 
     _lookupPassword() {
-        if (typeof this._opts.getPassword === 'function') {
-            return this._opts.getPassword(this._remoteAddresses);
+        return this._expectedPassword().password;
+    }
+
+    //
+    //  The password configured for |addrs| (default: every address the remote
+    //  presented), as { password, inconsistent }. |inconsistent| is set when
+    //  the addresses carry different passwords: no single M_PWD can match
+    //  them all, so binkd refuses such a caller with "Bad password".
+    //
+    _expectedPassword(addrs = this._remoteAddresses) {
+        const raw =
+            typeof this._opts.getPassword === 'function'
+                ? this._opts.getPassword(addrs)
+                : this._opts.password;
+        if (Array.isArray(raw)) {
+            const distinct = Array.from(new Set(raw.filter(Boolean)));
+            return {
+                password: distinct.length === 1 ? distinct[0] : null,
+                inconsistent: distinct.length > 1,
+            };
         }
-        return this._opts.password || null;
+        return { password: raw || null, inconsistent: false };
+    }
+
+    //
+    //  The remote addresses this session may carry mail for, once it has
+    //  authenticated. A secure session covers every address presented -- the
+    //  password matched each one that has a password. A non-secure session
+    //  covers only addresses with no password configured. The answering side
+    //  never reaches a non-secure session with a passworded address in it
+    //  (_onPwd refuses first), so the filter only holds that line again.
+    //
+    _authenticatedAddresses(isSecure) {
+        if (isSecure || typeof this._opts.getPassword !== 'function') {
+            return this._remoteAddresses.slice();
+        }
+        return this._remoteAddresses.filter(a => {
+            const { password, inconsistent } = this._expectedPassword([a]);
+            return !password && !inconsistent;
+        });
+    }
+
+    //
+    //  The remote presented an address we hold a password for, and its M_PWD
+    //  does not match. binkd answers M_ERR "Bad password" and ends the session
+    //  before any transfer (protocol.c PWD()); do the same. Nothing is queued
+    //  or offered: the transfer phase is never entered.
+    //
+    _refuseAuth(why) {
+        Log.warn(
+            {
+                remoteAddresses: this._remoteAddresses,
+                peer: this._socket.remoteAddress,
+                why,
+            },
+            '[BinkP] Password does not match the one configured for the presented address; refusing session'
+        );
+        this._state = 'done';
+        if (this._timeoutHandle) clearTimeout(this._timeoutHandle);
+        this._sendCmd(Commands.M_ERR, 'Bad password');
+        //  Graceful, so the M_ERR reaches the remote before the close.
+        this._destroy(true);
+        this.emit('error', new Error('Bad password'));
     }
 
     // ── Frame dispatch ──────────────────────────────────────────────────────
@@ -379,7 +451,11 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
-        const password = this._lookupPassword();
+        const { password, inconsistent } = this._expectedPassword();
+        if (inconsistent) {
+            return this._refuseAuth('presented addresses have different passwords');
+        }
+
         let isSecure = false;
 
         if (arg.startsWith('CRAM-MD5-') && this._cramChallenge && password) {
@@ -391,9 +467,18 @@ class BinkpSession extends EventEmitter {
         } else if (password) {
             isSecure = arg === password;
         }
-        // If no password configured: non-secure (not an error)
+
+        //  A password is configured and the remote did not give it: refuse,
+        //  as binkd does. With no password configured for any presented
+        //  address the session is non-secure, which is not an error.
+        if (password && !isSecure) {
+            return this._refuseAuth(
+                arg.startsWith('CRAM-MD5-') ? 'CRAM-MD5 response' : 'plain password'
+            );
+        }
 
         this._authState = isSecure ? 'P_SECURE' : 'P_NONSECURE';
+        this._authAddresses = this._authenticatedAddresses(isSecure);
 
         const confirmedOpts = [];
         //  FTS-1028: "If remote sends the M_NUL \"OPT NR\" frame, a mailer
@@ -430,13 +515,25 @@ class BinkpSession extends EventEmitter {
         }
 
         this._sendCmd(Commands.M_OK, isSecure ? 'secure' : 'non-secure');
-        this.emit('authenticated', isSecure);
+        this.emit('authenticated', isSecure, this._authAddresses.slice());
         this._enterTransfer();
     }
 
     _onOk(arg) {
         const isSecure = arg.trim() === 'secure';
         this._authState = isSecure ? 'P_SECURE' : 'P_NONSECURE';
+        //  We dialled this node and know who it is meant to be; the session
+        //  covers every address it presented. binkd keeps going here too,
+        //  with a warning, when it sent a password and the answer comes back
+        //  non-secure (protocol.c OK()). We stay non-secure, so whatever it
+        //  sends lands in the non-secure inbound.
+        this._authAddresses = this._remoteAddresses.slice();
+        if (!isSecure && this._lookupPassword()) {
+            Log.warn(
+                { remoteAddresses: this._remoteAddresses },
+                '[BinkP] Remote answered non-secure although we sent a password'
+            );
+        }
 
         // Answering side confirms opts in M_NUL before M_OK; pick up what they confirmed
         if (this._remoteOpts.has(Opts.NR)) {
@@ -452,7 +549,7 @@ class BinkpSession extends EventEmitter {
             }
         }
 
-        this.emit('authenticated', isSecure);
+        this.emit('authenticated', isSecure, this._authAddresses.slice());
         this._enterTransfer();
     }
 
@@ -488,6 +585,11 @@ class BinkpSession extends EventEmitter {
             //  returning, or the batch reaches a finished state with nobody
             //  left to notice and the session hangs to its timeout.
             this._checkDone();
+            return;
+        }
+
+        //  Nothing goes out before authentication has completed.
+        if ('P_NULL' === this._authState) {
             return;
         }
 
@@ -872,7 +974,11 @@ class BinkpSession extends EventEmitter {
         //  the M_FILE. They would be fed to the previous file's stream.
         this._closeOutstandingReceive();
 
-        const [name, sizeStr, tsStr, offsetStr] = parts;
+        //  |wireName| is the name as the sender wrote it, and is what every
+        //  reply about this file must carry -- the sender matches on it.
+        //  |name| is the same name reduced to a plain file name, and is the
+        //  only form handed on to anything that might use it as a path.
+        const [wireName, sizeStr, tsStr, offsetStr] = parts;
         const size = parseInt(sizeStr, 10);
         const timestamp = parseInt(tsStr, 10);
         const offset = parseInt(offsetStr, 10);
@@ -885,12 +991,32 @@ class BinkpSession extends EventEmitter {
         //  it an old implementation folds extra tokens into the filename.
         const useGZ = this._useEXTCMD && parts.slice(4).includes('GZ');
 
+        //
+        //  A name that is not a plain file name cannot be stored under the
+        //  name the sender gave it, now or in any later session. M_SKIP would
+        //  have the sender offer it again every time, so answer with M_GOT,
+        //  the destructive skip binkd uses for files it never wants, and say
+        //  so in the log. Checked before anything else, so the offset
+        //  handling below and the 'incoming-file' listeners never see it.
+        //  Any data already on the wire behind the M_FILE is dropped by
+        //  _onDataFrame, which has no receive to give it to.
+        //
+        const name = plainFileName(wireName);
+        if (null === name) {
+            Log.warn(
+                { name: wireName, size, remoteAddresses: this._remoteAddresses },
+                '[BinkP] Inbound file name is not a plain file name; not accepting the file'
+            );
+            this._sendCmd(Commands.M_GOT, `${wireName} ${size} ${timestamp}`);
+            return;
+        }
+
         // Duplicate detection
         if (
             typeof this._opts.hasFile === 'function' &&
             this._opts.hasFile(name, size, timestamp)
         ) {
-            this._sendCmd(Commands.M_GOT, `${name} ${size} ${timestamp}`);
+            this._sendCmd(Commands.M_GOT, `${wireName} ${size} ${timestamp}`);
             return;
         }
 
@@ -902,8 +1028,8 @@ class BinkpSession extends EventEmitter {
         //  now would build it twice and fire 'incoming-file' twice with it.
         if (offset === -1) {
             // :TODO: check for existing partial file and respond with its size
-            this._pendingOffsetReq = { name, size, timestamp, useGZ };
-            this._sendCmd(Commands.M_GET, `${name} ${size} ${timestamp} 0`);
+            this._pendingOffsetReq = { name, wireName, size, timestamp, useGZ };
+            this._sendCmd(Commands.M_GET, `${wireName} ${size} ${timestamp} 0`);
             return;
         }
 
@@ -928,16 +1054,17 @@ class BinkpSession extends EventEmitter {
             //  is the bug being fixed. Wait for the re-announcement.
             this._pendingOffsetReq = {
                 name,
+                wireName,
                 size,
                 timestamp,
                 useGZ,
                 awaitReannounce: true,
             };
-            this._sendCmd(Commands.M_GET, `${name} ${size} ${timestamp} 0`);
+            this._sendCmd(Commands.M_GET, `${wireName} ${size} ${timestamp} 0`);
             return;
         }
 
-        this._beginReceive({ name, size, timestamp, useGZ });
+        this._beginReceive({ name, wireName, size, timestamp, useGZ });
     }
 
     //
@@ -948,7 +1075,7 @@ class BinkpSession extends EventEmitter {
     //  second emit for the same file pins the hold above zero and the batch
     //  never sends M_EOB.
     //
-    _beginReceive({ name, size, timestamp, useGZ }) {
+    _beginReceive({ name, wireName = name, size, timestamp, useGZ }) {
         this._pendingOffsetReq = null;
 
         const tempPath = path.join(
@@ -958,6 +1085,7 @@ class BinkpSession extends EventEmitter {
 
         this._currentRecv = {
             name,
+            wireName,
             size,
             timestamp,
             tempPath,
@@ -1008,7 +1136,7 @@ class BinkpSession extends EventEmitter {
     _postponeReceive(cr, why) {
         Log.warn({ name: cr.name, got: cr.bytesReceived, want: cr.size }, why);
         this._abandonReceive(cr);
-        this._sendCmd(Commands.M_SKIP, `${cr.name} ${cr.size} ${cr.timestamp}`);
+        this._sendCmd(Commands.M_SKIP, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
         this._checkDone();
     }
 
@@ -1146,14 +1274,17 @@ class BinkpSession extends EventEmitter {
 
         this._abandonReceive(cr);
 
-        const key = `${cr.name}\0${cr.size}\0${cr.timestamp}`;
+        const key = `${cr.wireName}\0${cr.size}\0${cr.timestamp}`;
         if (this._useEXTCMD && !this._nzRequested.has(key)) {
             this._nzRequested.add(key);
             Log.info(
                 { name: cr.name },
                 '[BinkP] Requesting an uncompressed retransmit (NZ)'
             );
-            this._sendCmd(Commands.M_GET, `${cr.name} ${cr.size} ${cr.timestamp} 0 NZ`);
+            this._sendCmd(
+                Commands.M_GET,
+                `${cr.wireName} ${cr.size} ${cr.timestamp} 0 NZ`
+            );
             return;
         }
 
@@ -1161,7 +1292,7 @@ class BinkpSession extends EventEmitter {
         //  token, or the clear retransmit failed too. A non-destructive skip
         //  leaves the file with the sender for another session and lets this
         //  batch finish rather than hang.
-        this._sendCmd(Commands.M_SKIP, `${cr.name} ${cr.size} ${cr.timestamp}`);
+        this._sendCmd(Commands.M_SKIP, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
         this._checkDone();
     }
 
@@ -1209,7 +1340,7 @@ class BinkpSession extends EventEmitter {
         const handOff = () => {
             cr._settled = true;
             this._inboundTempPaths.delete(cr.tempPath);
-            this._sendCmd(Commands.M_GOT, `${cr.name} ${cr.size} ${cr.timestamp}`);
+            this._sendCmd(Commands.M_GOT, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
             this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
             this._checkDone();
         };

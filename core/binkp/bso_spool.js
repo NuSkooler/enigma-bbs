@@ -5,6 +5,7 @@ const path = require('path');
 
 const Address = require('../ftn_address');
 const { moveFileWithCollisionHandling } = require('../file_util');
+const { isPlainFileName } = require('./file_name');
 const FNV1a = require('../fnv1a');
 const Log = require('../logger').log;
 const {
@@ -641,10 +642,25 @@ class BsoSpool {
 
     // Move |tempPath| (written by the session) into the configured inbound dir.
     // Returns the final path (may differ from destDir/filename if a collision was resolved).
+    //
+    //  |filename| has to name a file directly inside the inbound directory.
+    //  The session already reduces every name from the peer to a plain file
+    //  name (file_name.js); this holds the line here too, for any other
+    //  caller. Anything else is refused and the temp file removed, so the
+    //  data goes nowhere rather than somewhere unexpected.
     async receiveFile(tempPath, filename, isSecure) {
         const destDir = isSecure ? this._paths.secInbound : this._paths.inbound;
+        const destPath = path.join(destDir, String(filename || ''));
+        if (
+            !isPlainFileName(filename) ||
+            path.dirname(path.resolve(destPath)) !== path.resolve(destDir)
+        ) {
+            await fsp.unlink(tempPath).catch(() => {});
+            throw new Error(
+                `Inbound file name is not a plain file name: ${JSON.stringify(filename)}`
+            );
+        }
         await fsp.mkdir(destDir, { recursive: true });
-        const destPath = path.join(destDir, filename);
         return new Promise((resolve, reject) => {
             moveFileWithCollisionHandling(tempPath, destPath, (err, finalPath) => {
                 if (err) return reject(err);
@@ -1220,9 +1236,9 @@ function nodeLabel(flowPath, addr) {
 //    synchronously before session.start() is called.
 //
 //  For the answering (inbound) side:
-//    Pass remoteAddrs = null. The function listens for the 'addresses' event,
-//    uses holdSend()/releaseSend() to gate file sending until the async spool
-//    read completes, then queues whatever is pending for the connecting node.
+//    Pass remoteAddrs = null. The function listens for the 'authenticated'
+//    event, holds M_EOB until the async spool read completes, then queues
+//    whatever is pending for the addresses the session authenticated.
 //
 //  Returns the disposeMap so callers can add extra entries if needed.
 //
@@ -1250,8 +1266,15 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         }
     } else {
         //
-        //  Answering side: learn remote addresses from the session handshake,
-        //  then resolve what we have queued for them.
+        //  Answering side: once the caller has authenticated, resolve what we
+        //  have queued for the addresses the session covers.
+        //
+        //  On 'authenticated', not on 'addresses' (M_ADR). Mail is only ever
+        //  looked up for addresses the session has authenticated for: every
+        //  presented address on a secure session, only the unpassworded ones
+        //  on a non-secure one (BinkpSession._authenticatedAddresses). A
+        //  caller that fails authentication is refused before this fires, so
+        //  nothing is queued for it at all.
         //
         //  holdEOB(), not holdSend(). The two are not interchangeable and the
         //  difference decides whether the peer gets its mail at all.
@@ -1268,17 +1291,19 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         //
         //  |_eobHold| is tested inside _sendNext() at the point M_EOB would go
         //  out, so it holds however _sendNext() was reached. That is what this
-        //  needs. The FREQ resolver already uses it for the same reason.
+        //  needs. The FREQ resolver already uses it for the same reason. It is
+        //  taken synchronously here: the session emits 'authenticated' before
+        //  _enterTransfer() schedules the first _sendNext().
         //
         //  Reported as #747, and it is not TIC-specific: it affects any
         //  answering session with something queued for the caller. It matters
         //  especially for file echoes, because a downlink normally polls its
         //  hub rather than being dialled.
         //
-        session.on('addresses', async addrStrings => {
+        session.on('authenticated', async (secure, addrStrings) => {
             session.holdEOB();
             try {
-                for (const addrStr of addrStrings) {
+                for (const addrStr of addrStrings || []) {
                     const addr = Address.fromString(addrStr);
                     if (!addr || !addr.isValid()) continue;
                     const files = await spool.getOutboundFilesForNode(addr);

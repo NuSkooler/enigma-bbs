@@ -575,6 +575,63 @@ describe('BsoSpool — receiveFile', () => {
         await fsp.unlink(existing);
         await fsp.unlink(finalPath);
     });
+
+    //  The session hands over plain file names only; receiveFile holds the
+    //  same line for any other caller.
+    describe('only ever writes directly into the inbound directory', () => {
+        const tag = `recv_plain_${process.pid}_${Date.now()}`;
+        const cases = [
+            ['one parent component', `../${tag}_a.pkt`],
+            ['two parent components', `../../${tag}_b.pkt`],
+            ['a subdirectory', `sub/${tag}_c.pkt`],
+            ['a backslash parent component', `..\\${tag}_d.pkt`],
+            ['an absolute path', `/${tag}_e.pkt`],
+            ['..', '..'],
+            ['.', '.'],
+            ['an empty name', ''],
+            ['a leading dot', `.${tag}_f`],
+            ['a NUL', `${tag}\0_g.pkt`],
+        ];
+
+        for (const [label, name] of cases) {
+            it(`refuses ${label} and removes the temp file`, async () => {
+                const tmpFile = path.join(
+                    os.tmpdir(),
+                    `bso_recv_plain_${Date.now()}_${Math.random().toString(36).slice(2)}.dt`
+                );
+                await fsp.writeFile(tmpFile, 'DATA');
+
+                const before = await fsp.readdir(path.join(tmpDir, 'inbound'));
+
+                await assert.rejects(
+                    spool.receiveFile(tmpFile, name, false),
+                    /not a plain file name/
+                );
+
+                await assert.rejects(fsp.access(tmpFile), { code: 'ENOENT' });
+                assert.deepEqual(
+                    await fsp.readdir(path.join(tmpDir, 'inbound')),
+                    before,
+                    'nothing new in inbound'
+                );
+                for (const dir of [tmpDir, path.dirname(tmpDir), os.tmpdir()]) {
+                    const stray = (await fsp.readdir(dir)).filter(e => e.includes(tag));
+                    assert.deepEqual(stray, [], `nothing new in ${dir}`);
+                }
+            });
+        }
+    });
+
+    it('still accepts a long name with spaces', async () => {
+        const tmpFile = path.join(os.tmpdir(), `bso_recv_long_${Date.now()}.dt`);
+        await fsp.writeFile(tmpFile, 'LONG');
+
+        const name = 'A Long File Name With Spaces.tar.gz';
+        const finalPath = await spool.receiveFile(tmpFile, name, false);
+        assert.equal(finalPath, path.join(tmpDir, 'inbound', name));
+
+        await fsp.unlink(finalPath);
+    });
 });
 
 // ── getNodesWithPendingMail ───────────────────────────────────────────────────

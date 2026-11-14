@@ -334,6 +334,54 @@ describe('BinkP server', function () {
                 .catch(done);
         });
 
+        it('refuses a wrong password with M_ERR, then lets the node in with the right one', async () => {
+            const { port, stop } = await startModule({
+                inbound: { enabled: true, port: 0, address: '127.0.0.1' },
+                nodes: { '1:218/701': { sessionPassword: 'testpw' } },
+            });
+            try {
+                const bad = connectClient(port, {
+                    addresses: ['1:218/701@testnet'],
+                    getPassword: () => 'not-testpw',
+                });
+                let authenticated = false;
+                bad.session.on('authenticated', () => {
+                    authenticated = true;
+                });
+                const err = await new Promise(resolve => {
+                    bad.session.on('error', resolve);
+                    bad.session.on('session-end', () => resolve(null));
+                    bad.session.start();
+                });
+                assert.ok(err, 'the session ends in an error');
+                assert.match(err.message, /Bad password/);
+                assert.ok(!authenticated);
+
+                //  The refused session must not leave the node locked: a
+                //  stale lock would answer the next call with M_BSY. The
+                //  caller hears M_ERR before the server's unlink lands, so
+                //  give that a moment.
+                await new Promise(r => setTimeout(r, 100));
+                const good = connectClient(port, {
+                    addresses: ['1:218/701@testnet'],
+                    getPassword: () => 'testpw',
+                });
+                let secure = null;
+                good.session.on('authenticated', s => {
+                    secure = s;
+                });
+                await new Promise((resolve, reject) => {
+                    good.session.on('session-end', resolve);
+                    good.session.on('error', reject);
+                    good.session.on('busy', r => reject(new Error(`busy: ${r}`)));
+                    good.session.start();
+                });
+                assert.equal(secure, true);
+            } finally {
+                await stop();
+            }
+        });
+
         it('session is secure when client sends correct password', done => {
             startModule({
                 inbound: { enabled: true, port: 0, address: '127.0.0.1' },
