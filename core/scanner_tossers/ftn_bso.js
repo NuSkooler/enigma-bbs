@@ -5075,6 +5075,12 @@ function FTNMessageScanTossModule() {
 
         //  SQLite has a hard limit on host parameters, so read in chunks rather
         //  than building one enormous IN list.
+        //
+        //  The unary + on meta_name keeps this on the message_id key. Without
+        //  it the planner prefers the lookup-by-value index on (meta_category,
+        //  meta_name) and walks every SEEN-BY and origin row in the base to
+        //  find this chunk's: ~170 ms per chunk instead of ~2 ms on a
+        //  36k-message base.
         const CHUNK = 500;
         for (let i = 0; i < messageIds.length; i += CHUNK) {
             const chunk = messageIds.slice(i, i + CHUNK);
@@ -5085,7 +5091,7 @@ function FTNMessageScanTossModule() {
                     FROM message_meta
                     WHERE message_id IN (${placeholders})
                       AND meta_category = 'FtnProperty'
-                      AND meta_name IN (
+                      AND +meta_name IN (
                         'ftn_seen_by', 'ftn_orig_node', 'ftn_orig_network',
                         'ftn_orig_zone', 'ftn_orig_point'
                       );`
