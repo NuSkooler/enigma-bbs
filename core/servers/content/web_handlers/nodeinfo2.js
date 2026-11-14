@@ -49,6 +49,12 @@ function _buildProtocols(config) {
 
 const NodeInfoSchemaBase = 'http://nodeinfo.diaspora.software/ns/schema';
 
+//  How long a computed NodeInfo document is served before it is built again.
+//  Its counts come from several queries; peers poll it, so they get the
+//  cached copy in between.
+const NodeInfoCacheTtlMs = 10 * 60 * 1000;
+exports.NodeInfoCacheTtlMs = NodeInfoCacheTtlMs;
+
 exports.moduleInfo = {
     name: 'NodeInfo2',
     desc: 'A NodeInfo2 Handler implementing https://github.com/jaywink/nodeinfo2',
@@ -189,7 +195,37 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         });
     }
 
+    //
+    //  cb(nodeInfo): the cached document while it is fresh; otherwise build
+    //  it once, however many requests are waiting for it.
+    //
     _getNodeInfo(cb) {
+        const cache = this._nodeInfoCache || (this._nodeInfoCache = { waiters: [] });
+        if (cache.nodeInfo && Date.now() - cache.builtAt < NodeInfoCacheTtlMs) {
+            return cb(cache.nodeInfo);
+        }
+
+        cache.waiters.push(cb);
+        if (cache.waiters.length > 1) {
+            return; // already building
+        }
+
+        this._buildNodeInfo(nodeInfo => {
+            cache.nodeInfo = nodeInfo;
+            cache.builtAt = Date.now();
+            const waiters = cache.waiters;
+            cache.waiters = [];
+            waiters.forEach(waiter => {
+                try {
+                    waiter(nodeInfo);
+                } catch (e) {
+                    this.log.warn({ error: e.message }, 'NodeInfo response failed');
+                }
+            });
+        });
+    }
+
+    _buildNodeInfo(cb) {
         //  https://github.com/jaywink/nodeinfo2/tree/master/schemas/1.0
         const config = Config();
         const nodeInfo = {
