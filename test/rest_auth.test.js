@@ -219,6 +219,13 @@ describe('rest_auth', function () {
                         (err2, authed) => {
                             assert.ifError(err2);
                             assert.equal(authed, null);
+                            //  a refused key is not recorded as used
+                            const row = dbModule.dbs.user
+                                .prepare(
+                                    'SELECT last_used_at FROM api_keys WHERE label = ?'
+                                )
+                                .get(`status-${name}`);
+                            assert.equal(row.last_used_at, null);
                             setStatus(dbModule.dbs.user, testUserId, 2);
                             auth.resolveAuthenticatedUser(
                                 { headers: { 'x-enigma-api-key': rawKey } },

@@ -199,15 +199,16 @@ function _verifyApiKey(keyHeader, cb) {
         return cb(null, null);
     }
 
-    //  Touch last_used_at
-    dbs.user
-        .prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?')
-        .run(moment().toISOString(), row.id);
-
     User.getUser(row.user_id, (err, user) => {
         if (err || !user || !_isAccountActive(user)) {
             return cb(null, null);
         }
+
+        //  Touch last_used_at, for a key that was actually accepted
+        dbs.user
+            .prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?')
+            .run(moment().toISOString(), row.id);
+
         return cb(null, {
             userId: user.userId,
             username: user.username,
@@ -236,6 +237,7 @@ function requireAuth(req, resp, cb) {
     resolveAuthenticatedUser(req, (err, authedUser) => {
         if (err || !authedUser) {
             const { problemDetail } = require('./util');
+            closeIfBodyUnread(req, resp);
             problemDetail(
                 resp,
                 401,
@@ -247,6 +249,19 @@ function requireAuth(req, resp, cb) {
         return cb(authedUser);
     });
 }
+
+//
+//  Close the connection once |resp| has been sent when |req| carries a body
+//  that will not be read: refused before the body (401, 403, ...), the server
+//  would otherwise read and discard all of it on the open connection.
+//
+function closeIfBodyUnread(req, resp) {
+    const declared = parseInt(req.headers['content-length'], 10);
+    if (!req.complete && (declared > 0 || req.headers['transfer-encoding'])) {
+        require('../http_body').closeAfterResponse(resp);
+    }
+}
+exports.closeIfBodyUnread = closeIfBodyUnread;
 
 function hashApiKey(rawKey) {
     return crypto.createHash('sha256').update(rawKey).digest('hex');

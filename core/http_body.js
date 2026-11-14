@@ -48,8 +48,6 @@ function readBody(req, maxBytes, cb) {
         if (total > maxBytes) {
             const err = new Error(`Request body exceeds limit of ${maxBytes} bytes`);
             err.code = exports.ErrorCodes.TooLarge;
-            //  Report first so the caller can write its 413; then close the
-            //  connection once that response has been flushed.
             //  Stop reading, and report. The caller writes its 413 and closes
             //  the connection once that has gone out (closeAfterResponse());
             //  the timer closes it anyway should no response ever be written.

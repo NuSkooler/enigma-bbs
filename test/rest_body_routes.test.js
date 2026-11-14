@@ -91,6 +91,46 @@ describe('REST request bodies', function () {
         });
     });
 
+    describe('closeIfBodyUnread()', function () {
+        function fakeResp() {
+            const resp = new EventEmitter();
+            resp.headersSent = false;
+            resp.headers = {};
+            resp.setHeader = (k, v) => (resp.headers[k.toLowerCase()] = v);
+            resp.writableFinished = false;
+            return resp;
+        }
+
+        it('closes after the response when a declared body was never read', function () {
+            const { closeIfBodyUnread } = require('../core/rest/auth.js');
+            let closed = false;
+            const req = {
+                complete: false,
+                headers: { 'content-length': String(600 * 1024 * 1024) },
+                socket: { destroyed: false, destroySoon: () => (closed = true) },
+            };
+            const resp = fakeResp();
+            resp.req = req;
+            closeIfBodyUnread(req, resp);
+            assert.equal(resp.headers.connection, 'close');
+            assert.equal(closed, false);
+            resp.emit('finish');
+            assert.equal(closed, true);
+        });
+
+        it('leaves a request without a body, or one already read, alone', function () {
+            const { closeIfBodyUnread } = require('../core/rest/auth.js');
+            for (const req of [
+                { complete: false, headers: {} },
+                { complete: true, headers: { 'content-length': '10' } },
+            ]) {
+                const resp = fakeResp();
+                closeIfBodyUnread(req, resp);
+                assert.equal(resp.headers.connection, undefined);
+            }
+        });
+    });
+
     describe('multipart parsing', function () {
         const boundary = '--XyZ';
         const build = parts => {

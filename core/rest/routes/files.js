@@ -9,7 +9,7 @@ const {
     paginationMeta,
     API_BASE,
 } = require('../util');
-const { resolveAuthenticatedUser, requireAuth } = require('../auth');
+const { resolveAuthenticatedUser, requireAuth, closeIfBodyUnread } = require('../auth');
 
 const {
     getAvailableFileAreas,
@@ -450,44 +450,40 @@ function _downloadHandler(req, resp, log) {
 function _uploadHandler(req, resp, log) {
     applyCorsHeaders(req, resp);
 
+    //  every refusal here comes before the upload body is read
+    const refuse = (...args) => {
+        closeIfBodyUnread(req, resp);
+        return problemDetail(...args);
+    };
+
     const areaTag = req.url.match(/\/areas\/([^/?]+)(?:[?#]|$)/)?.[1];
     if (!areaTag) {
-        return problemDetail(resp, 400, 'Bad Request');
+        return refuse(resp, 400, 'Bad Request');
     }
 
     requireAuth(req, resp, authedUser => {
         User.getUser(authedUser.userId, (err, user) => {
             if (err || !user) {
-                return problemDetail(resp, 401, 'Authentication Required');
+                return refuse(resp, 401, 'Authentication Required');
             }
 
             if (isInternalArea(areaTag)) {
-                return problemDetail(resp, 403, 'Forbidden');
+                return refuse(resp, 403, 'Forbidden');
             }
 
             const area = getFileAreaByTag(areaTag);
             if (!area) {
-                return problemDetail(
-                    resp,
-                    404,
-                    'Not Found',
-                    `Area '${areaTag}' not found`
-                );
+                return refuse(resp, 404, 'Not Found', `Area '${areaTag}' not found`);
             }
 
             const acs = _acsForUser(user);
             if (!acs.hasFileAreaWrite(area)) {
-                return problemDetail(
-                    resp,
-                    403,
-                    'Forbidden',
-                    'Insufficient upload access'
-                );
+                return refuse(resp, 403, 'Forbidden', 'Insufficient upload access');
             }
 
             const contentType = req.headers['content-type'] || '';
             if (!contentType.includes('multipart/form-data')) {
-                return problemDetail(
+                return refuse(
                     resp,
                     400,
                     'Bad Request',
