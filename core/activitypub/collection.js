@@ -1401,7 +1401,7 @@ module.exports = class Collection extends ActivityPubObject {
                        json_extract(object_json, '$.object.context')      = ?
                     OR json_extract(object_json, '$.object.conversation') = ?
                    )
-                 ORDER BY timestamp ASC${limit ? ' LIMIT ? OFFSET ?' : ''}`
+                 ORDER BY timestamp ASC, rowid ASC${limit ? ' LIMIT ? OFFSET ?' : ''}`
                 )
                 .all(
                     collectionName,

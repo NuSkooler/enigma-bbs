@@ -196,39 +196,22 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
     }
 
     //
-    //  cb(nodeInfo): the cached document while it is fresh; otherwise build
-    //  it once, however many requests are waiting for it.
+    //  cb(nodeInfo). The document is built fresh on every request, so a config
+    //  change shows at once; only its usage counts, which take several
+    //  queries, are cached (see _getUsage()).
     //
     _getNodeInfo(cb) {
-        const cache = this._nodeInfoCache || (this._nodeInfoCache = { waiters: [] });
-        if (cache.nodeInfo && Date.now() - cache.builtAt < NodeInfoCacheTtlMs) {
-            return cb(cache.nodeInfo);
-        }
-
-        cache.waiters.push(cb);
-        if (cache.waiters.length > 1) {
-            return; // already building
-        }
-
-        this._buildNodeInfo(nodeInfo => {
-            cache.nodeInfo = nodeInfo;
-            cache.builtAt = Date.now();
-            const waiters = cache.waiters;
-            cache.waiters = [];
-            waiters.forEach(waiter => {
-                try {
-                    waiter(nodeInfo);
-                } catch (e) {
-                    this.log.warn({ error: e.message }, 'NodeInfo response failed');
-                }
-            });
+        return this._getUsage(usage => {
+            const nodeInfo = this._baseNodeInfo();
+            Object.assign(nodeInfo.usage, usage);
+            return cb(nodeInfo);
         });
     }
 
-    _buildNodeInfo(cb) {
+    _baseNodeInfo() {
         //  https://github.com/jaywink/nodeinfo2/tree/master/schemas/1.0
         const config = Config();
-        const nodeInfo = {
+        return {
             version: '1.0',
             server: {
                 baseUrl: getBaseUrl(),
@@ -244,11 +227,57 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
             usage: {
                 users: {
                     total: StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1,
-                    // others fetched dynamically below
                 },
-                localPosts: 0, // updated below
+                localPosts: 0,
             },
         };
+    }
+
+    //
+    //  cb(usage): the cached counts while they are fresh; otherwise computed
+    //  once, however many requests are waiting for them. Counts from a run in
+    //  which a query failed are served but not cached, and a failure in the
+    //  computation itself still answers every waiter.
+    //
+    _getUsage(cb) {
+        const cache = this._usageCache || (this._usageCache = { waiters: [] });
+        if (cache.usage && Date.now() - cache.builtAt < NodeInfoCacheTtlMs) {
+            return cb(cache.usage);
+        }
+
+        cache.waiters.push(cb);
+        if (cache.waiters.length > 1) {
+            return; // already computing
+        }
+
+        const done = (usage, complete) => {
+            if (complete) {
+                cache.usage = usage;
+                cache.builtAt = Date.now();
+            }
+            const waiters = cache.waiters;
+            cache.waiters = [];
+            waiters.forEach(waiter => {
+                try {
+                    waiter(usage);
+                } catch (e) {
+                    this.log.warn({ error: e.message }, 'NodeInfo response failed');
+                }
+            });
+        };
+
+        try {
+            this._computeUsage(done);
+        } catch (e) {
+            this.log.warn({ error: e.message }, 'Failed to compute NodeInfo usage');
+            done({}, false);
+        }
+    }
+
+    //  cb(usage, complete): complete is false when any count could not be read
+    _computeUsage(cb) {
+        const usage = {};
+        let complete = true;
 
         const setActive = (since, name, next) => {
             const filter = {
@@ -257,8 +286,10 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
                 dateNewer: moment().subtract(moment.duration(since, 'days')),
             };
             StatLog.findSystemLogEntries(filter, (err, count) => {
-                if (!err) {
-                    nodeInfo.usage[name] = count;
+                if (err) {
+                    complete = false;
+                } else {
+                    usage[name] = count;
                 }
                 return next(null);
             });
@@ -277,15 +308,17 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
                 },
                 callback => {
                     Collection.countLocalPosts((err, count) => {
-                        if (!err) {
-                            nodeInfo.usage.localPosts = count;
+                        if (err) {
+                            complete = false;
+                        } else {
+                            usage.localPosts = count;
                         }
                         return callback(null); // non-fatal
                     });
                 },
             ],
             () => {
-                return cb(nodeInfo);
+                return cb(usage, complete);
             }
         );
     }
