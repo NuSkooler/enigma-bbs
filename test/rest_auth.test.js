@@ -84,7 +84,18 @@ describe('rest_auth', function () {
                 "INSERT INTO user_group_member (group_name, user_id) VALUES ('users', ?)"
             )
             .run(testUserId);
+        setStatus(userDb, testUserId, 2); //  active
     });
+
+    const setStatus = (db, userId, status) => {
+        db.prepare('DELETE FROM user_property WHERE user_id = ? AND prop_name = ?').run(
+            userId,
+            'account_status'
+        );
+        db.prepare(
+            'INSERT INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?)'
+        ).run(userId, 'account_status', String(status));
+    };
 
     after(function () {
         //  Restore originals so we don't pollute later test files
@@ -172,6 +183,89 @@ describe('rest_auth', function () {
             auth.rotateRefreshToken('not-a-real-token', err => {
                 assert.ok(err, 'should return an error');
                 done();
+            });
+        });
+    });
+
+    describe('account status', function () {
+        afterEach(function () {
+            setStatus(dbModule.dbs.user, testUserId, 2);
+        });
+
+        //  disabled, inactive, locked
+        for (const [name, status] of [
+            ['disabled', 0],
+            ['inactive', 1],
+            ['locked', 3],
+        ]) {
+            it(`refresh is refused for a ${name} account`, function (done) {
+                auth.issueTokenPair(testUserId, 'testuser', ['users'], (err, pair) => {
+                    assert.ifError(err);
+                    setStatus(dbModule.dbs.user, testUserId, status);
+                    auth.rotateRefreshToken(pair.refreshToken, (err2, tokens) => {
+                        assert.ok(err2);
+                        assert.equal(tokens, undefined);
+                        done();
+                    });
+                });
+            });
+
+            it(`API key is refused for a ${name} account`, function (done) {
+                auth.storeApiKey(testUserId, `status-${name}`, 'read', (err, rawKey) => {
+                    assert.ifError(err);
+                    setStatus(dbModule.dbs.user, testUserId, status);
+                    auth.resolveAuthenticatedUser(
+                        { headers: { 'x-enigma-api-key': rawKey } },
+                        (err2, authed) => {
+                            assert.ifError(err2);
+                            assert.equal(authed, null);
+                            setStatus(dbModule.dbs.user, testUserId, 2);
+                            auth.resolveAuthenticatedUser(
+                                { headers: { 'x-enigma-api-key': rawKey } },
+                                (err3, again) => {
+                                    assert.ifError(err3);
+                                    assert.equal(again.userId, testUserId);
+                                    done();
+                                }
+                            );
+                        }
+                    );
+                });
+            });
+        }
+
+        it('refresh re-reads the current groups', function (done) {
+            auth.issueTokenPair(testUserId, 'testuser', ['stale'], (err, pair) => {
+                assert.ifError(err);
+                auth.rotateRefreshToken(pair.refreshToken, (err2, tokens) => {
+                    assert.ifError(err2);
+                    const jwt = require('jsonwebtoken');
+                    const payload = jwt.decode(tokens.accessToken);
+                    assert.deepEqual(payload.groups, ['users']);
+                    done();
+                });
+            });
+        });
+
+        it('revokeAllForUser() revokes refresh tokens and API keys', function (done) {
+            auth.issueTokenPair(testUserId, 'testuser', ['users'], (err, pair) => {
+                assert.ifError(err);
+                auth.storeApiKey(testUserId, 'bulk', 'read', (err2, rawKey) => {
+                    assert.ifError(err2);
+                    auth.revokeAllForUser(testUserId, err3 => {
+                        assert.ifError(err3);
+                        auth.rotateRefreshToken(pair.refreshToken, err4 => {
+                            assert.ok(err4);
+                            auth.resolveAuthenticatedUser(
+                                { headers: { 'x-enigma-api-key': rawKey } },
+                                (err5, authed) => {
+                                    assert.equal(authed, null);
+                                    done();
+                                }
+                            );
+                        });
+                    });
+                });
             });
         });
     });
