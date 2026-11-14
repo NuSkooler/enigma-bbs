@@ -27,7 +27,7 @@ const StatLog = require('../../stat_log');
 const UserProps = require('../../user_property');
 const SysProps = require('../../system_property');
 
-const { readBody, ErrorCodes } = require('../../http_body');
+const { readBody, closeAfterResponse, ErrorCodes } = require('../../http_body');
 const { stripAnsiControlCodes } = require('../../string_util');
 const fs = require('graceful-fs');
 const paths = require('path');
@@ -644,6 +644,7 @@ function _parseMultipartBuffer(buf, boundaryStr) {
 }
 
 exports._parseMultipartBuffer = _parseMultipartBuffer;
+exports._parseMultipartUpload = _parseMultipartUpload;
 
 //  multipart/form-data upload: the body is read in memory once (bounded by
 //  MAX_UPLOAD_BYTES), parsed in place, and written to a temp file.
@@ -662,6 +663,7 @@ function _parseMultipartUpload(req, resp, log, cb) {
 
     const declared = parseInt(req.headers['content-length'], 10);
     if (declared > MAX_UPLOAD_BYTES) {
+        closeAfterResponse(req);
         return cb(tooLargeError());
     }
 

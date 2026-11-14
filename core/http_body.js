@@ -5,6 +5,7 @@ const { AsyncResource } = require('async_hooks');
 exports.readBody = readBody;
 exports.readTextBody = readTextBody;
 exports.isTooLarge = isTooLarge;
+exports.closeAfterResponse = closeAfterResponse;
 exports.ErrorCodes = { TooLarge: 'ENTITY_TOO_LARGE', Aborted: 'ECONNABORTED' };
 
 //
@@ -50,13 +51,7 @@ function readBody(req, maxBytes, cb) {
             //  Report first so the caller can write its 413; then close the
             //  connection once that response has been flushed.
             finish(err);
-            setImmediate(() => {
-                if (req.socket && typeof req.socket.destroySoon === 'function') {
-                    req.socket.destroySoon();
-                } else if (typeof req.destroy === 'function') {
-                    req.destroy();
-                }
-            });
+            closeAfterResponse(req);
             return;
         }
         chunks.push(chunk);
@@ -68,6 +63,22 @@ function readBody(req, maxBytes, cb) {
         const err = new Error('Request closed before body was complete');
         err.code = exports.ErrorCodes.Aborted;
         finish(err);
+    });
+}
+
+//
+//  Close |req|'s connection on the next turn, once whatever response the
+//  caller writes now has been flushed. For a request refused before its body
+//  is read (413): left open, the server would go on reading and discarding
+//  the whole body.
+//
+function closeAfterResponse(req) {
+    setImmediate(() => {
+        if (req.socket && typeof req.socket.destroySoon === 'function') {
+            req.socket.destroySoon();
+        } else if (typeof req.destroy === 'function') {
+            req.destroy();
+        }
     });
 }
 

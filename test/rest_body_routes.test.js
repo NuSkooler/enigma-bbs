@@ -76,6 +76,35 @@ describe('REST request bodies', function () {
         assert.equal(n, 1);
     });
 
+    it('refuses an upload declaring more than the cap, and closes the connection', function (done) {
+        const parseUpload = require('../core/rest/routes/files.js')._parseMultipartUpload;
+        const req = new EventEmitter();
+        req.headers = {
+            'content-type': 'multipart/form-data; boundary=x',
+            'content-length': String(1024 * 1024 * 1024),
+        };
+        let closed = false;
+        req.socket = { destroySoon: () => (closed = true) };
+        let dataListeners = 0;
+        const origOn = req.on.bind(req);
+        req.on = (ev, fn) => {
+            if ('data' === ev) {
+                ++dataListeners;
+            }
+            return origOn(ev, fn);
+        };
+        parseUpload(req, {}, null, err => {
+            assert.ok(err);
+            assert.equal(err.code, 'ENTITY_TOO_LARGE');
+            assert.equal(dataListeners, 0, 'the body is not read');
+            assert.equal(closed, false, 'closed only after the 413 is written');
+            setImmediate(() => {
+                assert.equal(closed, true);
+                done();
+            });
+        });
+    });
+
     describe('multipart parsing', function () {
         const boundary = '--XyZ';
         const build = parts => {
