@@ -5,6 +5,7 @@ const path = require('path');
 
 const Address = require('../ftn_address');
 const { moveFileWithCollisionHandling } = require('../file_util');
+const { isPlainFileName } = require('./file_name');
 const FNV1a = require('../fnv1a');
 const Log = require('../logger').log;
 const {
@@ -641,10 +642,25 @@ class BsoSpool {
 
     // Move |tempPath| (written by the session) into the configured inbound dir.
     // Returns the final path (may differ from destDir/filename if a collision was resolved).
+    //
+    //  |filename| has to name a file directly inside the inbound directory.
+    //  The session already reduces every name from the peer to a plain file
+    //  name (file_name.js); this holds the line here too, for any other
+    //  caller. Anything else is refused and the temp file removed, so the
+    //  data goes nowhere rather than somewhere unexpected.
     async receiveFile(tempPath, filename, isSecure) {
         const destDir = isSecure ? this._paths.secInbound : this._paths.inbound;
+        const destPath = path.join(destDir, String(filename || ''));
+        if (
+            !isPlainFileName(filename) ||
+            path.dirname(path.resolve(destPath)) !== path.resolve(destDir)
+        ) {
+            await fsp.unlink(tempPath).catch(() => {});
+            throw new Error(
+                `Inbound file name is not a plain file name: ${JSON.stringify(filename)}`
+            );
+        }
         await fsp.mkdir(destDir, { recursive: true });
-        const destPath = path.join(destDir, filename);
         return new Promise((resolve, reject) => {
             moveFileWithCollisionHandling(tempPath, destPath, (err, finalPath) => {
                 if (err) return reject(err);

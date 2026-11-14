@@ -10,6 +10,7 @@ const zlib = require('zlib');
 const { FrameParser, buildCommandFrame, buildDataFrame, EOF_FRAME } = require('./frame');
 const { Commands, CommandNames, Opts } = require('./commands');
 const { generateChallenge, computeResponse, verifyResponse } = require('./cram');
+const { plainFileName } = require('./file_name');
 const Log = require('../logger').log;
 
 const BINKP_VER = '1.1';
@@ -58,6 +59,10 @@ function _isCompressed(filename) {
 //    'session-end'    ()                               — clean finish
 //    'disconnect'     ()                               — socket closed mid-session
 //    'error'          (err)                            — fatal error
+//
+//  The |name| on the two inbound events is always a plain file name: escapes
+//  decoded, no path components (see file_name.js). A file whose name does
+//  not reduce to one is answered with M_GOT and never reaches a listener.
 //
 //  API:
 //    queueFile(filePath, name, size, timestamp, disposition)
@@ -872,7 +877,11 @@ class BinkpSession extends EventEmitter {
         //  the M_FILE. They would be fed to the previous file's stream.
         this._closeOutstandingReceive();
 
-        const [name, sizeStr, tsStr, offsetStr] = parts;
+        //  |wireName| is the name as the sender wrote it, and is what every
+        //  reply about this file must carry -- the sender matches on it.
+        //  |name| is the same name reduced to a plain file name, and is the
+        //  only form handed on to anything that might use it as a path.
+        const [wireName, sizeStr, tsStr, offsetStr] = parts;
         const size = parseInt(sizeStr, 10);
         const timestamp = parseInt(tsStr, 10);
         const offset = parseInt(offsetStr, 10);
@@ -885,12 +894,32 @@ class BinkpSession extends EventEmitter {
         //  it an old implementation folds extra tokens into the filename.
         const useGZ = this._useEXTCMD && parts.slice(4).includes('GZ');
 
+        //
+        //  A name that is not a plain file name cannot be stored under the
+        //  name the sender gave it, now or in any later session. M_SKIP would
+        //  have the sender offer it again every time, so answer with M_GOT,
+        //  the destructive skip binkd uses for files it never wants, and say
+        //  so in the log. Checked before anything else, so the offset
+        //  handling below and the 'incoming-file' listeners never see it.
+        //  Any data already on the wire behind the M_FILE is dropped by
+        //  _onDataFrame, which has no receive to give it to.
+        //
+        const name = plainFileName(wireName);
+        if (null === name) {
+            Log.warn(
+                { name: wireName, size, remoteAddresses: this._remoteAddresses },
+                '[BinkP] Inbound file name is not a plain file name; not accepting the file'
+            );
+            this._sendCmd(Commands.M_GOT, `${wireName} ${size} ${timestamp}`);
+            return;
+        }
+
         // Duplicate detection
         if (
             typeof this._opts.hasFile === 'function' &&
             this._opts.hasFile(name, size, timestamp)
         ) {
-            this._sendCmd(Commands.M_GOT, `${name} ${size} ${timestamp}`);
+            this._sendCmd(Commands.M_GOT, `${wireName} ${size} ${timestamp}`);
             return;
         }
 
@@ -902,8 +931,8 @@ class BinkpSession extends EventEmitter {
         //  now would build it twice and fire 'incoming-file' twice with it.
         if (offset === -1) {
             // :TODO: check for existing partial file and respond with its size
-            this._pendingOffsetReq = { name, size, timestamp, useGZ };
-            this._sendCmd(Commands.M_GET, `${name} ${size} ${timestamp} 0`);
+            this._pendingOffsetReq = { name, wireName, size, timestamp, useGZ };
+            this._sendCmd(Commands.M_GET, `${wireName} ${size} ${timestamp} 0`);
             return;
         }
 
@@ -928,16 +957,17 @@ class BinkpSession extends EventEmitter {
             //  is the bug being fixed. Wait for the re-announcement.
             this._pendingOffsetReq = {
                 name,
+                wireName,
                 size,
                 timestamp,
                 useGZ,
                 awaitReannounce: true,
             };
-            this._sendCmd(Commands.M_GET, `${name} ${size} ${timestamp} 0`);
+            this._sendCmd(Commands.M_GET, `${wireName} ${size} ${timestamp} 0`);
             return;
         }
 
-        this._beginReceive({ name, size, timestamp, useGZ });
+        this._beginReceive({ name, wireName, size, timestamp, useGZ });
     }
 
     //
@@ -948,7 +978,7 @@ class BinkpSession extends EventEmitter {
     //  second emit for the same file pins the hold above zero and the batch
     //  never sends M_EOB.
     //
-    _beginReceive({ name, size, timestamp, useGZ }) {
+    _beginReceive({ name, wireName = name, size, timestamp, useGZ }) {
         this._pendingOffsetReq = null;
 
         const tempPath = path.join(
@@ -958,6 +988,7 @@ class BinkpSession extends EventEmitter {
 
         this._currentRecv = {
             name,
+            wireName,
             size,
             timestamp,
             tempPath,
@@ -1008,7 +1039,7 @@ class BinkpSession extends EventEmitter {
     _postponeReceive(cr, why) {
         Log.warn({ name: cr.name, got: cr.bytesReceived, want: cr.size }, why);
         this._abandonReceive(cr);
-        this._sendCmd(Commands.M_SKIP, `${cr.name} ${cr.size} ${cr.timestamp}`);
+        this._sendCmd(Commands.M_SKIP, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
         this._checkDone();
     }
 
@@ -1146,14 +1177,17 @@ class BinkpSession extends EventEmitter {
 
         this._abandonReceive(cr);
 
-        const key = `${cr.name}\0${cr.size}\0${cr.timestamp}`;
+        const key = `${cr.wireName}\0${cr.size}\0${cr.timestamp}`;
         if (this._useEXTCMD && !this._nzRequested.has(key)) {
             this._nzRequested.add(key);
             Log.info(
                 { name: cr.name },
                 '[BinkP] Requesting an uncompressed retransmit (NZ)'
             );
-            this._sendCmd(Commands.M_GET, `${cr.name} ${cr.size} ${cr.timestamp} 0 NZ`);
+            this._sendCmd(
+                Commands.M_GET,
+                `${cr.wireName} ${cr.size} ${cr.timestamp} 0 NZ`
+            );
             return;
         }
 
@@ -1161,7 +1195,7 @@ class BinkpSession extends EventEmitter {
         //  token, or the clear retransmit failed too. A non-destructive skip
         //  leaves the file with the sender for another session and lets this
         //  batch finish rather than hang.
-        this._sendCmd(Commands.M_SKIP, `${cr.name} ${cr.size} ${cr.timestamp}`);
+        this._sendCmd(Commands.M_SKIP, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
         this._checkDone();
     }
 
@@ -1209,7 +1243,7 @@ class BinkpSession extends EventEmitter {
         const handOff = () => {
             cr._settled = true;
             this._inboundTempPaths.delete(cr.tempPath);
-            this._sendCmd(Commands.M_GOT, `${cr.name} ${cr.size} ${cr.timestamp}`);
+            this._sendCmd(Commands.M_GOT, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
             this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
             this._checkDone();
         };
