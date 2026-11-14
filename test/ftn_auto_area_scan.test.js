@@ -69,12 +69,12 @@ function makeConfig({ packetPassword } = {}) {
     };
 }
 
-function makeHeader({ password = '' } = {}) {
+function makeHeader({ password = '', zone = LOCAL_ZONE } = {}) {
     const ph = new PacketHeader();
-    ph.origZone = 21;
+    ph.origZone = zone;
     ph.origNet = 1;
     ph.origNode = 100;
-    ph.destZone = LOCAL_ZONE;
+    ph.destZone = zone;
     ph.destNet = LOCAL_NET;
     ph.destNode = LOCAL_NODE;
     ph.password = password;
@@ -96,8 +96,9 @@ function makeEchoMessage(ftnAreaTag, subject) {
     return message;
 }
 
-function writePacket(fileName, header, messages) {
-    const packetPath = paths.join(tempDir, 'in', fileName);
+//  |inbound| is the directory under tempDir: 'in' (unsecure) or 'secin'
+function writePacket(fileName, header, messages, inbound = 'in') {
+    const packetPath = paths.join(tempDir, inbound, fileName);
     return new Promise((resolve, reject) => {
         new Packet().write(packetPath, header, messages, {}, err => {
             if (err) {
@@ -283,7 +284,7 @@ describe('FTN automatic area creation: end to end', () => {
         delete require.cache[FTN_BSO_PATH];
     });
 
-    function writeConfigHjson(autoAreas) {
+    function writeConfigHjson(autoAreas, otherNetworks = {}) {
         const config = {
             includes: [autoAreaCreate.GeneratedIncludeFileName],
             debug: { assertsEnabled: false },
@@ -304,6 +305,7 @@ describe('FTN automatic area creation: end to end', () => {
                 ftn: {
                     networks: {
                         fsxnet: Object.assign({ localAddress: '21:1/121' }, autoAreas),
+                        ...otherNetworks,
                     },
                     areas: {
                         fsx_gen: {
@@ -358,11 +360,16 @@ describe('FTN automatic area creation: end to end', () => {
         });
         await loadConfig();
 
-        await writePacket('e2e00001.pkt', makeHeader(), [
-            makeEchoMessage('FSX_GEN', 'already configured'),
-            makeEchoMessage('FSX_BBS', 'unknown'),
-            makeEchoMessage('FSX_MYS', 'unknown too'),
-        ]);
+        await writePacket(
+            'e2e00001.pkt',
+            makeHeader(),
+            [
+                makeEchoMessage('FSX_GEN', 'already configured'),
+                makeEchoMessage('FSX_BBS', 'unknown'),
+                makeEchoMessage('FSX_MYS', 'unknown too'),
+            ],
+            'secin'
+        );
 
         const inst = makeModule();
         await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
@@ -381,7 +388,7 @@ describe('FTN automatic area creation: end to end', () => {
         assert.equal(getMessageAreaByTag('fsx_bbs').acs.write, autoAreaCreate.DenyAllAcs);
 
         //  the packet is still there for pass 2
-        assert.ok(fs.existsSync(paths.join(tempDir, 'in', 'e2e00001.pkt')));
+        assert.ok(fs.existsSync(paths.join(tempDir, 'secin', 'e2e00001.pkt')));
     });
 
     it('does nothing when the generated include is not wired into config.hjson', async () => {
@@ -402,9 +409,12 @@ describe('FTN automatic area creation: end to end', () => {
         );
         await loadConfig();
 
-        await writePacket('e2e00002.pkt', makeHeader(), [
-            makeEchoMessage('FSX_BBS', 'unknown'),
-        ]);
+        await writePacket(
+            'e2e00002.pkt',
+            makeHeader(),
+            [makeEchoMessage('FSX_BBS', 'unknown')],
+            'secin'
+        );
 
         const inst = makeModule();
         await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
@@ -423,10 +433,15 @@ describe('FTN automatic area creation: end to end', () => {
         });
         await loadConfig();
 
-        await writePacket('e2e00003.pkt', makeHeader(), [
-            makeEchoMessage('FSX_BOT', 'noisy robot echo'),
-            makeEchoMessage('FSX_BBS', 'wanted'),
-        ]);
+        await writePacket(
+            'e2e00003.pkt',
+            makeHeader(),
+            [
+                makeEchoMessage('FSX_BOT', 'noisy robot echo'),
+                makeEchoMessage('FSX_BBS', 'wanted'),
+            ],
+            'secin'
+        );
 
         const inst = makeModule();
         await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
@@ -452,10 +467,15 @@ describe('FTN automatic area creation: end to end', () => {
         });
         await loadConfig();
 
-        const packetPath = await writePacket('e2e00004.pkt', makeHeader(), [
-            makeEchoMessage('FSX_GEN', 'known area'),
-            makeEchoMessage('FSX_BBS', 'unknown area'),
-        ]);
+        const packetPath = await writePacket(
+            'e2e00004.pkt',
+            makeHeader(),
+            [
+                makeEchoMessage('FSX_GEN', 'known area'),
+                makeEchoMessage('FSX_BBS', 'unknown area'),
+            ],
+            'secin'
+        );
 
         const inst = makeModule();
 
@@ -486,5 +506,132 @@ describe('FTN automatic area creation: end to end', () => {
             'known area -> fsx_gen',
             'unknown area -> fsx_bbs',
         ]);
+    });
+
+    it('mail in the unsecure inbound does not create areas', async () => {
+        writeConfigHjson({
+            autoAreas: {
+                confTag: 'fsxnet',
+                onDemand: { enabled: true },
+            },
+        });
+        await loadConfig();
+
+        await writePacket('e2e00005.pkt', makeHeader(), [
+            makeEchoMessage('FSX_BBS', 'unknown'),
+        ]);
+
+        const inst = makeModule();
+        await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+
+        const { getMessageAreaByTag } = require('../core/message_area.js');
+        assert.equal(getMessageAreaByTag('fsx_bbs'), undefined);
+
+        //  ...and the packet is left for the import, as before
+        assert.ok(fs.existsSync(paths.join(tempDir, 'in', 'e2e00005.pkt')));
+    });
+
+    it('says nothing about unsecure mail for a network that does not create areas', async () => {
+        writeConfigHjson(
+            { autoAreas: { confTag: 'fsxnet', onDemand: { enabled: true } } },
+            { othernet: { localAddress: '99:1/121' } }
+        );
+        await loadConfig();
+
+        await writePacket('e2e00007.pkt', makeHeader({ zone: 99 }), [
+            makeEchoMessage('OTHER_TAG', 'unknown'),
+        ]);
+
+        const Log = require('../core/logger.js').log;
+        const warned = [];
+        const priorWarn = Log.warn;
+        Log.warn = (...args) => warned.push(args);
+        const inst = makeModule();
+        try {
+            await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+        } finally {
+            Log.warn = priorWarn;
+        }
+
+        assert.deepEqual(
+            warned.filter(a => /unsecure inbound/.test(a[a.length - 1])),
+            [],
+            'no unsecure-inbound warning for a network without auto areas'
+        );
+        assert.ok(!inst._autoAreaUnsecureWarned, 'the once-only warning is still unused');
+    });
+
+    it('mail in the unsecure inbound creates areas when secureInOnly is false', async () => {
+        writeConfigHjson({
+            autoAreas: {
+                confTag: 'fsxnet',
+                onDemand: { enabled: true, secureInOnly: false },
+            },
+        });
+        await loadConfig();
+
+        await writePacket('e2e00006.pkt', makeHeader(), [
+            makeEchoMessage('FSX_BBS', 'unknown'),
+        ]);
+
+        const inst = makeModule();
+        await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+
+        const { getMessageAreaByTag } = require('../core/message_area.js');
+        assert.ok(getMessageAreaByTag('fsx_bbs'));
+    });
+});
+
+describe('FTN packet header validation', () => {
+    beforeEach(() => {
+        tempDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-pkthdr-'));
+    });
+
+    afterEach(() => {
+        if (restoreConfig) {
+            configModule._popTestConfig(restoreConfig);
+            restoreConfig = undefined;
+        }
+        delete require.cache[FTN_BSO_PATH];
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    function moduleWith(opts) {
+        restoreConfig = configModule._pushTestConfig(makeConfig(opts));
+        return makeModule();
+    }
+
+    function header({ password = '', destNode = LOCAL_NODE, origNode = 100 } = {}) {
+        const ph = makeHeader({ password });
+        ph.destNode = destNode;
+        ph.origNode = origNode;
+        return ph;
+    }
+
+    it('accepts a packet to us from a node with no packet password configured', () => {
+        const result = moduleWith().validatePacketHeader(header());
+        assert.equal(result.error, undefined);
+        assert.equal(result.networkName, 'fsxnet');
+    });
+
+    it('accepts the configured packet password, in any case', () => {
+        const inst = moduleWith({ packetPassword: 'SECRET' });
+        assert.equal(
+            inst.validatePacketHeader(header({ password: 'secret' })).error,
+            undefined
+        );
+    });
+
+    it('refuses a packet whose password does not match', () => {
+        const inst = moduleWith({ packetPassword: 'SECRET' });
+        const { error } = inst.validatePacketHeader(header({ password: 'WRONG' }));
+        assert.ok(error);
+        assert.match(error.message, /password mismatch from 21:1\/100/);
+    });
+
+    it('refuses a packet that is not addressed to us', () => {
+        const { error } = moduleWith().validatePacketHeader(header({ destNode: 999 }));
+        assert.ok(error);
+        assert.match(error.message, /No local configuration for packet addressed to/);
     });
 });

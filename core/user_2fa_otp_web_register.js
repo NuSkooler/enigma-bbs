@@ -18,6 +18,10 @@ const UserProps = require('./user_property.js');
 const Log = require('./logger.js').log;
 const { getConnectionByUserId } = require('./client_connections.js');
 const { buildUrl } = require('./web_util');
+const { readTextBody, isTooLarge } = require('./http_body');
+
+//  Form posts here carry a few short fields; anything larger is refused
+const MaxFormBodyBytes = 32 * 1024;
 
 //  deps
 const async = require('async');
@@ -215,12 +219,14 @@ module.exports = class User2FA_OTPWebRegister {
             );
         };
 
-        let bodyData = '';
-        req.on('data', data => {
-            bodyData += data;
-        });
+        readTextBody(req, MaxFormBodyBytes, (err, bodyData) => {
+            if (err) {
+                if (isTooLarge(err)) {
+                    return webServer.instance.requestEntityTooLarge(resp);
+                }
+                return; //  client went away or request errored
+            }
 
-        req.on('end', () => {
             const formData = querystring.parse(bodyData);
 
             if (

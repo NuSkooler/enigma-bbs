@@ -172,9 +172,11 @@ function echoMessage(ftnAreaTag, subject) {
     return m;
 }
 
+//  Into the secure inbound, where an uplink with a session password delivers:
+//  only mail there creates areas by default.
 function writePacket(name, messages) {
     const { Packet } = require('../../core/ftn_mail_packet.js');
-    const packetPath = paths.join(tempDir, 'in', name);
+    const packetPath = paths.join(tempDir, 'secin', name);
     return new Promise((resolve, reject) => {
         new Packet().write(packetPath, makeHeader(), messages, {}, err => {
             if (err) {
@@ -275,7 +277,7 @@ describe('FTN automatic area creation against real databases', function () {
         ]);
 
         //  the packet was consumed, as it always is
-        assert.deepEqual(fs.readdirSync(paths.join(tempDir, 'in')), []);
+        assert.deepEqual(fs.readdirSync(paths.join(tempDir, 'secin')), []);
     });
 
     it('created them read-only', () => {

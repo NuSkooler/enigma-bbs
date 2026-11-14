@@ -32,6 +32,7 @@ exports.initMessageDatabase = initMessageDatabase;
 exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
 exports.migrateMessageFtsRebuild = migrateMessageFtsRebuild;
 exports.migrateActivityPubActorCachePurge = migrateActivityPubActorCachePurge;
+exports.ensureActivityPubContextIndexes = ensureActivityPubContextIndexes;
 
 exports.dbs = dbs;
 
@@ -637,6 +638,29 @@ function migrateMessageFtsRebuild(db) {
             'Rebuilt the message search index'
         );
     }
+}
+
+//
+//  Indexes for looking up a thread's Notes by their context / conversation
+//  (Collection.getCollectionByContext). SQLite uses an expression index only
+//  for a query that repeats the indexed expression exactly, so the query
+//  there must keep json_extract(object_json, '$.object.context') and
+//  '$.object.conversation' as written here. Partial: rows without the field
+//  (actors, followers, ...) are left out of the index.
+//
+//  IF NOT EXISTS: a no-op once built; an existing database builds them once,
+//  at the next start.
+//
+function ensureActivityPubContextIndexes(db) {
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS collection_object_context_index0
+            ON collection (json_extract(object_json, '$.object.context'))
+            WHERE json_extract(object_json, '$.object.context') IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS collection_object_conversation_index0
+            ON collection (json_extract(object_json, '$.object.conversation'))
+            WHERE json_extract(object_json, '$.object.conversation') IS NOT NULL;
+    `);
 }
 
 //
@@ -1320,6 +1344,8 @@ const DB_INIT_TABLE = {
         }
 
         migrateActivityPubActorCachePurge(dbs.activitypub);
+
+        ensureActivityPubContextIndexes(dbs.activitypub);
 
         //
         //  One-time migration: backfill note_reactions from legacy meta-based storage.

@@ -20,11 +20,12 @@ const msgDb = require('../database.js').dbs.message;
 const Message = require('../message.js');
 const TicFileInfo = require('../tic_file_info.js');
 const Errors = require('../enig_error.js').Errors;
+const ErrorCodes = require('../enig_error.js').ErrorCodes;
 const FileEntry = require('../file_entry.js');
 const scanFile = require('../file_base_area.js').scanFile;
 const getFileAreaByTag = require('../file_base_area.js').getFileAreaByTag;
 const getDescFromFileName = require('../file_base_area.js').getDescFromFileName;
-const { copyFileWithCollisionHandling, safeCopyFile } = require('../file_util.js');
+const { safeCopyFile } = require('../file_util.js');
 const getAreaStorageDirectoryByTag =
     require('../file_base_area.js').getAreaStorageDirectoryByTag;
 const isValidStorageTag = require('../file_base_area.js').isValidStorageTag;
@@ -50,6 +51,7 @@ const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
 const TicFileWriter = require('../tic_file_writer.js');
 const ticForward = require('../tic_forward.js');
 const ticPassthrough = require('../tic_passthrough.js');
+const ticStore = require('../tic_store.js');
 const autoAreaCreate = require('../auto_area_create.js');
 const areaInfoPack = require('../area_info_pack.js');
 const { AreaFixStatus, parseAreaFixReply } = require('../areafix_reply.js');
@@ -77,8 +79,12 @@ exports.moduleInfo = {
 /*
     :TODO:
     * Support (approx) max bundle size
-    * Validate packet passwords!!!!
-        => secure vs insecure landing areas
+    * Secure vs unsecure inbound: packet headers are checked in one place,
+      validatePacketHeader(), and a configured packetPassword is enforced
+      from either inbound. TICs (tic.secureInOnly) and automatic area
+      creation (autoAreas.onDemand.secureInOnly) default to the secure
+      inbound only. A packet in the unsecure inbound from a node with no
+      packetPassword is still imported on its header alone.
 */
 
 exports.getModule = FTNMessageScanTossModule;
@@ -467,7 +473,10 @@ function FTNMessageScanTossModule() {
 
         //  :TODO: create Address.toMeta() / similar
         message.meta.FtnProperty = message.meta.FtnProperty || {};
-        message.meta.FtnKludge = message.meta.FtnKludge || {};
+        //  A message loaded back from the database has a repeated meta value
+        //  as an array and a single one as a string, whatever the kludge.
+        //  Give it the shape a freshly parsed message has.
+        message.meta.FtnKludge = ftnUtil.normalizeKludges(message.meta.FtnKludge || {});
 
         message.meta.FtnProperty.ftn_orig_node = localAddress.node;
         message.meta.FtnProperty.ftn_orig_network = localAddress.net;
@@ -649,6 +658,10 @@ function FTNMessageScanTossModule() {
             'MSGID',
             (err, msgIdVal) => {
                 if (!err) {
+                    //  one MSGID per message; an older import may have stored two
+                    if (Array.isArray(msgIdVal)) {
+                        msgIdVal = msgIdVal[0];
+                    }
                     assert(
                         _.isString(msgIdVal),
                         'Expected string but got ' +
@@ -867,6 +880,47 @@ function FTNMessageScanTossModule() {
 
         const best = Address.findBestPatternMatch(this.moduleConfig.nodes, addr);
         return best ? best.value : undefined;
+    };
+
+    //
+    //  The checks an inbound packet header must pass before anything in the
+    //  packet is acted on -- by the import, or by the read-only scan that
+    //  creates areas ahead of it. One place, so the two cannot drift apart:
+    //  a packet whose messages the import would refuse must not be able to
+    //  create areas on its way past.
+    //
+    //  * addressed to one of our networks
+    //  * when the sending node has a packetPassword configured, the packet
+    //    carries it (case-insensitive, as FTS-0001 passwords are)
+    //
+    //  Returns { networkName } or { error }.
+    //
+    this.validatePacketHeader = function (packetHeader) {
+        const networkName = self.getNetworkNameByAddress(packetHeader.destAddress);
+        if (!_.isString(networkName)) {
+            const addrString = new Address(packetHeader.destAddress).toString();
+            return {
+                error: Errors.Invalid(
+                    `No local configuration for packet addressed to ${addrString}`
+                ),
+            };
+        }
+
+        const originAddr = new Address(packetHeader.origAddress);
+        const nodeConfig = self.getNodeConfigByAddress(originAddr);
+        if (nodeConfig && nodeConfig.packetPassword) {
+            const expected = nodeConfig.packetPassword.toUpperCase();
+            const actual = (packetHeader.password || '').toUpperCase();
+            if (expected !== actual) {
+                return {
+                    error: Errors.AccessDenied(
+                        `Packet password mismatch from ${originAddr.toString()}`
+                    ),
+                };
+            }
+        }
+
+        return { networkName };
     };
 
     this.exportNetMailMessagePacket = function (message, exportOpts, cb) {
@@ -1468,7 +1522,7 @@ function FTNMessageScanTossModule() {
                             if (
                                 messageLoaded &&
                                 message.messageId &&
-                                Errors.ErrorCodes.DoesNotExist === err.code
+                                ErrorCodes.DoesNotExist === err.code
                             ) {
                                 const localFromUserId = parseInt(
                                     _.get(message, [
@@ -1855,7 +1909,9 @@ function FTNMessageScanTossModule() {
     this.getAddressesFromNetMailMessage = function (message) {
         const intlKludge = _.get(message, 'meta.FtnKludge.INTL');
 
-        if (!intlKludge) {
+        //  The parser keeps the first of a repeated INTL; anything else that
+        //  is not a string is not an INTL we can read.
+        if (!_.isString(intlKludge)) {
             return {};
         }
 
@@ -1905,6 +1961,24 @@ function FTNMessageScanTossModule() {
                         'MSGID',
                         message.meta.FtnKludge.MSGID,
                         (err, msgIds) => {
+                            //
+                            //  A lookup that failed has not shown the message
+                            //  is new. Importing it anyway would let a
+                            //  duplicate through, so refuse the message like
+                            //  any other import failure: the packet goes to
+                            //  the reject directory instead of into the base.
+                            //
+                            if (err) {
+                                Log.warn(
+                                    {
+                                        MSGID: message.meta.FtnKludge.MSGID,
+                                        error: err.message,
+                                    },
+                                    'Could not check MSGID for a duplicate; not importing'
+                                );
+                                return callback(err);
+                            }
+
                             if (msgIds && msgIds.length > 0) {
                                 const err = new Error('Duplicate MSGID');
                                 err.code = 'DUPE_MSGID';
@@ -2151,42 +2225,22 @@ function FTNMessageScanTossModule() {
                 if ('header' === entryType) {
                     packetHeader = entryData;
 
-                    const localNetworkName = self.getNetworkNameByAddress(
-                        packetHeader.destAddress
-                    );
-                    if (!_.isString(localNetworkName)) {
-                        const addrString = new Address(
-                            packetHeader.destAddress
-                        ).toString();
-
-                        //  hard abort — error propagates to final callback, no skipCount needed
-                        return next(
-                            new Error(
-                                `No local configuration for packet addressed to ${addrString}`
-                            )
-                        );
-                    } else {
-                        //  Validate packet password against node config (if configured)
-                        const originAddr = new Address(packetHeader.origAddress);
-                        const nodeConfig = self.getNodeConfigByAddress(originAddr);
-                        if (nodeConfig && nodeConfig.packetPassword) {
-                            const expected = nodeConfig.packetPassword.toUpperCase();
-                            const actual = (packetHeader.password || '').toUpperCase();
-                            if (expected !== actual) {
-                                //  hard abort — error propagates to final callback
-                                Log.warn(
-                                    { origin: originAddr.toString() },
-                                    'Packet rejected: password mismatch'
-                                );
-                                return next(
-                                    new Error(
-                                        `Packet password mismatch from ${originAddr.toString()}`
-                                    )
-                                );
-                            }
+                    //  hard abort — error propagates to final callback, no skipCount needed
+                    const { error } = self.validatePacketHeader(packetHeader);
+                    if (error) {
+                        if (ErrorCodes.AccessDenied === error.code) {
+                            Log.warn(
+                                {
+                                    origin: new Address(
+                                        packetHeader.origAddress
+                                    ).toString(),
+                                },
+                                'Packet rejected: password mismatch'
+                            );
                         }
-                        return next(null);
+                        return next(error);
                     }
+                    return next(null);
                 } else if ('message' === entryType) {
                     const message = entryData;
                     const areaTag = message.meta.FtnProperty.ftn_area;
@@ -2398,27 +2452,14 @@ function FTNMessageScanTossModule() {
             packetPath,
             (entryType, entryData, next) => {
                 if ('header' === entryType) {
-                    networkName = self.getNetworkNameByAddress(entryData.destAddress);
-                    if (!_.isString(networkName)) {
-                        //  not addressed to us; the import rejects it too
-                        return next(Errors.Invalid('Packet is not addressed to us'));
+                    //  The import's own header checks, so a packet it would
+                    //  refuse cannot create areas on its way past.
+                    const result = self.validatePacketHeader(entryData);
+                    if (result.error) {
+                        return next(result.error);
                     }
 
-                    //
-                    //  Apply the same packet password check the import
-                    //  applies.  A packet whose messages will be rejected must
-                    //  not be able to create areas on its way past.
-                    //
-                    const originAddr = new Address(entryData.origAddress);
-                    const nodeConfig = self.getNodeConfigByAddress(originAddr);
-                    if (nodeConfig && nodeConfig.packetPassword) {
-                        const expected = nodeConfig.packetPassword.toUpperCase();
-                        const actual = (entryData.password || '').toUpperCase();
-                        if (expected !== actual) {
-                            return next(Errors.AccessDenied('Packet password mismatch'));
-                        }
-                    }
-
+                    networkName = result.networkName;
                     return next(null);
                 }
 
@@ -2930,16 +2971,14 @@ function FTNMessageScanTossModule() {
         return true;
     };
 
-    this.copyTicAttachment = function (src, dst, isUpdate, cb) {
-        if (isUpdate) {
-            safeCopyFile(src, dst, { overwrite: true }, err => {
-                return cb(err, dst);
-            });
-        } else {
-            copyFileWithCollisionHandling(src, dst, (err, finalPath) => {
-                return cb(err, finalPath);
-            });
-        }
+    //
+    //  |supersedes| is the stored file a "Replaces" matched, if any. It is
+    //  overwritten only when the payload lands on exactly that path; anything
+    //  else already at |dst| belongs to some other entry and is renamed
+    //  around. See tic_store.js.
+    //
+    this.copyTicAttachment = function (src, dst, supersedes, cb) {
+        return ticStore.storePayload(src, dst, { supersedes }, cb);
     };
 
     //
@@ -3456,7 +3495,7 @@ function FTNMessageScanTossModule() {
                     self.copyTicAttachment(
                         ticFileInfo.filePath,
                         dst,
-                        isUpdate,
+                        isUpdate ? localInfo.oldPath : undefined,
                         (err, finalPath) => {
                             if (err) {
                                 Log.info(
@@ -3565,8 +3604,12 @@ function FTNMessageScanTossModule() {
                         return callback(null, localInfo);
                     }
 
-                    //  if we updated a file in place, don't delete it!
-                    if (localInfo.newPath === oldPath) {
+                    //  if we updated a file in place, don't delete it! Compared
+                    //  the way tic_store.js decided to overwrite it.
+                    if (
+                        localInfo.newPath &&
+                        paths.resolve(localInfo.newPath) === paths.resolve(oldPath)
+                    ) {
                         Log.trace(
                             { path: oldPath },
                             'TIC file replaced in place. Nothing to remove.'
@@ -5933,6 +5976,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 
         //  ...likewise for a secureInOnly that has just been changed
         this._ticUnsecureWarned = false;
+        this._autoAreaUnsecureWarned = false;
 
         //  ...and re-check what the new config says about the outbound spool:
         //  a reload can introduce a bad defaultNetwork, or move the default
@@ -6314,6 +6358,25 @@ FTNMessageScanTossModule.prototype.maybeAutoCreateAreas = function (cb) {
 
     const collected = {};
 
+    //
+    //  Which inbounds may create areas. Only the secure one by default: a
+    //  packet there came over a password-protected session. A network can
+    //  opt the unsecure inbound back in with "onDemand.secureInOnly: false"
+    //  -- the same switch, and the same default, as tic.secureInOnly -- for
+    //  an uplink that delivers without a session password.
+    //
+    //  Collected per inbound, then filtered per network, since the setting
+    //  is per network and a packet's network is only known once it is read.
+    //
+    const secureOnly = networkName =>
+        false !==
+        _.get(autoAreaCreate.getAutoAreasConfig(networkName), [
+            'onDemand',
+            'secureInOnly',
+        ]);
+
+    const collectedInsecure = {};
+
     async.eachSeries(
         ['inbound', 'secInbound'],
         (inboundType, nextDir) => {
@@ -6321,11 +6384,48 @@ FTNMessageScanTossModule.prototype.maybeAutoCreateAreas = function (cb) {
             if (!_.isString(importDir)) {
                 return nextDir(null);
             }
-            self.collectUnknownAreaTagsFromDirectory(importDir, collected, () =>
-                nextDir(null)
+
+            //  The same directory configured as both is the secure inbound.
+            if (
+                'inbound' === inboundType &&
+                _.isString(self.moduleConfig.paths.secInbound) &&
+                paths.resolve(importDir) ===
+                    paths.resolve(self.moduleConfig.paths.secInbound)
+            ) {
+                return nextDir(null);
+            }
+
+            //  Read even when no network will use it, so the operator can be
+            //  told what was not created and why.
+            self.collectUnknownAreaTagsFromDirectory(
+                importDir,
+                'secInbound' === inboundType ? collected : collectedInsecure,
+                () => nextDir(null)
             );
         },
         () => {
+            Object.keys(collectedInsecure).forEach(networkName => {
+                if (!networkNames.includes(networkName)) {
+                    return; //  this network does not create areas at all
+                }
+                if (secureOnly(networkName)) {
+                    //  say it once, then stay quiet until the config changes
+                    const level = self._autoAreaUnsecureWarned ? 'debug' : 'warn';
+                    self._autoAreaUnsecureWarned = true;
+                    Log[level](
+                        {
+                            networkName,
+                            ftnTags: Array.from(collectedInsecure[networkName]),
+                        },
+                        'Not creating areas from mail in the unsecure inbound; set onDemand.secureInOnly to false to allow it'
+                    );
+                    return;
+                }
+                const set =
+                    collected[networkName] || (collected[networkName] = new Set());
+                collectedInsecure[networkName].forEach(t => set.add(t));
+            });
+
             const wanted = networkNames.filter(
                 n => collected[n] && collected[n].size > 0
             );

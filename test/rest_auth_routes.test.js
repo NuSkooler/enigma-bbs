@@ -157,6 +157,11 @@ describe('REST auth routes: refresh cookie lifecycle', () => {
         testUserId = userDb
             .prepare("INSERT INTO user (user_name) VALUES ('fixture')")
             .run().lastInsertRowid;
+        userDb
+            .prepare(
+                "INSERT INTO user_property (user_id, prop_name, prop_value) VALUES (?, 'account_status', '2')"
+            )
+            .run(testUserId);
         for (const path of [
             '../core/user_group',
             '../core/user',

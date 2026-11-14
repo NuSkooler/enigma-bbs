@@ -602,8 +602,13 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
         let lockAddr = null;
         let filesReceived = 0;
+        //  Set once the session has ended, however it ended. The lock is
+        //  taken asynchronously on M_ADR, and a session refused at M_PWD can
+        //  end before that settles -- the lock must not outlive it.
+        let ended = false;
 
         const releaseLock = async () => {
+            ended = true;
             if (lockAddr) {
                 const addr = lockAddr;
                 lockAddr = null;
@@ -629,6 +634,9 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
                     return;
                 }
                 lockAddr = addr;
+                if (ended) {
+                    await releaseLock();
+                }
                 return;
             }
         });
@@ -639,6 +647,10 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             if (filesReceived > 0) {
                 Events.emit(Events.getSystemEvents().NewInboundBSO);
             }
+        });
+
+        session.on('disconnect', async () => {
+            await releaseLock();
         });
 
         session.on('error', async err => {
@@ -684,16 +696,25 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         return false;
     }
 
+    //
+    //  The distinct session passwords configured for the presented addresses.
+    //  Every one is returned, not just the first: an M_PWD has to match each
+    //  passworded address, so addresses that disagree mean the session is
+    //  refused (BinkpSession._expectedPassword), as binkd does.
+    //
     _lookupPassword(nodes, remoteAddrStrings) {
-        if (_.isEmpty(nodes)) return null;
+        if (_.isEmpty(nodes)) return [];
+        const passwords = new Set();
         for (const addrStr of remoteAddrStrings || []) {
             const addr = Address.fromString(addrStr);
             if (!addr || !addr.isValid()) continue;
             //  findBestNodeMatch picks the most-specific pattern match so a
             //  per-node override always wins over a catch-all wildcard.
             const nodeConf = findBestNodeMatch(nodes, addr);
-            if (nodeConf && nodeConf.sessionPassword) return nodeConf.sessionPassword;
+            if (nodeConf && nodeConf.sessionPassword) {
+                passwords.add(nodeConf.sessionPassword);
+            }
         }
-        return null;
+        return Array.from(passwords);
     }
 };

@@ -82,6 +82,15 @@ function setAccountStatus(user, status) {
 
                 return user.unlockAccount(callback);
             },
+            callback => {
+                //  an account that can no longer log in keeps no REST credentials
+                if (AccountStatus.active === status) {
+                    return callback(null);
+                }
+
+                const { revokeAllForUser } = require('../rest/auth');
+                return revokeAllForUser(user.userId, callback);
+            },
         ],
         err => {
             if (err) {
@@ -204,7 +213,7 @@ function removeUser(user) {
                 const DeleteFrom = {
                     message: ['user_message_area_last_read'],
                     system: ['user_event_log'],
-                    user: ['user_group_member', 'user'],
+                    user: ['api_refresh_tokens', 'api_keys', 'user_group_member', 'user'],
                     file: ['file_user_rating'],
                 };
 

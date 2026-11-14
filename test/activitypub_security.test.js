@@ -62,6 +62,7 @@ const { EventEmitter } = require('events');
 const {
     validateRequestDate,
     verifyDigestHeader,
+    missingSignedHeaders,
     normalizeHttpSigHeader,
     actorIdFromKeyId,
     hostsMatch,
@@ -279,10 +280,10 @@ describe('verifyDigestHeader()', function () {
     const CORRECT_DIGEST =
         'SHA-256=' + crypto.createHash('sha256').update(BODY).digest('base64');
 
-    it('returns true when no Digest header is present', () => {
-        assert.ok(verifyDigestHeader(null, BODY));
-        assert.ok(verifyDigestHeader(undefined, BODY));
-        assert.ok(verifyDigestHeader('', BODY));
+    it('returns false when no Digest header is present', () => {
+        assert.equal(verifyDigestHeader(null, BODY), false);
+        assert.equal(verifyDigestHeader(undefined, BODY), false);
+        assert.equal(verifyDigestHeader('', BODY), false);
     });
 
     it('returns true when the SHA-256 digest matches the body', () => {
@@ -301,12 +302,35 @@ describe('verifyDigestHeader()', function () {
         assert.equal(verifyDigestHeader(bad, BODY), false);
     });
 
-    it('returns true for an unrecognized algorithm (skip — no SHA-256 prefix)', () => {
+    it('returns false when only an unsupported algorithm is listed', () => {
         const md5 = 'MD5=rL0Y20zC+Fzt72VPzMSk2A==';
-        assert.ok(
-            verifyDigestHeader(md5, BODY),
-            'non-SHA-256 algorithms should be skipped'
-        );
+        assert.equal(verifyDigestHeader(md5, BODY), false);
+        assert.equal(verifyDigestHeader('garbage', BODY), false);
+    });
+
+    it('accepts the algorithm name in any case', () => {
+        const lower = CORRECT_DIGEST.replace('SHA-256=', 'sha-256=');
+        assert.ok(verifyDigestHeader(lower, BODY));
+    });
+
+    it('accepts a matching SHA-512 digest', () => {
+        const sha512 =
+            'SHA-512=' + crypto.createHash('sha512').update(BODY).digest('base64');
+        assert.ok(verifyDigestHeader(sha512, BODY));
+        const wrong =
+            'SHA-512=' + crypto.createHash('sha512').update('other').digest('base64');
+        assert.equal(verifyDigestHeader(wrong, BODY), false);
+    });
+
+    it('checks the supported entry of a list and ignores unsupported ones', () => {
+        assert.ok(verifyDigestHeader(`MD5=abc, ${CORRECT_DIGEST}`, BODY));
+        assert.ok(verifyDigestHeader(`${CORRECT_DIGEST},UNIXsum=30637`, BODY));
+    });
+
+    it('returns false when any supported entry of a list does not match', () => {
+        const wrong512 =
+            'SHA-512=' + crypto.createHash('sha512').update('other').digest('base64');
+        assert.equal(verifyDigestHeader(`${CORRECT_DIGEST}, ${wrong512}`, BODY), false);
     });
 
     it('works with a string body as well as a Buffer', () => {
@@ -318,6 +342,63 @@ describe('verifyDigestHeader()', function () {
         const modified = Buffer.from(BODY);
         modified[0] = modified[0] ^ 0xff; // flip bits in first byte
         assert.equal(verifyDigestHeader(CORRECT_DIGEST, modified), false);
+    });
+});
+
+// ─── missingSignedHeaders ─────────────────────────────────────────────────────
+
+describe('missingSignedHeaders()', function () {
+    it('accepts a POST that signs (request-target), host, date and digest', () => {
+        assert.deepEqual(
+            missingSignedHeaders(
+                ['(request-target)', 'host', 'date', 'digest', 'content-type'],
+                'POST'
+            ),
+            []
+        );
+    });
+
+    it('accepts the set in any order and case', () => {
+        assert.deepEqual(
+            missingSignedHeaders(['Digest', 'Date', 'Host', '(Request-Target)'], 'post'),
+            []
+        );
+    });
+
+    it('accepts a GET that signs (request-target), host and date', () => {
+        assert.deepEqual(
+            missingSignedHeaders(['(request-target)', 'host', 'date'], 'GET'),
+            []
+        );
+    });
+
+    it('reports each required header that is not signed', () => {
+        assert.deepEqual(missingSignedHeaders(['date'], 'GET'), [
+            '(request-target)',
+            'host',
+        ]);
+        assert.deepEqual(missingSignedHeaders(['(request-target)', 'date'], 'GET'), [
+            'host',
+        ]);
+        assert.deepEqual(missingSignedHeaders(['(request-target)', 'host'], 'GET'), [
+            'date',
+        ]);
+    });
+
+    it('a POST must sign its Digest', () => {
+        assert.deepEqual(
+            missingSignedHeaders(['(request-target)', 'host', 'date'], 'POST'),
+            ['digest']
+        );
+    });
+
+    it('treats a missing header list as nothing signed', () => {
+        assert.deepEqual(missingSignedHeaders(undefined, 'POST'), [
+            '(request-target)',
+            'host',
+            'date',
+            'digest',
+        ]);
     });
 });
 
@@ -959,11 +1040,14 @@ describe('readInboxBody()', function () {
         });
     });
 
-    it('destroys the request when the limit is exceeded', done => {
+    it('stops reading the request when the limit is exceeded', done => {
         const req = makeFakeReq(['x'.repeat(200)]);
+        let paused = false;
+        req.pause = () => (paused = true);
         readInboxBody(req, 100, err => {
             assert.ok(err);
-            assert.ok(req.destroyed, 'req.destroy() should have been called');
+            //  the 413 response closes the connection once it has been sent
+            assert.ok(paused, 'req.pause() should have been called');
             done();
         });
     });

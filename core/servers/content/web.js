@@ -1,5 +1,6 @@
 //  ENiGMA½
 const SysLogger = require('../../logger.js').log;
+const { closeAfterResponse } = require('../../http_body');
 const ServerModule = require('../../server_module.js').ServerModule;
 const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
@@ -449,7 +450,10 @@ exports.getModule = class WebServerModule extends ServerModule {
         );
     }
 
+    //  The request's body was not read through, so its connection is closed
+    //  once this has been sent.
     requestEntityTooLarge(resp) {
+        closeAfterResponse(resp);
         return this.respondWithError(
             resp,
             413,

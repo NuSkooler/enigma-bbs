@@ -5,6 +5,7 @@ const {
     problemDetail,
     applyCorsHeaders,
     parseJsonBody,
+    respondBodyError,
     encodeCursor,
     decodeCursor,
     paginationMeta,
@@ -465,7 +466,7 @@ function _postMessageHandler(req, resp, log) {
 
             parseJsonBody(req, (err, body) => {
                 if (err) {
-                    return problemDetail(resp, 400, 'Bad Request', 'Invalid JSON body');
+                    return respondBodyError(resp, err, 'Invalid JSON body');
                 }
 
                 const { subject, message, toUserName, replyToMessageId } = body || {};

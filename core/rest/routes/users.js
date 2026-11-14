@@ -5,6 +5,7 @@ const {
     problemDetail,
     applyCorsHeaders,
     parseJsonBody,
+    respondBodyError,
     API_BASE,
 } = require('../util');
 const { resolveAuthenticatedUser, requireAuth } = require('../auth');
@@ -157,7 +158,7 @@ function _meUpdateHandler(req, resp, log) {
     requireAuth(req, resp, authedUser => {
         parseJsonBody(req, (err, body) => {
             if (err) {
-                return problemDetail(resp, 400, 'Bad Request', err.message);
+                return respondBodyError(resp, err);
             }
 
             //  Collect valid updates only

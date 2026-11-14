@@ -3,6 +3,7 @@
 const { dbs } = require('../database');
 const Config = require('../config').get;
 const User = require('../user');
+const UserProps = require('../user_property');
 
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -18,6 +19,7 @@ exports.hashApiKey = hashApiKey;
 exports.storeApiKey = storeApiKey;
 exports.listApiKeys = listApiKeys;
 exports.revokeApiKey = revokeApiKey;
+exports.revokeAllForUser = revokeAllForUser;
 
 const JWT_SECRET_STAT = 'api_jwt_secret';
 const ACCESS_TOKEN_TTL_S = 15 * 60; // 15 minutes
@@ -42,6 +44,21 @@ function getOrCreateJwtSecret() {
         .run(JWT_SECRET_STAT, secret);
 
     return secret;
+}
+
+//
+//  Access via refresh tokens and API keys is only granted while the account is
+//  in a state login itself accepts. Login also lets a locked account in again
+//  once its auto-unlock period has passed (and then resets it to active); here
+//  we are conservative and require 'active', so such an account simply logs in
+//  again to get fresh credentials.
+//
+//  Access tokens (JWTs) are self-contained and expire after ACCESS_TOKEN_TTL_S,
+//  which is therefore the longest a status change takes to apply to them.
+//
+function _isAccountActive(user) {
+    const status = parseInt(user.getProperty(UserProps.AccountStatus), 10);
+    return User.AccountStatus.active === status;
 }
 
 function _hashToken(token) {
@@ -119,6 +136,11 @@ function rotateRefreshToken(rawRefresh, cb) {
             return cb(err || new Error('User not found'));
         }
 
+        if (!_isAccountActive(user)) {
+            return cb(new Error('Account is not active'));
+        }
+
+        //  groups are re-read from the user record on every refresh
         const groups = user.groups || [];
         return issueTokenPair(user.userId, user.username, groups, cb);
     });
@@ -177,15 +199,16 @@ function _verifyApiKey(keyHeader, cb) {
         return cb(null, null);
     }
 
-    //  Touch last_used_at
-    dbs.user
-        .prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?')
-        .run(moment().toISOString(), row.id);
-
     User.getUser(row.user_id, (err, user) => {
-        if (err || !user) {
+        if (err || !user || !_isAccountActive(user)) {
             return cb(null, null);
         }
+
+        //  Touch last_used_at, for a key that was actually accepted
+        dbs.user
+            .prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?')
+            .run(moment().toISOString(), row.id);
+
         return cb(null, {
             userId: user.userId,
             username: user.username,
@@ -214,6 +237,7 @@ function requireAuth(req, resp, cb) {
     resolveAuthenticatedUser(req, (err, authedUser) => {
         if (err || !authedUser) {
             const { problemDetail } = require('./util');
+            closeIfBodyUnread(req, resp);
             problemDetail(
                 resp,
                 401,
@@ -225,6 +249,19 @@ function requireAuth(req, resp, cb) {
         return cb(authedUser);
     });
 }
+
+//
+//  Close the connection once |resp| has been sent when |req| carries a body
+//  that will not be read: refused before the body (401, 403, ...), the server
+//  would otherwise read and discard all of it on the open connection.
+//
+function closeIfBodyUnread(req, resp) {
+    const declared = parseInt(req.headers['content-length'], 10);
+    if (!req.complete && (declared > 0 || req.headers['transfer-encoding'])) {
+        require('../http_body').closeAfterResponse(resp);
+    }
+}
+exports.closeIfBodyUnread = closeIfBodyUnread;
 
 function hashApiKey(rawKey) {
     return crypto.createHash('sha256').update(rawKey).digest('hex');
@@ -261,6 +298,19 @@ function listApiKeys(userId, cb) {
     } catch (err) {
         return cb(err);
     }
+}
+
+//  Revoke every refresh token and API key belonging to a user.
+function revokeAllForUser(userId, cb) {
+    try {
+        dbs.user
+            .prepare('UPDATE api_refresh_tokens SET revoked = 1 WHERE user_id = ?')
+            .run(userId);
+        dbs.user.prepare('UPDATE api_keys SET revoked = 1 WHERE user_id = ?').run(userId);
+    } catch (err) {
+        return cb(err);
+    }
+    return cb(null);
 }
 
 function revokeApiKey(keyId, userId, cb) {

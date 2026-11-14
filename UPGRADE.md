@@ -98,6 +98,30 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** only if you start ENiGMA½ or `oputil.js` with `--config` pointing somewhere other than the install's `config/`, and rely on relative paths in that `config.hjson` finding files in the install's `config/` directory: set `paths.config` to that directory, for example `paths: { config: "/enigma-bbs/config/" }` (quoted: an unquoted HJSON value runs to the end of the line), or move the files beside your `config.hjson`. The defaults count too: `general.menuFile` and `general.achievementFile` default to the relative names `menu.hjson` and `achievements.hjson`, so a board that never set them was reading the install's copies. That includes boards made by `oputil.js config new` before this release, which wrote an absolute `menuFile` but no `achievementFile` (it now writes both). Without an `achievements.hjson` to find, achievements are switched off and the log says `Achievements file not found` at `warn`, with the path it tried; set `general.achievementFile` to the install's copy, for example `"/enigma-bbs/config/achievements.hjson"`, or copy it beside your `config.hjson`. Set it in `config.hjson` itself: like any setting that has a default, `paths.config` in a file listed in `includes` does not replace it. See [Relative Paths](website/src/content/docs/configuration/config-hjson.md#relative-paths).
 
+* **BinkP: a caller giving the wrong password for a node is refused.** A caller that presents the address of a node you have a `sessionPassword` for, and sends a different or no password, now gets `M_ERR "Bad password"` and the session ends, as binkd does. Before, such a session went on as a non-secure session. Outbound mail is now only offered once the caller has authenticated. A caller presenting several addresses with different configured passwords is refused the same way. Nodes without a `sessionPassword` are unaffected.
+
+  **Action:** if a node calls you with a `sessionPassword` set on your side, check that the two passwords agree, or its calls will be refused after the upgrade. The log names the addresses on every refused session.
+
+* **Automatic area creation acts only on mail in the secure inbound.** `autoAreas.onDemand` now creates areas only from packets in `paths.secInbound`, as `tic.secureInOnly` already does for TIC files.
+
+  **Action:** none if your uplink delivers with a session password. If it delivers without one, so its mail lands in the regular inbound, set `onDemand.secureInOnly: false` for that network. Until then the log says, once, that mail in the regular inbound was left alone.
+
+* **NNTP: accounts with two-factor authentication cannot log in over NNTP.** NNTP has no way to ask for a second factor, so a password alone no longer logs such an account in. The log says why when it happens.
+
+  **Action:** none. Users with 2FA enabled read and post through the BBS or the web instead.
+
+* **REST API: refresh tokens and API keys stop working when an account can no longer log in.** Refreshing an access token and calling with an API key now both require an active account; a disabled, inactive or locked account is refused. `oputil user disable`, `lock` and `deactivate` also revoke the account's refresh tokens and API keys, and `oputil user remove` deletes them. Access tokens already issued expire on their own within 15 minutes.
+
+  **Action:** none.
+
+* **ActivityPub: inbound signed requests must sign a minimum set of headers.** A request to an inbox must sign `(request-target)`, `host` and `date`, and a POST must also sign a `Digest` (SHA-256 or SHA-512) that matches its body. Mastodon, GoToSocial, Pleroma/Akkoma, Misskey/Sharkey, Pixelfed and Lemmy already do. A request that does not is refused, and the log names the headers it left unsigned.
+
+  **Action:** none, unless you federate with software that signs less; the log tells you if so. At the first start two indexes are added to `db/activitypub.sqlite3`, which can take a moment on a large database.
+
+* **Web and REST request bodies have size limits.** Password reset and 2FA registration form posts are limited to 32 KiB, REST JSON bodies to 256 KiB and REST file uploads to 512 MiB. A larger body is answered with HTTP 413.
+
+  **Action:** none.
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.

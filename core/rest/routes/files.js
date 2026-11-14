@@ -9,7 +9,7 @@ const {
     paginationMeta,
     API_BASE,
 } = require('../util');
-const { resolveAuthenticatedUser, requireAuth } = require('../auth');
+const { resolveAuthenticatedUser, requireAuth, closeIfBodyUnread } = require('../auth');
 
 const {
     getAvailableFileAreas,
@@ -27,6 +27,7 @@ const StatLog = require('../../stat_log');
 const UserProps = require('../../user_property');
 const SysProps = require('../../system_property');
 
+const { readBody, closeAfterResponse, ErrorCodes } = require('../../http_body');
 const { stripAnsiControlCodes } = require('../../string_util');
 const fs = require('graceful-fs');
 const paths = require('path');
@@ -449,44 +450,40 @@ function _downloadHandler(req, resp, log) {
 function _uploadHandler(req, resp, log) {
     applyCorsHeaders(req, resp);
 
+    //  every refusal here comes before the upload body is read
+    const refuse = (...args) => {
+        closeIfBodyUnread(req, resp);
+        return problemDetail(...args);
+    };
+
     const areaTag = req.url.match(/\/areas\/([^/?]+)(?:[?#]|$)/)?.[1];
     if (!areaTag) {
-        return problemDetail(resp, 400, 'Bad Request');
+        return refuse(resp, 400, 'Bad Request');
     }
 
     requireAuth(req, resp, authedUser => {
         User.getUser(authedUser.userId, (err, user) => {
             if (err || !user) {
-                return problemDetail(resp, 401, 'Authentication Required');
+                return refuse(resp, 401, 'Authentication Required');
             }
 
             if (isInternalArea(areaTag)) {
-                return problemDetail(resp, 403, 'Forbidden');
+                return refuse(resp, 403, 'Forbidden');
             }
 
             const area = getFileAreaByTag(areaTag);
             if (!area) {
-                return problemDetail(
-                    resp,
-                    404,
-                    'Not Found',
-                    `Area '${areaTag}' not found`
-                );
+                return refuse(resp, 404, 'Not Found', `Area '${areaTag}' not found`);
             }
 
             const acs = _acsForUser(user);
             if (!acs.hasFileAreaWrite(area)) {
-                return problemDetail(
-                    resp,
-                    403,
-                    'Forbidden',
-                    'Insufficient upload access'
-                );
+                return refuse(resp, 403, 'Forbidden', 'Insufficient upload access');
             }
 
             const contentType = req.headers['content-type'] || '';
             if (!contentType.includes('multipart/form-data')) {
-                return problemDetail(
+                return refuse(
                     resp,
                     400,
                     'Bad Request',
@@ -496,6 +493,10 @@ function _uploadHandler(req, resp, log) {
 
             _parseMultipartUpload(req, resp, log, (err, uploadInfo) => {
                 if (err) {
+                    if (err.code === ErrorCodes.TooLarge) {
+                        closeAfterResponse(resp);
+                        return problemDetail(resp, 413, 'Payload Too Large', err.message);
+                    }
                     return problemDetail(resp, 400, 'Bad Request', err.message);
                 }
 
@@ -585,9 +586,65 @@ function _uploadHandler(req, resp, log) {
     });
 }
 
-//  Minimal multipart/form-data parser — handles a single file part plus
-//  optional 'desc' text field. Uses a temp file to avoid buffering large
-//  uploads in memory.
+function tooLargeError() {
+    const err = new Error('Upload exceeds maximum allowed size');
+    err.code = ErrorCodes.TooLarge;
+    return err;
+}
+
+//
+//  Parse a multipart/form-data body held in a Buffer. Handles a single file
+//  part plus an optional 'desc' text field. Works on the Buffer directly (file
+//  content is a view, not a copy) rather than converting the whole body to a
+//  string.
+//
+function _parseMultipartBuffer(buf, boundaryStr) {
+    const boundary = Buffer.from(boundaryStr, 'latin1');
+    const delimiter = Buffer.from('\r\n' + boundaryStr, 'latin1');
+    const result = { fileName: null, fileBuffer: null, desc: null };
+
+    let pos = buf.indexOf(boundary);
+    while (pos !== -1) {
+        let start = pos + boundary.length;
+        if (buf[start] === 0x2d && buf[start + 1] === 0x2d) {
+            break; //  final boundary
+        }
+        start += 2; //  CRLF after the boundary line
+
+        const headerEnd = buf.indexOf('\r\n\r\n', start);
+        if (headerEnd === -1) {
+            break;
+        }
+        const next = buf.indexOf(delimiter, headerEnd + 4);
+        if (next === -1) {
+            break;
+        }
+
+        const headerBlock = buf.toString('utf8', start, headerEnd);
+        const body = buf.subarray(headerEnd + 4, next);
+        pos = next + 2;
+
+        const dispMatch = headerBlock.match(/Content-Disposition:[^\r\n]*/i);
+        const nameMatch = dispMatch && dispMatch[0].match(/name="([^"]+)"/i);
+        if (!nameMatch) {
+            continue;
+        }
+        const fileNameMatch = dispMatch[0].match(/filename="([^"]+)"/i);
+        if (fileNameMatch) {
+            result.fileName = paths.basename(fileNameMatch[1]).replace(/[^\w.-]/g, '_');
+            result.fileBuffer = body;
+        } else if (nameMatch[1] === 'desc') {
+            result.desc = body.toString('utf8').trim();
+        }
+    }
+    return result;
+}
+
+exports._parseMultipartBuffer = _parseMultipartBuffer;
+exports._parseMultipartUpload = _parseMultipartUpload;
+
+//  multipart/form-data upload: the body is read in memory once (bounded by
+//  MAX_UPLOAD_BYTES), parsed in place, and written to a temp file.
 function _parseMultipartUpload(req, resp, log, cb) {
     const contentType = req.headers['content-type'] || '';
     const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
@@ -601,67 +658,19 @@ function _parseMultipartUpload(req, resp, log, cb) {
         `enig_upload_${crypto.randomBytes(8).toString('hex')}`
     );
 
-    let totalBytes = 0;
-    let fileName = null;
-    let desc = null;
-    let fileSize = 0;
+    const declared = parseInt(req.headers['content-length'], 10);
+    if (declared > MAX_UPLOAD_BYTES) {
+        //  refused before the body is read; the 413 closes the connection
+        return cb(tooLargeError());
+    }
 
-    const chunks = [];
-    req.on('data', chunk => {
-        totalBytes += chunk.length;
-        if (totalBytes > MAX_UPLOAD_BYTES) {
-            req.destroy();
-            return cb(new Error('Upload exceeds maximum allowed size'));
+    readBody(req, MAX_UPLOAD_BYTES, (err, buf) => {
+        if (err) {
+            return cb(err);
         }
-        chunks.push(chunk);
-    });
 
-    req.on('error', cb);
-
-    req.on('end', () => {
-        const buf = Buffer.concat(chunks);
-        const bodyStr = buf.toString('binary');
-
-        //  Split on boundary lines
-        const parts = bodyStr.split(boundary).slice(1); // skip preamble
-
-        let fileBuffer = null;
-
-        for (const part of parts) {
-            if (part.startsWith('--')) {
-                break;
-            } // final boundary
-
-            const headerEnd = part.indexOf('\r\n\r\n');
-            if (headerEnd === -1) {
-                continue;
-            }
-
-            const headerBlock = part.slice(0, headerEnd);
-            const body = part.slice(headerEnd + 4, part.length - 2); // strip trailing \r\n
-
-            const dispMatch = headerBlock.match(/Content-Disposition:[^\r\n]*/i);
-            if (!dispMatch) {
-                continue;
-            }
-            const dispLine = dispMatch[0];
-            const nameMatch = dispLine.match(/name="([^"]+)"/i);
-            if (!nameMatch) {
-                continue;
-            }
-            const fieldName = nameMatch[1];
-            const fileNameMatch = dispLine.match(/filename="([^"]+)"/i);
-            const partFileName = fileNameMatch ? fileNameMatch[1] : null;
-
-            if (partFileName) {
-                //  This is the file part
-                fileName = paths.basename(partFileName).replace(/[^\w.-]/g, '_');
-                fileBuffer = Buffer.from(body, 'binary');
-                fileSize = fileBuffer.length;
-            } else if (fieldName === 'desc') {
-                desc = body.trim();
-            }
-        }
+        const { fileName, fileBuffer, desc } = _parseMultipartBuffer(buf, boundary);
+        const fileSize = fileBuffer ? fileBuffer.length : 0;
 
         if (!fileName || !fileBuffer) {
             return cb(new Error('No file part found in multipart body'));

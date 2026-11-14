@@ -19,7 +19,7 @@ const {
     isValidStorageTag,
     scanFile,
 } = require('./file_base_area.js');
-const { copyFileWithCollisionHandling, safeCopyFile } = require('./file_util.js');
+const ticStore = require('./tic_store.js');
 
 //  deps
 const _ = require('lodash');
@@ -531,51 +531,41 @@ function hatch(opts, cb) {
                 //  The announced name, not the long one -- see the note in
                 //  describe(). This is the basename BinkP will offer.
                 const dst = paths.join(target.storageDir, info.fileName);
-                const isUpdate = !!info.replaced;
 
                 const collided = () =>
                     Errors.General(
                         `${info.fileName} already exists in ${target.localAreaTag}. Use --replaces to supersede it, or hatch it under another name.`
                     );
 
-                const copied = (err, finalPath) => {
-                    if (err) {
-                        return callback(err);
-                    }
-
-                    if (finalPath !== dst) {
-                        //
-                        //  Take the renamed copy back out. We are refusing this
-                        //  hatch, and leaving it would put a file in the area's
-                        //  storage directory that no database row and no TIC
-                        //  names -- an orphan the operator finds by hand, if at
-                        //  all. Collision handling is still what does the
-                        //  detecting: a bare stat would leave a window for the
-                        //  file to appear between the check and the copy.
-                        //
-                        return fs.unlink(finalPath, () => callback(collided()));
-                    }
-
-                    info.newPath = finalPath;
-                    return callback(null, info, finalPath);
-                };
-
                 //
                 //  An update overwrites, but only the file it is superseding.
                 //  |dst| is derived from the *new* file's name and has nothing
                 //  to do with the entry --replaces matched, so hatching
-                //  readme.txt with "--replaces NODELIST.*" would overwrite an
-                //  unrelated readme.txt belonging to another entry -- leaving
-                //  that entry's row describing bytes that no longer exist, and
-                //  two rows sharing one physical file.
+                //  readme.txt with "--replaces NODELIST.*" must not overwrite
+                //  an unrelated readme.txt belonging to another entry. That
+                //  rule, and taking a refused copy back out, live in
+                //  tic_store.js, shared with import and passthrough.
                 //
-                if (isUpdate && info.replaced.path === dst) {
-                    return safeCopyFile(source, dst, { overwrite: true }, err =>
-                        copied(err, dst)
-                    );
-                }
+                return ticStore.storePayload(
+                    source,
+                    dst,
+                    {
+                        supersedes: info.replaced && info.replaced.path,
+                        exactName: true,
+                    },
+                    (err, finalPath) => {
+                        if (err) {
+                            return callback(
+                                ticStore.ReasonCodes.NameTaken === err.reasonCode
+                                    ? collided()
+                                    : err
+                            );
+                        }
 
-                return copyFileWithCollisionHandling(source, dst, copied);
+                        info.newPath = finalPath;
+                        return callback(null, info, finalPath);
+                    }
+                );
             },
             function scanAndPersist(info, newPath, callback) {
                 if (!newPath) {
@@ -610,12 +600,16 @@ function hatch(opts, cb) {
                 //  careful about exactly this; the scan and persist path was
                 //  not.
                 //
-                //  Only for a new file. An update overwrote the superseded
-                //  bytes in place, and unlinking would then destroy the entry
-                //  we were replacing as well as the one we failed to create.
+                //  Only for a file this hatch created. An update that
+                //  overwrote the superseded bytes in place must keep them, or
+                //  unlinking would destroy the entry we were replacing as
+                //  well as the one we failed to create.
                 //
                 const abort = (err, done) => {
-                    if (info.replaced) {
+                    if (
+                        info.replaced &&
+                        paths.resolve(info.replaced.path) === paths.resolve(newPath)
+                    ) {
                         return done(err);
                     }
                     return fs.unlink(newPath, () => done(err));
@@ -709,7 +703,10 @@ function hatch(opts, cb) {
                 if (opts.dryRun || !info.replaced || !info.replaced.path) {
                     return callback(null, info);
                 }
-                if (info.replaced.path === info.newPath) {
+                if (
+                    info.newPath &&
+                    paths.resolve(info.replaced.path) === paths.resolve(info.newPath)
+                ) {
                     return callback(null, info);
                 }
 

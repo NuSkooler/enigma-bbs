@@ -186,6 +186,19 @@ class NNTPServer extends NNTPServerBase {
                         return resolve(false);
                     }
 
+                    //
+                    //  Factor 1 alone leaves the user unauthenticated when a
+                    //  second factor is enabled, and NNTP has no way to
+                    //  collect one.
+                    //
+                    if (!user.authenticated) {
+                        this.log.info(
+                            { username, ip: this._address(session) },
+                            `NNTP login refused for "${username}": account requires 2-factor authentication, which NNTP does not support`
+                        );
+                        return resolve(false);
+                    }
+
                     session.authUser = user;
 
                     this.log.info(

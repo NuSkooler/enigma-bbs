@@ -246,6 +246,7 @@ There is no parent `enabled` flag: the feature is on for a network if either `on
 | `confTag`       | Yes     | Message conference created areas are placed in. Must already exist; creation is refused otherwise |
 | `ignore`        |          | FTN tags never to create. Also **removes** ones already created, so this is how you un-create something |
 | `maxAutoCreate` |          | Cap on the total number of areas ever created for this network. Defaults to `500`. This is a total, not a per-run limit |
+| `onDemand.secureInOnly` |  | Create areas only from mail in the secure inbound (`paths.secInbound`). Defaults to `true`. Set `false` for a network whose uplink delivers without a session password |
 
 #### Created areas are read-only
 An area created this way carries no `uplinks`, so nothing is ever exported from it. That alone is not read-only — a local user could still post into an area that looks live and goes nowhere — so it also gets `acs: { write: ID0 }`, which no user satisfies.
