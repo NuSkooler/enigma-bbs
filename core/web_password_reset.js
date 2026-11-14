@@ -13,6 +13,10 @@ const getISOTimestampString = require('./database.js').getISOTimestampString;
 const Log = require('./logger.js').log;
 const UserProps = require('./user_property.js');
 const { buildUrl } = require('./web_util');
+const { readTextBody, isTooLarge } = require('./http_body');
+
+//  Form posts here carry a few short fields; anything larger is refused
+const MaxFormBodyBytes = 32 * 1024;
 
 //  deps
 const async = require('async');
@@ -324,11 +328,6 @@ class WebPasswordReset {
             return;
         }
 
-        let bodyData = '';
-        req.on('data', data => {
-            bodyData += data;
-        });
-
         function badRequest() {
             return webServer.instance.respondWithError(
                 resp,
@@ -338,7 +337,19 @@ class WebPasswordReset {
             );
         }
 
-        req.on('end', () => {
+        readTextBody(req, MaxFormBodyBytes, (err, bodyData) => {
+            if (err) {
+                if (isTooLarge(err)) {
+                    return webServer.instance.respondWithError(
+                        resp,
+                        413,
+                        'Payload Too Large.',
+                        'Payload Too Large'
+                    );
+                }
+                return; //  client went away or request errored
+            }
+
             const formData = querystring.parse(bodyData);
 
             const config = Config();

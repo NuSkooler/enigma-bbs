@@ -5,12 +5,14 @@ const {
     problemDetail,
     applyCorsHeaders,
     parseJsonBody,
+    respondBodyError,
     API_BASE,
 } = require('../util');
 
 const { issueTokenPair, rotateRefreshToken, revokeRefreshToken } = require('../auth');
 
 const User = require('../../user');
+const { isTooLarge } = require('../../http_body');
 
 const ROUTE_BASE = `${API_BASE}/auth`;
 const LEGACY_REFRESH_COOKIE_PATH = `${ROUTE_BASE}/refresh`;
@@ -66,6 +68,9 @@ function _loginHandler(req, resp, webServer, log) {
     }
 
     parseJsonBody(req, (err, body) => {
+        if (err && isTooLarge(err)) {
+            return respondBodyError(resp, err);
+        }
         if (err || !body?.username || !body?.password) {
             return problemDetail(
                 resp,

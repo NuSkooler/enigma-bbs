@@ -1,6 +1,7 @@
 'use strict';
 
 const Config = require('../config').get;
+const { readTextBody, isTooLarge } = require('../http_body');
 
 exports.jsonResponse = jsonResponse;
 exports.problemDetail = problemDetail;
@@ -78,22 +79,30 @@ function applyCorsHeaders(req, resp) {
     );
 }
 
-function parseJsonBody(req, cb) {
-    const MAX_BODY = 1024 * 256; // 256 KiB
-    let body = '';
-    req.on('data', chunk => {
-        body += chunk;
-        if (body.length > MAX_BODY) {
-            req.destroy();
-            return cb(new Error('Request body too large'));
+const MAX_JSON_BODY = 1024 * 256; // 256 KiB
+
+//  cb(err, body). err.code === 'ENTITY_TOO_LARGE' when over the cap (respond 413).
+function parseJsonBody(req, cb, maxBytes = MAX_JSON_BODY) {
+    readTextBody(req, maxBytes, (err, text) => {
+        if (err) {
+            return cb(err);
         }
-    });
-    req.on('end', () => {
+        let parsed;
         try {
-            return cb(null, JSON.parse(body));
+            parsed = JSON.parse(text);
         } catch {
             return cb(new Error('Invalid JSON'));
         }
+        //  outside the try: a throwing handler must not be called a second time
+        return cb(null, parsed);
     });
-    req.on('error', cb);
 }
+
+//  Respond to a parseJsonBody() error: 413 when over the cap, otherwise 400.
+function respondBodyError(resp, err, detail) {
+    if (isTooLarge(err)) {
+        return problemDetail(resp, 413, 'Payload Too Large', err.message);
+    }
+    return problemDetail(resp, 400, 'Bad Request', detail || err.message);
+}
+exports.respondBodyError = respondBodyError;
