@@ -1522,7 +1522,7 @@ function FTNMessageScanTossModule() {
                             if (
                                 messageLoaded &&
                                 message.messageId &&
-                                Errors.ErrorCodes.DoesNotExist === err.code
+                                ErrorCodes.DoesNotExist === err.code
                             ) {
                                 const localFromUserId = parseInt(
                                     _.get(message, [
