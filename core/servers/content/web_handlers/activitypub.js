@@ -42,6 +42,7 @@ const { getFullUrl } = require('../../../web_util');
 const {
     validateRequestDate,
     verifyDigestHeader,
+    missingSignedHeaders,
     normalizeHttpSigHeader,
     actorIdFromKeyId,
     hostsMatch,
@@ -66,6 +67,9 @@ const async = require('async');
 
 //  Retry-After for an inbox POST that ran over its fetch budget (#966)
 const FetchBudgetRetryAfterSecs = 60;
+
+//  Most Notes one /note/context response (or page of it) carries
+const NoteContextPageSize = 100;
 
 //  collections whose rows are actors (the cache, follow lists), not Notes
 const ActorKeyedCollections = [
@@ -223,8 +227,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'GET',
-            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/context
-            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/context$/,
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/context[?page=N]
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/context(\?page=[0-9]+)?$/,
             handler: this._noteContextGetHandler.bind(this),
         });
 
@@ -270,6 +274,23 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             this.log.warn(
                 { error: e.message, url: req.url, method: req.method },
                 'Failed to parse HTTP signature'
+            );
+            return null;
+        }
+
+        //  The signature must cover (request-target), host and date, and on a
+        //  POST also the Digest (see RequiredSignedHeaders in security.js)
+        const missing = missingSignedHeaders(signature.params.headers, req.method);
+        if (missing.length > 0) {
+            this.log.warn(
+                {
+                    url: req.url,
+                    method: req.method,
+                    keyId: signature.keyId,
+                    signedHeaders: signature.params.headers,
+                    missing,
+                },
+                'Rejected signed request: required headers are not signed'
             );
             return null;
         }
@@ -476,14 +497,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.internalServerError(resp, err);
             }
 
-            //  Independently verify the Digest header body hash when present.
-            //  The HTTP signature covers the Digest header, so a valid signature
-            //  proves the body hasn't been tampered with since signing — but only
-            //  if we also check that the Digest header matches the actual body.
+            //  The signature covers the Digest header (a POST must sign it, see
+            //  _parseAndValidateSignature); the Digest must also be present, use
+            //  a supported algorithm and match the body actually received.
             if (!verifyDigestHeader(req.headers['digest'], rawBody)) {
                 this.log.warn(
-                    { url: req.url, inboxType },
-                    'Digest body hash mismatch — request body may have been tampered with'
+                    { url: req.url, inboxType, digest: req.headers['digest'] },
+                    'Digest header missing, unsupported or not matching the body — rejected'
                 );
                 return this.webServer.badRequest(resp);
             }
@@ -2183,54 +2203,119 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return this._noteReactionCollectionHandler(req, resp, 'Announce');
     }
 
+    //
+    //  The thread around a local Note: the Notes in the shared inbox whose
+    //  context (or conversation) is this Note. A thread of up to
+    //  NoteContextPageSize rows is answered inline as one OrderedCollection;
+    //  a longer one gives its totalItems and a 'first' page, and each
+    //  ?page=N is an OrderedCollectionPage of at most NoteContextPageSize.
+    //
     _noteContextGetHandler(req, resp) {
         this.log.debug({ url: req.url }, 'Request for "Note" context collection');
 
-        //  Reconstruct the Note ID by stripping the /context suffix.
-        const fullUrl = getFullUrl(req).toString();
-        const noteId = fullUrl.replace(/\/context$/, '');
+        const url = getFullUrl(req);
+        const page = url.searchParams.get('page');
+        url.search = '';
+        const collectionId = url.toString();
 
         //  The context ID for a root note equals the noteId itself; for replies it
         //  equals the root's noteId.  Use noteId as the context to query, which
         //  returns all notes in the thread whose context field points to this note.
-        Collection.getCollectionByContext(
-            Collections.SharedInbox,
-            noteId,
-            (err, result) => {
-                if (err) {
-                    return this.webServer.internalServerError(resp, err);
-                }
+        const noteId = collectionId.replace(/\/context$/, '');
 
-                const notes = [];
-                (result.rows || []).forEach(row => {
-                    try {
-                        const activity = JSON.parse(row.object_json);
-                        if (
-                            activity &&
-                            typeof activity.object === 'object' &&
-                            activity.object.type === 'Note'
-                        ) {
-                            notes.push(activity.object);
-                        }
-                    } catch (_) {
-                        // skip malformed rows
+        const send = collection => {
+            return this.webServer.ok(
+                resp,
+                JSON.stringify(
+                    Object.assign(
+                        { '@context': 'https://www.w3.org/ns/activitystreams' },
+                        collection
+                    )
+                ),
+                { 'Content-Type': ActivityStreamMediaType }
+            );
+        };
+
+        const notesOf = rows => {
+            const notes = [];
+            (rows || []).forEach(row => {
+                try {
+                    const activity = JSON.parse(row.object_json);
+                    if (
+                        activity &&
+                        typeof activity.object === 'object' &&
+                        activity.object.type === 'Note'
+                    ) {
+                        notes.push(activity.object);
                     }
-                });
+                } catch (_) {
+                    // skip malformed rows
+                }
+            });
+            return notes;
+        };
 
-                const collection = {
-                    '@context': 'https://www.w3.org/ns/activitystreams',
-                    id: fullUrl,
+        Collection.countByContext(Collections.SharedInbox, noteId, (err, total) => {
+            if (err) {
+                return this.webServer.internalServerError(resp, err);
+            }
+
+            if (!page && total > NoteContextPageSize) {
+                return send({
+                    id: collectionId,
                     type: 'OrderedCollection',
-                    totalItems: notes.length,
-                    orderedItems: notes,
-                };
-
-                const body = JSON.stringify(collection);
-                return this.webServer.ok(resp, body, {
-                    'Content-Type': ActivityStreamMediaType,
+                    totalItems: total,
+                    first: `${collectionId}?page=1`,
                 });
             }
-        );
+
+            const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : 1;
+            const offset = (pageNum - 1) * NoteContextPageSize;
+
+            const answer = rows => {
+                const notes = notesOf(rows);
+                if (!page) {
+                    return send({
+                        id: collectionId,
+                        type: 'OrderedCollection',
+                        totalItems: notes.length,
+                        orderedItems: notes,
+                    });
+                }
+
+                const collectionPage = {
+                    id: `${collectionId}?page=${pageNum}`,
+                    type: 'OrderedCollectionPage',
+                    partOf: collectionId,
+                    totalItems: total,
+                    orderedItems: notes,
+                };
+                if (offset + NoteContextPageSize < total) {
+                    collectionPage.next = `${collectionId}?page=${pageNum + 1}`;
+                }
+                if (pageNum > 1) {
+                    collectionPage.prev = `${collectionId}?page=${pageNum - 1}`;
+                }
+                return send(collectionPage);
+            };
+
+            //  past the end (or a page number too large to page to)
+            if (!Number.isSafeInteger(offset) || offset >= total) {
+                return answer([]);
+            }
+
+            Collection.getCollectionByContext(
+                Collections.SharedInbox,
+                noteId,
+                { limit: NoteContextPageSize, offset },
+                (err, result) => {
+                    if (err) {
+                        return this.webServer.internalServerError(resp, err);
+                    }
+                    return answer(result.rows);
+                }
+            );
+        });
     }
 
     _noteReactionCollectionHandler(req, resp, reactionType) {

@@ -1369,25 +1369,74 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
-    static getCollectionByContext(collectionName, contextId, cb) {
+    //
+    //  The rows of |collectionName| whose object belongs to a thread: its
+    //  context or conversation is |contextId|. Oldest first.
+    //
+    //  options (optional):
+    //    limit  — at most this many rows (default: all)
+    //    offset — skip this many first (with limit)
+    //
+    //  The json_extract expressions must stay exactly as indexed in
+    //  database.js (ensureActivityPubContextIndexes). '+name' keeps the
+    //  planner on those indexes rather than scanning every row of the
+    //  collection by (name, timestamp).
+    //
+    static getCollectionByContext(collectionName, contextId, options, cb) {
+        if (!cb && typeof options === 'function') {
+            cb = options;
+            options = {};
+        }
+        options = options || {};
+
+        const limit = Number.isInteger(options.limit) && options.limit > 0;
+        let rows;
         try {
-            const rows = apDb
+            rows = apDb
                 .prepare(
                     `SELECT timestamp, object_json
                  FROM collection
-                 WHERE name = ?
+                 WHERE +name = ?
                    AND (
                        json_extract(object_json, '$.object.context')      = ?
                     OR json_extract(object_json, '$.object.conversation') = ?
                    )
-                 ORDER BY timestamp ASC`
+                 ORDER BY timestamp ASC${limit ? ' LIMIT ? OFFSET ?' : ''}`
                 )
-                .all(collectionName, contextId, contextId);
-
-            return cb(null, { rows, nextCursor: null });
+                .all(
+                    collectionName,
+                    contextId,
+                    contextId,
+                    ...(limit
+                        ? [options.limit, Math.max(0, parseInt(options.offset, 10) || 0)]
+                        : [])
+                );
         } catch (err) {
             return cb(err);
         }
+        //  outside the try: see publicOrderedById()
+        return cb(null, { rows, nextCursor: null });
+    }
+
+    //  How many rows getCollectionByContext() would return without a limit
+    static countByContext(collectionName, contextId, cb) {
+        let count;
+        try {
+            count = apDb
+                .prepare(
+                    `SELECT COUNT(*) AS n
+                 FROM collection
+                 WHERE +name = ?
+                   AND (
+                       json_extract(object_json, '$.object.context')      = ?
+                    OR json_extract(object_json, '$.object.conversation') = ?
+                   )`
+                )
+                .get(collectionName, contextId, contextId).n;
+        } catch (err) {
+            return cb(err);
+        }
+        return cb(null, count);
     }
 
     //

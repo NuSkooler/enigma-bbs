@@ -75,6 +75,10 @@ const ActivityPubWebHandler =
 //  dependencies with theirs
 const ScannerTosser = require('../core/scanner_tossers/activitypub.js').getModule;
 
+//  Digest header value for a request body
+const digestOf = body =>
+    'SHA-256=' + require('crypto').createHash('sha256').update(body).digest('base64');
+
 //  the real ones; beforeEach below stubs them
 const realFindMessages = Message.findMessages;
 const realActorFromId = Actor.fromId;
@@ -777,8 +781,10 @@ describe('ActivityPub inbox: Update and Delete only from the object owner', func
                 handler._inboxFollowActivity = () => resolve({ handled: 'Follow' });
                 handler._inboxAnnounceActivity = () => resolve({ handled: 'Announce' });
                 handler._inboxCreateActivity = () => resolve({ handled: 'Create' });
-                const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
-                req.headers = {};
+                const body = Buffer.from(JSON.stringify(activity));
+                const req = Readable.from([body]);
+                //  a POST's Digest must match its body
+                req.headers = { digest: digestOf(body) };
                 req.url = '/_enig/ap/sharedInbox';
                 req.method = 'POST';
                 handler._inboxPostHandler(req, {}, { keyId }, SHARED);
@@ -2999,8 +3005,10 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
                 notImplemented: respond('notImplemented'),
                 internalServerError: respond('internalServerError'),
             };
-            const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
-            req.headers = {};
+            const body = Buffer.from(JSON.stringify(activity));
+            const req = Readable.from([body]);
+            //  a POST's Digest must match its body
+            req.headers = { digest: digestOf(body) };
             req.url = options.inbox || '/_enig/ap/sharedInbox';
             req.method = 'POST';
             handler._inboxPostHandler(
@@ -3798,8 +3806,10 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
                     notImplemented: respond('notImplemented'),
                     internalServerError: respond('internalServerError'),
                 };
-                const req = Readable.from([Buffer.from(JSON.stringify(activity))]);
-                req.headers = {};
+                const body = Buffer.from(JSON.stringify(activity));
+                const req = Readable.from([body]);
+                //  a POST's Digest must match its body
+                req.headers = { digest: digestOf(body) };
                 req.url = '/_enig/ap/sharedInbox';
                 req.method = 'POST';
                 req.url = options.inbox || req.url;

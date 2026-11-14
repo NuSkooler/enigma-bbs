@@ -93,31 +93,88 @@ function validateRequestDate(headers, maxAgeSecs = MaxRequestAgeSecs) {
 exports.validateRequestDate = validateRequestDate;
 
 //
+//  Headers every signed inbound request must cover, so that the signature
+//  binds the method and path, the host and the time the request was made
+//  for. Every major sender signs at least these:
+//    Mastodon            (request-target) host date [digest content-type]
+//    GoToSocial (hs2019) (request-target) host date [digest]
+//    Pleroma / Akkoma    (request-target) host date [digest content-length]
+//    Misskey / Sharkey   (request-target) date host [digest]
+//    Pixelfed            (request-target) host date [digest]
+//    Lemmy (hs2019)      (request-target) content-type date digest host
+//  A POST must also sign its Digest, which binds the body to the signature.
+//
+const RequiredSignedHeaders = ['(request-target)', 'host', 'date'];
+exports.RequiredSignedHeaders = RequiredSignedHeaders;
+
+//
+//  Return the required headers missing from a signature's signed header
+//  list (an empty array when the set is complete).
+//
+//  signedHeaders — parsed signature params.headers (array of names)
+//  method        — request method; a POST must also sign 'digest'
+//
+function missingSignedHeaders(signedHeaders, method) {
+    const signed = new Set(
+        (Array.isArray(signedHeaders) ? signedHeaders : []).map(h =>
+            String(h).toLowerCase()
+        )
+    );
+    const required = [...RequiredSignedHeaders];
+    if (String(method || '').toUpperCase() === 'POST') {
+        required.push('digest');
+    }
+    return required.filter(h => !signed.has(h));
+}
+exports.missingSignedHeaders = missingSignedHeaders;
+
+//  Digest algorithms (RFC 3230 names, lower-cased) we can check
+const DigestAlgorithms = {
+    'sha-256': 'sha256',
+    'sha-512': 'sha512',
+};
+
+//
 //  Verify the Digest request header against the actual request body.
 //
-//  Returns true when:
-//    - no Digest header is present (verification skipped)
-//    - the algorithm is not SHA-256 (unrecognized algorithms are skipped)
-//    - the SHA-256 digest of rawBody matches the claimed value
+//  The header may list several algorithm=value pairs, comma separated;
+//  algorithm names are case-insensitive. Returns true only when at least
+//  one supported algorithm (SHA-256, SHA-512) is listed and every supported
+//  one listed matches rawBody. Unsupported algorithms listed alongside a
+//  supported one are ignored.
 //
-//  Returns false when a SHA-256 Digest is present but does not match rawBody.
+//  Returns false when the header is absent, lists no supported algorithm,
+//  or a supported digest does not match rawBody.
 //
 //  digestHeader — value of the Digest request header (string or falsy)
 //  rawBody      — Buffer or string containing the raw request body
 //
 function verifyDigestHeader(digestHeader, rawBody) {
-    if (!digestHeader) {
-        return true; // no digest to verify
+    if (!digestHeader || typeof digestHeader !== 'string') {
+        return false;
     }
 
-    const match = /^SHA-256=(.+)$/.exec(digestHeader);
-    if (!match) {
-        return true; // unrecognized algorithm — skip
+    let checked = 0;
+    for (const part of digestHeader.split(',')) {
+        const eq = part.indexOf('=');
+        if (eq < 1) {
+            continue;
+        }
+
+        const hashName = DigestAlgorithms[part.slice(0, eq).trim().toLowerCase()];
+        if (!hashName) {
+            continue; // unsupported algorithm: another entry may be one we know
+        }
+
+        const claimedDigest = part.slice(eq + 1).trim();
+        const actualDigest = crypto.createHash(hashName).update(rawBody).digest('base64');
+        if (claimedDigest !== actualDigest) {
+            return false;
+        }
+        ++checked;
     }
 
-    const claimedDigest = match[1];
-    const actualDigest = crypto.createHash('sha256').update(rawBody).digest('base64');
-    return claimedDigest === actualDigest;
+    return checked > 0;
 }
 exports.verifyDigestHeader = verifyDigestHeader;
 
