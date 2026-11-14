@@ -46,6 +46,10 @@ openssl req -newkey rsa:2048 -nodes -keyout ./config/nntps_key.pem -x509 -days 3
 ```
 
 ## Write Access
+:::note
+An account with two-factor authentication enabled cannot log in over NNTP: NNTP has no way to ask for the second factor.
+:::
+
 Authenticated users may write messages to a group given the following are true:
 
 1. `allowPosts` is set to `true`

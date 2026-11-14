@@ -63,6 +63,11 @@ can only revoke a refresh token included in its request. Already-issued access
 tokens remain valid until their normal expiration. Clients must process all
 `Set-Cookie` headers returned by login, refresh and logout.
 
+Refresh, and every call made with an API key, requires an account that can
+still log in: a disabled, inactive or locked account is refused. `oputil user
+disable`, `lock` and `deactivate` also revoke the account's refresh tokens and
+API keys.
+
 ### API Keys (automated / programmatic access)
 
 API keys are long-lived tokens suitable for bots, scripts, and integrations. Generate them with `oputil`:
