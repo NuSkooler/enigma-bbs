@@ -5,6 +5,7 @@ const ftnMailPacket = require('./ftn_mail_packet.js');
 const loggerModule = require('./logger.js');
 
 const fs = require('graceful-fs');
+const { finished } = require('stream');
 
 //
 //  Packs one destination's outgoing EchoMail into packets of about
@@ -38,11 +39,22 @@ module.exports = class FtnPacketWriter {
         this.size = targetSize; //  so the first message opens a packet
         this.remainBuf = null;
         this.remainMessageId = null;
+
+        //  The first error any of this writer's streams reported: a packet
+        //  that could not be opened or written (ENOENT, EACCES, ENOSPC,
+        //  EMFILE...). Such a stream never finishes, and its packet is not
+        //  whole, so it fails the destination at the next append() or at
+        //  finish().
+        this.error = null;
     }
 
     //  Adds |message|, already prepared for this destination, as written with
     //  |exportOpts| (whose .encoding prepareMessage() set).
     append(message, exportOpts, cb) {
+        if (this.error) {
+            return cb(this.error);
+        }
+
         const add = () => {
             if (this.size >= this.targetSize) {
                 this._openPacket(message.messageId);
@@ -67,45 +79,79 @@ module.exports = class FtnPacketWriter {
                     this.ws.write(msgBuf);
                 }
 
-                return cb(null);
+                return cb(this.error);
             });
         };
 
         if (this.packet && this.size >= this.targetSize) {
-            return this._finalizePacket(add);
+            return this._finalizePacket(err => (err ? cb(err) : add()));
         }
         return add();
     }
 
     //  Closes the last packet, writes any held-back message into one of its
-    //  own, and calls back with every file written, in order.
+    //  own, and calls back with every file written, in order -- or with the
+    //  first error any of them had.
     finish(cb) {
+        if (this.error) {
+            return cb(this.error);
+        }
+
         const writeRemain = () => {
             if (!this.remainBuf) {
-                return cb(null, this.files);
+                return cb(this.error, this.files);
             }
 
             this._openPacket(this.remainMessageId);
             this.ws.write(this.remainBuf);
             this.remainBuf = null;
-            return this._finalizePacket(() => cb(null, this.files));
+            return this._finalizePacket(err => cb(err, this.files));
         };
 
         if (this.packet) {
-            return this._finalizePacket(writeRemain);
+            return this._finalizePacket(err => (err ? cb(err) : writeRemain()));
         }
         return writeRemain();
     }
 
-    //  Gives up on this destination: closes the open stream, if any. What was
-    //  written stays where it is and is not delivered.
-    abort() {
-        if (this.ws) {
-            this.ws.end();
-        }
+    //  Gives up on this destination: closes the open stream, if any, and
+    //  removes every packet this writer wrote, none of which will be
+    //  delivered. Best effort: a file that cannot be removed is logged and
+    //  left. Calls back once it is done, never with an error.
+    discard(cb) {
+        const ws = this.ws;
         this.packet = null;
         this.ws = null;
         this.remainBuf = null;
+
+        const unlinkAll = () => {
+            const files = this.files;
+            this.files = [];
+            let pending = files.length;
+            if (0 === pending) {
+                return cb();
+            }
+            files.forEach(file => {
+                fs.unlink(file, err => {
+                    if (err && 'ENOENT' !== err.code) {
+                        loggerModule.log.warn(
+                            { path: file, error: err.message },
+                            'Could not remove an undelivered FTN packet'
+                        );
+                    }
+                    if (0 === --pending) {
+                        return cb();
+                    }
+                });
+            });
+        };
+
+        if (!ws) {
+            return unlinkAll();
+        }
+        //  closed first, so the removal is not racing an open descriptor
+        ws.destroy();
+        return finishedOnce(ws, () => unlinkAll());
     }
 
     _openPacket(messageId) {
@@ -115,22 +161,41 @@ module.exports = class FtnPacketWriter {
         this.files.push(pktFileName);
 
         this.ws = fs.createWriteStream(pktFileName);
-        this.ws.once('error', err =>
-            loggerModule.log.error(
-                { pktFileName, error: err.message },
-                'FTN packet write error'
-            )
-        );
+        //  on, not once: a stream that has failed can report again when it is
+        //  written to, and an unhandled 'error' would take the process down
+        this.ws.on('error', err => {
+            if (!this.error) {
+                loggerModule.log.error(
+                    { pktFileName, error: err.message },
+                    'FTN packet write error'
+                );
+                this.error = err;
+            }
+        });
 
         this.size = this.packet.writeHeader(this.ws, this.createHeader());
     }
 
+    //  Calls back exactly once, when the stream has finished or failed.
     _finalizePacket(cb) {
         const ws = this.ws;
         this.packet.writeTerminator(ws);
         this.packet = null;
         this.ws = null;
         ws.end();
-        ws.once('finish', () => cb(null));
+        finishedOnce(ws, err => cb(this.error || err || null));
     }
 };
+
+//  stream.finished(), calling back once whatever the stream does afterwards,
+//  and also for a stream that has already failed or closed.
+function finishedOnce(stream, cb) {
+    let called = false;
+    finished(stream, err => {
+        if (called) {
+            return;
+        }
+        called = true;
+        return cb(err);
+    });
+}

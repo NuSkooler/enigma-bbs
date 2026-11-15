@@ -24,7 +24,15 @@ const { strict: assert } = require('assert');
 const fsp = require('fs/promises');
 const path = require('path');
 
-const { createHarness, AREAS, U1, U2, U3 } = require('./ftn_export_harness.js');
+const {
+    createHarness,
+    AREAS,
+    NODES,
+    U1,
+    U2,
+    U3,
+    POINT,
+} = require('./ftn_export_harness.js');
 
 describe('ftn_bso — EchoMail export loads and flags each message once', function () {
     this.timeout(20000);
@@ -275,6 +283,12 @@ describe('ftn_bso — EchoMail export loads and flags each message once', functi
         await fsp.mkdir(outboundDir, { recursive: true });
         const waiting = path.join(outboundDir, '0000beef.pkt');
         await fsp.writeFile(waiting, 'SOMEONE ELSE');
+        //  ...and nor must one of that name already in the temp area, or the
+        //  next serial up (left by an export still under way, say)
+        const inTemp = path.join(h.root, 'temp', '0000beef.pk_');
+        const nextInTemp = path.join(h.root, 'temp', '0000bef0.pkt');
+        await fsp.writeFile(inTemp, 'TEMP 1');
+        await fsp.writeFile(nextInTemp, 'TEMP 2');
 
         const subjects = ['same name 1', 'same name 2', 'same name 3'];
         const messages = [];
@@ -296,6 +310,8 @@ describe('ftn_bso — EchoMail export loads and flags each message once', functi
         }
         assert.ok(!err, err && err.message);
         assert.equal(await fsp.readFile(waiting, 'utf8'), 'SOMEONE ELSE');
+        assert.equal(await fsp.readFile(inTemp, 'utf8'), 'TEMP 1');
+        assert.equal(await fsp.readFile(nextInTemp, 'utf8'), 'TEMP 2');
 
         const flows = await flowFiles();
         assert.equal(flows.length, 3);
@@ -467,5 +483,315 @@ describe('ftn_bso — EchoMail export loads and flags each message once', functi
         assert.ok(result.err);
         assert.deepEqual(await flowFiles(), []);
         assert.deepEqual(h.storedMsgId(message), []);
+    });
+
+    // ─── robustness (WP4 review round) ───────────────────────────────────────
+
+    //  Resolves with the export's error, or rejects if it never calls back.
+    function exportWithin(mod, uuids, uplinks = AREAS.local_a.uplinks, ms = 5000) {
+        return Promise.race([
+            new Promise(resolve =>
+                mod.exportEchoMailMessagesToUplinks(uuids, AREAS.local_a, uplinks, err =>
+                    resolve({ err })
+                )
+            ),
+            new Promise((resolve, reject) =>
+                setTimeout(() => reject(new Error('the export never called back')), ms)
+            ),
+        ]);
+    }
+
+    async function tempFiles() {
+        return (await fsp.readdir(path.join(h.root, 'temp'))).sort();
+    }
+
+    it('fails a destination whose packet cannot be written, and still completes for the rest', async () => {
+        const mod = h.makeModule();
+        const messages = [];
+        for (const n of [1, 2]) {
+            messages.push(await h.addLocal({ subject: `unwritable ${n}` }));
+        }
+
+        //  U2's packets go to a directory that does not exist: the stream
+        //  reports ENOENT and never finishes
+        const allocate = mod.allocateEchoMailPacketPath;
+        mod.allocateEchoMailPacketPath = function (dest, messageId, claimed) {
+            const p = allocate.call(this, dest, messageId, claimed);
+            return 702 === dest.exportOpts.destAddress.node
+                ? path.join(h.root, 'no-such-dir', path.basename(p))
+                : p;
+        };
+
+        const { err } = await exportWithin(
+            mod,
+            messages.map(m => m.messageUuid)
+        );
+        assert.ok(err, 'the call reports failure');
+        assert.match(err.message, /1:218\/702/);
+        assert.doesNotMatch(err.message, /1:218\/70[13]/);
+        assert.deepEqual(
+            (await flowFiles()).map(f => path.basename(f)).sort(),
+            ['00da02bd.clo', '00DA02BF.CLO'].sort()
+        );
+        assert.equal(mod.claimedPacketStems.size, 0, 'claims released');
+    });
+
+    it('calls back from the packet writer when a stream fails after it is closed', async () => {
+        //  The window the export test above cannot hit reliably: the open
+        //  fails only after the packet has been closed, so the stream will
+        //  never finish and its error is the only thing that will come.
+        const FtnPacketWriter = require('../core/ftn_packet_writer.js');
+        const FtnPacket = require('../core/ftn_mail_packet.js');
+        const mod = h.makeModule();
+        const local = await h.addLocal({ subject: 'writer only' });
+        const message = new h.Message();
+        await new Promise((resolve, reject) =>
+            message.load({ uuid: local.messageUuid }, err =>
+                err ? reject(err) : resolve()
+            )
+        );
+        const exportOpts = {
+            network: { localAddress: '1:218/700' },
+            destAddress: require('../core/ftn_address.js').fromString(U1),
+            nodeConfig: {},
+        };
+        mod.prepareMessage(message, exportOpts);
+
+        const writer = new FtnPacketWriter({
+            targetSize: 100000,
+            createHeader: () => new FtnPacket.PacketHeader(),
+            allocatePacketPath: () => path.join(h.root, 'no-such-dir', 'x.pk_'),
+        });
+
+        const result = await Promise.race([
+            new Promise(resolve =>
+                writer.append(message, exportOpts, appendErr =>
+                    //  synchronously, before the failed open is reported
+                    writer.finish(err => resolve({ appendErr, err }))
+                )
+            ),
+            new Promise((resolve, reject) =>
+                setTimeout(() => reject(new Error('finish() never called back')), 3000)
+            ),
+        ]);
+        assert.ok(!result.appendErr);
+        assert.ok(result.err, 'finish() reports the failed stream');
+        assert.equal(result.err.code, 'ENOENT');
+    });
+
+    it('removes the packets written for a destination that failed', async () => {
+        const mod = h.makeModule();
+        const messages = [];
+        for (const n of [1, 2, 3]) {
+            messages.push(await h.addLocal({ subject: `cleanup ${n}` }));
+        }
+        //  small packets, so U2 has written several before it fails
+        mod.moduleConfig = Object.assign({}, mod.moduleConfig, {
+            packetTargetByteSize: 100,
+        });
+        const prepare = mod.prepareMessage;
+        mod.prepareMessage = function (message, exportOpts) {
+            if (702 === exportOpts.destAddress.node && 'cleanup 3' === message.subject) {
+                throw new Error('U2 is broken');
+            }
+            return prepare.call(this, message, exportOpts);
+        };
+        const written = [];
+        const allocate = mod.allocateEchoMailPacketPath;
+        mod.allocateEchoMailPacketPath = function (dest, messageId, claimed) {
+            const p = allocate.call(this, dest, messageId, claimed);
+            if (702 === dest.exportOpts.destAddress.node) {
+                written.push(path.basename(p));
+            }
+            return p;
+        };
+
+        const { err } = await exportWithin(
+            mod,
+            messages.map(m => m.messageUuid)
+        );
+        assert.ok(err);
+        assert.ok(written.length >= 2, `U2 wrote ${written.length} packets first`);
+        assert.deepEqual(await tempFiles(), [], 'nothing left behind in the temp area');
+    });
+
+    it('calls back once when the record callback throws', async () => {
+        const message = await h.addLocal({ subject: 'throwing callback' });
+        let calls = 0;
+        assert.throws(
+            () =>
+                message.setStateFlags0BitAndMeta(
+                    h.Message.StateFlags0.Exported,
+                    [],
+                    () => {
+                        ++calls;
+                        throw new Error('from the callback');
+                    }
+                ),
+            /from the callback/
+        );
+        assert.equal(calls, 1);
+    });
+
+    it('fails only the message that throws, and completes', async () => {
+        startCounting();
+        const mod = h.makeModule();
+        const a = await h.addLocal({ subject: 'throw a' });
+        const b = await h.addLocal({ subject: 'throw b' });
+        const c = await h.addLocal({ subject: 'throw c' });
+        zeroCounts();
+
+        const mint = mod.mintEchoMailMsgId;
+        mod.mintEchoMailMsgId = function (message, localAddress) {
+            if ('throw b' === message.subject) {
+                throw new Error('mint exploded');
+            }
+            return mint.call(this, message, localAddress);
+        };
+
+        const { err } = await exportWithin(mod, [
+            a.messageUuid,
+            b.messageUuid,
+            c.messageUuid,
+        ]);
+        assert.ok(err, 'the call reports failure');
+        assert.equal(counts.load, 2, 'every destination failed at b, so c is not loaded');
+        assert.equal(exportedFlag(a), h.Message.StateFlags0.Exported);
+        assert.equal(exportedFlag(b), 0);
+        assert.deepEqual(await flowFiles(), []);
+        assert.deepEqual(await tempFiles(), []);
+        assert.equal(mod.claimedPacketStems.size, 0);
+    });
+
+    it('fails the message when opening a packet throws, and completes', async () => {
+        const mod = h.makeModule();
+        const a = await h.addLocal({ subject: 'open throws' });
+        mod.allocateEchoMailPacketPath = () => {
+            throw new Error('no names left');
+        };
+        const { err } = await exportWithin(mod, [a.messageUuid]);
+        assert.ok(err);
+        assert.equal(exportedFlag(a), 0);
+    });
+
+    it("records each relay group's watermark as soon as its own delivery is done", async () => {
+        const mod = h.makeModule();
+        await h.addImported({ areaTag: 'relay_a', msgId: '1:218/701 0000d001' });
+        await h.runRelay(mod); //  seed
+        //  from U1: goes to U2 and our point
+        await h.addImported({
+            areaTag: 'relay_a',
+            seenBy: '218/701',
+            msgId: '1:218/701 0000d002',
+        });
+
+        const events = [];
+        const deliver = mod.deliverEchoMailPackets;
+        mod.deliverEchoMailPackets = function (dest, files, cb) {
+            events.push(`deliver ${dest.uplink}`);
+            return deliver.call(this, dest, files, cb);
+        };
+        const advance = mod.advanceRelayScanIds;
+        mod.advanceRelayScanIds = function (group, delivered, cb) {
+            events.push(`advance ${group.uplink}`);
+            return advance.call(this, group, delivered, cb);
+        };
+
+        const { err } = await h.runRelay(mod);
+        assert.ok(!err, err && err.message);
+        assert.deepEqual(events, [
+            `advance ${U1}`, //  the origin: nothing to send
+            `deliver ${U2}`,
+            `advance ${U2}`,
+            `deliver ${POINT}`,
+            `advance ${POINT}`,
+        ]);
+    });
+
+    it('puts the packet password configured for an uplink in its packet headers', async () => {
+        const mod = h.makeModule();
+        mod.moduleConfig = Object.assign({}, mod.moduleConfig, {
+            nodes: Object.assign({}, NODES, {
+                [U1]: Object.assign({}, NODES[U1], { packetPassword: 'SeCrEt' }),
+            }),
+        });
+        const a = await h.addLocal({ subject: 'with password' });
+        const { err } = await exportWithin(mod, [a.messageUuid]);
+        assert.ok(!err, err && err.message);
+
+        for (const flow of await flowFiles()) {
+            const node = parseInt(path.basename(flow).slice(4, 8), 16);
+            for (const pkt of await packetsReferencedBy(flow)) {
+                const password = (await fsp.readFile(pkt)).subarray(26, 34);
+                const expected = Buffer.alloc(8);
+                if (701 === node) {
+                    expected.write('SeCrEt', 'latin1');
+                }
+                assert.deepEqual(
+                    password,
+                    expected,
+                    `${path.basename(flow)} header password`
+                );
+            }
+        }
+    });
+
+    it('bundles for an uplink with an archiver, next to one taking bare packets', async () => {
+        //  A stand-in archiver: the "bundle" lists the packets given to it,
+        //  each followed by its contents.
+        const mod = h.makeModule();
+        mod.moduleConfig = Object.assign({}, mod.moduleConfig, {
+            nodes: Object.assign({}, NODES, {
+                [U1]: Object.assign({}, NODES[U1], { archiveType: 'zip' }),
+            }),
+        });
+        const compressed = [];
+        mod.archUtil = {
+            haveArchiver: type => 'zip' === type,
+            compressTo: (type, archivePath, files, cb) => {
+                compressed.push({ archivePath, files });
+                Promise.all(files.map(f => fsp.readFile(f, 'latin1')))
+                    .then(contents =>
+                        fsp.writeFile(
+                            archivePath,
+                            files
+                                .map((f, i) => `${path.basename(f)}\n${contents[i]}`)
+                                .join('\n'),
+                            'latin1'
+                        )
+                    )
+                    .then(() => cb(null), cb);
+            },
+        };
+
+        const a = await h.addLocal({ subject: 'bundled a' });
+        const b = await h.addLocal({ subject: 'bundled b' });
+        const { err } = await exportWithin(mod, [a.messageUuid, b.messageUuid], [U1, U2]);
+        assert.ok(!err, err && err.message);
+
+        assert.equal(compressed.length, 1, 'one bundle, for U1');
+        assert.ok(
+            compressed[0].files.every(f => /\.pkt$/.test(f)),
+            'bundled packets are written with their final .pkt name'
+        );
+
+        const flows = Object.fromEntries(
+            (await flowFiles()).map(f => [path.basename(f).toLowerCase(), f])
+        );
+        const u1Refs = await packetsReferencedBy(flows['00da02bd.clo']);
+        assert.equal(u1Refs.length, 1);
+        assert.match(
+            path.basename(u1Refs[0]),
+            /^0000000[0-9a-f]\.[a-z]{2}0$/,
+            'a bundle name'
+        );
+        const bundle = await fsp.readFile(u1Refs[0], 'latin1');
+        assert.ok(bundle.includes('bundled a') && bundle.includes('bundled b'));
+
+        const u2Refs = await packetsReferencedBy(flows['00da02be.hlo']);
+        assert.ok(
+            u2Refs.length > 0 && u2Refs.every(r => /\.pkt$/.test(r)),
+            'U2 gets bare packets'
+        );
     });
 });

@@ -65,7 +65,6 @@ const async = require('async');
 const fs = require('graceful-fs');
 const later = require('@breejs/later');
 const temptmp = require('temptmp').createTrackedSession('ftn_bso');
-const assert = require('assert');
 const sane = require('sane');
 const fse = require('fs-extra');
 const iconv = require('iconv-lite');
@@ -680,10 +679,17 @@ function FTNMessageScanTossModule() {
                 if (Array.isArray(msgIdVal)) {
                     msgIdVal = msgIdVal[0];
                 }
-                assert(
-                    _.isString(msgIdVal),
-                    'Expected string but got ' + typeof msgIdVal + ' (' + msgIdVal + ')'
-                );
+                //  This was an assert. Thrown inside the lookup's callback, it
+                //  was caught there and the callback called again with the
+                //  error, so its only effect was no REPLY. Say so instead of
+                //  throwing.
+                if (!_.isString(msgIdVal)) {
+                    Log.warn(
+                        { replyToMsgId: message.replyToMsgId, type: typeof msgIdVal },
+                        'MSGID of the replied-to message is not a string; no REPLY kludge'
+                    );
+                    return cb(null);
+                }
                 return cb(null, msgIdVal);
             }
         );
@@ -1112,8 +1118,38 @@ function FTNMessageScanTossModule() {
     //  nothing delivered. Calls back with no error of its own; the caller
     //  decides what a failed destination means for it.
     //
-    this.exportEchoMailToDestinations = function (destinations, items, cb) {
+    this.exportEchoMailToDestinations = function (destinations, items, cb, options) {
         const claimed = [];
+        const onDestinationDone =
+            (options && options.onDestinationDone) || ((dest, next) => next());
+
+        //  A destination that got nothing: say so, with enough to act on -- a
+        //  bare err.message here read as an unattributed SQL or fs complaint
+        //  with no hint that mail had gone missing -- and remove the packets
+        //  written for it, which will never be delivered.
+        const finishFailed = (dest, next) => {
+            Log.error(
+                {
+                    uplink: dest.uplink,
+                    areaTag: dest.logInfo.areaTag,
+                    network: dest.logInfo.network,
+                    error: dest.error.message,
+                },
+                'Failed exporting EchoMail to uplink!'
+            );
+            if (!dest.writer) {
+                return next();
+            }
+            try {
+                return dest.writer.discard(next);
+            } catch (e) {
+                Log.warn(
+                    { uplink: dest.uplink, error: e.message },
+                    'Could not remove undelivered FTN packets'
+                );
+                return next();
+            }
+        };
 
         async.series(
             [
@@ -1136,20 +1172,39 @@ function FTNMessageScanTossModule() {
                     //  One destination at a time: two of them can want the same
                     //  bundle name (getOutgoingBundleFileName looks at what is
                     //  already in outbound), and they share the temp area.
+                    //
+                    //  |onDestinationDone| runs as each one is finished with,
+                    //  delivered or failed, before the next one starts: relay
+                    //  records a destination's progress there, as soon as its
+                    //  packets are out.
                     async.eachSeries(
                         destinations,
                         (dest, nextDest) => {
-                            if (dest.error) {
-                                return nextDest();
-                            }
-                            self.deliverEchoMailPackets(
-                                dest,
-                                dest.exportedFiles || [],
-                                err => {
-                                    dest.error = err || null;
-                                    return nextDest();
+                            const done = onceDeferred(() => {
+                                if (!dest.error) {
+                                    return onDestinationDone(dest, () => nextDest());
                                 }
-                            );
+                                finishFailed(dest, () =>
+                                    onDestinationDone(dest, () => nextDest())
+                                );
+                            });
+
+                            if (dest.error) {
+                                return done();
+                            }
+                            try {
+                                self.deliverEchoMailPackets(
+                                    dest,
+                                    dest.exportedFiles || [],
+                                    err => {
+                                        dest.error = err || null;
+                                        return done();
+                                    }
+                                );
+                            } catch (e) {
+                                dest.error = e;
+                                return done();
+                            }
                         },
                         callback
                     );
@@ -1157,25 +1212,6 @@ function FTNMessageScanTossModule() {
             ],
             () => {
                 claimed.forEach(stem => self.claimedPacketStems.delete(stem));
-
-                destinations.forEach(dest => {
-                    if (dest.error) {
-                        //  This destination got nothing. Say so, with enough
-                        //  to act on -- a bare err.message here read as an
-                        //  unattributed SQL or fs complaint with no hint that
-                        //  mail had gone missing.
-                        Log.error(
-                            {
-                                uplink: dest.uplink,
-                                areaTag: dest.logInfo.areaTag,
-                                network: dest.logInfo.network,
-                                error: dest.error.message,
-                            },
-                            'Failed exporting EchoMail to uplink!'
-                        );
-                    }
-                });
-
                 return cb(null, destinations);
             }
         );
@@ -1220,14 +1256,19 @@ function FTNMessageScanTossModule() {
                     destinations,
                     (dest, nextDest) => {
                         if (dest.error) {
-                            dest.writer.abort();
-                            return nextDest();
+                            return nextDest(); //  discarded in deliver
                         }
-                        dest.writer.finish((err, files) => {
-                            dest.error = err || null;
-                            dest.exportedFiles = files;
-                            return nextDest();
-                        });
+                        const next = onceDeferred(nextDest);
+                        try {
+                            dest.writer.finish((err, files) => {
+                                dest.error = err || null;
+                                dest.exportedFiles = files;
+                                return next();
+                            });
+                        } catch (e) {
+                            dest.error = e;
+                            return next();
+                        }
                     },
                     () => cb(null)
                 );
@@ -1247,102 +1288,137 @@ function FTNMessageScanTossModule() {
             });
         };
 
+        //  Called back once, and on a fresh stack, so nothing the next message
+        //  does can unwind into this one's handlers.
+        const done = onceDeferred(cb);
+
+        //  Anything that throws while this message is being handled fails it
+        //  for every destination it was for, as a load error does, and the
+        //  export carries on. Every callback below runs through this: a throw
+        //  must not escape into the database or async code that called it.
+        const guarded =
+            fn =>
+            (...args) => {
+                try {
+                    return fn(...args);
+                } catch (e) {
+                    failAll(targets, e);
+                    return done();
+                }
+            };
+
         const base = new Message();
-        base.load({ uuid: item.uuid }, err => {
-            if (err) {
-                failAll(targets, err);
-                return cb();
-            }
+        base.load(
+            { uuid: item.uuid },
+            guarded(err => {
+                if (err) {
+                    failAll(targets, err);
+                    return done();
+                }
 
-            //  A message exported for the first time has no MSGID yet, and
-            //  each destination's prepareMessage() would mint its own (the
-            //  serial number is time-derived). Mint it once, here, so they all
-            //  carry the same one; it is stored below with the Exported bit.
-            //  A stored one -- from an earlier export that failed part way --
-            //  is kept, as prepareMessage() would keep it.
-            const minted = self.mintEchoMailMsgId(
-                base,
-                targets[0].exportOpts.network.localAddress
-            );
-
-            self.getReplyKludgeValue(base, (err, replyMsgId) => {
-                const handed = [];
-                let storeMsgId;
-
-                async.eachSeries(
-                    targets,
-                    (dest, nextDest) => {
-                        const message = cloneLoadedMessage(base);
-
-                        //  Before load-once, the first destination to take a
-                        //  message minted its MSGID and stored it, and every
-                        //  later one re-loaded the message, so the MSGID kludge
-                        //  came back where the database returns it rather than
-                        //  appended. Kludges are written in that order, so
-                        //  keep it.
-                        if (minted && handed.length > 0) {
-                            placeMsgIdAsLoaded(message.meta.FtnKludge);
-                        }
-
-                        try {
-                            self.prepareMessage(message, dest.exportOpts);
-                        } catch (e) {
-                            dest.error = e;
-                            return nextDest();
-                        }
-
-                        if (undefined !== replyMsgId) {
-                            message.meta.FtnKludge.REPLY = replyMsgId;
-                        }
-
-                        dest.writer.append(message, dest.exportOpts, err => {
-                            if (err) {
-                                dest.error = err;
-                                return nextDest();
-                            }
-                            handed.push(dest);
-                            if (undefined === storeMsgId) {
-                                storeMsgId = message.meta.FtnKludge.MSGID;
-                            }
-                            return nextDest();
-                        });
-                    },
-                    () => {
-                        if (0 === handed.length) {
-                            return cb();
-                        }
-
-                        //  OR the bit in rather than writing the value: a
-                        //  relayed message already carries Imported, and
-                        //  message_meta's UNIQUE key includes meta_value, so a
-                        //  plain write leaves two rows instead of a combined
-                        //  one. The MSGID is stored as if we had imported the
-                        //  message, for later reference (REPLY, dupe checks).
-                        const metaValues = storeMsgId
-                            ? [
-                                  {
-                                      category: 'FtnKludge',
-                                      name: 'MSGID',
-                                      value: storeMsgId,
-                                  },
-                              ]
-                            : [];
-                        base.setStateFlags0BitAndMeta(
-                            Message.StateFlags0.Exported,
-                            metaValues,
-                            err => {
-                                if (err) {
-                                    //  Not recorded, so it must not go out: a
-                                    //  retry would mint a second MSGID for it.
-                                    failAll(handed, err);
-                                }
-                                return cb();
-                            }
-                        );
-                    }
+                //  A message exported for the first time has no MSGID yet, and
+                //  each destination's prepareMessage() would mint its own (the
+                //  serial number is time-derived). Mint it once, here, so they
+                //  all carry the same one; it is stored below with the
+                //  Exported bit. A stored one -- from an earlier export that
+                //  failed part way -- is kept, as prepareMessage() would keep
+                //  it.
+                const minted = self.mintEchoMailMsgId(
+                    base,
+                    targets[0].exportOpts.network.localAddress
                 );
-            });
-        });
+
+                self.getReplyKludgeValue(
+                    base,
+                    guarded((err, replyMsgId) => {
+                        const handed = [];
+                        let storeMsgId;
+
+                        async.eachSeries(
+                            targets,
+                            guarded((dest, nextDest) => {
+                                const message = cloneLoadedMessage(base);
+
+                                //  Before load-once, the first destination to
+                                //  take a message minted its MSGID and stored
+                                //  it, and every later one re-loaded the
+                                //  message, so the MSGID kludge came back where
+                                //  the database returns it rather than
+                                //  appended. No tosser or dupe checker depends
+                                //  on kludge order (FTS-0004 and FTS-0009 treat
+                                //  kludges as a set); this is here only so each
+                                //  uplink's bytes match what it got before.
+                                if (minted && handed.length > 0) {
+                                    placeMsgIdAsLoaded(message.meta.FtnKludge);
+                                }
+
+                                try {
+                                    self.prepareMessage(message, dest.exportOpts);
+                                } catch (e) {
+                                    dest.error = e;
+                                    return nextDest();
+                                }
+
+                                if (undefined !== replyMsgId) {
+                                    message.meta.FtnKludge.REPLY = replyMsgId;
+                                }
+
+                                dest.writer.append(
+                                    message,
+                                    dest.exportOpts,
+                                    guarded(err => {
+                                        if (err) {
+                                            dest.error = err;
+                                            return nextDest();
+                                        }
+                                        handed.push(dest);
+                                        if (undefined === storeMsgId) {
+                                            storeMsgId = message.meta.FtnKludge.MSGID;
+                                        }
+                                        return nextDest();
+                                    })
+                                );
+                            }),
+                            guarded(() => {
+                                if (0 === handed.length) {
+                                    return done();
+                                }
+
+                                //  OR the bit in rather than writing the value:
+                                //  a relayed message already carries Imported,
+                                //  and message_meta's UNIQUE key includes
+                                //  meta_value, so a plain write leaves two rows
+                                //  instead of a combined one. The MSGID is
+                                //  stored as if we had imported the message,
+                                //  for later reference (REPLY, dupe checks).
+                                const metaValues = storeMsgId
+                                    ? [
+                                          {
+                                              category: 'FtnKludge',
+                                              name: 'MSGID',
+                                              value: storeMsgId,
+                                          },
+                                      ]
+                                    : [];
+                                base.setStateFlags0BitAndMeta(
+                                    Message.StateFlags0.Exported,
+                                    metaValues,
+                                    guarded(err => {
+                                        if (err) {
+                                            //  Not recorded, so it must not go
+                                            //  out: a retry would mint a second
+                                            //  MSGID for it.
+                                            failAll(handed, err);
+                                        }
+                                        return done();
+                                    })
+                                );
+                            })
+                        );
+                    })
+                );
+            })
+        );
     };
 
     //
@@ -5147,106 +5223,129 @@ function FTNMessageScanTossModule() {
                 //  configuration gets no destination: nothing to do, not a
                 //  failure, as it always has been.
                 const destinationByGroup = new Map();
-                const networks = _.uniq(
-                    groupList.filter(g => g.uuids.length > 0).map(g => g.network)
-                );
-
-                async.eachSeries(
-                    networks,
-                    (network, nextNetwork) => {
-                        const destinations = [];
-                        groupList
-                            .filter(g => g.network === network && g.uuids.length > 0)
-                            .forEach(group => {
-                                const dest = self.createEchoMailDestination(
-                                    group.uplink,
-                                    group.network,
-                                    {
-                                        areaTag: relayDestinationName(group),
-                                        network: group.network,
-                                    }
-                                );
-                                if (dest) {
-                                    destinationByGroup.set(group, dest);
-                                    destinations.push(dest);
-                                }
-                            });
-
-                        const items = (relayItems.get(network) || [])
-                            .map(item => ({
-                                uuid: item.uuid,
-                                destinations: item.groups
-                                    .map(g => destinationByGroup.get(g))
-                                    .filter(Boolean),
-                            }))
-                            .filter(item => item.destinations.length > 0);
-
-                        if (0 === destinations.length) {
-                            return nextNetwork();
-                        }
-                        self.exportEchoMailToDestinations(destinations, items, () =>
-                            nextNetwork()
+                const groupByDestination = new Map();
+                groupList
+                    .filter(g => g.uuids.length > 0)
+                    .forEach(group => {
+                        const dest = self.createEchoMailDestination(
+                            group.uplink,
+                            group.network,
+                            {
+                                areaTag: relayDestinationName(group),
+                                network: group.network,
+                            }
                         );
-                    },
-                    () => {
-                        //  Each group's watermarks follow its own destination's
-                        //  outcome only.
-                        async.eachSeries(
-                            groupList,
-                            (group, nextGroup) => {
-                                const areaTagList = Array.from(group.areas.keys());
+                        if (dest) {
+                            destinationByGroup.set(group, dest);
+                            groupByDestination.set(dest, group);
+                        }
+                    });
 
-                                //  Nothing qualified for this destination, so
-                                //  there is nothing to send and nothing that
-                                //  can fail. Record the progress and move on.
-                                if (0 === group.uuids.length) {
-                                    return self.advanceRelayScanIds(
-                                        group,
-                                        true,
-                                        nextGroup
-                                    );
-                                }
+                //  Log the outcome of a group that had mail and move its
+                //  watermarks. They follow its own destination's outcome only.
+                const finishGroup = (group, next) => {
+                    const dest = destinationByGroup.get(group);
+                    const err =
+                        dest && dest.error
+                            ? Errors.General(
+                                  `Failed exporting to ${dest.uplink}; messages will be retried`
+                              )
+                            : null;
 
-                                const dest = destinationByGroup.get(group);
-                                const err =
-                                    dest && dest.error
-                                        ? Errors.General(
-                                              `Failed exporting to ${dest.uplink}; messages will be retried`
-                                          )
-                                        : null;
-
-                                if (err) {
-                                    Log.warn(
-                                        {
-                                            uplink: group.uplink,
-                                            messages: group.uuids.length,
-                                            error: err.message,
-                                        },
-                                        'EchoMail relay incomplete; will retry'
-                                    );
-                                } else {
-                                    Log.info(
-                                        {
-                                            uplink: group.uplink,
-                                            network: group.network,
-                                            messagesRelayed: group.uuids.length,
-                                            areas: areaTagList,
-                                        },
-                                        'EchoMail relay complete'
-                                    );
-                                }
-                                //  On failure only the areas that actually had
-                                //  mail in this batch are held back. An area
-                                //  that contributed nothing to it learned
-                                //  nothing from the failure and would otherwise
-                                //  re-judge the same messages every pass.
-                                return self.advanceRelayScanIds(group, !err, () =>
-                                    nextGroup(null)
-                                );
+                    if (err) {
+                        Log.warn(
+                            {
+                                uplink: group.uplink,
+                                messages: group.uuids.length,
+                                error: err.message,
                             },
-                            cb
+                            'EchoMail relay incomplete; will retry'
+                        );
+                    } else {
+                        Log.info(
+                            {
+                                uplink: group.uplink,
+                                network: group.network,
+                                messagesRelayed: group.uuids.length,
+                                areas: Array.from(group.areas.keys()),
+                            },
+                            'EchoMail relay complete'
                         );
                     }
+                    //  On failure only the areas that actually had mail in this
+                    //  batch are held back. An area that contributed nothing to
+                    //  it learned nothing from the failure and would otherwise
+                    //  re-judge the same messages every pass.
+                    return self.advanceRelayScanIds(group, !err, () => next(null));
+                };
+
+                async.series(
+                    [
+                        function groupsWithNothingToExport(callback) {
+                            async.eachSeries(
+                                groupList.filter(g => !destinationByGroup.has(g)),
+                                (group, nextGroup) => {
+                                    //  Nothing qualified for this destination,
+                                    //  so there is nothing to send and nothing
+                                    //  that can fail. Record the progress and
+                                    //  move on.
+                                    if (0 === group.uuids.length) {
+                                        return self.advanceRelayScanIds(
+                                            group,
+                                            true,
+                                            nextGroup
+                                        );
+                                    }
+                                    return finishGroup(group, nextGroup);
+                                },
+                                callback
+                            );
+                        },
+                        function exportByNetwork(callback) {
+                            const networks = _.uniq(
+                                groupList
+                                    .filter(g => destinationByGroup.has(g))
+                                    .map(g => g.network)
+                            );
+                            async.eachSeries(
+                                networks,
+                                (network, nextNetwork) => {
+                                    const destinations = groupList
+                                        .filter(g => g.network === network)
+                                        .map(g => destinationByGroup.get(g))
+                                        .filter(Boolean);
+
+                                    const items = (relayItems.get(network) || [])
+                                        .map(item => ({
+                                            uuid: item.uuid,
+                                            destinations: item.groups
+                                                .map(g => destinationByGroup.get(g))
+                                                .filter(Boolean),
+                                        }))
+                                        .filter(item => item.destinations.length > 0);
+
+                                    //  Each group's watermarks move as soon as its
+                                    //  own destination is done with, not after the
+                                    //  whole call: the longer delivered packets go
+                                    //  unrecorded, the more a crash sends again.
+                                    self.exportEchoMailToDestinations(
+                                        destinations,
+                                        items,
+                                        () => nextNetwork(),
+                                        {
+                                            onDestinationDone: (dest, next) =>
+                                                finishGroup(
+                                                    groupByDestination.get(dest),
+                                                    next
+                                                ),
+                                        }
+                                    );
+                                },
+                                callback
+                            );
+                        },
+                    ],
+                    err => cb(err || null)
                 );
             }
         );
@@ -6418,6 +6517,21 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
 //  It is NOT a lock; we are the only writer by design (one BBS instance per
 //  mail tree).  Crash-leaked files are unlinked on startup.
 //
+//
+//  |cb|, callable any number of times, called once, on the next turn of the
+//  event loop.
+//
+function onceDeferred(cb) {
+    let called = false;
+    return (...args) => {
+        if (called) {
+            return;
+        }
+        called = true;
+        setImmediate(() => cb(...args));
+    };
+}
+
 //
 //  A copy of a message as Message#load() returned it, for one destination to
 //  prepare and write: its meta (SEEN-BY, PATH and every other array and

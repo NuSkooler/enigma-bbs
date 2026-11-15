@@ -901,10 +901,11 @@ module.exports = class Message {
                 this.meta.System = this.meta.System || {};
                 this.meta.System[name] = flags.toString();
             })();
-            return cb(null);
         } catch (err) {
             return cb(err);
         }
+        //  outside the try: a throw from |cb| must not call it a second time
+        return cb(null);
     }
 
     updateMetaValue(category, name, value, cb) {
