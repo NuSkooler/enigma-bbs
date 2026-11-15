@@ -45,6 +45,11 @@ const PIN_ART =
 const PIN_WIRE_CP437 =
     '1b5b306d1b5b324a1b5b313b33346dc9cdbb204e616d653a201b5b313b33346d202020200d0a1b5b303b33336d506173733a201b5b35431b5b303b33336d202020202020200d0a1b5b376d1b5b373b33336d202020201b5b306d20656e640d0a';
 
+//  PRE (passed through), then 'mid', 'body' and 'post' translated for PETSCII
+//  (charset select and colour, then upper case for lower case), then RAW
+//  (passed through)
+const PASS_THROUGH_WIRE = '5052450e929b4d4944424f4459504f5354524157';
+
 //  A session over a fake socket: every write, and every term call counted
 function session(kind = 'cp437') {
     const writes = [];
@@ -256,6 +261,35 @@ describe('Art output batching (WP3)', function () {
             });
         });
 
+        it('.rip art with a font and iCE colors: the init sequence goes first, filtered, on its own', async function () {
+            const s = session('rip');
+            s.term.syncTermFontsEnabled = true;
+            const info = await loadArt('misc/rip_starter/RMAIN.rip', s.client);
+            await new Promise(resolve =>
+                art.display(
+                    s.client,
+                    info.data,
+                    displayOptions(info, { font: 'topaz', iceColors: true }),
+                    resolve
+                )
+            );
+            //  as on master: the init sequence by rawWrite, then the art
+            //  unfiltered (master sent the art in 40 writes; it is now one)
+            assert.equal(s.calls.rawWrite, 1);
+            assert.equal(s.calls.writeUnfilteredRip, 1);
+            assert.equal(s.writes.length, 2);
+            assert.equal(s.writes[0].toString('latin1'), '\x1b[0;42 D\x1b[?33h');
+            assert.equal(md5(s.writes[1]), '9888a3ff989ba8f648a64cabff5382b9');
+            assert.equal(md5(s.wire()), '313a3d1ccb646e39dbf0c187153e8eb0');
+            assert.deepEqual(s.term.emulation.outputFilter.state, {
+                prev: 0x20,
+                csi: 0,
+                commandOpen: false,
+                backslashes: 0,
+                held: 0,
+            });
+        });
+
         it('ANSI art on a RIP session: one rawWrite (filtered), filter state as on master', async function () {
             const s = session('rip');
             const info = await loadArt(
@@ -455,6 +489,41 @@ describe('Art output batching (WP3)', function () {
                     assert.ok(sent[2].endsWith('POST'), sent[2]);
                     return done();
                 });
+            });
+        });
+
+        it('what the batch held around the translator does not mark what is written after the drip', done => {
+            //  PETSCII, so that translated and passed-through bytes differ: the
+            //  batch's first chunk goes around the translator, and the first
+            //  chunk written into it after the drip must not be taken for it
+            const s = session('petscii');
+            s.term.beginWrite();
+            s.term.passThroughWrite('PRE');
+            s.term.rawWrite('mid');
+            s.term.dripWrite(Buffer.from('body'), 1000000, err => {
+                assert.ifError(err);
+                s.term.rawWrite('post');
+                s.term.passThroughWrite('RAW');
+                s.term.commitWrite();
+
+                //  as the same writes made with no batch at all
+                const reference = session('petscii');
+                reference.term.passThroughWrite('PRE');
+                reference.term.rawWrite('mid');
+                reference.term.rawWrite('body');
+                reference.term.rawWrite('post');
+                reference.term.passThroughWrite('RAW');
+
+                assert.deepEqual(
+                    s.writes.map(w => w.toString('hex')),
+                    [
+                        Buffer.concat(reference.writes.slice(0, 2)).toString('hex'),
+                        reference.writes[2].toString('hex'),
+                        Buffer.concat(reference.writes.slice(3)).toString('hex'),
+                    ]
+                );
+                assert.equal(s.wire().toString('hex'), PASS_THROUGH_WIRE);
+                return done();
             });
         });
     });
