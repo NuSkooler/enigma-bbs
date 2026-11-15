@@ -15,6 +15,8 @@
 //
 //  Ignored, because they are time-derived by nature:
 //    * packet header creation date and time (bytes 4-15 of every packet);
+//    * each packed message's DateTime field, which renders the message's
+//      timestamp in the local time zone of the machine running the test;
 //    * packet file names (a serial number hashed from the current
 //      millisecond); and the order of packet references within a flow
 //      file, which the exporter has always left to whichever parallel move

@@ -435,10 +435,18 @@ function maskSerials(s) {
     return s.replace(/(\S+@\S+ )[0-9a-f]{8}/g, '$1########');
 }
 
+//  A packed message's DateTime field ("01 Oct 26  12:00:03"): the message's
+//  own timestamp, rendered in the local time zone of whoever runs the test.
+const FTN_DATE_TIME_RE = /\d{2} [A-Z][a-z]{2} \d{2} {2}\d{2}:\d{2}:\d{2}/g;
+
+function maskDateTimes(s) {
+    return s.replace(FTN_DATE_TIME_RE, '## ### ##  ##:##:##');
+}
+
 function maskPacket(buf) {
     const b = Buffer.from(buf);
     b.fill(0, 4, 16); //  packet header creation date/time
-    return maskSerials(b.toString('latin1'));
+    return maskDateTimes(maskSerials(b.toString('latin1')));
 }
 
 module.exports = {
