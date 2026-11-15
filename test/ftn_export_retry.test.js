@@ -24,6 +24,7 @@
 //
 
 const { strict: assert } = require('assert');
+const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 
@@ -471,26 +472,145 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
             assert.deepEqual(pendingRows(), [`poison -> ${U2}`]);
         });
 
-        it('does not send owed mail to an uplink no longer configured for the area', async () => {
-            const mod = h.makeModule();
-            const down = uplinkDown(mod, U3);
-            await h.addLocal({ subject: 'owed to a removed uplink' });
-            await h.runExportScan(mod);
-            assert.deepEqual(pendingRows(), [`owed to a removed uplink -> ${U3}`]);
-
-            const saved = AREAS.local_a.uplinks;
-            AREAS.local_a.uplinks = [U1, U2];
-            try {
-                down.down = false;
+        //
+        //  Owed rows for an uplink the area can no longer send to are kept (a
+        //  config edit may be a mistake) and warned about on every scan.
+        //
+        const STRANDED = [
+            {
+                why: 'no longer in the area',
+                uplinks: [U1, U2],
+            },
+            {
+                //  same node, spelled differently: the rows name the old spelling
+                why: 'respelled in the area',
+                uplinks: [U1, U2, '1:218/703.0'],
+            },
+            {
+                why: 'without a nodes entry',
+                uplinks: [U1, U2, U3],
+                nodes: n =>
+                    Object.fromEntries(Object.entries(n).filter(([a]) => a !== U3)),
+            },
+        ];
+        STRANDED.forEach(({ why, uplinks, nodes }) => {
+            it(`warns about, and does not send, mail owed to an uplink ${why}`, async () => {
+                const mod = h.makeModule();
+                const down = uplinkDown(mod, U3);
+                await h.addLocal({ subject: 'stranded one' });
+                await h.addLocal({ subject: 'stranded two' });
                 await h.runExportScan(mod);
-            } finally {
-                AREAS.local_a.uplinks = saved;
-            }
-            const t = await tally();
-            assert.deepEqual(Object.keys(t[U3]), []);
-            assert.equal(down.attempts, 1, 'never tried again');
-            //  kept, not dropped: a config edit may be a mistake
-            assert.deepEqual(pendingRows(), [`owed to a removed uplink -> ${U3}`]);
+                const owed = [`stranded one -> ${U3}`, `stranded two -> ${U3}`];
+                assert.deepEqual(pendingRows(), owed);
+
+                const savedUplinks = AREAS.local_a.uplinks;
+                const savedConfig = mod.moduleConfig;
+                AREAS.local_a.uplinks = uplinks;
+                if (nodes) {
+                    mod.moduleConfig = Object.assign({}, savedConfig, {
+                        nodes: nodes(savedConfig.nodes),
+                    });
+                }
+                down.down = false;
+                const warned = [];
+                try {
+                    for (let scan = 0; scan < 2; ++scan) {
+                        h.logged.length = 0;
+                        await h.runExportScan(mod);
+                        warned.push(
+                            h.logged.filter(
+                                l => 'warn' === l.level && /cannot send to/.test(l.a[1])
+                            )
+                        );
+                    }
+                } finally {
+                    AREAS.local_a.uplinks = savedUplinks;
+                    mod.moduleConfig = savedConfig;
+                }
+
+                for (const w of warned) {
+                    assert.equal(w.length, 1, 'once per area per scan, every scan');
+                    assert.deepEqual(w[0].a[0], {
+                        areaTag: 'local_a',
+                        uplinks: [U3],
+                        messages: 2,
+                    });
+                }
+                assert.deepEqual(Object.keys((await tally())[U3]), []);
+                assert.equal(down.attempts, 1, 'never tried again');
+                assert.deepEqual(pendingRows(), owed, 'kept, not dropped');
+            });
+        });
+
+        it('retries the messages owed to an uplink in the order they were written', async () => {
+            const mod = h.makeModule();
+            const down = uplinkDown(mod, U2);
+            await h.addLocal({ subject: 'order one' });
+            await h.addLocal({ subject: 'order two' });
+            await h.addLocal({ subject: 'order three' });
+            await h.runExportScan(mod);
+            assert.equal(pendingRows().length, 3);
+
+            down.down = false;
+            await h.runExportScan(mod);
+            //  small enough to share one packet, so the order in it is the
+            //  order they were given
+            assert.deepEqual(
+                (await delivered())[U2].map(m => m.subject),
+                ['order one', 'order two', 'order three']
+            );
+        });
+
+        //
+        //  Three messages, a packet each. The packer writes each one by a
+        //  different path -- A straight into the first packet, B held back and
+        //  written as the second opens, C held back and written at the end --
+        //  so each takes a turn as the packet that does not go out.
+        //
+        ['A', 'B', 'C'].forEach(lost => {
+            it(`after a partial delivery, owes an uplink only the packet that did not go out (${lost})`, async () => {
+                const mod = h.makeModule();
+                const body = n =>
+                    Array.from(
+                        { length: 12 },
+                        (_, i) => `Partial ${n}, line ${i}, padding to fill.`
+                    ).join('\r\n');
+                const all = ['A', 'B', 'C'].map(n => `partial ${n}`);
+                for (const n of ['A', 'B', 'C']) {
+                    await h.addLocal({ subject: `partial ${n}`, body: body(n) });
+                }
+
+                //  U2's packet carrying |lost| is moved but never referenced
+                let failing = true;
+                const append = mod.flowFileAppendRefs;
+                mod.flowFileAppendRefs = function (flowFile, refs, directive, addr, cb) {
+                    const carriesLost =
+                        702 === addr.node &&
+                        refs.some(r =>
+                            fs
+                                .readFileSync(r)
+                                .toString('latin1')
+                                .includes(`\x00partial ${lost}\x00`)
+                        );
+                    if (failing && carriesLost) {
+                        return cb(new Error('flow file busy'));
+                    }
+                    return append.call(this, flowFile, refs, directive, addr, cb);
+                };
+
+                await h.runExportScan(mod);
+                assert.deepEqual(
+                    (await delivered())[U2].map(m => m.subject).sort(),
+                    all.filter(s => s !== `partial ${lost}`),
+                    'three packets; the other two went out'
+                );
+                assert.deepEqual(pendingRows(), [`partial ${lost} -> ${U2}`]);
+
+                failing = false;
+                await h.runExportScan(mod);
+                assertEachOnce(await tally(), all, [U1, U2, U3]);
+                assert.deepEqual(pendingRows(), []);
+            });
         });
 
         it('does not flood an uplink added to the area later with its history', async () => {

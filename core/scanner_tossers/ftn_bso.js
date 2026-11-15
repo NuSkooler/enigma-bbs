@@ -1197,7 +1197,11 @@ function FTNMessageScanTossModule() {
                             const done = onceDeferred(() => {
                                 if (!dest.error) {
                                     if (trackPending) {
-                                        self.clearEchoMailExportPending(dest);
+                                        //  normally all cleared packet by packet
+                                        self.clearEchoMailExportPending(
+                                            dest,
+                                            dest.pendingMessageIds || []
+                                        );
                                     }
                                     return onDestinationDone(dest, () => nextDest());
                                 }
@@ -1208,6 +1212,16 @@ function FTNMessageScanTossModule() {
 
                             if (dest.error) {
                                 return done();
+                            }
+                            if (trackPending) {
+                                //  A packet in outbound is delivered whatever
+                                //  happens to the next one: a partial failure
+                                //  leaves owed only what did not go out.
+                                dest.onPacketsDelivered = files =>
+                                    self.clearEchoMailExportPending(
+                                        dest,
+                                        dest.writer ? dest.writer.messageIdsIn(files) : []
+                                    );
                             }
                             try {
                                 self.deliverEchoMailPackets(
@@ -1462,15 +1476,17 @@ function FTNMessageScanTossModule() {
     };
 
     //
-    //  |dest| has delivered: it is owed none of the messages it carried.
+    //  |dest| has delivered |messageIds|: it is no longer owed them.
     //
     //  Not in a transaction, deliberately: each statement is atomic on its
     //  own, and a row left behind costs one resend to this uplink, which is
     //  all a transaction could save. A failure is logged and does not fail the
     //  destination -- its packets are already in outbound.
     //
-    this.clearEchoMailExportPending = function (dest) {
-        const ids = dest.pendingMessageIds || [];
+    this.clearEchoMailExportPending = function (dest, messageIds) {
+        dest.clearedMessageIds = dest.clearedMessageIds || new Set();
+        const ids = messageIds.filter(id => !dest.clearedMessageIds.has(id));
+        ids.forEach(id => dest.clearedMessageIds.add(id));
         if (0 === ids.length) {
             return;
         }
@@ -1527,7 +1543,12 @@ function FTNMessageScanTossModule() {
     //  Bundle |exportedFileNames| for |dest| if it takes bundles, move them into
     //  its outbound directory, and reference them from its flow file.
     //
+    //  |dest.onPacketsDelivered(packets)|, if set, is told as each of
+    //  |exportedFileNames| is in outbound and referenced: a bare packet on its
+    //  own, every packet at once when they went out in one bundle.
+    //
     this.deliverEchoMailPackets = function (dest, exportedFileNames, cb) {
+        const packetFiles = exportedFileNames;
         const exportOpts = dest.exportOpts;
         const outgoingDir = dest.outgoingDir;
         const exportType = dest.exportType;
@@ -1681,6 +1702,13 @@ function FTNMessageScanTossModule() {
                                                 'Failed appending flow reference record!'
                                             );
                                             return nextFile(err);
+                                        }
+                                        if (dest.onPacketsDelivered) {
+                                            dest.onPacketsDelivered(
+                                                packetFiles.includes(oldPath)
+                                                    ? [oldPath]
+                                                    : packetFiles
+                                            );
                                         }
                                         nextFile();
                                     }
@@ -5075,9 +5103,11 @@ function FTNMessageScanTossModule() {
     //  only, and reuses the MSGID stored with the bit. No watermark: the rows
     //  are the whole of the retry state.
     //
-    //  An owed uplink no longer configured for the area is left alone, row and
-    //  all: dropping its rows on a config edit would silently lose the mail
-    //  if the edit were a mistake.
+    //  An owed uplink that cannot be sent to -- no longer in the area's
+    //  uplinks, spelled differently there now, or without a node entry -- is
+    //  left alone, row and all: dropping its rows on a config edit would
+    //  silently lose the mail if the edit were a mistake. It is warned about
+    //  on every scan instead, since the rows wait for the config to change.
     //
     this.retryPendingEchoMailExport = function (areaTag, areaConfig, cb) {
         let rows;
@@ -5105,10 +5135,14 @@ function FTNMessageScanTossModule() {
 
         const configured = areaConfig.uplinks;
         const entries = [];
-        const unconfigured = new Set();
+        const stranded = { uplinks: new Set(), messages: new Set() };
         rows.forEach(row => {
-            if (!configured.includes(row.uplink)) {
-                unconfigured.add(row.uplink);
+            if (
+                !configured.includes(row.uplink) ||
+                !self.getNodeConfigByAddress(row.uplink)
+            ) {
+                stranded.uplinks.add(row.uplink);
+                stranded.messages.add(row.message_uuid);
                 return;
             }
             let entry = entries[entries.length - 1];
@@ -5119,10 +5153,14 @@ function FTNMessageScanTossModule() {
             entry.uplinks.push(row.uplink);
         });
 
-        if (unconfigured.size > 0) {
-            Log.debug(
-                { areaTag, uplinks: Array.from(unconfigured) },
-                'EchoMail is owed to uplinks no longer configured for this area; not sent'
+        if (stranded.uplinks.size > 0) {
+            Log.warn(
+                {
+                    areaTag,
+                    uplinks: Array.from(stranded.uplinks),
+                    messages: stranded.messages.size,
+                },
+                "EchoMail owed to uplinks this area cannot send to is not being sent: list each uplink in the area's uplinks exactly as logged here, with a nodes entry, or it is never sent"
             );
         }
         if (0 === entries.length) {

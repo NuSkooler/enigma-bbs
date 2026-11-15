@@ -76,6 +76,8 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 * **EchoMail export now retries an uplink that failed** ([#1026](https://github.com/NuSkooler/enigma-bbs/issues/1026)). A message that could not be delivered to one of an area's uplinks is sent to that uplink, and only that uplink, by the next export scan. There is nothing to migrate, and the area's last scan IDs are kept as they are. The log shows `Export retry complete` (`info`) or `Export retry incomplete; will retry` (`warn`), with the area and the uplinks, when a scan retries something.
 
+  Mail owed to an uplink waits for that uplink exactly as it was spelled in the area's `uplinks` when the mail was written. If you remove an uplink from an area, respell it (adding a point `.0` or an `@network`, say) or remove its `nodes` entry while mail is still owed to it, every export scan logs at `warn`: `EchoMail owed to uplinks this area cannot send to is not being sent`, with the area, the uplinks and the number of messages. The mail is kept, not dropped. Put the uplink back as logged, with a `nodes` entry, and the next scan sends it.
+
   **Action:** none. Mail an uplink missed *before* the upgrade is not resent, because nothing recorded which uplink missed it.
 
 * **The ActivityPub actor cache is emptied once, at the first start.** Cached remote actors could have been planted by another server, and such an entry cannot be told from a genuine one, so the `actors` collection in `db/activitypub.sqlite3` is cleared once and actors are fetched again as they are needed. Follower and following lists, posts and reactions are not touched. The log shows `Purging the ActivityPub actor cache` and `Purged the ActivityPub actor cache`; 50,000 cached actors took under a second.
