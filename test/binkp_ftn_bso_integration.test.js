@@ -727,8 +727,8 @@ describe('ftn_bso ↔ BinkP integration', function () {
     //  with its destination, so a node can hold exactly one, while a single
     //  export may produce several packets (see packetTargetByteSize).
     //
-    //  These exercise the REAL exportEchoMailMessagesToUplinks waterfall,
-    //  stubbing only exportMessagesByUuid so no message database is needed.
+    //  These exercise the REAL exportEchoMailMessagesToUplinks delivery,
+    //  stubbing only packetiseEchoMail so no message database is needed.
 
     describe('ftn_bso — un-bundled EchoMail export (issue #722)', () => {
         const AREA_CONFIG = { network: 'testnet', uplinks: ['1:218/701'] };
@@ -773,7 +773,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
             mod.moduleConfig = config.scannerTossers.ftn_bso;
             mod.exportTempDir = tempDir;
 
-            mod.exportMessagesByUuid = (uuids, exportOpts, callback) => {
+            mod.packetiseEchoMail = (destinations, items, claimed, callback) => {
                 fsp.mkdir(tempDir, { recursive: true })
                     .then(() =>
                         Promise.all(
@@ -783,7 +783,12 @@ describe('ftn_bso ↔ BinkP integration', function () {
                             })
                         )
                     )
-                    .then(written => callback(null, written))
+                    .then(written => {
+                        destinations.forEach(dest => {
+                            dest.exportedFiles = written;
+                        });
+                        callback(null);
+                    })
                     .catch(callback);
             };
 
