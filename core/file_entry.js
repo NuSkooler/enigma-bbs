@@ -524,6 +524,15 @@ module.exports = class FileEntry {
     }
 
     static findByFileNameWildcard(wc, cb) {
+        //  likePatternFromGlob() drops control characters, which would widen
+        //  the match ('FILE<TAB>1.ZIP' finding FILE1.ZIP) for a caller that
+        //  removes or moves what it finds. No stored name holds one, so a
+        //  pattern that does matches nothing.
+        // eslint-disable-next-line no-control-regex
+        if (/[\u0000-\u001f\u007f]/.test(String(wc))) {
+            return cb(Errors.DoesNotExist('No matches'));
+        }
+
         //  * -> % and ? -> _, with a literal %, _ or \ escaped (see #1020)
         wc = likePatternFromGlob(wc);
 

@@ -940,7 +940,11 @@ describe('FileEntry.findByFileNameWildcard()', function () {
     function find(wc, cb) {
         FileEntry.findByFileNameWildcard(wc, (err, entries) => {
             if (err) {
-                assert.equal(err.reasonCode, 'NOENT');
+                //  no matches is the only error expected here
+                assert.equal(
+                    err.code,
+                    require('../core/enig_error.js').ErrorCodes.DoesNotExist
+                );
                 return cb([]);
             }
             return cb(entries.map(e => e.fileName).sort());
@@ -987,6 +991,15 @@ describe('FileEntry.findByFileNameWildcard()', function () {
         persistNames(['A_B1.ZIP', 'A_B22.ZIP', 'AXB1.ZIP'], () => {
             find('A_B?.ZIP', names => {
                 assert.deepEqual(names, ['A_B1.ZIP']);
+                done();
+            });
+        });
+    });
+
+    it('a pattern holding a control character matches nothing', done => {
+        persistNames(['FILE1.ZIP', 'FILE2.ZIP'], () => {
+            find('FILE' + String.fromCharCode(9) + '1.ZIP', names => {
+                assert.deepEqual(names, []);
                 done();
             });
         });
