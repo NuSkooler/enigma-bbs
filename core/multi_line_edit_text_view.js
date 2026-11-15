@@ -687,6 +687,7 @@ class MultiLineEditTextView extends View {
         const lastRow = this.redrawRows(0, this.dimens.height);
 
         this.eraseRows(lastRow, this.dimens.height);
+        this._visibleAreaDrawn = true;
     }
 
     getVisibleText(index) {
@@ -1548,20 +1549,29 @@ class MultiLineEditTextView extends View {
     }
 
     cursorStartOfDocument() {
-        this.topVisibleIndex = 0;
-        this.cursorPos = { row: 0, col: 0 };
+        this._scrollToStartOfDocument();
 
         this.redraw();
         this.moveClientCursorToCursorPos();
     }
 
     cursorEndOfDocument() {
-        this.topVisibleIndex = Math.max(this.buffer.lines.length - this.dimens.height, 0);
-        this.cursorPos.row = this.buffer.lines.length - this.topVisibleIndex - 1;
-        this.cursorPos.col = this.getTextEndOfLineColumn();
+        this._scrollToEndOfDocument();
 
         this.redraw();
         this.moveClientCursorToCursorPos();
+    }
+
+    //  Scroll position and cursor only: nothing is drawn
+    _scrollToStartOfDocument() {
+        this.topVisibleIndex = 0;
+        this.cursorPos = { row: 0, col: 0 };
+    }
+
+    _scrollToEndOfDocument() {
+        this.topVisibleIndex = Math.max(this.buffer.lines.length - this.dimens.height, 0);
+        this.cursorPos.row = this.buffer.lines.length - this.topVisibleIndex - 1;
+        this.cursorPos.col = this.getTextEndOfLineColumn();
     }
 
     cursorBeginOfNextLine() {
@@ -1888,11 +1898,22 @@ class MultiLineEditTextView extends View {
         );
     }
 
+    //
+    //  A chat log calls this once a line. While the top visible line stays
+    //  where it is (the log is not full yet, or it is held at the start) only
+    //  the rows from the first new line down are drawn: the ones above have
+    //  not changed. Once the view scrolls, the whole visible area is drawn
+    //  again. Either way it goes out as one write.
+    //
     addText(text, options = { scrollMode: 'default' }) {
         const normalized = (text || '').replace(/\r\n|\r/g, '\n');
 
         const isEmpty =
             this.buffer.lines.length === 1 && this.buffer.lines[0].chars === '';
+
+        const prevTopVisibleIndex = this.topVisibleIndex;
+        //  an empty view's line 0 is replaced, so it is new too
+        const firstNewIndex = isEmpty ? 0 : this.buffer.lines.length;
 
         if (isEmpty) {
             this.buffer.setText(normalized);
@@ -1903,22 +1924,56 @@ class MultiLineEditTextView extends View {
             this.buffer.lines.push(...tmp.lines);
         }
 
+        let toEnd;
         switch (options.scrollMode || 'default') {
             case 'top':
             case 'start':
-                this.cursorStartOfDocument();
+                toEnd = false;
                 break;
             case 'end':
             case 'bottom':
-                this.cursorEndOfDocument();
+                toEnd = true;
                 break;
             default:
-                if (this.isEditMode() || this.autoScroll) {
-                    this.cursorEndOfDocument();
-                } else {
-                    this.cursorStartOfDocument();
-                }
+                toEnd = this.isEditMode() || this.autoScroll;
                 break;
+        }
+
+        if (toEnd) {
+            this._scrollToEndOfDocument();
+        } else {
+            this._scrollToStartOfDocument();
+        }
+
+        const term = this.client.term;
+        const batch =
+            term && _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+        if (batch) {
+            term.beginWrite();
+        }
+        try {
+            //  Rows above the new lines are already on screen as they would
+            //  be drawn now -- unless the view scrolled, a search highlights
+            //  matches (whose positions the new lines may change), or it has
+            //  never been drawn at all.
+            const partial =
+                this._visibleAreaDrawn &&
+                !this._findState &&
+                this.topVisibleIndex === prevTopVisibleIndex;
+
+            if (partial) {
+                const startRow = firstNewIndex - this.topVisibleIndex;
+                if (startRow < this.dimens.height) {
+                    this.redrawRows(startRow, this.dimens.height);
+                }
+            } else {
+                this.redraw();
+            }
+            this.moveClientCursorToCursorPos();
+        } finally {
+            if (batch) {
+                term.commitWrite();
+            }
         }
     }
 
