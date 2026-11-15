@@ -330,6 +330,14 @@ function initMessageDatabase(db) {
                 FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
             );
 
+            --  Lookup by value: a MSGID dupe check or REPLY resolution on every
+            --  imported FTN message, getMessageIdsByMetaValue(), the private
+            --  mail filter. The UNIQUE key above leads with message_id, so
+            --  without this each of those scans the whole table. Runs on every
+            --  start: an existing database builds it once, at the next one.
+            CREATE INDEX IF NOT EXISTS message_meta_by_category_name_value_index
+                ON message_meta (meta_category, meta_name, meta_value);
+
             CREATE TABLE IF NOT EXISTS user_message_area_last_read (
                 user_id     INTEGER NOT NULL,
                 area_tag    VARCHAR NOT NULL,

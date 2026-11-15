@@ -3,10 +3,12 @@
 //
 //  EchoMail export to an area carrying more than one uplink — issue #746.
 //
-//  exportEchoMailMessagesToUplinks loops the area's uplinks and hands the
+//  exportEchoMailMessagesToUplinks looped the area's uplinks and handed the
 //  SAME message UUIDs to exportMessagesByUuid once per uplink. That function
-//  records two pieces of meta per message as it goes: a System/state_flags0
+//  recorded two pieces of meta per message as it went: a System/state_flags0
 //  of Exported, and the FtnKludge/MSGID it either generated or read back.
+//  (The exporter now loads and flags each message once for all uplinks; see
+//  ftn_export_load_once.test.js. What is asserted here still holds.)
 //
 //  message_meta is UNIQUE across (message_id, category, name, value), so on
 //  the second uplink both writes are the tuple the first uplink already
@@ -271,57 +273,6 @@ describe('ftn_bso — EchoMail export to multiple uplinks (issue #746)', functio
         ]);
     });
 
-    it('packetises for one uplink at a time', async () => {
-        //  An outgoing packet's name is a hash of the current millisecond and
-        //  the message ID, with nothing in it about the destination, and every
-        //  uplink of an area packetises the same messages through the same
-        //  temp directory into the same outbound directory. Overlap two
-        //  uplinks and they can choose the same name, and one quietly takes
-        //  the other's mail with it.
-        //
-        //  Asserted as non-overlap rather than by racing for a collision:
-        //  the window is a single millisecond, so a timing-based test would
-        //  only fail some of the time -- which is exactly how this got past
-        //  the first version of the suite.
-        const root = path.join(tmpDir, 'serial');
-        await fsp.mkdir(path.join(root, 'temp'), { recursive: true });
-
-        const mod = makeModule(root);
-        let inFlight = 0;
-        const overlaps = [];
-        mod.exportMessagesByUuid = (uuids, exportOpts, cb) => {
-            if (inFlight > 0) {
-                overlaps.push(exportOpts.destAddress.node);
-            }
-            ++inFlight;
-            //  Yield, so an overlapping caller would be let in here.
-            setImmediate(() => {
-                const p = path.join(root, 'temp', `u_${exportOpts.destAddress.node}.pkt`);
-                fsp.writeFile(p, 'PKT')
-                    .then(() => {
-                        --inFlight;
-                        cb(null, [p]);
-                    })
-                    .catch(err => {
-                        --inFlight;
-                        cb(err);
-                    });
-            });
-        };
-
-        const err = await new Promise(resolve =>
-            mod.exportEchoMailMessagesToUplinks(['uuid-1'], AREA, AREA.uplinks, resolve)
-        );
-
-        assert.equal(err, null, err && err.message);
-        assert.deepEqual(overlaps, [], 'uplink exports must not overlap');
-        assert.deepEqual(
-            await flowFilesIn(root),
-            UPLINKS.map(flowFileNameFor).sort(),
-            'and every uplink should still get its mail'
-        );
-    });
-
     it('reports a failed uplink instead of passing it off as success', async () => {
         //  Any failure, not just the constraint one: reporting success here
         //  is what lets performEchoMailExport advance the area's last scan ID
@@ -331,15 +282,25 @@ describe('ftn_bso — EchoMail export to multiple uplinks (issue #746)', functio
 
         const mod = makeModule(root);
         const attempted = [];
-        mod.exportMessagesByUuid = (uuids, exportOpts, cb) => {
-            attempted.push(exportOpts.destAddress.node);
-            if (702 === exportOpts.destAddress.node) {
-                return cb(new Error('disk on fire'));
-            }
-            const p = path.join(root, 'temp', `ok_${exportOpts.destAddress.node}.pkt`);
-            return fsp
-                .writeFile(p, 'PKT')
-                .then(() => cb(null, [p]))
+        mod.packetiseEchoMail = (destinations, items, claimed, cb) => {
+            Promise.all(
+                destinations.map(dest => {
+                    attempted.push(dest.exportOpts.destAddress.node);
+                    if (702 === dest.exportOpts.destAddress.node) {
+                        dest.error = new Error('disk on fire');
+                        return null;
+                    }
+                    const p = path.join(
+                        root,
+                        'temp',
+                        `ok_${dest.exportOpts.destAddress.node}.pkt`
+                    );
+                    return fsp.writeFile(p, 'PKT').then(() => {
+                        dest.exportedFiles = [p];
+                    });
+                })
+            )
+                .then(() => cb(null))
                 .catch(cb);
         };
 
@@ -354,6 +315,11 @@ describe('ftn_bso — EchoMail export to multiple uplinks (issue #746)', functio
             attempted.sort(),
             [701, 702, 703],
             'the other uplinks still get their turn'
+        );
+        assert.deepEqual(
+            await flowFilesIn(root),
+            ['00da02bd.clo', '00da02bf.clo'],
+            'and their mail'
         );
 
         const logged = warnings.map(a => JSON.stringify(a)).join(' ');

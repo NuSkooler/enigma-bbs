@@ -49,6 +49,7 @@ const {
 } = require('../bso_util.js');
 const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
 const TicFileWriter = require('../tic_file_writer.js');
+const FtnPacketWriter = require('../ftn_packet_writer.js');
 const ticForward = require('../tic_forward.js');
 const ticPassthrough = require('../tic_passthrough.js');
 const ticStore = require('../tic_store.js');
@@ -64,7 +65,6 @@ const async = require('async');
 const fs = require('graceful-fs');
 const later = require('@breejs/later');
 const temptmp = require('temptmp').createTrackedSession('ftn_bso');
-const assert = require('assert');
 const sane = require('sane');
 const fse = require('fs-extra');
 const iconv = require('iconv-lite');
@@ -97,6 +97,10 @@ function FTNMessageScanTossModule() {
     const self = this;
 
     this.archUtil = ArchiveUtil.getInstance();
+
+    //  outgoing packet names claimed by an export in progress; see
+    //  allocateEchoMailPacketPath()
+    this.claimedPacketStems = new Set();
 
     const config = Config();
     if (_.has(config, 'scannerTossers.ftn_bso')) {
@@ -642,12 +646,22 @@ function FTNMessageScanTossModule() {
     };
 
     this.setReplyKludgeFromReplyToMsgId = function (message, cb) {
-        //
-        //  Look up MSGID kludge for |message.replyToMsgId|, if any.
-        //  If found, we can create a REPLY kludge with the previously
-        //  discovered MSGID.
-        //
+        self.getReplyKludgeValue(message, (err, msgIdVal) => {
+            if (undefined !== msgIdVal) {
+                //  got a MSGID - create a REPLY
+                message.meta.FtnKludge.REPLY = msgIdVal;
+            }
+            return cb(null); //  this method always passes
+        });
+    };
 
+    //
+    //  The REPLY kludge |message| should carry: the MSGID of the message it
+    //  answers (|message.replyToMsgId|), or undefined when there is none.
+    //  Reads only the database, so one lookup serves every destination the
+    //  message is exported to. Always calls back without an error.
+    //
+    this.getReplyKludgeValue = function (message, cb) {
         if (0 === message.replyToMsgId) {
             return cb(null); //  nothing to do
         }
@@ -657,24 +671,26 @@ function FTNMessageScanTossModule() {
             'FtnKludge',
             'MSGID',
             (err, msgIdVal) => {
-                if (!err) {
-                    //  one MSGID per message; an older import may have stored two
-                    if (Array.isArray(msgIdVal)) {
-                        msgIdVal = msgIdVal[0];
-                    }
-                    assert(
-                        _.isString(msgIdVal),
-                        'Expected string but got ' +
-                            typeof msgIdVal +
-                            ' (' +
-                            msgIdVal +
-                            ')'
-                    );
-                    //  got a MSGID - create a REPLY
-                    message.meta.FtnKludge.REPLY = msgIdVal;
+                if (err) {
+                    return cb(null);
                 }
 
-                cb(null); //  this method always passes
+                //  one MSGID per message; an older import may have stored two
+                if (Array.isArray(msgIdVal)) {
+                    msgIdVal = msgIdVal[0];
+                }
+                //  This was an assert. Thrown inside the lookup's callback, it
+                //  was caught there and the callback called again with the
+                //  error, so its only effect was no REPLY. Say so instead of
+                //  throwing.
+                if (!_.isString(msgIdVal)) {
+                    Log.warn(
+                        { replyToMsgId: message.replyToMsgId, type: typeof msgIdVal },
+                        'MSGID of the replied-to message is not a string; no REPLY kludge'
+                    );
+                    return cb(null);
+                }
+                return cb(null, msgIdVal);
             }
         );
     };
@@ -980,229 +996,623 @@ function FTNMessageScanTossModule() {
         );
     };
 
-    this.exportMessagesByUuid = function (messageUuids, exportOpts, cb) {
-        //
-        //  This method has a lot of madness going on:
-        //  - Try to stuff messages into packets until we've hit the target size
-        //  - We need to wait for write streams to finish before proceeding in many cases
-        //    or data will be cut off when closing and creating a new stream
-        //
-        let exportedFiles = [];
-        let currPacketSize = self.moduleConfig.packetTargetByteSize;
-        let packet;
-        let ws;
-        let remainMessageBuf;
-        let remainMessageId;
-        const createTempPacket =
-            !_.isString(exportOpts.nodeConfig.archiveType) ||
-            0 === exportOpts.nodeConfig.archiveType.length;
-
-        function finalizePacket(cb) {
-            packet.writeTerminator(ws);
-            ws.end();
-            ws.once('finish', () => {
-                return cb(null);
-            });
+    //
+    //  An EchoMail destination for one export call: the uplink, what to write
+    //  for it, and where. Undefined when |uplink| has no node configuration,
+    //  which the exporter has always treated as nothing to do rather than a
+    //  failure. |logInfo| ({ areaTag, network }) goes on its log lines.
+    //
+    this.createEchoMailDestination = function (uplink, networkName, logInfo) {
+        const nodeConfig = self.getNodeConfigByAddress(uplink);
+        if (!nodeConfig) {
+            return undefined;
         }
 
-        async.eachSeries(
-            messageUuids,
-            (msgUuid, nextUuid) => {
-                let message = new Message();
+        const exportOpts = {
+            nodeConfig,
+            network: self.getNetworkConfig(networkName),
+            destAddress: Address.fromString(uplink),
+            networkName,
+            fileCase: nodeConfig.fileCase || 'lower',
+        };
 
-                async.series(
-                    [
-                        function finalizePrevious(callback) {
-                            if (
-                                packet &&
-                                currPacketSize >= self.moduleConfig.packetTargetByteSize
-                            ) {
-                                return finalizePacket(callback);
-                            } else {
-                                callback(null);
+        if (_.isString(exportOpts.network.localAddress)) {
+            exportOpts.network.localAddress = Address.fromString(
+                exportOpts.network.localAddress
+            );
+        }
+
+        return {
+            uplink: uplink.toString(),
+            nodeConfig,
+            exportOpts,
+            outgoingDir: self.getOutgoingEchoMailPacketDir(
+                networkName,
+                exportOpts.destAddress
+            ),
+            exportType: self.getExportType(nodeConfig),
+            //  bundled packets keep their .pkt name; bare ones are written
+            //  as .pk_ and renamed on the way into outbound
+            createTempPacket:
+                !_.isString(nodeConfig.archiveType) ||
+                0 === nodeConfig.archiveType.length,
+            logInfo: logInfo || {},
+            writer: null,
+            exportedFiles: null,
+            error: null,
+        };
+    };
+
+    //
+    //  Path for a new packet for |dest| in the export temp area.
+    //
+    //  The name comes from getOutgoingPacketFileName(): a serial number hashed
+    //  from the current millisecond and |messageId|, with nothing in it about
+    //  the destination. Destinations are fed a message at a time, so two of
+    //  them routinely open a packet for the same message in the same
+    //  millisecond; they share this temp directory, and later possibly an
+    //  outbound directory too (every node in a zone does). So a name already
+    //  claimed in this process, present in the temp area, or present as a
+    //  packet in |dest|'s outbound directory is passed over for the next
+    //  serial up. Claims are released when the export call that made them
+    //  completes.
+    //
+    //  A per-destination temp subdirectory would also keep the temp names
+    //  apart, but not the outbound ones, and an archiver such as Info-ZIP
+    //  stores the directory part of each path it is given -- so it would
+    //  change what goes into a bundle.
+    //
+    this.allocateEchoMailPacketPath = function (dest, messageId, claimed) {
+        const proposed = self.getOutgoingPacketFileName(
+            self.exportTempDir,
+            messageId,
+            dest.createTempPacket,
+            dest.exportOpts.fileCase
+        );
+        const ext = paths.extname(proposed);
+        let serial = parseInt(paths.basename(proposed, ext), 16);
+
+        const nameFor = n => {
+            const stem = `0000000${(n >>> 0).toString(16)}`.substr(-8);
+            return 'upper' === dest.exportOpts.fileCase ? stem.toUpperCase() : stem;
+        };
+        const taken = stem => {
+            const key = stem.toLowerCase();
+            if (self.claimedPacketStems.has(key)) {
+                return true;
+            }
+            const candidates = [
+                paths.join(self.exportTempDir, `${key}.pk_`),
+                paths.join(self.exportTempDir, `${key}.pkt`),
+                paths.join(self.exportTempDir, `${key.toUpperCase()}.PK_`),
+                paths.join(self.exportTempDir, `${key.toUpperCase()}.PKT`),
+                paths.join(dest.outgoingDir, `${key}.pkt`),
+                paths.join(dest.outgoingDir, `${key.toUpperCase()}.PKT`),
+            ];
+            return candidates.some(p => fs.existsSync(p));
+        };
+
+        let stem = nameFor(serial);
+        //  bounded only to be safe: each step is one more existing file
+        for (let i = 0; i < 0x10000 && taken(stem); ++i) {
+            stem = nameFor(++serial);
+        }
+
+        self.claimedPacketStems.add(stem.toLowerCase());
+        claimed.push(stem.toLowerCase());
+        return paths.join(self.exportTempDir, `${stem}${ext}`);
+    };
+
+    //
+    //  Export EchoMail to several destinations, loading and flagging each
+    //  message once however many of them it goes to.
+    //
+    //  |destinations| come from createEchoMailDestination(), all of one
+    //  network (it supplies our local address, and so the MSGID). |items| are
+    //  [ { uuid, destinations } ], in the order messages are to be written;
+    //  each item names the destinations that message goes to, so every
+    //  destination's messages keep their relative order.
+    //
+    //  Each destination ends up with |error| set or not. One failing does not
+    //  stop the others: it is skipped for the rest of the call and gets
+    //  nothing delivered. Calls back with no error of its own; the caller
+    //  decides what a failed destination means for it.
+    //
+    this.exportEchoMailToDestinations = function (destinations, items, cb, options) {
+        const claimed = [];
+        const onDestinationDone =
+            (options && options.onDestinationDone) || ((dest, next) => next());
+
+        //  A destination that got nothing: say so, with enough to act on -- a
+        //  bare err.message here read as an unattributed SQL or fs complaint
+        //  with no hint that mail had gone missing -- and remove the packets
+        //  written for it, which will never be delivered.
+        const finishFailed = (dest, next) => {
+            Log.error(
+                {
+                    uplink: dest.uplink,
+                    areaTag: dest.logInfo.areaTag,
+                    network: dest.logInfo.network,
+                    error: dest.error.message,
+                },
+                'Failed exporting EchoMail to uplink!'
+            );
+            if (!dest.writer) {
+                return next();
+            }
+            try {
+                return dest.writer.discard(next);
+            } catch (e) {
+                Log.warn(
+                    { uplink: dest.uplink, error: e.message },
+                    'Could not remove undelivered FTN packets'
+                );
+                return next();
+            }
+        };
+
+        async.series(
+            [
+                function createOutgoingDirs(callback) {
+                    async.eachSeries(
+                        destinations,
+                        (dest, nextDest) => {
+                            fse.mkdirs(dest.outgoingDir, err => {
+                                dest.error = err || null;
+                                return nextDest();
+                            });
+                        },
+                        callback
+                    );
+                },
+                function packetise(callback) {
+                    return self.packetiseEchoMail(destinations, items, claimed, callback);
+                },
+                function deliver(callback) {
+                    //  One destination at a time: two of them can want the same
+                    //  bundle name (getOutgoingBundleFileName looks at what is
+                    //  already in outbound), and they share the temp area.
+                    //
+                    //  |onDestinationDone| runs as each one is finished with,
+                    //  delivered or failed, before the next one starts: relay
+                    //  records a destination's progress there, as soon as its
+                    //  packets are out.
+                    async.eachSeries(
+                        destinations,
+                        (dest, nextDest) => {
+                            const done = onceDeferred(() => {
+                                if (!dest.error) {
+                                    return onDestinationDone(dest, () => nextDest());
+                                }
+                                finishFailed(dest, () =>
+                                    onDestinationDone(dest, () => nextDest())
+                                );
+                            });
+
+                            if (dest.error) {
+                                return done();
+                            }
+                            try {
+                                self.deliverEchoMailPackets(
+                                    dest,
+                                    dest.exportedFiles || [],
+                                    err => {
+                                        dest.error = err || null;
+                                        return done();
+                                    }
+                                );
+                            } catch (e) {
+                                dest.error = e;
+                                return done();
                             }
                         },
-                        function loadMessage(callback) {
-                            message.load({ uuid: msgUuid }, err => {
+                        callback
+                    );
+                },
+            ],
+            () => {
+                claimed.forEach(stem => self.claimedPacketStems.delete(stem));
+                return cb(null, destinations);
+            }
+        );
+    };
+
+    //
+    //  Write |items| into packets in the temp area, one message at a time: a
+    //  message is loaded once, prepared separately for each destination it goes
+    //  to (from its own copy, so nothing one destination's prepareMessage()
+    //  does is seen by another), and then its Exported bit and MSGID are
+    //  stored together in one transaction -- before any packet carrying it can
+    //  reach outbound, which only happens once this has finished.
+    //
+    //  Leaves each healthy destination's packet paths in |dest.exportedFiles|.
+    //
+    this.packetiseEchoMail = function (destinations, items, claimed, cb) {
+        destinations.forEach(dest => {
+            dest.writer = new FtnPacketWriter({
+                targetSize: self.moduleConfig.packetTargetByteSize,
+                createHeader: () => {
+                    const packetHeader = new ftnMailPacket.PacketHeader(
+                        dest.exportOpts.network.localAddress,
+                        dest.exportOpts.destAddress,
+                        dest.exportOpts.nodeConfig.packetType
+                    );
+                    packetHeader.password =
+                        dest.exportOpts.nodeConfig.packetPassword || '';
+                    return packetHeader;
+                },
+                allocatePacketPath: messageId =>
+                    self.allocateEchoMailPacketPath(dest, messageId, claimed),
+            });
+        });
+
+        async.eachSeries(
+            items,
+            (item, nextItem) => {
+                return self.exportEchoMailItem(item, () => nextItem());
+            },
+            () => {
+                async.eachSeries(
+                    destinations,
+                    (dest, nextDest) => {
+                        if (dest.error) {
+                            return nextDest(); //  discarded in deliver
+                        }
+                        const next = onceDeferred(nextDest);
+                        try {
+                            dest.writer.finish((err, files) => {
+                                dest.error = err || null;
+                                dest.exportedFiles = files;
+                                return next();
+                            });
+                        } catch (e) {
+                            dest.error = e;
+                            return next();
+                        }
+                    },
+                    () => cb(null)
+                );
+            }
+        );
+    };
+
+    this.exportEchoMailItem = function (item, cb) {
+        const targets = item.destinations.filter(dest => !dest.error);
+        if (0 === targets.length) {
+            return cb(); //  everyone it was for has failed; do not even load it
+        }
+
+        const failAll = (dests, err) => {
+            dests.forEach(dest => {
+                dest.error = err;
+            });
+        };
+
+        //  Called back once, and on a fresh stack, so nothing the next message
+        //  does can unwind into this one's handlers.
+        const done = onceDeferred(cb);
+
+        //  Anything that throws while this message is being handled fails it
+        //  for every destination it was for, as a load error does, and the
+        //  export carries on. Every callback below runs through this: a throw
+        //  must not escape into the database or async code that called it.
+        const guarded =
+            fn =>
+            (...args) => {
+                try {
+                    return fn(...args);
+                } catch (e) {
+                    failAll(targets, e);
+                    return done();
+                }
+            };
+
+        const base = new Message();
+        base.load(
+            { uuid: item.uuid },
+            guarded(err => {
+                if (err) {
+                    failAll(targets, err);
+                    return done();
+                }
+
+                //  A message exported for the first time has no MSGID yet, and
+                //  each destination's prepareMessage() would mint its own (the
+                //  serial number is time-derived). Mint it once, here, so they
+                //  all carry the same one; it is stored below with the
+                //  Exported bit. A stored one -- from an earlier export that
+                //  failed part way -- is kept, as prepareMessage() would keep
+                //  it.
+                const minted = self.mintEchoMailMsgId(
+                    base,
+                    targets[0].exportOpts.network.localAddress
+                );
+
+                self.getReplyKludgeValue(
+                    base,
+                    guarded((err, replyMsgId) => {
+                        const handed = [];
+                        let storeMsgId;
+
+                        async.eachSeries(
+                            targets,
+                            guarded((dest, nextDest) => {
+                                const message = cloneLoadedMessage(base);
+
+                                //  Before load-once, the first destination to
+                                //  take a message minted its MSGID and stored
+                                //  it, and every later one re-loaded the
+                                //  message, so the MSGID kludge came back where
+                                //  the database returns it rather than
+                                //  appended. No tosser or dupe checker depends
+                                //  on kludge order (FTS-0004 and FTS-0009 treat
+                                //  kludges as a set); this is here only so each
+                                //  uplink's bytes match what it got before.
+                                if (minted && handed.length > 0) {
+                                    placeMsgIdAsLoaded(message.meta.FtnKludge);
+                                }
+
+                                try {
+                                    self.prepareMessage(message, dest.exportOpts);
+                                } catch (e) {
+                                    dest.error = e;
+                                    return nextDest();
+                                }
+
+                                if (undefined !== replyMsgId) {
+                                    message.meta.FtnKludge.REPLY = replyMsgId;
+                                }
+
+                                dest.writer.append(
+                                    message,
+                                    dest.exportOpts,
+                                    guarded(err => {
+                                        if (err) {
+                                            dest.error = err;
+                                            return nextDest();
+                                        }
+                                        handed.push(dest);
+                                        if (undefined === storeMsgId) {
+                                            storeMsgId = message.meta.FtnKludge.MSGID;
+                                        }
+                                        return nextDest();
+                                    })
+                                );
+                            }),
+                            guarded(() => {
+                                if (0 === handed.length) {
+                                    return done();
+                                }
+
+                                //  OR the bit in rather than writing the value:
+                                //  a relayed message already carries Imported,
+                                //  and message_meta's UNIQUE key includes
+                                //  meta_value, so a plain write leaves two rows
+                                //  instead of a combined one. The MSGID is
+                                //  stored as if we had imported the message,
+                                //  for later reference (REPLY, dupe checks).
+                                const metaValues = storeMsgId
+                                    ? [
+                                          {
+                                              category: 'FtnKludge',
+                                              name: 'MSGID',
+                                              value: storeMsgId,
+                                          },
+                                      ]
+                                    : [];
+                                base.setStateFlags0BitAndMeta(
+                                    Message.StateFlags0.Exported,
+                                    metaValues,
+                                    guarded(err => {
+                                        if (err) {
+                                            //  Not recorded, so it must not go
+                                            //  out: a retry would mint a second
+                                            //  MSGID for it.
+                                            failAll(handed, err);
+                                        }
+                                        return done();
+                                    })
+                                );
+                            })
+                        );
+                    })
+                );
+            })
+        );
+    };
+
+    //
+    //  Give |message| the MSGID prepareMessage() would give it, unless it has
+    //  one. Returns true when one was minted.
+    //
+    this.mintEchoMailMsgId = function (message, localAddress) {
+        //  prepareMessage() tests the kludges after normalizing them, so test
+        //  the same way (on a copy: normalizing is done in place).
+        const current = ftnUtil.normalizeKludges(
+            Object.assign({}, message.meta.FtnKludge)
+        ).MSGID;
+        if (current) {
+            return false;
+        }
+
+        message.meta.FtnKludge = message.meta.FtnKludge || {};
+        message.meta.FtnKludge.MSGID = ftnUtil.getMessageIdentifier(
+            message,
+            new Address(localAddress),
+            message.isPrivate() // true = isNetMail
+        );
+        return true;
+    };
+
+    //
+    //  Bundle |exportedFileNames| for |dest| if it takes bundles, move them into
+    //  its outbound directory, and reference them from its flow file.
+    //
+    this.deliverEchoMailPackets = function (dest, exportedFileNames, cb) {
+        const exportOpts = dest.exportOpts;
+        const outgoingDir = dest.outgoingDir;
+        const exportType = dest.exportType;
+
+        if (0 === exportedFileNames.length) {
+            return cb(null);
+        }
+
+        async.waterfall(
+            [
+                function createArcMailBundle(callback) {
+                    if (self.archUtil.haveArchiver(exportOpts.nodeConfig.archiveType)) {
+                        //  :TODO: support bundleTargetByteSize:
+                        //
+                        //  Compress to a temp location then we'll move it in the next step
+                        //
+                        //  Note that we must use the *final* output dir for getOutgoingBundleFileName()
+                        //  as it checks for collisions in bundle names!
+                        //
+                        self.getOutgoingBundleFileName(
+                            outgoingDir,
+                            exportOpts.network.localAddress,
+                            exportOpts.destAddress,
+                            (err, bundlePath) => {
                                 if (err) {
                                     return callback(err);
                                 }
 
-                                //  General preperation
-                                self.prepareMessage(message, exportOpts);
-
-                                self.setReplyKludgeFromReplyToMsgId(message, err => {
-                                    callback(err);
-                                });
-                            });
-                        },
-                        function createNewPacket(callback) {
-                            if (
-                                currPacketSize >= self.moduleConfig.packetTargetByteSize
-                            ) {
-                                packet = new ftnMailPacket.Packet();
-
-                                const packetHeader = new ftnMailPacket.PacketHeader(
-                                    exportOpts.network.localAddress,
-                                    exportOpts.destAddress,
-                                    exportOpts.nodeConfig.packetType
+                                //  adjust back to temp path
+                                const tempBundlePath = paths.join(
+                                    self.exportTempDir,
+                                    paths.basename(bundlePath)
                                 );
 
-                                packetHeader.password =
-                                    exportOpts.nodeConfig.packetPassword || '';
+                                self.archUtil.compressTo(
+                                    exportOpts.nodeConfig.archiveType,
+                                    tempBundlePath,
+                                    exportedFileNames,
+                                    err => {
+                                        callback(err, [tempBundlePath]);
+                                    }
+                                );
+                            }
+                        );
+                    } else {
+                        callback(null, exportedFileNames);
+                    }
+                },
+                function moveFilesToOutgoing(exportedFileNames, callback) {
+                    async.each(
+                        exportedFileNames,
+                        (oldPath, nextFile) => {
+                            //
+                            //  Un-bundled packets are written to the temp area as
+                            //  .pk_ (see |createTempPacket| in createEchoMailDestination);
+                            //  give them their real .pkt extension on the way out.
+                            //  Bundles already carry their final name.
+                            //
+                            //  Note that we deliberately do *not* write a BSO netmail
+                            //  flow file (NNNNnnnn.?ut) for the un-bundled case:
+                            //  FTS-5005.003 §3.1 gives those a one-to-one
+                            //  correspondence with the destination address, so a node
+                            //  can hold exactly one at a time, while a single export
+                            //  may produce several packets (see packetTargetByteSize).
+                            //  Reference files have no such limit, so everything --
+                            //  bundle or bare packet -- ships as a reference.
+                            //
+                            const ext = paths.extname(oldPath);
+                            let newPath;
+                            if ('.pk_' === ext.toLowerCase()) {
+                                //  |ext| is not lower cased above: paths.basename()
+                                //  matches it case-sensitively, and a fileCase of
+                                //  'upper' produces a .PK_ we must still strip.
+                                const pktExt =
+                                    'upper' === exportOpts.fileCase ? '.PKT' : '.pkt';
+                                newPath = paths.join(
+                                    outgoingDir,
+                                    `${paths.basename(oldPath, ext)}${pktExt}`
+                                );
+                            } else {
+                                newPath = paths.join(
+                                    outgoingDir,
+                                    paths.basename(oldPath)
+                                );
+                            }
 
-                                //  use current message ID for filename seed
-                                const pktFileName = self.getOutgoingPacketFileName(
-                                    self.exportTempDir,
-                                    message.messageId,
-                                    createTempPacket,
+                            fse.move(oldPath, newPath, err => {
+                                if (err) {
+                                    //  The packet is still in the temp
+                                    //  area, so this export did not
+                                    //  happen. Report it: the caller
+                                    //  advances the area's last scan ID
+                                    //  on a clean return, and doing that
+                                    //  here is how a disk-full or
+                                    //  permission error turns into mail
+                                    //  nobody ever sees again. See #818.
+                                    Log.error(
+                                        {
+                                            oldPath: oldPath,
+                                            newPath: newPath,
+                                            error: err.toString(),
+                                        },
+                                        'Failed moving temporary outbound file!'
+                                    );
+
+                                    return nextFile(err);
+                                }
+
+                                const flowFilePath = self.getOutgoingFlowFileName(
+                                    outgoingDir,
+                                    exportOpts.destAddress,
+                                    'ref',
+                                    exportType,
                                     exportOpts.fileCase
                                 );
 
-                                exportedFiles.push(pktFileName);
-
-                                ws = fs.createWriteStream(pktFileName);
-                                ws.once('error', err =>
-                                    Log.error(
-                                        { pktFileName, error: err.message },
-                                        'FTN packet write error'
-                                    )
-                                );
-
-                                currPacketSize = packet.writeHeader(ws, packetHeader);
-
-                                if (remainMessageBuf) {
-                                    currPacketSize += packet.writeMessageEntry(
-                                        ws,
-                                        remainMessageBuf
-                                    );
-                                    remainMessageBuf = null;
-                                }
-                            }
-
-                            callback(null);
-                        },
-                        function appendMessage(callback) {
-                            packet.getMessageEntryBuffer(
-                                message,
-                                exportOpts,
-                                (err, msgBuf) => {
-                                    if (err) {
-                                        return callback(err);
-                                    }
-
-                                    currPacketSize += msgBuf.length;
-
-                                    if (
-                                        currPacketSize >=
-                                        self.moduleConfig.packetTargetByteSize
-                                    ) {
-                                        remainMessageBuf = msgBuf; //  save for next packet
-                                        remainMessageId = message.messageId;
-                                    } else {
-                                        ws.write(msgBuf);
-                                    }
-
-                                    return callback(null);
-                                }
-                            );
-                        },
-                        function storeStateFlags0Meta(callback) {
-                            //  OR the bit in rather than writing the value:
-                            //  a relayed message already carries Imported, and
-                            //  message_meta's UNIQUE key includes meta_value,
-                            //  so a plain write leaves two rows instead of a
-                            //  combined one.
-                            message.setStateFlags0Bit(
-                                Message.StateFlags0.Exported,
-                                err => {
-                                    callback(err);
-                                }
-                            );
-                        },
-                        function storeMsgIdMeta(callback) {
-                            //
-                            //  We want to store some meta as if we had imported
-                            //  this message for later reference
-                            //
-                            if (message.meta.FtnKludge.MSGID) {
-                                message.updateMetaValue(
-                                    'FtnKludge',
-                                    'MSGID',
-                                    message.meta.FtnKludge.MSGID,
+                                //  directive of '^' = delete file after transfer
+                                self.flowFileAppendRefs(
+                                    flowFilePath,
+                                    [newPath],
+                                    '^',
+                                    exportOpts.destAddress,
                                     err => {
-                                        callback(err);
+                                        if (err) {
+                                            //  Also fatal to this export, and
+                                            //  less obvious than the move: the
+                                            //  packet sits in outbound with no
+                                            //  flow file referencing it, so the
+                                            //  mailer never offers it and
+                                            //  nothing cleans it up.
+                                            //
+                                            //  This includes a busy flow file,
+                                            //  which is an ordinary outcome
+                                            //  under concurrent sessions -- and
+                                            //  swallowing it meant a node that
+                                            //  was merely busy lost the mail
+                                            //  permanently, because the scan ID
+                                            //  moved on anyway.
+                                            //
+                                            //  Retrying re-packetises under a
+                                            //  fresh name rather than
+                                            //  re-referencing this one, so the
+                                            //  cost of the failed attempt is an
+                                            //  orphaned packet, not a duplicate
+                                            //  send.
+                                            Log.error(
+                                                {
+                                                    path: flowFilePath,
+                                                    error: err.toString(),
+                                                },
+                                                'Failed appending flow reference record!'
+                                            );
+                                            return nextFile(err);
+                                        }
+                                        nextFile();
                                     }
                                 );
-                            } else {
-                                callback(null);
-                            }
+                            });
                         },
-                    ],
-                    err => {
-                        nextUuid(err);
-                    }
-                );
-            },
-            err => {
-                if (err) {
-                    cb(err);
-                } else {
-                    async.series(
-                        [
-                            function terminateLast(callback) {
-                                if (packet) {
-                                    return finalizePacket(callback);
-                                } else {
-                                    callback(null);
-                                }
-                            },
-                            function writeRemainPacket(callback) {
-                                if (remainMessageBuf) {
-                                    //  :TODO: DRY this with the code above -- they are basically identical
-                                    packet = new ftnMailPacket.Packet();
-
-                                    const packetHeader = new ftnMailPacket.PacketHeader(
-                                        exportOpts.network.localAddress,
-                                        exportOpts.destAddress,
-                                        exportOpts.nodeConfig.packetType
-                                    );
-
-                                    packetHeader.password =
-                                        exportOpts.nodeConfig.packetPassword || '';
-
-                                    //  use current message ID for filename seed
-                                    const pktFileName = self.getOutgoingPacketFileName(
-                                        self.exportTempDir,
-                                        remainMessageId,
-                                        createTempPacket,
-                                        exportOpts.fileCase
-                                    );
-
-                                    exportedFiles.push(pktFileName);
-
-                                    ws = fs.createWriteStream(pktFileName);
-                                    ws.once('error', err =>
-                                        Log.error(
-                                            { pktFileName, error: err.message },
-                                            'FTN packet write error'
-                                        )
-                                    );
-
-                                    packet.writeHeader(ws, packetHeader);
-                                    ws.write(remainMessageBuf);
-                                    return finalizePacket(callback);
-                                } else {
-                                    callback(null);
-                                }
-                            },
-                        ],
-                        err => {
-                            cb(err, exportedFiles);
-                        }
+                        callback
                     );
-                }
-            }
+                },
+            ],
+            err => cb(err || null)
         );
     };
 
@@ -1594,12 +2004,12 @@ function FTNMessageScanTossModule() {
     };
 
     //
-    //  |uplinks| is passed rather than read from |areaConfig| because the relay
-    //  scan sends a given message to a *subset* of the area's uplinks -- the
-    //  ones that have not already seen it. Note that the SEEN-BY line still
-    //  names every configured uplink: prepareMessage() builds it from config,
-    //  not from this list, which is correct FTN practice (you declare the whole
-    //  distribution) and helps a downlink we skipped avoid sending it back.
+    //  |uplinks| is passed rather than read from |areaConfig| so that a caller
+    //  can send to a *subset* of the area's uplinks. Note that the SEEN-BY line
+    //  still names every configured uplink: prepareMessage() builds it from
+    //  config, not from this list, which is correct FTN practice (you declare
+    //  the whole distribution) and helps a downlink we skipped avoid sending it
+    //  back.
     //
     this.exportEchoMailMessagesToUplinks = function (
         messageUuids,
@@ -1611,251 +2021,30 @@ function FTNMessageScanTossModule() {
         //  for success either: the caller advances the area's last scan ID on
         //  a clean return, and doing that after a failed uplink is what turns
         //  a recoverable error into mail nobody ever sees again.
-        const failedUplinks = [];
+        const logInfo = { areaTag: areaConfig.tag, network: areaConfig.network };
+        const destinations = uplinks
+            .map(uplink =>
+                self.createEchoMailDestination(uplink, areaConfig.network, logInfo)
+            )
+            .filter(Boolean);
 
-        //  One uplink at a time. An outgoing packet is named from a serial
-        //  number that is a hash of the current millisecond and the message
-        //  ID -- nothing about the destination -- and every uplink of an area
-        //  packetises the same messages into the same temp directory and then
-        //  moves them into the same outbound directory. Run in parallel, two
-        //  uplinks landing in one millisecond therefore choose the same file
-        //  name, and one silently overwrites or loses the other's mail.
-        async.eachSeries(
-            uplinks,
-            (uplink, nextUplink) => {
-                const nodeConfig = self.getNodeConfigByAddress(uplink);
-                if (!nodeConfig) {
-                    return nextUplink();
-                }
+        const items = messageUuids.map(uuid => ({ uuid, destinations }));
 
-                const exportOpts = {
-                    nodeConfig,
-                    network: self.getNetworkConfig(areaConfig.network),
-                    destAddress: Address.fromString(uplink),
-                    networkName: areaConfig.network,
-                    fileCase: nodeConfig.fileCase || 'lower',
-                };
-
-                if (_.isString(exportOpts.network.localAddress)) {
-                    exportOpts.network.localAddress = Address.fromString(
-                        exportOpts.network.localAddress
-                    );
-                }
-
-                const outgoingDir = self.getOutgoingEchoMailPacketDir(
-                    exportOpts.networkName,
-                    exportOpts.destAddress
+        self.exportEchoMailToDestinations(destinations, items, () => {
+            const failedUplinks = destinations
+                .filter(dest => dest.error)
+                .map(dest => dest.uplink);
+            if (failedUplinks.length > 0) {
+                return cb(
+                    Errors.General(
+                        `Failed exporting to ${failedUplinks.join(
+                            ', '
+                        )}; messages will be retried`
+                    )
                 );
-                const exportType = self.getExportType(exportOpts.nodeConfig);
-
-                async.waterfall(
-                    [
-                        function createOutgoingDir(callback) {
-                            fse.mkdirs(outgoingDir, err => {
-                                callback(err);
-                            });
-                        },
-                        function exportToTempArea(callback) {
-                            self.exportMessagesByUuid(messageUuids, exportOpts, callback);
-                        },
-                        function createArcMailBundle(exportedFileNames, callback) {
-                            if (
-                                self.archUtil.haveArchiver(
-                                    exportOpts.nodeConfig.archiveType
-                                )
-                            ) {
-                                //  :TODO: support bundleTargetByteSize:
-                                //
-                                //  Compress to a temp location then we'll move it in the next step
-                                //
-                                //  Note that we must use the *final* output dir for getOutgoingBundleFileName()
-                                //  as it checks for collisions in bundle names!
-                                //
-                                self.getOutgoingBundleFileName(
-                                    outgoingDir,
-                                    exportOpts.network.localAddress,
-                                    exportOpts.destAddress,
-                                    (err, bundlePath) => {
-                                        if (err) {
-                                            return callback(err);
-                                        }
-
-                                        //  adjust back to temp path
-                                        const tempBundlePath = paths.join(
-                                            self.exportTempDir,
-                                            paths.basename(bundlePath)
-                                        );
-
-                                        self.archUtil.compressTo(
-                                            exportOpts.nodeConfig.archiveType,
-                                            tempBundlePath,
-                                            exportedFileNames,
-                                            err => {
-                                                callback(err, [tempBundlePath]);
-                                            }
-                                        );
-                                    }
-                                );
-                            } else {
-                                callback(null, exportedFileNames);
-                            }
-                        },
-                        function moveFilesToOutgoing(exportedFileNames, callback) {
-                            async.each(
-                                exportedFileNames,
-                                (oldPath, nextFile) => {
-                                    //
-                                    //  Un-bundled packets are written to the temp area as
-                                    //  .pk_ (see |createTempPacket| in exportMessagesByUuid);
-                                    //  give them their real .pkt extension on the way out.
-                                    //  Bundles already carry their final name.
-                                    //
-                                    //  Note that we deliberately do *not* write a BSO netmail
-                                    //  flow file (NNNNnnnn.?ut) for the un-bundled case:
-                                    //  FTS-5005.003 §3.1 gives those a one-to-one
-                                    //  correspondence with the destination address, so a node
-                                    //  can hold exactly one at a time, while a single export
-                                    //  may produce several packets (see packetTargetByteSize).
-                                    //  Reference files have no such limit, so everything --
-                                    //  bundle or bare packet -- ships as a reference.
-                                    //
-                                    const ext = paths.extname(oldPath);
-                                    let newPath;
-                                    if ('.pk_' === ext.toLowerCase()) {
-                                        //  |ext| is not lower cased above: paths.basename()
-                                        //  matches it case-sensitively, and a fileCase of
-                                        //  'upper' produces a .PK_ we must still strip.
-                                        const pktExt =
-                                            'upper' === exportOpts.fileCase
-                                                ? '.PKT'
-                                                : '.pkt';
-                                        newPath = paths.join(
-                                            outgoingDir,
-                                            `${paths.basename(oldPath, ext)}${pktExt}`
-                                        );
-                                    } else {
-                                        newPath = paths.join(
-                                            outgoingDir,
-                                            paths.basename(oldPath)
-                                        );
-                                    }
-
-                                    fse.move(oldPath, newPath, err => {
-                                        if (err) {
-                                            //  The packet is still in the temp
-                                            //  area, so this export did not
-                                            //  happen. Report it: the caller
-                                            //  advances the area's last scan ID
-                                            //  on a clean return, and doing that
-                                            //  here is how a disk-full or
-                                            //  permission error turns into mail
-                                            //  nobody ever sees again. See #818.
-                                            Log.error(
-                                                {
-                                                    oldPath: oldPath,
-                                                    newPath: newPath,
-                                                    error: err.toString(),
-                                                },
-                                                'Failed moving temporary outbound file!'
-                                            );
-
-                                            return nextFile(err);
-                                        }
-
-                                        const flowFilePath = self.getOutgoingFlowFileName(
-                                            outgoingDir,
-                                            exportOpts.destAddress,
-                                            'ref',
-                                            exportType,
-                                            exportOpts.fileCase
-                                        );
-
-                                        //  directive of '^' = delete file after transfer
-                                        self.flowFileAppendRefs(
-                                            flowFilePath,
-                                            [newPath],
-                                            '^',
-                                            exportOpts.destAddress,
-                                            err => {
-                                                if (err) {
-                                                    //  Also fatal to this
-                                                    //  export, and less obvious
-                                                    //  than the move: the packet
-                                                    //  sits in outbound with no
-                                                    //  flow file referencing it,
-                                                    //  so the mailer never offers
-                                                    //  it and nothing cleans it
-                                                    //  up.
-                                                    //
-                                                    //  This includes a busy flow
-                                                    //  file, which is an ordinary
-                                                    //  outcome under concurrent
-                                                    //  sessions -- and swallowing
-                                                    //  it meant a node that was
-                                                    //  merely busy lost the mail
-                                                    //  permanently, because the
-                                                    //  scan ID moved on anyway.
-                                                    //
-                                                    //  Retrying re-packetises
-                                                    //  under a fresh name rather
-                                                    //  than re-referencing this
-                                                    //  one, so the cost of the
-                                                    //  failed attempt is an
-                                                    //  orphaned packet, not a
-                                                    //  duplicate send.
-                                                    Log.error(
-                                                        {
-                                                            path: flowFilePath,
-                                                            error: err.toString(),
-                                                        },
-                                                        'Failed appending flow reference record!'
-                                                    );
-                                                    return nextFile(err);
-                                                }
-                                                nextFile();
-                                            }
-                                        );
-                                    });
-                                },
-                                callback
-                            );
-                        },
-                    ],
-                    err => {
-                        if (err) {
-                            //  This uplink got nothing. Say so, with enough to
-                            //  act on -- a bare err.message here read as an
-                            //  unattributed SQL or fs complaint with no hint
-                            //  that mail had gone missing, and the run still
-                            //  logged "Export complete" afterwards.
-                            Log.error(
-                                {
-                                    uplink: uplink.toString(),
-                                    areaTag: areaConfig.tag,
-                                    network: areaConfig.network,
-                                    error: err.message,
-                                },
-                                'Failed exporting EchoMail to uplink!'
-                            );
-                            failedUplinks.push(uplink.toString());
-                        }
-                        nextUplink();
-                    }
-                );
-            },
-            () => {
-                if (failedUplinks.length > 0) {
-                    return cb(
-                        Errors.General(
-                            `Failed exporting to ${failedUplinks.join(
-                                ', '
-                            )}; messages will be retried`
-                        )
-                    );
-                }
-                return cb(null);
             }
-        ); //  complete
+            return cb(null);
+        });
     };
 
     this.setReplyToMsgIdFtnReplyKludge = function (message, cb) {
@@ -2076,7 +2265,10 @@ function FTNMessageScanTossModule() {
                                         'No local "to" username for FTN message. Appears to be a FTN address only; assuming addressed to SysOp'
                                     );
 
-                                    User.getUserName(
+                                    //  return: without it the lookup's own
+                                    //  success path below ran as well, and
+                                    //  called back a second time.
+                                    return User.getUserName(
                                         User.RootUserID,
                                         (err, sysOpUserName) => {
                                             if (err) {
@@ -4857,14 +5049,22 @@ function FTNMessageScanTossModule() {
         //  Grouped by (network, uplink) rather than per area or per message.
         //  A destination has only 36 bundle names per day
         //  (getOutgoingBundleFileName), and once they are gone exports to that
-        //  node fail until the day rolls over. One call per destination per run
-        //  keeps a hub with many areas well clear of that. Batching across
-        //  areas is safe because exportMessagesByUuid loads each message
-        //  individually and prepareMessage takes the AREA kludge from the
-        //  message's own area_tag; only the network has to match, since that is
-        //  what supplies our local address.
+        //  node fail until the day rolls over. One export per destination per
+        //  run keeps a hub with many areas well clear of that. Batching across
+        //  areas is safe because the exporter loads each message individually
+        //  and prepareMessage takes the AREA kludge from the message's own
+        //  area_tag; only the network has to match, since that is what supplies
+        //  our local address.
+        //
+        //  Every group of a network then goes through ONE export call, which
+        //  loads and flags each message once however many groups it is in.
+        //  |relayItems| is that call's message list per network: each message
+        //  once, in the order the groups were filled (area, then message_id),
+        //  naming the groups it goes to -- so every group's own list keeps its
+        //  order.
         //
         const groups = new Map();
+        const relayItems = new Map(); //  network -> [ { uuid, groups } ]
 
         async.eachSeries(
             areaTags,
@@ -4953,6 +5153,7 @@ function FTNMessageScanTossModule() {
                                 meta.origin,
                                 localAddress
                             );
+                            const takenBy = [];
 
                             marks.forEach((watermark, uplink) => {
                                 if (row.message_id <= watermark) {
@@ -4968,6 +5169,7 @@ function FTNMessageScanTossModule() {
                                         uuids: [],
                                         //  areaTag -> { maxId, contributed }
                                         areas: new Map(),
+                                        order: groups.size,
                                     };
                                     groups.set(key, group);
                                 }
@@ -4986,8 +5188,21 @@ function FTNMessageScanTossModule() {
                                 if (targets.includes(uplink)) {
                                     group.uuids.push(row.message_uuid);
                                     areaMark.contributed = true;
+                                    takenBy.push(group);
                                 }
                             });
+
+                            if (takenBy.length > 0) {
+                                if (!relayItems.has(areaConfig.network)) {
+                                    relayItems.set(areaConfig.network, []);
+                                }
+                                relayItems.get(areaConfig.network).push({
+                                    uuid: row.message_uuid,
+                                    //  in group order: the order destinations
+                                    //  were exported to before load-once
+                                    groups: takenBy.sort((a, b) => a.order - b.order),
+                                });
+                            }
                         });
 
                         return nextArea();
@@ -4999,65 +5214,138 @@ function FTNMessageScanTossModule() {
                     return cb(err);
                 }
 
-                async.eachSeries(
-                    Array.from(groups.values()),
-                    (group, nextGroup) => {
-                        const areaTagList = Array.from(group.areas.keys());
+                const groupList = Array.from(groups.values());
+                const relayDestinationName = group =>
+                    `(relay: ${Array.from(group.areas.keys()).join(', ')})`;
 
-                        //  Nothing qualified for this destination, so there is
-                        //  nothing to send and nothing that can fail. Record
-                        //  the progress and move on.
-                        if (0 === group.uuids.length) {
-                            return self.advanceRelayScanIds(group, true, nextGroup);
-                        }
-
-                        //  A stand-in area config: exportEchoMailMessagesToUplinks
-                        //  uses it for the network (which supplies our local
-                        //  address) and for log context. Each message still
-                        //  carries its own area_tag through to the AREA kludge.
-                        const groupAreaConfig = {
-                            network: group.network,
-                            tag: `(relay: ${areaTagList.join(', ')})`,
-                            uplinks: [group.uplink],
-                        };
-
-                        self.exportEchoMailMessagesToUplinks(
-                            group.uuids,
-                            groupAreaConfig,
-                            [group.uplink],
-                            err => {
-                                if (err) {
-                                    Log.warn(
-                                        {
-                                            uplink: group.uplink,
-                                            messages: group.uuids.length,
-                                            error: err.message,
-                                        },
-                                        'EchoMail relay incomplete; will retry'
-                                    );
-                                } else {
-                                    Log.info(
-                                        {
-                                            uplink: group.uplink,
-                                            network: group.network,
-                                            messagesRelayed: group.uuids.length,
-                                            areas: areaTagList,
-                                        },
-                                        'EchoMail relay complete'
-                                    );
-                                }
-                                //  On failure only the areas that actually had
-                                //  mail in this batch are held back. An area
-                                //  that contributed nothing to it learned
-                                //  nothing from the failure and would otherwise
-                                //  re-judge the same messages every pass.
-                                return self.advanceRelayScanIds(group, !err, () =>
-                                    nextGroup(null)
-                                );
+                //  One export call per network, for every group of it that
+                //  has something to send. A group whose uplink has no node
+                //  configuration gets no destination: nothing to do, not a
+                //  failure, as it always has been.
+                const destinationByGroup = new Map();
+                const groupByDestination = new Map();
+                groupList
+                    .filter(g => g.uuids.length > 0)
+                    .forEach(group => {
+                        const dest = self.createEchoMailDestination(
+                            group.uplink,
+                            group.network,
+                            {
+                                areaTag: relayDestinationName(group),
+                                network: group.network,
                             }
                         );
-                    },
-                    cb
+                        if (dest) {
+                            destinationByGroup.set(group, dest);
+                            groupByDestination.set(dest, group);
+                        }
+                    });
+
+                //  Log the outcome of a group that had mail and move its
+                //  watermarks. They follow its own destination's outcome only.
+                const finishGroup = (group, next) => {
+                    const dest = destinationByGroup.get(group);
+                    const err =
+                        dest && dest.error
+                            ? Errors.General(
+                                  `Failed exporting to ${dest.uplink}; messages will be retried`
+                              )
+                            : null;
+
+                    if (err) {
+                        Log.warn(
+                            {
+                                uplink: group.uplink,
+                                messages: group.uuids.length,
+                                error: err.message,
+                            },
+                            'EchoMail relay incomplete; will retry'
+                        );
+                    } else {
+                        Log.info(
+                            {
+                                uplink: group.uplink,
+                                network: group.network,
+                                messagesRelayed: group.uuids.length,
+                                areas: Array.from(group.areas.keys()),
+                            },
+                            'EchoMail relay complete'
+                        );
+                    }
+                    //  On failure only the areas that actually had mail in this
+                    //  batch are held back. An area that contributed nothing to
+                    //  it learned nothing from the failure and would otherwise
+                    //  re-judge the same messages every pass.
+                    return self.advanceRelayScanIds(group, !err, () => next(null));
+                };
+
+                async.series(
+                    [
+                        function groupsWithNothingToExport(callback) {
+                            async.eachSeries(
+                                groupList.filter(g => !destinationByGroup.has(g)),
+                                (group, nextGroup) => {
+                                    //  Nothing qualified for this destination,
+                                    //  so there is nothing to send and nothing
+                                    //  that can fail. Record the progress and
+                                    //  move on.
+                                    if (0 === group.uuids.length) {
+                                        return self.advanceRelayScanIds(
+                                            group,
+                                            true,
+                                            nextGroup
+                                        );
+                                    }
+                                    return finishGroup(group, nextGroup);
+                                },
+                                callback
+                            );
+                        },
+                        function exportByNetwork(callback) {
+                            const networks = _.uniq(
+                                groupList
+                                    .filter(g => destinationByGroup.has(g))
+                                    .map(g => g.network)
+                            );
+                            async.eachSeries(
+                                networks,
+                                (network, nextNetwork) => {
+                                    const destinations = groupList
+                                        .filter(g => g.network === network)
+                                        .map(g => destinationByGroup.get(g))
+                                        .filter(Boolean);
+
+                                    const items = (relayItems.get(network) || [])
+                                        .map(item => ({
+                                            uuid: item.uuid,
+                                            destinations: item.groups
+                                                .map(g => destinationByGroup.get(g))
+                                                .filter(Boolean),
+                                        }))
+                                        .filter(item => item.destinations.length > 0);
+
+                                    //  Each group's watermarks move as soon as its
+                                    //  own destination is done with, not after the
+                                    //  whole call: the longer delivered packets go
+                                    //  unrecorded, the more a crash sends again.
+                                    self.exportEchoMailToDestinations(
+                                        destinations,
+                                        items,
+                                        () => nextNetwork(),
+                                        {
+                                            onDestinationDone: (dest, next) =>
+                                                finishGroup(
+                                                    groupByDestination.get(dest),
+                                                    next
+                                                ),
+                                        }
+                                    );
+                                },
+                                callback
+                            );
+                        },
+                    ],
+                    err => cb(err || null)
                 );
             }
         );
@@ -5075,6 +5363,12 @@ function FTNMessageScanTossModule() {
 
         //  SQLite has a hard limit on host parameters, so read in chunks rather
         //  than building one enormous IN list.
+        //
+        //  The unary + on meta_name keeps this on the message_id key. Without
+        //  it the planner prefers the lookup-by-value index on (meta_category,
+        //  meta_name) and walks every SEEN-BY and origin row in the base to
+        //  find this chunk's: ~170 ms per chunk instead of ~2 ms on a
+        //  36k-message base.
         const CHUNK = 500;
         for (let i = 0; i < messageIds.length; i += CHUNK) {
             const chunk = messageIds.slice(i, i + CHUNK);
@@ -5085,7 +5379,7 @@ function FTNMessageScanTossModule() {
                     FROM message_meta
                     WHERE message_id IN (${placeholders})
                       AND meta_category = 'FtnProperty'
-                      AND meta_name IN (
+                      AND +meta_name IN (
                         'ftn_seen_by', 'ftn_orig_node', 'ftn_orig_network',
                         'ftn_orig_zone', 'ftn_orig_point'
                       );`
@@ -6223,6 +6517,66 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
 //  It is NOT a lock; we are the only writer by design (one BBS instance per
 //  mail tree).  Crash-leaked files are unlinked on startup.
 //
+//
+//  |cb|, callable any number of times, called once, on the next turn of the
+//  event loop.
+//
+function onceDeferred(cb) {
+    let called = false;
+    return (...args) => {
+        if (called) {
+            return;
+        }
+        called = true;
+        setImmediate(() => cb(...args));
+    };
+}
+
+//
+//  A copy of a message as Message#load() returned it, for one destination to
+//  prepare and write: its meta (SEEN-BY, PATH and every other array and
+//  object in it) is its own, so what prepareMessage() does to one copy is not
+//  seen by the message it came from or by any other copy.
+//
+function cloneLoadedMessage(message) {
+    const clone = Object.create(Object.getPrototypeOf(message));
+    Object.assign(clone, message);
+    clone.meta = _.cloneDeep(message.meta);
+    clone.modTimestamp = message.modTimestamp.clone();
+    clone.hashTags = Array.isArray(message.hashTags)
+        ? message.hashTags.slice()
+        : message.hashTags;
+    return clone;
+}
+
+//
+//  Move the MSGID kludge to where Message#loadMeta() puts it once it is
+//  stored. loadMeta() reads a message's meta by its message_id key, so rows
+//  -- and so kludge names -- come back sorted (SQLite BINARY collation, which
+//  for these ASCII names is plain string order).
+//
+function placeMsgIdAsLoaded(kludges) {
+    if (!kludges || !_.has(kludges, 'MSGID')) {
+        return;
+    }
+    const entries = Object.entries(kludges);
+    const msgId = entries.find(([name]) => 'MSGID' === name);
+    const rest = entries.filter(([name]) => 'MSGID' !== name);
+    let at = rest.findIndex(([name]) => name > 'MSGID');
+    if (-1 === at) {
+        at = rest.length;
+    }
+    rest.splice(at, 0, msgId);
+
+    Object.keys(kludges).forEach(name => delete kludges[name]);
+    rest.forEach(([name, value]) => {
+        kludges[name] = value;
+    });
+}
+
+exports._cloneLoadedMessage = cloneLoadedMessage;
+exports._placeMsgIdAsLoaded = placeMsgIdAsLoaded;
+
 function withFtnBsyFlag(dir, fn, cb) {
     const bsyPath = paths.join(dir, 'enigma.bsy');
 

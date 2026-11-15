@@ -70,6 +70,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none. The old index is kept until the new one is committed, so make sure there is free disk space for a new search index while it runs. The free space for a second copy of the message table, above, is for the #958 table rebuild only.
 
+* **A new index on message meta is built once, at the first start.** It makes looking up a message by a meta value, which the FTN tosser does for every imported message, a direct lookup. ENiGMA½ builds it by itself the first time it starts after the upgrade. A board with 36,000 messages (818,000 meta rows) took about a second, and the index added about 47 MB to `db/message.sqlite3`.
+
+  **Action:** none. Make sure there is free disk space for it.
+
 * **The ActivityPub actor cache is emptied once, at the first start.** Cached remote actors could have been planted by another server, and such an entry cannot be told from a genuine one, so the `actors` collection in `db/activitypub.sqlite3` is cleared once and actors are fetched again as they are needed. Follower and following lists, posts and reactions are not touched. The log shows `Purging the ActivityPub actor cache` and `Purged the ActivityPub actor cache`; 50,000 cached actors took under a second.
 
   **Action:** none. Delivery to followers is not interrupted: when a post, boost or like goes out, followers in the cache get it at once, and a follower that is not in the cache is fetched again in the background (four at a time across the board, once however many posts are waiting on it) and gets it once found, if it still follows. On a board with many followers, the first posts after the upgrade reach most followers a little later than usual, and expect more outbound fetching for a while. A follower that cannot be fetched is not tried again for six hours (this is kept in memory, so a restart tries it again).

@@ -839,6 +839,16 @@ module.exports = class Message {
     //  imported. EchoMail relay does exactly that.
     //
     setStateFlags0Bit(bit, cb) {
+        return this.setStateFlags0BitAndMeta(bit, [], cb);
+    }
+
+    //
+    //  setStateFlags0Bit(), and in the same transaction REPLACE each of
+    //  |metaValues| -- [ { category, name, value } ] -- as updateMetaValue()
+    //  would. The FTN exporter records a message's Exported bit and its MSGID
+    //  together, once per message.
+    //
+    setStateFlags0BitAndMeta(bit, metaValues, cb) {
         const name = MessageConst.SystemMetaNames.StateFlags0;
         try {
             msgDb.transaction(() => {
@@ -870,13 +880,32 @@ module.exports = class Message {
                     )
                     .run(this.messageId, name, flags.toString());
 
+                if (metaValues.length > 0) {
+                    const replaceStmt = msgDb.prepare(
+                        `REPLACE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                        VALUES (?, ?, ?, ?);`
+                    );
+                    for (const mv of metaValues) {
+                        const values = Array.isArray(mv.value) ? mv.value : [mv.value];
+                        for (const v of values) {
+                            replaceStmt.run(
+                                this.messageId,
+                                mv.category,
+                                mv.name,
+                                coerceToText(v)
+                            );
+                        }
+                    }
+                }
+
                 this.meta.System = this.meta.System || {};
                 this.meta.System[name] = flags.toString();
             })();
-            return cb(null);
         } catch (err) {
             return cb(err);
         }
+        //  outside the try: a throw from |cb| must not call it a second time
+        return cb(null);
     }
 
     updateMetaValue(category, name, value, cb) {
