@@ -1477,9 +1477,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const firstStatusRefresh = nodeStatusView.getCount() === 0;
 
         //  Nothing the list would draw has changed: leave it be. The items
-        //  still take the fresh values, so a kick, chat or selection acts on
-        //  what is current, not on the last list that happened to look
-        //  different.
+        //  still take the fresh values, as setItems() would have given them,
+        //  so a kick or chat, and the selection info drawn when the op next
+        //  moves the bar or presses a node number, use what is current. (The
+        //  selection info is not redrawn by the refresh itself, here or on
+        //  master: only on those events, the first refresh and a disconnect.)
         const paintKey = this._nodeStatusPaintKey(nodeStatusView, nodeStatusItems);
         const lastPaint = this._lastNodeStatusPaint;
         if (

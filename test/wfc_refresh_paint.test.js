@@ -195,6 +195,27 @@ describe('WFC refresh paints only what changed', () => {
         });
     });
 
+    describe('node selection info', () => {
+        it('is not redrawn by an idle refresh, and shows fresh values when selected', () => {
+            const shown = [];
+            const selection = { setText: t => shown.push(t) };
+            const getView = dash.wfc.viewControllers.main.getView;
+            dash.wfc.viewControllers.main.getView = id =>
+                3 === id ? selection : getView(id);
+
+            //  luciano's nodeStatusSelectionFormat shows the remote address,
+            //  which the list itself does not
+            dash.connections[1].friendlyRemoteAddress = () => '192.0.2.42';
+            dash.tick();
+            dash.tick();
+            assert.equal(shown.length, 0, 'the refresh leaves it alone, as on master');
+
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '2' }, {}, () => {});
+            assert.equal(shown.length, 1);
+            assert.ok(shown[0].includes('192.0.2.42'), shown[0]);
+        });
+    });
+
     describe('quick log', () => {
         it('a new record with the same number of rows does not blank them first', () => {
             dash.addLog('something happened');
