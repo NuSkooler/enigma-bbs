@@ -286,12 +286,18 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
     _updateStatus() {
         const session = sessions.get(this.sessionId);
-        this.updateCustomViewTextsWithFilter('chat', MciViewIds.chat.customRangeStart, {
-            partnerName: this._getPartnerName(session),
-            duration: moment.duration(moment().diff(this.chatStartTime)).humanize(),
-            userName: this.client.user.username,
-            userNode: this.client.node,
-        });
+        //  Once a minute, and {duration} is humanized: most ticks change nothing
+        this.updateCustomViewTextsWithFilter(
+            'chat',
+            MciViewIds.chat.customRangeStart,
+            {
+                partnerName: this._getPartnerName(session),
+                duration: moment.duration(moment().diff(this.chatStartTime)).humanize(),
+                userName: this.client.user.username,
+                userNode: this.client.node,
+            },
+            { skipUnchanged: true }
+        );
     }
 
     _getPartnerName(session) {

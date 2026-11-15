@@ -680,6 +680,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _releaseMainForm() {
         this.removeViewController('main');
         this.lastLogTime = null; //  so the new quick log view gets filled
+        this._lastNodeStatusPaint = null; //  ...and the new node list painted
     }
 
     _displayHelpPage(cb) {
@@ -1179,10 +1180,12 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         return this._refreshQuickLog(callback);
                     },
                     callback => {
+                        //  every five seconds; most of these hold still
                         this.updateCustomViewTextsWithFilter(
                             'main',
                             MciViewIds.main.customRangeStart,
-                            this.stats
+                            this.stats,
+                            { skipUnchanged: true }
                         );
                         return callback(null);
                     },
@@ -1410,6 +1413,27 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
     }
 
+    //
+    //  What the node list draws, as a string to compare: each row through the
+    //  view's itemFormat and focusItemFormat, as VerticalMenuView draws it,
+    //  plus the selection. Fields no format shows (timeOnMinutes moves every
+    //  tick) are left out, so they cannot cause a repaint. The view's own
+    //  focus index is in it: an op who moved the bar with the arrow keys gets
+    //  it put back at the next refresh, as before.
+    //
+    _nodeStatusPaintKey(nodeStatusView, items) {
+        const itemFormat = nodeStatusView.itemFormat || '{text}';
+        const focusItemFormat = nodeStatusView.focusItemFormat;
+        return JSON.stringify({
+            rows: items.map(item => [
+                stringFormat(itemFormat, item),
+                focusItemFormat ? stringFormat(focusItemFormat, item) : null,
+            ]),
+            selected: this.selectedNodeStatusIndex,
+            focused: nodeStatusView.getFocusItemIndex(),
+        });
+    }
+
     _refreshNodeStatus(cb) {
         const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
         if (!nodeStatusView) {
@@ -1452,9 +1476,37 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         // If this is our first pass, we'll also update the selection
         const firstStatusRefresh = nodeStatusView.getCount() === 0;
 
-        //  :TODO: Currently this always redraws due to setItems(). We really need painters alg.; The alternative now is to compare items... yuk.
+        //  Nothing the list would draw has changed: leave it be. The items
+        //  still take the fresh values, as setItems() would have given them,
+        //  so a kick or chat, and the selection info drawn when the op next
+        //  moves the bar or presses a node number, use what is current. (The
+        //  selection info is not redrawn by the refresh itself, here or on
+        //  master: only on those events, the first refresh and a disconnect.)
+        const paintKey = this._nodeStatusPaintKey(nodeStatusView, nodeStatusItems);
+        const lastPaint = this._lastNodeStatusPaint;
+        if (
+            lastPaint &&
+            lastPaint.view === nodeStatusView &&
+            lastPaint.key === paintKey
+        ) {
+            nodeStatusItems.forEach((item, i) => {
+                Object.assign(nodeStatusView.getItem(i), item);
+            });
+            return cb(null);
+        }
+
+        const sameLength = nodeStatusView.getCount() === nodeStatusItems.length;
         nodeStatusView.setItems(nodeStatusItems);
+        if (sameLength) {
+            //  as in _paintTaskList(): the same number of rows overwrites the
+            //  old ones, so the blank pass would only make them flicker
+            delete nodeStatusView.oldDimens;
+        }
         this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex); // redraws
+        this._lastNodeStatusPaint = {
+            view: nodeStatusView,
+            key: this._nodeStatusPaintKey(nodeStatusView, nodeStatusItems),
+        };
 
         if (firstStatusRefresh) {
             const nodeStatusSelectionView = this.getView(
@@ -1525,7 +1577,13 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             };
         });
 
+        const sameLength = (quickLogView.items || []).length === logItems.length;
         quickLogView.setItems(logItems);
+        if (sameLength) {
+            //  a full ring buffer has the same number of rows every time: they
+            //  overwrite, so skip the blank pass that would make them flicker
+            delete quickLogView.oldDimens;
+        }
         quickLogView.redraw();
 
         return cb(null);
@@ -2135,11 +2193,17 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         });
     }
 
+    //  Once a second while a task runs, so a view whose text is unchanged is
+    //  not drawn again -- unless a prompt or result line was written over the
+    //  screen since the last paint, which may have covered one.
     _paintTasksInfo() {
+        const covered = !!this._tasksInfoCovered;
+        this._tasksInfoCovered = false;
         this.updateCustomViewTextsWithFilter(
             'tasks',
             MciViewIds.tasks.customRangeStart,
-            this._tasksInfoFormatObj()
+            this._tasksInfoFormatObj(),
+            { skipUnchanged: !covered }
         );
     }
 
@@ -2371,6 +2435,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
     //  Clears from |position| to the end of the line, then writes |pipeText|
     _writeTasksLine(position, pipeText) {
+        this._tasksInfoCovered = true; //  the next custom view paint draws all
         const width = Math.max(1, this.client.term.termWidth - position.col);
         this.client.term.rawWrite(
             `${ansi.goto(position.row, position.col)}${ansi.reset()}${' '.repeat(width)}`
@@ -2422,6 +2487,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     //
     _showTaskPromptArt(question, position, cb) {
         this._taskPromptActive = true;
+        this._tasksInfoCovered = true; //  the prompt art may cover custom views
         this._detachTasksInput();
         this.removeViewController('taskPrompt');
 
