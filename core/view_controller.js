@@ -595,16 +595,29 @@ class ViewController extends events.EventEmitter {
     }
 
     redrawAll(initialFocusId) {
-        this.client.term.rawWrite(ansi.hideCursor());
-
-        for (const id in this.views) {
-            if (initialFocusId === id) {
-                continue; //  will draw @ focus
-            }
-            this.views[id].redraw();
+        //  one socket write for the whole form, as for a key press
+        const term = this.client.term;
+        const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+        if (batch) {
+            term.beginWrite();
         }
 
-        this.client.term.rawWrite(ansi.showCursor());
+        try {
+            term.rawWrite(ansi.hideCursor());
+
+            for (const id in this.views) {
+                if (initialFocusId === id) {
+                    continue; //  will draw @ focus
+                }
+                this.views[id].redraw();
+            }
+
+            term.rawWrite(ansi.showCursor());
+        } finally {
+            if (batch) {
+                term.commitWrite();
+            }
+        }
     }
 
     //

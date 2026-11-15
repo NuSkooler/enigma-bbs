@@ -1150,33 +1150,55 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         this.refreshing = true;
 
-        async.series(
-            [
-                callback => {
-                    return this._refreshStats(callback);
-                },
-                callback => {
-                    return this._refreshNodeStatus(callback);
-                },
-                callback => {
-                    return this._refreshQuickLog(callback);
-                },
-                callback => {
-                    this.updateCustomViewTextsWithFilter(
-                        'main',
-                        MciViewIds.main.customRangeStart,
-                        this.stats
-                    );
-                    return callback(null);
-                },
-            ],
-            err => {
-                this.refreshing = false;
-                if (cb) {
-                    return cb(err);
-                }
+        //  one socket write for the whole refresh. Committed before |cb|, and
+        //  if a step throws, so the session's output is never left batched
+        const term = this.client.term;
+        const batch =
+            term && _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+        let committed = !batch;
+        const commit = () => {
+            if (!committed) {
+                committed = true;
+                term.commitWrite();
             }
-        );
+        };
+        if (batch) {
+            term.beginWrite();
+        }
+
+        try {
+            async.series(
+                [
+                    callback => {
+                        return this._refreshStats(callback);
+                    },
+                    callback => {
+                        return this._refreshNodeStatus(callback);
+                    },
+                    callback => {
+                        return this._refreshQuickLog(callback);
+                    },
+                    callback => {
+                        this.updateCustomViewTextsWithFilter(
+                            'main',
+                            MciViewIds.main.customRangeStart,
+                            this.stats
+                        );
+                        return callback(null);
+                    },
+                ],
+                err => {
+                    this.refreshing = false;
+                    commit();
+                    if (cb) {
+                        return cb(err);
+                    }
+                }
+            );
+        } catch (e) {
+            commit();
+            throw e;
+        }
     }
 
     _getStatusStrings(isAvailable, isVisible) {
