@@ -24,7 +24,7 @@ function queryWebFinger(query, cb) {
     //     assume https:// and try #2
     //
 
-    // ex: @NuSkooler@toot.community -> https://toot.community/.well-known/webfinger with acct:NuSkooler resource
+    // ex: @NuSkooler@toot.community -> /.well-known/webfinger with acct:NuSkooler resource
     // Also handles @user@host:port (port-specified hosts like local dev servers).
     let resource;
     let host;
