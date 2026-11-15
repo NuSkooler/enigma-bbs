@@ -220,6 +220,17 @@ describe('MultiLineEditTextView#addText()', () => {
             });
         });
 
+        it('lines dropped from the end, then a line', () => {
+            sameAsMaster(SMALL_LOG, (view, add) => {
+                add(view, 'one', { scrollMode: 'end' });
+                add(view, 'two', { scrollMode: 'end' });
+                add(view, 'three', { scrollMode: 'end' });
+                view.deleteLine(2);
+                view.deleteLine(1);
+                add(view, 'four', { scrollMode: 'end' });
+            });
+        });
+
         it('a resize, then a line', () => {
             sameAsMaster(SMALL_LOG, (view, add) => {
                 add(view, 'one', { scrollMode: 'end' });
