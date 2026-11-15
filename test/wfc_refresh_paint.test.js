@@ -45,6 +45,7 @@ const LOG_ROWS = [19, 20, 21, 22, 23];
 
 describe('WFC refresh paints only what changed', () => {
     let dash;
+    const sid = i => dash.connections[i].session.uniqueId;
 
     beforeEach(() => {
         dash = buildDashboard({ nodes: 3 });
@@ -95,7 +96,10 @@ describe('WFC refresh paints only what changed', () => {
         });
 
         it('repaints when the selection changes', () => {
-            dash.wfc.selectedNodeStatusIndex = 2;
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '3' }, {}, () => {});
+            dash.writes.length = 0;
+            dash.views()[1].setFocusItemIndex(0); //  as if it were elsewhere
+            dash.wfc.selectedSessionId = sid(2);
             const t = dash.tick();
             const rows = rowsDrawn(t.wire.toString('latin1'));
             [4, 5, 6].forEach(r => assert.ok(rows.includes(r), `row ${r}`));
@@ -103,17 +107,6 @@ describe('WFC refresh paints only what changed', () => {
 
             const again = dash.tick();
             assert.deepEqual(rowsDrawn(again.wire.toString('latin1')), [STATUS_BAR_ROW]);
-        });
-
-        it('puts back a bar the op moved with the arrow keys, as before', () => {
-            const view = dash.views()[1];
-            view.focusNext(); //  draws on its own
-            assert.equal(view.getFocusItemIndex(), 1);
-
-            const t = dash.tick();
-            const rows = rowsDrawn(t.wire.toString('latin1'));
-            [4, 5, 6].forEach(r => assert.ok(rows.includes(r), `row ${r}`));
-            assert.equal(view.getFocusItemIndex(), 0);
         });
 
         it('blanks the old footprint when the list shrinks', () => {
@@ -136,7 +129,7 @@ describe('WFC refresh paints only what changed', () => {
 
         it('leaves the screen as a full repaint would', () => {
             dash.connections[1].currentMenuModule.menuConfig.desc = 'Doors';
-            dash.wfc.selectedNodeStatusIndex = 1;
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '2' }, {}, () => {});
 
             //  the screen as drawn tick by tick since the first paint
             dash.tick();
@@ -179,7 +172,7 @@ describe('WFC refresh paints only what changed', () => {
                 assert.equal(shown.length, 1);
                 assert.ok(shown[0].includes('Sysop Real'));
 
-                fresh.wfc.selectedNodeStatusIndex = 2;
+                fresh.wfc.menuMethods.setNodeStatusSelection({ ch: '3' }, {}, () => {});
                 fresh.tick();
                 fresh.disconnect(fresh.connections[2]);
                 fresh.wfc._clientDisconnected({});
@@ -187,11 +180,110 @@ describe('WFC refresh paints only what changed', () => {
                 assert.equal(views[1].getCount(), 2);
                 assert.equal(views[1].getFocusItemIndex(), 0);
                 //  cleared, then the item now at the top
-                assert.equal(shown[shown.length - 2], '');
+                assert.ok(shown.includes(''));
                 assert.ok(shown[shown.length - 1].includes('Sysop Real'));
             } finally {
                 fresh.cleanup();
             }
+        });
+    });
+
+    describe('node selection', () => {
+        const view = () => dash.views()[1];
+        const selectionShown = () => {
+            const shown = [];
+            const selection = { setText: t => shown.push(t) };
+            const getView = dash.wfc.viewControllers.main.getView;
+            dash.wfc.viewControllers.main.getView = id =>
+                3 === id ? selection : getView(id);
+            return shown;
+        };
+
+        it('stays where the arrow keys put it', () => {
+            view().focusNext();
+            const t = dash.tick();
+            assert.equal(view().getFocusItemIndex(), 1);
+            assert.equal(dash.wfc._getSelectedNodeItem().node, 2);
+            assert.equal(dash.wfc.selectedSessionId, sid(1));
+            assert.equal(dash.wfc.selectedNodeStatusIndex, 1);
+            //  nothing was put back
+            assert.ok(t.writes <= 1);
+
+            const idle = dash.tick();
+            assert.equal(idle.writes, 1, 'the status bar only');
+            assert.deepEqual(rowsDrawn(idle.wire.toString('latin1')), [STATUS_BAR_ROW]);
+        });
+
+        it('page and last keys are followed too', () => {
+            view().focusLast();
+            dash.tick();
+            assert.equal(view().getFocusItemIndex(), 2);
+            assert.equal(dash.wfc._getSelectedNodeItem().node, 3);
+        });
+
+        it('stays on an arrowed node after a node-number key', () => {
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '3' }, {}, () => {});
+            view().focusPrevious();
+            dash.tick();
+            assert.equal(view().getFocusItemIndex(), 1);
+            assert.equal(dash.wfc._getSelectedNodeItem().node, 2);
+        });
+
+        it('keeps the selected node when another one above it disconnects', () => {
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '3' }, {}, () => {});
+            const shown = selectionShown();
+            dash.disconnect(dash.connections[1]); //  node 2, above it
+            dash.wfc._clientDisconnected({});
+            assert.equal(view().getCount(), 2);
+            assert.equal(view().getFocusItemIndex(), 1);
+            assert.equal(dash.wfc.selectedSessionId, sid(2));
+            assert.equal(dash.wfc._getSelectedNodeItem().node, 3);
+            assert.ok(shown[shown.length - 1].includes('Bob Real'), shown.join('|'));
+
+            dash.tick();
+            assert.equal(view().getFocusItemIndex(), 1);
+            assert.equal(dash.tick().writes, 1);
+        });
+
+        it('falls back to the first row when the selected node disconnects', () => {
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '3' }, {}, () => {});
+            const shown = selectionShown();
+            dash.disconnect(dash.connections[2]);
+            dash.tick(); //  seen by the refresh before the disconnect event
+            assert.equal(view().getFocusItemIndex(), 0);
+            assert.equal(dash.wfc.selectedSessionId, sid(0));
+            assert.ok(shown[shown.length - 1].includes('Sysop Real'), shown.join('|'));
+            assert.equal(dash.tick().writes, 1);
+        });
+
+        it('does not pass to a new caller who gets the number of the one that left', () => {
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '2' }, {}, () => {});
+            const left = dash.connections[1];
+            //  a sub-viewer owns the screen: no refresh runs while node 2 leaves
+            dash.wfc.viewControllers.messages = {};
+            dash.disconnect(left);
+            dash.wfc._clientDisconnected({});
+            const newcomer = dash.connect(2, 'Mallory', {
+                lastLoginTs: new Date().toISOString(),
+            });
+            delete dash.wfc.viewControllers.messages;
+
+            dash.tick();
+            const item = dash.wfc._getSelectedNodeItem();
+            assert.notEqual(item.sessionId, newcomer.session.uniqueId);
+            assert.equal(view().getFocusItemIndex(), 0);
+            assert.equal(item.node, 1);
+            assert.equal(dash.wfc.selectedSessionId, sid(0));
+        });
+
+        it('is not changed by a node connecting', () => {
+            view().focusNext();
+            dash.connect(9, 'Eve', { lastLoginTs: new Date().toISOString() });
+            const t = dash.tick();
+            assert.equal(view().getCount(), 4);
+            assert.equal(view().getFocusItemIndex(), 1);
+            assert.equal(dash.wfc.selectedSessionId, sid(1));
+            assert.ok(rowsDrawn(t.wire.toString('latin1')).includes(7), 'new row drawn');
         });
     });
 

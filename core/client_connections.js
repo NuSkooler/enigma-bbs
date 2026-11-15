@@ -73,6 +73,7 @@ function getActiveConnectionList(
 
         const entry = {
             node: ac.node,
+            sessionId: ac.session.uniqueId, //  node numbers are reused; this is not
             authenticated: ac.user.isAuthenticated(),
             userId: ac.user.userId,
             action: action,

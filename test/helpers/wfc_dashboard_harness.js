@@ -126,11 +126,18 @@ function captureSession(ClientTerminal) {
     return { term, writes };
 }
 
+let sessionSeq = 0;
+
 //  A connection as client_connections.getActiveConnectionList() reads one
 function fakeConnection(node, userName, { lastLoginTs, desc = 'Main Menu' } = {}) {
     return {
         node,
-        session: { id: 1000 + node, serverName: 'SSH', isSecure: true },
+        session: {
+            id: 1000 + node,
+            uniqueId: `sess-${node}-${++sessionSeq}`,
+            serverName: 'SSH',
+            isSecure: true,
+        },
         friendlyRemoteAddress: () => `10.0.0.${node}`,
         currentMenuModule: { menuConfig: { desc } },
         user: {
@@ -291,6 +298,14 @@ function buildDashboard({ requireCore = defaultRequireCore, nodes = 3 } = {}) {
             });
         });
         views[1].setFocus(true);
+        //  as _displayMainPage() wires it (the selection info view is not built here)
+        views[1].on('index update', index =>
+            wfc._onNodeStatusIndexUpdate(
+                views[1],
+                wfc.viewControllers.main.getView(3),
+                index
+            )
+        );
         //  the view controller draws every view once the art is up
         Object.keys(views).forEach(id => views[id].redraw());
 
