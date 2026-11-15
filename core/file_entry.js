@@ -523,32 +523,9 @@ module.exports = class FileEntry {
         });
     }
 
-    //  Attempt to fine a file by an *existing* full path.
-    //  Checkums may have changed and are not validated here.
-    static findByFullPath(fullPath, cb) {
-        //  first, basic by-filename lookup.
-        FileEntry.findByFileNameWildcard(paths.basename(fullPath), (err, entries) => {
-            if (err) {
-                return cb(err);
-            }
-            if (!entries || !entries.length || entries.length > 1) {
-                return cb(Errors.DoesNotExist('No matches'));
-            }
-
-            //  ensure the *full* path has not changed
-            //  :TODO: if FS is case-insensitive, we probably want a better check here
-            const possibleMatch = entries[0];
-            if (possibleMatch.fullPath === fullPath) {
-                return cb(null, possibleMatch);
-            }
-
-            return cb(Errors.DoesNotExist('No matches'));
-        });
-    }
-
     static findByFileNameWildcard(wc, cb) {
-        //  convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
-        wc = wc.replace(/\*/g, '%').replace(/\?/g, '_');
+        //  * -> % and ? -> _, with a literal %, _ or \ escaped (see #1020)
+        wc = likePatternFromGlob(wc);
 
         //  Fetch all matching file rows in one query, then batch-load meta/tags/ratings
         //  to avoid N+1 queries.
@@ -558,7 +535,7 @@ module.exports = class FileEntry {
                 .prepare(
                     `SELECT ${FILE_TABLE_MEMBERS.join(', ')}
                     FROM file
-                    WHERE file_name LIKE ?`
+                    WHERE file_name LIKE ? ESCAPE '\\'`
                 )
                 .all(wc);
         } catch (err) {
