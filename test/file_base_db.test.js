@@ -912,3 +912,114 @@ describe('FileEntry.findFiles() — wildcard metaPairs (#864)', function () {
         });
     });
 });
+
+// ─── findByFileNameWildcard: oputil fb rm / mv targets (#1020) ───────────────
+
+describe('FileEntry.findByFileNameWildcard()', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM file;');
+        done();
+    });
+
+    function persistNames(names, cb) {
+        let i = 0;
+        const next = () => {
+            if (i >= names.length) {
+                return cb();
+            }
+            makeEntry({ fileName: names[i++] }).persist(err => {
+                assert.ifError(err);
+                next();
+            });
+        };
+        next();
+    }
+
+    function find(wc, cb) {
+        FileEntry.findByFileNameWildcard(wc, (err, entries) => {
+            if (err) {
+                //  no matches is the only error expected here
+                assert.equal(
+                    err.code,
+                    require('../core/enig_error.js').ErrorCodes.DoesNotExist
+                );
+                return cb([]);
+            }
+            return cb(entries.map(e => e.fileName).sort());
+        });
+    }
+
+    it("treats a literal '_' as itself", done => {
+        persistNames(['FILE_1.ZIP', 'FILEX1.ZIP', 'FILE-1.ZIP'], () => {
+            find('FILE_1.ZIP', names => {
+                assert.deepEqual(names, ['FILE_1.ZIP']);
+                done();
+            });
+        });
+    });
+
+    it("treats a literal '%' as itself", done => {
+        persistNames(['100%.ZIP', '100X.ZIP', '100.ZIP'], () => {
+            find('100%.ZIP', names => {
+                assert.deepEqual(names, ['100%.ZIP']);
+                done();
+            });
+        });
+    });
+
+    it("still globs '?'", done => {
+        persistNames(['FILE_1.ZIP', 'FILEX1.ZIP', 'FILE12.ZIP'], () => {
+            find('FILE?1.ZIP', names => {
+                assert.deepEqual(names, ['FILEX1.ZIP', 'FILE_1.ZIP']);
+                done();
+            });
+        });
+    });
+
+    it("still globs '*'", done => {
+        persistNames(['A_B.ZIP', 'AXB.ZIP', 'C.ARJ'], () => {
+            find('*.ZIP', names => {
+                assert.deepEqual(names, ['AXB.ZIP', 'A_B.ZIP']);
+                done();
+            });
+        });
+    });
+
+    it("a literal '_' next to a glob wildcard", done => {
+        persistNames(['A_B1.ZIP', 'A_B22.ZIP', 'AXB1.ZIP'], () => {
+            find('A_B?.ZIP', names => {
+                assert.deepEqual(names, ['A_B1.ZIP']);
+                done();
+            });
+        });
+    });
+
+    it('a pattern holding a control character matches nothing', done => {
+        persistNames(['FILE1.ZIP', 'FILE2.ZIP'], () => {
+            find('FILE' + String.fromCharCode(9) + '1.ZIP', names => {
+                assert.deepEqual(names, []);
+                done();
+            });
+        });
+    });
+
+    it('matches a name containing a backslash literally', done => {
+        persistNames(['A\\B.ZIP', 'AXB.ZIP'], () => {
+            find('A\\B.ZIP', names => {
+                assert.deepEqual(names, ['A\\B.ZIP']);
+                done();
+            });
+        });
+    });
+
+    it('stays case-insensitive', done => {
+        persistNames(['File_1.Zip', 'FILEX1.ZIP'], () => {
+            find('FILE_1.ZIP', names => {
+                assert.deepEqual(names, ['File_1.Zip']);
+                done();
+            });
+        });
+    });
+});
