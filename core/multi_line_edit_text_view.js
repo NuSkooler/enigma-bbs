@@ -687,7 +687,60 @@ class MultiLineEditTextView extends View {
         const lastRow = this.redrawRows(0, this.dimens.height);
 
         this.eraseRows(lastRow, this.dimens.height);
-        this._visibleAreaDrawn = true;
+        this._recordDrawnVisibleArea();
+    }
+
+    //
+    //  What the visible area was last drawn from, in full or by addText():
+    //  the line objects and their text, where they sat, and everything else
+    //  a row's rendering depends on. addText() draws only its new rows when
+    //  the view is still in exactly this state -- not after deleteLine(), a
+    //  rewrap, a resize, a scroll, a new buffer or an edit that drew only
+    //  part of the area. Comparing the state itself rather than tracking
+    //  every way it can change means a mutation nobody thought of costs a
+    //  full repaint, not a stale screen.
+    //
+    _visibleAreaState() {
+        const top = this.topVisibleIndex;
+        const lines = this.buffer.lines.slice(top, top + this.dimens.height);
+        return {
+            buffer: this.buffer,
+            top,
+            lines,
+            chars: lines.map(l => l.chars),
+            key: [
+                this.position.row,
+                this.position.col,
+                this.dimens.width,
+                this.dimens.height,
+                this.buffer.width,
+                this.mode,
+                this.hyperlinks,
+                this.getTextSgrPrefix(),
+                this._pipeCodeExpanded,
+                this._pipeCodeNearIndex,
+                !!this._findState,
+            ].join('\u0000'),
+        };
+    }
+
+    _recordDrawnVisibleArea() {
+        this._drawnVisibleArea = this._visibleAreaState();
+    }
+
+    _isVisibleAreaAsDrawn() {
+        const drawn = this._drawnVisibleArea;
+        if (!drawn) {
+            return false; //  never drawn
+        }
+        const now = this._visibleAreaState();
+        return (
+            now.buffer === drawn.buffer &&
+            now.top === drawn.top &&
+            now.key === drawn.key &&
+            now.lines.length === drawn.lines.length &&
+            now.lines.every((l, i) => l === drawn.lines[i] && l.chars === drawn.chars[i])
+        );
     }
 
     getVisibleText(index) {
@@ -1912,6 +1965,8 @@ class MultiLineEditTextView extends View {
             this.buffer.lines.length === 1 && this.buffer.lines[0].chars === '';
 
         const prevTopVisibleIndex = this.topVisibleIndex;
+        //  the screen shows exactly the current state, before we change it
+        const asDrawn = this._isVisibleAreaAsDrawn();
         //  an empty view's line 0 is replaced, so it is new too
         const firstNewIndex = isEmpty ? 0 : this.buffer.lines.length;
 
@@ -1954,10 +2009,10 @@ class MultiLineEditTextView extends View {
         try {
             //  Rows above the new lines are already on screen as they would
             //  be drawn now -- unless the view scrolled, a search highlights
-            //  matches (whose positions the new lines may change), or it has
-            //  never been drawn at all.
+            //  matches (whose positions the new lines may change), or the
+            //  screen no longer shows the state it was last drawn from.
             const partial =
-                this._visibleAreaDrawn &&
+                asDrawn &&
                 !this._findState &&
                 this.topVisibleIndex === prevTopVisibleIndex;
 
@@ -1966,6 +2021,7 @@ class MultiLineEditTextView extends View {
                 if (startRow < this.dimens.height) {
                     this.redrawRows(startRow, this.dimens.height);
                 }
+                this._recordDrawnVisibleArea();
             } else {
                 this.redraw();
             }

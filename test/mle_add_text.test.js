@@ -170,6 +170,87 @@ describe('MultiLineEditTextView#addText()', () => {
         });
     });
 
+    describe('the screen no longer what was drawn: the whole visible area', () => {
+        //  The same steps on a view through addText() and through master's
+        //  addText(): the screens must be the same after every line
+        function sameAsMaster(layout, steps) {
+            const run = (log, addText) => {
+                const screens = [];
+                steps(log.view, (view, text, options) => {
+                    addText(view, text, options);
+                    const vs = new VirtualScreen().write(log.wire());
+                    screens.push({ grid: vs.snapshot(), cursor: vs.cursor() });
+                });
+                return screens;
+            };
+            const branch = run(makeLog(layout), (view, text, options) =>
+                view.addText(text, options)
+            );
+            const master = run(makeLog(layout), legacyAddText);
+            assert.equal(branch.length, master.length);
+            branch.forEach((b, i) => {
+                assert.equal(b.grid, master[i].grid, `screen after line ${i}`);
+                assert.deepEqual(b.cursor, master[i].cursor, `cursor after line ${i}`);
+            });
+        }
+
+        //  Art under the view, where a taller view will reach
+        const artBelow = view =>
+            view.client.term.write('\x1b[7;4HART BELOW\x1b[8;4HART BELOW');
+
+        it('MRC scrollback: deleteLine(0) at the cap shifts every row', () => {
+            //  mrc.js: addText(), then deleteLine(0) once over maxScrollbackLines
+            const maxScrollbackLines = 6;
+            sameAsMaster(SMALL_LOG, (view, add) => {
+                for (let n = 0; n < 12; ++n) {
+                    add(view, line(n), { scrollMode: 'end' });
+                    if (view.getLineCount() > maxScrollbackLines) {
+                        view.deleteLine(0);
+                    }
+                }
+            });
+        });
+
+        it('deleteLine(0) before the log is full', () => {
+            sameAsMaster(SMALL_LOG, (view, add) => {
+                add(view, 'one', { scrollMode: 'end' });
+                add(view, 'two', { scrollMode: 'end' });
+                view.deleteLine(0);
+                add(view, 'three', { scrollMode: 'end' });
+            });
+        });
+
+        it('a resize, then a line', () => {
+            sameAsMaster(SMALL_LOG, (view, add) => {
+                add(view, 'one', { scrollMode: 'end' });
+                add(view, 'two', { scrollMode: 'end' });
+                artBelow(view);
+                view.setPropertyValue('height', 6);
+                add(view, 'three', { scrollMode: 'end' });
+                view.setPropertyValue('height', 2);
+                add(view, 'four', { scrollMode: 'end' });
+            });
+        });
+
+        it('a rewrap to a new width, then a line', () => {
+            sameAsMaster(SMALL_LOG, (view, add) => {
+                add(view, 'a line long enough to wrap at twenty', { scrollMode: 'end' });
+                view.setPropertyValue('width', 20);
+                add(view, 'next', { scrollMode: 'end' });
+                view.setPropertyValue('width', 30);
+                add(view, 'and another', { scrollMode: 'end' });
+            });
+        });
+
+        it('a line added only to the buffer, then one through addText()', () => {
+            sameAsMaster(SMALL_LOG, (view, add) => {
+                add(view, 'one', { scrollMode: 'end' });
+                view.buffer.lines[0].chars = 'ONE';
+                add(view, 'two', { scrollMode: 'end' });
+            });
+        });
+    });
+
     describe('the log full: the whole visible area', () => {
         it('the same bytes as before, in one write', () => {
             const branch = makeLog();
