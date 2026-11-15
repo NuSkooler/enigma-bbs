@@ -197,6 +197,32 @@ describe('TIC forwarding to downlinks', function () {
             );
         });
 
+        it('has the TIC deleted after sending and the payload kept', async () => {
+            //  '^' is carried out only inside a mail directory
+            //  (core/bso_flow_paths.js); the TIC is written beside the flow
+            //  file, so it must be in one, or every forward leaves it behind.
+            const info = localInfo();
+            await forward(info);
+
+            const { buildSpool } = require('../core/binkp/util.js');
+            const Address = require('../core/ftn_address.js');
+            const files = await buildSpool(makeConfig()).getOutboundFilesForNode(
+                Address.fromString(DOWNLINK)
+            );
+
+            assert.deepEqual(
+                files.map(f => [
+                    paths.extname(f.path).toLowerCase(),
+                    f.disposition,
+                    f.allowed,
+                ]),
+                [
+                    ['.z21', 'keep', true],
+                    ['.tic', 'delete', true],
+                ]
+            );
+        });
+
         it('names the TIC in DOS 8.3 form', async () => {
             //  FTS-5006 2.2: "A TIC file is a text file with a name in 8.3 DOS
             //  format with the extension .TIC."

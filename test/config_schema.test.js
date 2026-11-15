@@ -419,6 +419,7 @@ describe('config schema against config_default.js', () => {
             'messageAreaDefaults.maxMessages',
             'messageConferences',
             'paths.config',
+            'scannerTossers.ftn_bso.binkp.flowDispositionRoots',
             'scannerTossers.ftn_bso.binkp.inbound.enabled',
             'scannerTossers.ftn_bso.binkp.inbound.port',
             'scannerTossers.ftn_bso.binkp.pullSchedule',

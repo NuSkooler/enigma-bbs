@@ -482,6 +482,12 @@ module.exports = {
     'scannerTossers.ftn_bso.netMail.routes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.nodes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.tempDir': { type: 'string' },
+    'scannerTossers.ftn_bso.binkp.flowDispositionRoots': {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+            "Directories, besides the outbound, inbound and TIC transit directories, in which a flow file's '^', '-' and '#' entries are deleted or truncated after sending. Elsewhere the file is sent and left in place.",
+    },
     //  null, false and '' all mean "no default network" -- every network gets
     //  its own suffixed directory and nothing lands in outbound/. See
     //  resolveDefaultNetworkName() in core/bso_util.js, which is explicit about

@@ -452,6 +452,94 @@ describe('BinkpSession — file transfer', () => {
 
         await fsp.unlink(tmpFile.filePath).catch(() => {});
     });
+
+    //  BsoSpool decides whether a disposition may be carried out and hands
+    //  the session { allowed, checkTarget }; see core/bso_flow_paths.js.
+    async function sendOne(disposition, guard) {
+        const tmpFile = await makeTempFile('GUARDED');
+        const { clientSess, serverSess } = await makeSessionPair();
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            fsp.unlink(tempPath).catch(() => {});
+        });
+        clientSess.queueFile(
+            tmpFile.filePath,
+            'guarded.pkt',
+            tmpFile.size,
+            tmpFile.timestamp,
+            disposition,
+            'function' === typeof guard ? guard(tmpFile.filePath) : guard
+        );
+        await runToEnd(clientSess, serverSess);
+        return tmpFile.filePath;
+    }
+
+    it('sends but keeps a file the spool did not allow to be disposed', async () => {
+        for (const disposition of ['delete', 'truncate']) {
+            const p = await sendOne(disposition, { allowed: false });
+            assert.equal(await fsp.readFile(p, 'utf8'), 'GUARDED', disposition);
+            await fsp.unlink(p).catch(() => {});
+        }
+    });
+
+    it('checks the target again just before acting on it', async () => {
+        //  The file is reclassified when the remote confirms it; a change in
+        //  the meantime (a directory swapped for a link, say) wins.
+        for (const disposition of ['delete', 'truncate']) {
+            const p = await sendOne(disposition, filePath => ({
+                allowed: true,
+                checkTarget: async () => ({ allowed: false, realPath: filePath }),
+            }));
+            assert.equal(await fsp.readFile(p, 'utf8'), 'GUARDED', disposition);
+            await fsp.unlink(p).catch(() => {});
+        }
+    });
+
+    it('truncates only the file it opened', async () => {
+        //  The classified real path must be the same inode as the file opened.
+        const other = await makeTempFile('OTHER');
+        const p = await sendOne('truncate', {
+            allowed: true,
+            checkTarget: async () => ({ allowed: true, realPath: other.filePath }),
+        });
+        assert.equal(await fsp.readFile(p, 'utf8'), 'GUARDED');
+        assert.equal(await fsp.readFile(other.filePath, 'utf8'), 'OTHER');
+        await fsp.unlink(p).catch(() => {});
+        await fsp.unlink(other.filePath).catch(() => {});
+    });
+
+    it('carries out an allowed disposition after checking', async () => {
+        for (const disposition of ['delete', 'truncate']) {
+            const p = await sendOne(disposition, filePath => ({
+                allowed: true,
+                checkTarget: async () => ({
+                    allowed: true,
+                    realPath: await fsp.realpath(filePath),
+                }),
+            }));
+            if ('delete' === disposition) {
+                await assert.rejects(fsp.access(p), { code: 'ENOENT' });
+            } else {
+                assert.equal((await fsp.stat(p)).size, 0);
+                await fsp.unlink(p).catch(() => {});
+            }
+        }
+    });
+
+    it('never truncates through a symlink', async () => {
+        const target = await makeTempFile('TARGET');
+        const link = `${target.filePath}.lnk`;
+        await fsp.symlink(target.filePath, link);
+        const { clientSess, serverSess } = await makeSessionPair();
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            fsp.unlink(tempPath).catch(() => {});
+        });
+        clientSess.queueFile(link, 'link.pkt', target.size, target.timestamp, 'truncate');
+        await runToEnd(clientSess, serverSess);
+
+        assert.equal(await fsp.readFile(target.filePath, 'utf8'), 'TARGET');
+        await fsp.unlink(link).catch(() => {});
+        await fsp.unlink(target.filePath).catch(() => {});
+    });
 });
 
 // ── NR mode ───────────────────────────────────────────────────────────────────

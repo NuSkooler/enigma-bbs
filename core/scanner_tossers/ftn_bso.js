@@ -48,6 +48,15 @@ const {
     flowRefBody,
 } = require('../bso_util.js');
 const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
+const { flowRefLineProblem } = require('../bso_flow_paths.js');
+
+//  A flow file reference as an absolute path. A flow file is read by other
+//  processes with other working directories, so a relative paths.outbound
+//  must not leak into one. Anything that is not a path is passed through for
+//  flowFileAppendRefs() to refuse.
+function absoluteFlowRef(p) {
+    return 'string' === typeof p && p.length > 0 ? paths.resolve(p) : p;
+}
 const TicFileWriter = require('../tic_file_writer.js');
 const FtnPacketWriter = require('../ftn_packet_writer.js');
 const ticForward = require('../tic_forward.js');
@@ -349,12 +358,38 @@ function FTNMessageScanTossModule() {
     //  core/bso_lock.js for why that is mandatory rather than defensive, and
     //  why it is the same lock BinkP sessions and external mailers take.
     //
+    //  Every reference must be an absolute path that every reader takes the
+    //  same way: no control characters, no leading whitespace or directive
+    //  character, at most 2047 bytes (see flowRefLineProblem()). If any one is
+    //  not, nothing is written and |cb| gets an error -- writing the rest
+    //  would split a payload from its TIC.
+    //
     this.flowFileAppendRefs = function (filePath, fileRefs, directive, destAddress, cb) {
-        const appendLines = fileRefs.reduce((content, ref) => {
-            const refDirective = _.isObject(ref) ? ref.directive || '' : directive;
+        let appendLines = '';
+        for (const ref of fileRefs) {
+            const refDirective = (_.isObject(ref) ? ref.directive : directive) || '';
             const refPath = _.isObject(ref) ? ref.path : ref;
-            return content + `${refDirective}${refPath}\n`;
-        }, '');
+            const problem = flowRefLineProblem(refDirective, refPath);
+            if (problem) {
+                Log.warn(
+                    {
+                        path: filePath,
+                        ref: refPath,
+                        directive: refDirective,
+                        reason: problem,
+                    },
+                    'Refusing to write flow file reference'
+                );
+                return cb(
+                    Errors.Invalid(
+                        `Flow file reference ${JSON.stringify(
+                            `${refDirective}${refPath}`
+                        )} not written: ${problem}`
+                    )
+                );
+            }
+            appendLines += `${refDirective}${refPath}\n`;
+        }
 
         //
         //  We have to ensure the *directory* of |filePath| exists here esp.
@@ -1668,7 +1703,7 @@ function FTNMessageScanTossModule() {
                                 //  directive of '^' = delete file after transfer
                                 self.flowFileAppendRefs(
                                     flowFilePath,
-                                    [newPath],
+                                    [absoluteFlowRef(newPath)],
                                     '^',
                                     exportOpts.destAddress,
                                     err => {
@@ -1986,7 +2021,7 @@ function FTNMessageScanTossModule() {
 
                             return self.flowFileAppendRefs(
                                 flowFilePath,
-                                [exportOpts.exportedToPath],
+                                [absoluteFlowRef(exportOpts.exportedToPath)],
                                 '^',
                                 exportOpts.routeAddress,
                                 callback
@@ -3390,12 +3425,14 @@ function FTNMessageScanTossModule() {
     //
     this.transitReferencedPaths = function (cb) {
         const { BsoSpool } = require('../binkp/bso_spool.js');
+        const { flowPathSettings } = require('../bso_flow_paths.js');
         const config = Config();
 
         const spool = new BsoSpool({
             paths: _.get(config, 'scannerTossers.ftn_bso.paths', {}),
             networks: _.get(config, 'messageNetworks.ftn.networks', {}),
             defaultNetwork: _.get(config, 'scannerTossers.ftn_bso.defaultNetwork'),
+            flowPaths: flowPathSettings(config),
         });
 
         //
@@ -4879,9 +4916,9 @@ function FTNMessageScanTossModule() {
         //  so the pair stays ordered and adjacent.
         //
         const queue = ticPath => {
-            const refs = [{ directive: '', path: localInfo.newPath }];
+            const refs = [{ directive: '', path: absoluteFlowRef(localInfo.newPath) }];
             if (ticPath) {
-                refs.push({ directive: '^', path: ticPath });
+                refs.push({ directive: '^', path: absoluteFlowRef(ticPath) });
             }
 
             self.flowFileAppendRefs(flowFilePath, refs, undefined, downlink, err => {

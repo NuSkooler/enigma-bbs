@@ -692,6 +692,14 @@ describe('BsoSpool — getNodesWithPendingMail', () => {
 //  in the flow file's own directory, and a flow file whose live entries all
 //  resolve to nothing no longer reports its node as pending -- which used to
 //  put the poller in a dial-every-cycle-and-send-nothing loop.
+//
+//  The fixtures use the #734 shape: a packet queued in outbound.002/ and moved
+//  by hand into outbound/, so the stored path's directory is an outbound one.
+
+//  Where a packet used to live before it was moved into outbound/
+function zone2Path(name) {
+    return path.join(tmpDir, 'outbound.002', name);
+}
 
 describe('BsoSpool — dangling and rescued flow references', () => {
     beforeEach(cleanOutbound);
@@ -702,7 +710,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
 
         //  The stored path is where the packet used to live
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
-        await fsp.writeFile(flowPath, `^${path.join(tmpDir, 'old_home', 'moved.pkt')}\n`);
+        await fsp.writeFile(flowPath, `^${zone2Path('moved.pkt')}\n`);
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         assert.equal(files.length, 1, 'the moved packet must still be found');
@@ -714,7 +722,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         const moved = path.join(outboundDir(tmpDir), 'rescued.pkt');
         await fsp.writeFile(moved, 'RESCUED');
 
-        const stale = path.join(tmpDir, 'old_home', 'rescued.pkt');
+        const stale = zone2Path('rescued.pkt');
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `^${stale}\nkeepme\n`);
 
@@ -747,10 +755,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         await fsp.writeFile(moved, 'DATA');
 
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
-        await fsp.writeFile(
-            flowPath,
-            `^${path.join(tmpDir, 'old_home', 'pending_moved.pkt')}\n`
-        );
+        await fsp.writeFile(flowPath, `^${zone2Path('pending_moved.pkt')}\n`);
 
         const nodes = await spool.getNodesWithPendingMail();
         assert.equal(nodes.length, 1);
@@ -811,11 +816,502 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         await fsp.writeFile(here, 'PKT');
 
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
-        await fsp.writeFile(flowPath, '^C:\\bbs\\out\\aabbccdd.pkt\n');
+        await fsp.writeFile(flowPath, '^C:\\fido\\outbound\\aabbccdd.pkt\n');
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].path, here);
+    });
+});
+
+// ── flow file path rules ──────────────────────────────────────────────────────
+//
+//  Which files a flow file line may act on (core/bso_flow_paths.js): the
+//  basename rescue above only for the entries it exists for, deletes and
+//  truncates only inside the mail directories, and nothing at all from a
+//  protected directory.
+
+//  Push everything queued for |addr| through a real session pair and wait
+//  until the sending side has finished, dispositions included.
+function sendThroughSession(sendingSpool, addr) {
+    const Address = require('../core/ftn_address');
+    return new Promise((resolve, reject) => {
+        const received = [];
+        const server = net.createServer(serverSocket => {
+            const serverSess = new BinkpSession(serverSocket, {
+                role: 'answering',
+                addresses: [`${addr.zone}:${addr.net}/${addr.node}@testnet`],
+                getPassword: () => null,
+                tempDir: os.tmpdir(),
+            });
+            serverSess.on('file-received', (name, size, ts, tmpPath) => {
+                received.push(name);
+                fsp.unlink(tmpPath).catch(() => {});
+            });
+            serverSess.on('error', () => {});
+            serverSess.start();
+        });
+
+        server.listen(0, '127.0.0.1', async () => {
+            const { port } = server.address();
+            const clientSess = new BinkpSession(net.createConnection(port, '127.0.0.1'), {
+                role: 'originating',
+                addresses: ['1:2/2@testnet'],
+                getPassword: () => null,
+                tempDir: os.tmpdir(),
+            });
+            try {
+                await attachSpoolToSession(clientSess, sendingSpool, [new Address(addr)]);
+            } catch (e) {
+                server.close();
+                return reject(e);
+            }
+            clientSess.on('session-end', () => {
+                server.close();
+                resolve(received);
+            });
+            clientSess.on('error', err => {
+                server.close();
+                reject(err);
+            });
+            clientSess.start();
+        });
+    });
+}
+
+//  The flow file is marked after 'file-sent', which the session does not wait
+//  for; give it a moment.
+async function flowContentSettled(flowPath, done) {
+    for (let i = 0; i < 50; i++) {
+        const content = await fsp.readFile(flowPath, 'utf8').catch(() => null);
+        if (done(content)) {
+            return content;
+        }
+        await new Promise(r => setTimeout(r, 20));
+    }
+    return fsp.readFile(flowPath, 'utf8').catch(() => null);
+}
+
+async function exists(p) {
+    return fsp.lstat(p).then(
+        () => true,
+        () => false
+    );
+}
+
+describe('BsoSpool — basename rescue applies only where it belongs', () => {
+    beforeEach(cleanOutbound);
+
+    const flowPath = () => path.join(outboundDir(tmpDir), '00680001.flo');
+
+    it('never rescues a send-and-keep line, even onto a packet', async () => {
+        //  A kept file lives in the file base, never in the outbound, so the
+        //  rescue could only ever find some other file there.
+        await fsp.writeFile(path.join(outboundDir(tmpDir), 'moved.pkt'), 'PKT');
+        await fsp.writeFile(flowPath(), `${zone2Path('moved.pkt')}\n`);
+
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+    });
+
+    it('sends nothing for a dangling keep line when outbound/00680025.out is present', async () => {
+        const other = path.join(outboundDir(tmpDir), '00680025.out');
+        await fsp.writeFile(other, 'NETMAIL FOR SOMEONE ELSE');
+        await fsp.writeFile(
+            flowPath(),
+            `${path.join(tmpDir, 'filebase', 'area', '00680025.out')}\n`
+        );
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.deepEqual(
+            files.map(f => f.path),
+            [],
+            "another node's netmail must not be offered"
+        );
+
+        //  And the listing agrees: the entry is missing, not pending.
+        const node = (await spool.inspectOutbound()).find(
+            n => 104 === n.address.net && 1 === n.address.node
+        );
+        assert.equal(node.entries[0].status, 'missing');
+    });
+
+    it('never rescues onto a BSO control or flow file name', async () => {
+        const names = [
+            '00680025.flo',
+            '00680025.hlo',
+            '00680025.out',
+            '00680025.cut',
+            '00680025.bsy',
+            '00680025.csy',
+            '00680025.hld',
+            '00680025.try',
+            '00680025.req',
+            'enigma.bsy',
+        ];
+        for (const name of names) {
+            await cleanOutbound();
+            const victim = path.join(outboundDir(tmpDir), name);
+            await fsp.writeFile(victim, 'CONTROL');
+            await fsp.writeFile(flowPath(), `^${zone2Path(name)}\n`);
+
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            assert.deepEqual(
+                files.filter(f => f.path === victim),
+                [],
+                `${name} must not be rescued`
+            );
+            assert.ok(await exists(victim), `${name} must be left alone`);
+        }
+    });
+
+    it("does not rescue htick's routed-transit form ^<inbound>/<name>", async () => {
+        //  htick queues a file passing through as ^<its inbound>/<name>. That
+        //  name came from elsewhere; a same-named file in our outbound is not it.
+        const sameName = path.join(outboundDir(tmpDir), 'nodediff.a21');
+        await fsp.writeFile(sameName, 'NOT THE TRANSIT FILE');
+        await fsp.writeFile(
+            flowPath(),
+            `^${path.join(tmpDir, 'husky', 'inbound', 'nodediff.a21')}\n`
+        );
+
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.ok(await exists(sameName));
+    });
+
+    it('still rescues bundles, including day extensions ending in "ut"', async () => {
+        //  A Sunday or Tuesday bundle with sequence letter t is .sut / .tut;
+        //  those must not be mistaken for netmail flow files (.?ut).
+        for (const name of [
+            '0000fc9c.mo0',
+            '0000fc9c.sut',
+            '0000fc9c.tut',
+            'deadbeef.tic',
+        ]) {
+            await cleanOutbound();
+            const here = path.join(outboundDir(tmpDir), name);
+            await fsp.writeFile(here, 'BUNDLE');
+            await fsp.writeFile(flowPath(), `^${zone2Path(name)}\n`);
+
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            assert.deepEqual(
+                files.map(f => f.path),
+                [here],
+                `${name} should be rescued`
+            );
+        }
+    });
+
+    it('rescues from a configured network directory name and a point directory', async () => {
+        const multi = new BsoSpool({
+            ...makeConfig(tmpDir),
+            networks: {
+                testnet: { localAddress: '1:1/100', defaultZone: 1 },
+                fsxnet: { localAddress: '21:1/100', defaultZone: 21 },
+            },
+            defaultNetwork: 'testnet',
+        });
+        for (const stored of [
+            path.join('/old', 'fsxnet', 'moved.pkt'),
+            path.join('/old', 'fsxnet.015', 'moved.pkt'),
+            path.join('/old', 'outbound', '00680001.pnt', 'moved.pkt'),
+        ]) {
+            await cleanOutbound();
+            const here = path.join(outboundDir(tmpDir), 'moved.pkt');
+            await fsp.writeFile(here, 'PKT');
+            await fsp.writeFile(flowPath(), `^${stored}\n`);
+
+            const files = await multi.getOutboundFilesForNode(TEST_ADDR);
+            assert.deepEqual(
+                files.map(f => f.path),
+                [here],
+                `${stored} should be rescued`
+            );
+        }
+    });
+
+    it('does not rescue a reference whose directory is not an outbound', async () => {
+        await fsp.writeFile(path.join(outboundDir(tmpDir), 'moved.pkt'), 'PKT');
+        await fsp.writeFile(
+            flowPath(),
+            `^${path.join(tmpDir, 'somewhere', 'moved.pkt')}\n`
+        );
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+    });
+});
+
+describe('BsoSpool — deletes and truncates only inside the mail directories', () => {
+    beforeEach(cleanOutbound);
+
+    let outside;
+    beforeEach(async () => {
+        outside = path.join(tmpDir, 'elsewhere');
+        await fsp.rm(outside, { recursive: true, force: true });
+        await fsp.mkdir(outside, { recursive: true });
+    });
+
+    const flowPath = () => path.join(outboundDir(tmpDir), '00680001.flo');
+
+    it('sends a ^ file outside them but leaves it in place, and marks the line', async () => {
+        const file = path.join(outside, 'attach.zip');
+        await fsp.writeFile(file, 'ATTACHMENT');
+        await fsp.writeFile(flowPath(), `^${file}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1);
+        assert.equal(files[0].disposition, 'delete');
+        assert.equal(files[0].allowed, false);
+
+        const received = await sendThroughSession(spool, TEST_ADDR);
+        assert.deepEqual(received, ['attach.zip'], 'it is still sent');
+        assert.equal(await fsp.readFile(file, 'utf8'), 'ATTACHMENT', 'and kept');
+
+        //  Nothing else left live, so the flow file goes as usual.
+        const content = await flowContentSettled(flowPath(), c => null === c);
+        assert.equal(content, null, 'the entry is finished with as usual');
+    });
+
+    it('sends a # file outside them without truncating it', async () => {
+        const file = path.join(outside, 'log.txt');
+        await fsp.writeFile(file, 'KEEP ME WHOLE');
+        await fsp.writeFile(flowPath(), `#${file}\nkeep-the-flow-alive\n`);
+
+        await sendThroughSession(spool, TEST_ADDR);
+        assert.equal(await fsp.readFile(file, 'utf8'), 'KEEP ME WHOLE');
+
+        const content = await flowContentSettled(flowPath(), c => c && c.includes('~'));
+        assert.ok(content.includes(`~${file}`), `marked sent, got:\n${content}`);
+    });
+
+    it('still deletes and truncates inside the outbound and the inbound', async () => {
+        const pkt = path.join(outboundDir(tmpDir), 'a1b2c3d4.pkt');
+        const trunc = path.join(outboundDir(tmpDir), 'list.txt');
+        const inbound = path.join(tmpDir, 'inbound', 'transit.zip');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(trunc, 'TRUNC');
+        await fsp.writeFile(inbound, 'TRANSIT');
+        await fsp.writeFile(flowPath(), `^${pkt}\n#${trunc}\n^${inbound}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.deepEqual(
+            files.map(f => f.allowed),
+            [true, true, true]
+        );
+
+        await sendThroughSession(spool, TEST_ADDR);
+        assert.equal(await exists(pkt), false);
+        assert.equal((await fsp.stat(trunc)).size, 0);
+        assert.equal(await exists(inbound), false);
+        await fsp.unlink(trunc).catch(() => {});
+    });
+
+    it('carries them out in a directory listed in flowDispositionRoots', async () => {
+        const listed = new BsoSpool({
+            ...makeConfig(tmpDir),
+            flowPaths: { dispositionRoots: [outside] },
+        });
+        const file = path.join(outside, 'attach.zip');
+        await fsp.writeFile(file, 'ATTACHMENT');
+        await fsp.writeFile(flowPath(), `^${file}\n`);
+
+        const files = await listed.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files[0].allowed, true);
+
+        await sendThroughSession(listed, TEST_ADDR);
+        assert.equal(await exists(file), false);
+    });
+
+    it('judges a symlink by where it leads: no truncating a file outside through a link', async () => {
+        const target = path.join(outside, 'precious.db');
+        await fsp.writeFile(target, 'PRECIOUS');
+        const link = path.join(outboundDir(tmpDir), 'innocent.mo1');
+        await fsp.symlink(target, link);
+        await fsp.writeFile(flowPath(), `#${link}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files[0].allowed, false);
+
+        await sendThroughSession(spool, TEST_ADDR);
+        assert.equal(await fsp.readFile(target, 'utf8'), 'PRECIOUS');
+    });
+
+    it('never truncates through a symlink, even one inside the outbound', async () => {
+        const target = path.join(outboundDir(tmpDir), 'real.txt');
+        await fsp.writeFile(target, 'REAL');
+        const link = path.join(outboundDir(tmpDir), 'link.txt');
+        await fsp.symlink(target, link);
+        await fsp.writeFile(flowPath(), `#${link}\n`);
+
+        await sendThroughSession(spool, TEST_ADDR);
+        assert.equal(await fsp.readFile(target, 'utf8'), 'REAL');
+    });
+
+    it('lists an entry that will be kept as such', async () => {
+        const file = path.join(outside, 'attach.zip');
+        await fsp.writeFile(file, 'A');
+        await fsp.writeFile(flowPath(), `^${file}\n`);
+
+        const node = (await spool.inspectOutbound()).find(
+            n => 104 === n.address.net && 1 === n.address.node
+        );
+        assert.equal(node.entries[0].status, 'pending');
+        assert.equal(node.entries[0].dispositionAllowed, false);
+    });
+
+    it('warns about a kept entry once per flow file per window', async () => {
+        const loggerModule = require('../core/logger.js');
+        const throttled = new BsoSpool(
+            Object.assign(makeConfig(tmpDir), { flowRefWarnRepeatMs: 60000 })
+        );
+        await fsp.writeFile(path.join(outside, 'a.zip'), 'A');
+        await fsp.writeFile(path.join(outside, 'b.zip'), 'B');
+        //  A flow file path no other test uses, so the throttle starts clean.
+        const ownFlow = path.join(outboundDir(tmpDir), '00680001.dlo');
+        await fsp.writeFile(
+            ownFlow,
+            `^${path.join(outside, 'a.zip')}\n^${path.join(outside, 'b.zip')}\n`
+        );
+
+        const warnings = [];
+        const original = loggerModule.log.warn;
+        loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
+        try {
+            await throttled.getOutboundFilesForNode(TEST_ADDR);
+            await throttled.getOutboundFilesForNode(TEST_ADDR);
+        } finally {
+            loggerModule.log.warn = original;
+        }
+
+        const kept = warnings.filter(w => /outside the mail directories/.test(w.message));
+        assert.equal(kept.length, 1);
+        assert.match(kept[0].message, /flowDispositionRoots/);
+    });
+});
+
+describe('BsoSpool — protected directories', () => {
+    beforeEach(cleanOutbound);
+
+    let configDir;
+    let secret;
+    let guarded;
+
+    beforeEach(async () => {
+        configDir = path.join(tmpDir, 'config');
+        await fsp.mkdir(configDir, { recursive: true });
+        secret = path.join(configDir, 'config.hjson');
+        await fsp.writeFile(secret, '{ secret: true }');
+        guarded = new BsoSpool({
+            ...makeConfig(tmpDir),
+            flowPaths: { protectedDirs: [configDir] },
+        });
+    });
+
+    const flowPath = () => path.join(outboundDir(tmpDir), '00680001.flo');
+
+    for (const directive of ['^', '#', '-', '']) {
+        it(`never queues a file in one ("${directive}" line)`, async () => {
+            await fsp.writeFile(flowPath(), `${directive}${secret}\n`);
+
+            assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+            assert.deepEqual(
+                await guarded.getNodesWithPendingMail(),
+                [],
+                'and the node is not dialled for it'
+            );
+        });
+    }
+
+    it('shows it as refused, leaves the file and the line alone, and warns every time', async () => {
+        const loggerModule = require('../core/logger.js');
+        const line = `^${secret}`;
+        await fsp.writeFile(flowPath(), `${line}\n`);
+
+        const warnings = [];
+        const original = loggerModule.log.warn;
+        loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
+        try {
+            await guarded.getOutboundFilesForNode(TEST_ADDR);
+            await guarded.getOutboundFilesForNode(TEST_ADDR);
+        } finally {
+            loggerModule.log.warn = original;
+        }
+        assert.equal(
+            warnings.filter(w => /protected directory/.test(w.message)).length,
+            2,
+            'every time, not throttled'
+        );
+
+        await sendThroughSession(guarded, TEST_ADDR);
+        assert.equal(await fsp.readFile(secret, 'utf8'), '{ secret: true }');
+        assert.equal(await fsp.readFile(flowPath(), 'utf8'), `${line}\n`, 'unmarked');
+
+        const node = (await guarded.inspectOutbound()).find(
+            n => 104 === n.address.net && 1 === n.address.node
+        );
+        assert.equal(node.entries[0].status, 'refused');
+
+        //  and prune is not a way to clear it either
+        const { removed } = await guarded.pruneMissingRefs(TEST_ADDR, { dryRun: true });
+        assert.deepEqual(removed, []);
+    });
+
+    it('refuses a link in the outbound that leads into one', async () => {
+        const link = path.join(outboundDir(tmpDir), 'harmless.pkt');
+        await fsp.symlink(secret, link);
+        await fsp.writeFile(flowPath(), `${link}\n`);
+
+        assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+    });
+
+    it('refuses a direct-attach netmail file that is a link into one', async () => {
+        await fsp.symlink(secret, path.join(outboundDir(tmpDir), '00680001.out'));
+
+        assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await guarded.getNodesWithPendingMail(), []);
+    });
+
+    it('does not let flowDispositionRoots reach into one', async () => {
+        const widened = new BsoSpool({
+            ...makeConfig(tmpDir),
+            flowPaths: { protectedDirs: [configDir], dispositionRoots: [tmpDir] },
+        });
+        await fsp.writeFile(flowPath(), `^${secret}\n`);
+        assert.deepEqual(await widened.getOutboundFilesForNode(TEST_ADDR), []);
+    });
+
+    it('keeps mail flowing when the mail directories sit inside one', async () => {
+        //  config.hjson kept at the top of the install makes the whole tree
+        //  "the directory of the loaded config file". The mail directories
+        //  under it are more specific and stay in use; everything else in it
+        //  stays refused.
+        const wholeTree = new BsoSpool({
+            ...makeConfig(tmpDir),
+            flowPaths: { protectedDirs: [tmpDir] },
+        });
+        const pkt = path.join(outboundDir(tmpDir), 'a1b2c3d4.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        const loose = path.join(tmpDir, 'loose.txt');
+        await fsp.writeFile(loose, 'LOOSE');
+        await fsp.writeFile(flowPath(), `^${pkt}\n^${loose}\n`);
+
+        const files = await wholeTree.getOutboundFilesForNode(TEST_ADDR);
+        assert.deepEqual(
+            files.map(f => [f.path, f.allowed]),
+            [[pkt, true]]
+        );
+    });
+
+    it('refuses a fallback onto a file it cannot send', async () => {
+        //  The rescue result is checked like any other path: an outbound
+        //  placed inside a protected directory with no exemption for it.
+        const sealed = new BsoSpool({
+            ...makeConfig(tmpDir),
+            flowPaths: { protectedDirs: [outboundDir(tmpDir)] },
+        });
+        await fsp.writeFile(path.join(outboundDir(tmpDir), 'moved.pkt'), 'PKT');
+        await fsp.writeFile(flowPath(), `^${zone2Path('moved.pkt')}\n`);
+
+        assert.deepEqual(await sealed.getOutboundFilesForNode(TEST_ADDR), []);
     });
 });
 
