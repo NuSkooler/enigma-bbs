@@ -708,6 +708,30 @@ describe('ftn_bso — EchoMail export loads and flags each message once', functi
         ]);
     });
 
+    it('passes over a packet name already in the temp area', async () => {
+        //  Only the temp area has it: nothing in outbound to give it away.
+        const ftnUtil = require('../core/ftn_util.js');
+        const savedSerial = ftnUtil.getMessageSerialNumber;
+        ftnUtil.getMessageSerialNumber = () => '0000cafe';
+        const inTemp = path.join(h.root, 'temp', '0000cafe.pk_');
+        await fsp.writeFile(inTemp, 'IN TEMP');
+
+        let result;
+        try {
+            const a = await h.addLocal({ subject: 'temp name' });
+            result = await exportWithin(h.makeModule(), [a.messageUuid], [U1]);
+        } finally {
+            ftnUtil.getMessageSerialNumber = savedSerial;
+        }
+        assert.ok(!result.err, result.err && result.err.message);
+        assert.equal(await fsp.readFile(inTemp, 'utf8'), 'IN TEMP');
+        const refs = await packetsReferencedBy((await flowFiles())[0]);
+        assert.deepEqual(
+            refs.map(r => path.basename(r)),
+            ['0000caff.pkt']
+        );
+    });
+
     it('puts the packet password configured for an uplink in its packet headers', async () => {
         const mod = h.makeModule();
         mod.moduleConfig = Object.assign({}, mod.moduleConfig, {
