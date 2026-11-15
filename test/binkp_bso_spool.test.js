@@ -1030,6 +1030,83 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
         }
     });
 
+    describe('a file moved beside the flow file that the entry may not use', () => {
+        //  Not sent, but not missing either: the file is right there. It must
+        //  be reported as such and never pruned, or a relocation would strand
+        //  it -- the mail is still on disk, with nothing left pointing at it.
+        const loggerModule = require('../core/logger.js');
+
+        const CASES = {
+            'a ^ line whose directory is not named like an outbound': {
+                name: 'a.pkt',
+                line: () => `^/old/spool/out/a.pkt`,
+            },
+            'a keep line': {
+                name: 'd.tic',
+                line: () => `/old/outbound/d.tic`,
+            },
+        };
+
+        Object.entries(CASES).forEach(([label, { name, line }]) => {
+            it(`${label}: misfiled, not sent, never pruned`, async () => {
+                const beside = path.join(outboundDir(tmpDir), name);
+                await fsp.writeFile(beside, 'STILL HERE');
+                await fsp.writeFile(flowPath(), `${line()}\n`);
+
+                assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+
+                const node = (await spool.inspectOutbound()).find(
+                    n => 104 === n.address.net && 1 === n.address.node
+                );
+                assert.equal(node.entries[0].status, 'misfiled');
+                assert.equal(node.entries[0].besideFlowFile, beside);
+
+                const dry = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: true });
+                assert.deepEqual(dry.removed, []);
+                const wet = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+                assert.deepEqual(wet.removed, []);
+                assert.equal(await fsp.readFile(flowPath(), 'utf8'), `${line()}\n`);
+                assert.ok(await exists(beside));
+            });
+        });
+
+        it('says so in the warning, distinct from a missing file', async () => {
+            await fsp.writeFile(path.join(outboundDir(tmpDir), 'w.pkt'), 'HERE');
+            //  A flow file name no other test warns about.
+            const ownFlow = path.join(outboundDir(tmpDir), '00680001.hlo');
+            await fsp.writeFile(ownFlow, '^/old/spool/out/w.pkt\n');
+
+            const warnings = [];
+            const original = loggerModule.log.warn;
+            loggerModule.log.warn = (fields, message) =>
+                warnings.push({ fields, message });
+            try {
+                await spool.getOutboundFilesForNode(TEST_ADDR);
+            } finally {
+                loggerModule.log.warn = original;
+            }
+
+            const mine = warnings.filter(w => w.fields && w.fields.flowFile === ownFlow);
+            assert.equal(mine.length, 1);
+            assert.match(mine[0].message, /beside the flow file/);
+            assert.doesNotMatch(mine[0].message, /never receive/);
+        });
+
+        it('a control file name beside the flow file is still just missing', async () => {
+            //  That file belongs to some other node; the entry stays prunable.
+            await fsp.writeFile(
+                path.join(outboundDir(tmpDir), '00680025.out'),
+                'NETMAIL'
+            );
+            await fsp.writeFile(flowPath(), '/fb/area/00680025.out\n');
+
+            const node = (await spool.inspectOutbound()).find(
+                n => 104 === n.address.net && 1 === n.address.node
+            );
+            assert.equal(node.entries[0].status, 'missing');
+        });
+    });
+
     it('does not rescue a reference whose directory is not an outbound', async () => {
         await fsp.writeFile(path.join(outboundDir(tmpDir), 'moved.pkt'), 'PKT');
         await fsp.writeFile(
@@ -1135,6 +1212,24 @@ describe('BsoSpool — deletes and truncates only inside the mail directories', 
         assert.equal(await fsp.readFile(target, 'utf8'), 'PRECIOUS');
     });
 
+    it('removes a ^ symlink in the outbound, not what it points to', async () => {
+        //  unlink() removes the entry, never its target, so a delete is judged
+        //  by where the entry is.
+        const target = path.join(outside, 'elsewhere.zip');
+        await fsp.writeFile(target, 'TARGET');
+        const link = path.join(outboundDir(tmpDir), 'linked.zip');
+        await fsp.symlink(target, link);
+        await fsp.writeFile(flowPath(), `^${link}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files[0].allowed, true);
+
+        const received = await sendThroughSession(spool, TEST_ADDR);
+        assert.deepEqual(received, ['linked.zip'], 'sent');
+        assert.equal(await exists(link), false, 'the link is removed');
+        assert.equal(await fsp.readFile(target, 'utf8'), 'TARGET', 'the target is not');
+    });
+
     it('never truncates through a symlink, even one inside the outbound', async () => {
         const target = path.join(outboundDir(tmpDir), 'real.txt');
         await fsp.writeFile(target, 'REAL');
@@ -1221,25 +1316,40 @@ describe('BsoSpool — protected directories', () => {
         });
     }
 
-    it('shows it as refused, leaves the file and the line alone, and warns every time', async () => {
+    it('shows it as refused, leaves the file and the line alone, and warns at once then per window', async () => {
         const loggerModule = require('../core/logger.js');
         const line = `^${secret}`;
         await fsp.writeFile(flowPath(), `${line}\n`);
+
+        //  A flow file of its own, so no earlier test has used up the window.
+        const ownFlow = path.join(outboundDir(tmpDir), '00680001.ilo');
+        await fsp.writeFile(ownFlow, `${line}\n`);
+        const windowed = new BsoSpool({
+            ...makeConfig(tmpDir),
+            flowPaths: { protectedDirs: [configDir] },
+            flowRefWarnRepeatMs: 60000,
+        });
 
         const warnings = [];
         const original = loggerModule.log.warn;
         loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
         try {
-            await guarded.getOutboundFilesForNode(TEST_ADDR);
-            await guarded.getOutboundFilesForNode(TEST_ADDR);
+            await windowed.getOutboundFilesForNode(TEST_ADDR);
+            await windowed.getNodesWithPendingMail();
+            await windowed.getOutboundFilesForNode(TEST_ADDR);
         } finally {
             loggerModule.log.warn = original;
         }
+        const refusedFor = flow =>
+            warnings.filter(
+                w => /protected directory/.test(w.message) && w.fields.flowFile === flow
+            ).length;
         assert.equal(
-            warnings.filter(w => /protected directory/.test(w.message)).length,
-            2,
-            'every time, not throttled'
+            refusedFor(ownFlow),
+            1,
+            'said straight away, then held for the window'
         );
+        await fsp.unlink(ownFlow);
 
         await sendThroughSession(guarded, TEST_ADDR);
         assert.equal(await fsp.readFile(secret, 'utf8'), '{ secret: true }');

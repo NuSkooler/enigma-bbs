@@ -135,8 +135,9 @@ async function truncateSentFile(filePath, checkTarget) {
 //  API:
 //    queueFile(filePath, name, size, timestamp, disposition, guard)
 //      disposition: 'delete' | 'truncate' | 'keep'
-//      guard (optional): { allowed, checkTarget } as decided by BsoSpool.
-//        allowed false: send, but leave the file as it is.
+//      guard: { allowed, checkTarget } as decided by BsoSpool. A delete or
+//        truncate happens only with allowed === true; without a guard the
+//        file is sent and left as it is.
 //        checkTarget(): re-classifies the file just before it is deleted or
 //        truncated; see core/bso_flow_paths.js.
 //    start()
@@ -993,10 +994,11 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
-        //  BsoSpool already decided and logged this one: the file is outside
-        //  the mail directories, so it is sent and kept.
+        //  Only what BsoSpool explicitly allowed. A file queued without that
+        //  decision -- or outside the mail directories, which the spool has
+        //  already logged -- is sent and kept.
         const guard = file.guard || {};
-        if (false === guard.allowed) {
+        if (true !== guard.allowed) {
             Log.debug(
                 { path: file.path, disposition: file.disposition },
                 '[BinkP] Leaving sent file in place'

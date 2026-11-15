@@ -168,12 +168,14 @@ function cmdStatus() {
         let missingTotal = 0;
         let unreadableTotal = 0;
         let refusedTotal = 0;
+        let misfiledTotal = 0;
         for (const node of interesting) {
             const live = liveEntries(node);
             const missing = live.filter(e => 'missing' === e.status);
             missingTotal += missing.length;
             unreadableTotal += live.filter(e => 'unreadable' === e.status).length;
             refusedTotal += live.filter(e => 'refused' === e.status).length;
+            misfiledTotal += live.filter(e => 'misfiled' === e.status).length;
 
             console.info(
                 `${padRight(node.address.toString(), 22)}${padLeft(
@@ -209,6 +211,20 @@ function cmdStatus() {
             );
             console.info(
                 'volume that is not mounted. Those are never pruned; see "bso list".'
+            );
+        }
+
+        if (misfiledTotal > 0) {
+            console.info('');
+            console.info(
+                `${misfiledTotal} queued ${
+                    1 === misfiledTotal ? 'entry names a file' : 'entries name files'
+                } that ${
+                    1 === misfiledTotal ? 'is' : 'are'
+                } not at the stored path but beside the flow file.`
+            );
+            console.info(
+                'Those are not sent from there and never pruned; see "bso list".'
             );
         }
 
@@ -253,6 +269,7 @@ function cmdList(addressArg) {
                     missing: 'MISSING',
                     unreadable: 'UNREADABLE',
                     refused: 'REFUSED',
+                    misfiled: 'MISFILED',
                 }[entry.status] ||
                 ('pending' === entry.status && false === entry.dispositionAllowed
                     ? 'KEPT'
@@ -275,6 +292,21 @@ function cmdList(addressArg) {
                 'a volume that is not mounted. Those are not pruned: the file may well'
             );
             console.info('still be there. Fix the access and they will send.');
+        }
+
+        const misfiled = live.filter(e => 'misfiled' === e.status);
+        if (misfiled.length > 0) {
+            console.info('');
+            console.info(
+                `${misfiled.length} MISFILED: the stored path is gone, but a file of that name is`
+            );
+            console.info(
+                'beside the flow file. It is not sent from there and is never pruned. Fix the'
+            );
+            console.info('path in the flow file, or move the file back to it:');
+            for (const entry of misfiled) {
+                console.info(`    ${entry.besideFlowFile}  ->  ${entry.path}`);
+            }
         }
 
         const refused = live.filter(e => 'refused' === e.status);

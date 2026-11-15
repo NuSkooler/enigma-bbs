@@ -1497,9 +1497,9 @@ module.exports = () => {
                     //  outbound queues attachments from it that should be
                     //  removed once sent, e.g. a separate tosser's inbound.
                     //
-                    //  ENiGMA's configuration, security, database and log
-                    //  directories are never sent from or disposed in,
-                    //  listed here or not.
+                    //  A file in ENiGMA's configuration, security, database
+                    //  or log directories is never sent from a flow file or
+                    //  disposed in, listed here or not.
                     //
                     flowDispositionRoots: [],
 

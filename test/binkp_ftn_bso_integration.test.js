@@ -896,6 +896,39 @@ describe('ftn_bso ↔ BinkP integration', function () {
             );
         });
 
+        it('leaves nothing in the outbound when the packet could not be referenced', done => {
+            //  A control character in the outbound path makes every flow file
+            //  reference to it unwritable. That is known before the move, so
+            //  the packet stays in the temp area and the export fails rather
+            //  than leaving an unreferenced packet in the outbound per attempt.
+            const label = `ctl${String.fromCharCode(9)}dir`;
+            runExport(
+                { label, packetNames: ['0000000c.pk_'] },
+                (err, { outDir, root }) => {
+                    try {
+                        //  ...and so the messages are retried (#1026)
+                        assert.ok(err, 'the export must report the failure');
+                    } catch (e) {
+                        return done(e);
+                    }
+                    Promise.all([
+                        fsp.readdir(outDir).catch(() => []),
+                        fsp.readdir(path.join(root, 'export_temp')),
+                    ])
+                        .then(([outbound, temp]) => {
+                            assert.deepEqual(outbound, [], 'no orphan in the outbound');
+                            assert.deepEqual(
+                                temp,
+                                ['0000000c.pk_'],
+                                'still in the temp area'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
         it('BsoSpool finds an upper case export (FTS-5005.003 §2)', done => {
             //  The writer honours fileCase; the reader used to look only for
             //  lower case names, so it reported the node as pending and then
@@ -1130,6 +1163,28 @@ describe('ftn_bso ↔ BinkP integration', function () {
                                 addrs.map(a => a.toString()),
                                 [UPLINK],
                                 'pending mail must be attributed to the uplink'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('leaves nothing in the outbound when the packet could not be referenced', done => {
+            runNetMailExport(
+                { ...CROSS_ZONE, label: `ctl${String.fromCharCode(9)}dir` },
+                (err, { root }) => {
+                    //  A NetMail that cannot be delivered is reported to its
+                    //  sender rather than failing the export as a whole.
+                    if (err) return done(err);
+                    fsp.readdir(path.join(root, 'outbound'))
+                        .catch(() => [])
+                        .then(entries => {
+                            assert.deepEqual(
+                                entries.filter(e => /\.pkt$/i.test(e)),
+                                [],
+                                'no orphan packet in the outbound'
                             );
                             done();
                         })
@@ -1749,6 +1804,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
             ],
             DEL: [{ directive: '', path: `/outbound/a${String.fromCharCode(0x7f)}.pkt` }],
             'leading whitespace': [{ directive: '', path: ' /outbound/a.pkt' }],
+            'trailing whitespace': [{ directive: '^', path: '/outbound/a.pkt ' }],
             'a second directive character': [
                 { directive: '^', path: '#/outbound/a.pkt' },
             ],

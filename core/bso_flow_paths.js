@@ -30,8 +30,9 @@ const _ = require('lodash');
 //      never onto a BSO control or flow file, and only when the stored path
 //      points into an outbound-style directory.
 //
-//  Everything is compared by realpath, so a symlink is judged by where it
-//  leads.
+//  Paths are compared by realpath, so a symlink is judged by where it leads
+//  -- except for a delete, which removes the directory entry itself and so is
+//  judged by where that entry is (see classifyEntry()).
 //
 //  Nothing here reads Config() at load time; the settings are passed in.
 //
@@ -152,7 +153,7 @@ function basenameFallbackAllowed(ref, directive, outboundNames) {
 //
 //  Readers differ (see FTS-5005.003 and the mailers that implement it): a line
 //  break or NUL splits or ends a line, leading whitespace is part of the path
-//  to binkd, a second directive character is read as a directive by some and
+//  to binkd, trailing whitespace is trimmed by most readers, a second directive character is read as a directive by some and
 //  as part of the path by others, and binkit cuts lines at 2048 bytes.
 //
 function flowRefLineProblem(directive, refPath) {
@@ -170,6 +171,10 @@ function flowRefLineProblem(directive, refPath) {
     }
     if (/^\s/.test(refPath)) {
         return 'path starts with whitespace';
+    }
+    if (/\s$/.test(refPath)) {
+        //  Readers trim it, so the file they look for is not this one.
+        return 'path ends with whitespace';
     }
     if (DIRECTIVE_CHARS.includes(refPath[0])) {
         return 'path starts with a directive character';
@@ -363,6 +368,26 @@ class FlowPathPolicy {
         let realPath;
         try {
             realPath = await fsp.realpath(filePath);
+        } catch {
+            return null;
+        }
+        return { realPath, ...this.classifyRealPath(realPath) };
+    }
+
+    //
+    //  As classify(), but for the directory entry itself rather than what it
+    //  points to: realpath of its directory plus its own name. This is what a
+    //  delete acts on -- unlink() never follows the final component -- so
+    //  removing a symlink that sits in a mail directory is always in bounds,
+    //  wherever it leads. Sending and truncating go by classify().
+    //
+    async classifyEntry(filePath) {
+        let realPath;
+        try {
+            realPath = paths.join(
+                await fsp.realpath(paths.dirname(filePath)),
+                paths.basename(filePath)
+            );
         } catch {
             return null;
         }

@@ -168,6 +168,8 @@ describe('bso_flow_paths', function () {
                 ['^', `/a${String.fromCharCode(9)}b`],
                 ['^', `/a${String.fromCharCode(0x7f)}b`],
                 ['', ' /a'],
+                ['^', '/a '],
+                ['^', `/a${String.fromCharCode(9)}`],
                 ['^', '^/a'],
                 ['', '!/a'],
                 ['', '@/a'],

@@ -411,7 +411,8 @@ describe('BinkpSession — file transfer', () => {
             'delete_me.pkt',
             tmpFile.size,
             tmpFile.timestamp,
-            'delete'
+            'delete',
+            { allowed: true }
         );
 
         await runToEnd(clientSess, serverSess);
@@ -441,7 +442,8 @@ describe('BinkpSession — file transfer', () => {
             'truncate_me.pkt',
             tmpFile.size,
             tmpFile.timestamp,
-            'truncate'
+            'truncate',
+            { allowed: true }
         );
 
         await runToEnd(clientSess, serverSess);
@@ -476,6 +478,14 @@ describe('BinkpSession — file transfer', () => {
     it('sends but keeps a file the spool did not allow to be disposed', async () => {
         for (const disposition of ['delete', 'truncate']) {
             const p = await sendOne(disposition, { allowed: false });
+            assert.equal(await fsp.readFile(p, 'utf8'), 'GUARDED', disposition);
+            await fsp.unlink(p).catch(() => {});
+        }
+    });
+
+    it('fails closed: a delete or truncate queued with no decision is not carried out', async () => {
+        for (const disposition of ['delete', 'truncate']) {
+            const p = await sendOne(disposition, undefined);
             assert.equal(await fsp.readFile(p, 'utf8'), 'GUARDED', disposition);
             await fsp.unlink(p).catch(() => {});
         }
@@ -533,7 +543,16 @@ describe('BinkpSession — file transfer', () => {
         serverSess.on('file-received', (name, size, ts, tempPath) => {
             fsp.unlink(tempPath).catch(() => {});
         });
-        clientSess.queueFile(link, 'link.pkt', target.size, target.timestamp, 'truncate');
+        clientSess.queueFile(
+            link,
+            'link.pkt',
+            target.size,
+            target.timestamp,
+            'truncate',
+            {
+                allowed: true,
+            }
+        );
         await runToEnd(clientSess, serverSess);
 
         assert.equal(await fsp.readFile(target.filePath, 'utf8'), 'TARGET');
