@@ -138,6 +138,9 @@ function fakeConnection(node, userName, { lastLoginTs, desc = 'Main Menu' } = {}
             serverName: 'SSH',
             isSecure: true,
         },
+        end() {
+            this.ended = true;
+        },
         friendlyRemoteAddress: () => `10.0.0.${node}`,
         currentMenuModule: { menuConfig: { desc } },
         user: {
@@ -145,6 +148,7 @@ function fakeConnection(node, userName, { lastLoginTs, desc = 'Main Menu' } = {}
             username: userName,
             properties: { last_login_timestamp: lastLoginTs },
             isAuthenticated: () => true,
+            isValid: () => false,
             isVisible: () => true,
             isAvailable: () => true,
             realName: () => `${userName} Real`,
@@ -298,14 +302,6 @@ function buildDashboard({ requireCore = defaultRequireCore, nodes = 3 } = {}) {
             });
         });
         views[1].setFocus(true);
-        //  as _displayMainPage() wires it (the selection info view is not built here)
-        views[1].on('index update', index =>
-            wfc._onNodeStatusIndexUpdate(
-                views[1],
-                wfc.viewControllers.main.getView(3),
-                index
-            )
-        );
         //  the view controller draws every view once the art is up
         Object.keys(views).forEach(id => views[id].redraw());
 
@@ -314,6 +310,7 @@ function buildDashboard({ requireCore = defaultRequireCore, nodes = 3 } = {}) {
             getFocusedView: () => views[1],
             detachClientEvents: () => {},
         };
+        wfc._bindNodeStatusSelection(); //  the real wiring, as _displayMainPage() does
     };
     buildViews();
 

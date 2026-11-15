@@ -11,6 +11,7 @@ const {
     getActiveConnectionList,
     AllConnections,
     getConnectionByNodeId,
+    getActiveConnections,
     removeClient,
 } = require('./client_connections');
 const StatLog = require('./stat_log');
@@ -336,6 +337,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             },
             kickNodeNo: (formData, extraArgs, cb) => {
                 //this._startRefreshing();
+                delete this._kickTarget;
                 return cb(null);
             },
             chatWithSelectedNode: (formData, extraArgs, cb) => {
@@ -550,24 +552,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         });
                     }
 
-                    const nodeStatusView = this.getView(
-                        'main',
-                        MciViewIds.main.nodeStatus
-                    );
-                    const nodeStatusSelectionView = this.getView(
-                        'main',
-                        MciViewIds.main.selectedNodeStatusInfo
-                    );
-
-                    if (nodeStatusView && nodeStatusSelectionView) {
-                        nodeStatusView.on('index update', index =>
-                            this._onNodeStatusIndexUpdate(
-                                nodeStatusView,
-                                nodeStatusSelectionView,
-                                index
-                            )
-                        );
-                    }
+                    this._bindNodeStatusSelection();
 
                     return callback(null);
                 },
@@ -696,6 +681,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         });
     }
 
+    //  Follow the op's arrow/page keys in the node list. Not tied to the
+    //  selection info view: a theme without one still has a selection.
+    _bindNodeStatusSelection() {
+        const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
+        if (!nodeStatusView) {
+            return;
+        }
+        nodeStatusView.on('index update', index =>
+            this._onNodeStatusIndexUpdate(
+                nodeStatusView,
+                this.getView('main', MciViewIds.main.selectedNodeStatusInfo),
+                index
+            )
+        );
+    }
+
     //  The node list's focus moved (arrow/page keys): that is the selection now
     _onNodeStatusIndexUpdate(nodeStatusView, nodeStatusSelectionView, index) {
         const item = nodeStatusView.getItem(index);
@@ -734,6 +735,16 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (this.client.node === parseInt(nodeItem.node)) {
             return cb(null);
         }
+
+        //  Who the op is being asked about. The prompt is open for as long as
+        //  the op takes, and the list moves under it (a node hangs up, the
+        //  selection falls back, a new caller gets the number): Y kicks this
+        //  session or nobody.
+        this._kickTarget = {
+            sessionId: nodeItem.sessionId,
+            node: nodeItem.node,
+            userName: nodeItem.userName,
+        };
 
         const promptOptions = {
             clearAtSubmit: true,
@@ -838,16 +849,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _kickSelectedNode(cb) {
-        const nodeItem = this._getSelectedNodeItem();
-        if (!nodeItem) {
-            return cb(Errors.UnexpectedState('Expecting a selected node'));
+        const target = this._kickTarget;
+        delete this._kickTarget;
+        if (!target) {
+            return cb(Errors.UnexpectedState('Expecting a node to kick'));
         }
 
-        const client = getConnectionByNodeId(parseInt(nodeItem.node));
+        //  by session: node numbers are reused
+        const client = getActiveConnections(AllConnections).find(
+            ac => !_.isNil(target.sessionId) && ac.session.uniqueId === target.sessionId
+        );
         if (!client) {
-            return cb(
-                Errors.UnexpectedState(`Expecting a client for node ID ${nodeItem.node}`)
+            this.client.log.info(
+                { node: target.node, userName: target.userName },
+                'Node to kick is gone; nobody kicked'
             );
+            return cb(null);
         }
 
         //  :TODO: optional kick art
@@ -1512,7 +1529,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             lastPaint &&
             lastPaint.view === nodeStatusView &&
             lastPaint.key === paintKey &&
-            nodeStatusView.getFocusItemIndex() === selectedIndex
+            !selectionLost &&
+            //  an empty list has no row to be focused
+            (selectedIndex < 0 || nodeStatusView.getFocusItemIndex() === selectedIndex)
         ) {
             nodeStatusItems.forEach((item, i) => {
                 Object.assign(nodeStatusView.getItem(i), item);

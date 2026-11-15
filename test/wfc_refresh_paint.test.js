@@ -39,6 +39,7 @@ function assertRowPasses(counts, rows, passes) {
     });
 }
 
+const CONFIRM_XY = 4; //  wfc.js MciViewIds.main.confirmXy
 const STATUS_BAR_ROW = 1;
 const NODE_ROWS = [4, 5, 6, 7, 8];
 const LOG_ROWS = [19, 20, 21, 22, 23];
@@ -95,18 +96,26 @@ describe('WFC refresh paints only what changed', () => {
             assert.ok(t.wire.toString('latin1').includes('File Base'));
         });
 
-        it('repaints when the selection changes', () => {
+        it('draws a selection change once, when the arrow key makes it', () => {
+            const before = dash.writes.length;
+            dash.views()[1].focusNext();
+            const moved = Buffer.concat(dash.writes.slice(before)).toString('latin1');
+            [4, 5].forEach(r => assert.ok(rowsDrawn(moved).includes(r), `row ${r}`));
+            assert.equal(dash.wfc.selectedSessionId, sid(1));
+
+            //  the refresh has nothing to add
+            const t = dash.tick();
+            assert.equal(t.writes, 1);
+            assert.deepEqual(rowsDrawn(t.wire.toString('latin1')), [STATUS_BAR_ROW]);
+        });
+
+        it('puts the bar on the selection when something else moved it', () => {
             dash.wfc.menuMethods.setNodeStatusSelection({ ch: '3' }, {}, () => {});
-            dash.writes.length = 0;
-            dash.views()[1].setFocusItemIndex(0); //  as if it were elsewhere
-            dash.wfc.selectedSessionId = sid(2);
+            dash.views()[1].setFocusItemIndex(0); //  no 'index update', as setFocusItemIndex()
             const t = dash.tick();
             const rows = rowsDrawn(t.wire.toString('latin1'));
             [4, 5, 6].forEach(r => assert.ok(rows.includes(r), `row ${r}`));
             assert.equal(dash.views()[1].getFocusItemIndex(), 2);
-
-            const again = dash.tick();
-            assert.deepEqual(rowsDrawn(again.wire.toString('latin1')), [STATUS_BAR_ROW]);
         });
 
         it('blanks the old footprint when the list shrinks', () => {
@@ -206,8 +215,9 @@ describe('WFC refresh paints only what changed', () => {
             assert.equal(dash.wfc._getSelectedNodeItem().node, 2);
             assert.equal(dash.wfc.selectedSessionId, sid(1));
             assert.equal(dash.wfc.selectedNodeStatusIndex, 1);
-            //  nothing was put back
-            assert.ok(t.writes <= 1);
+            //  nothing was put back: the status bar's one write, no list rows
+            assert.equal(t.writes, 1);
+            assert.deepEqual(rowsDrawn(t.wire.toString('latin1')), [STATUS_BAR_ROW]);
 
             const idle = dash.tick();
             assert.equal(idle.writes, 1, 'the status bar only');
@@ -276,6 +286,72 @@ describe('WFC refresh paints only what changed', () => {
             assert.equal(dash.wfc.selectedSessionId, sid(0));
         });
 
+        it('is followed on a theme with no selection info view', () => {
+            dash.wfc.viewControllers.main.getView = id =>
+                3 === id ? undefined : dash.views()[id];
+            view().focusNext();
+            dash.tick();
+            assert.equal(view().getFocusItemIndex(), 1);
+            assert.equal(dash.wfc.selectedSessionId, sid(1));
+            assert.equal(dash.tick().writes, 1);
+        });
+
+        it('an empty list is not repainted on an idle tick', () => {
+            dash.disconnect(dash.connections[0]);
+            dash.disconnect(dash.connections[1]);
+            dash.disconnect(dash.connections[2]);
+            dash.wfc._clientDisconnected({});
+            dash.tick();
+            assert.equal(view().getCount(), 0);
+            for (let i = 0; i < 3; ++i) {
+                const t = dash.tick();
+                assert.equal(t.writes, 1, 'the status bar only');
+                assert.deepEqual(rowsDrawn(t.wire.toString('latin1')), [STATUS_BAR_ROW]);
+            }
+
+            //  a caller connects: painted and selected
+            const caller = dash.connect(4, 'Zed', {
+                lastLoginTs: new Date().toISOString(),
+            });
+            const t = dash.tick();
+            assert.ok(rowsDrawn(t.wire.toString('latin1')).includes(4));
+            assert.ok(t.wire.toString('latin1').includes('Zed'));
+            assert.equal(dash.wfc.selectedSessionId, caller.session.uniqueId);
+            assert.equal(view().getFocusItemIndex(), 0);
+            assert.equal(dash.tick().writes, 1);
+        });
+
+        it('updates the panel for a lost selection replaced by a look-alike row', () => {
+            //  the selected session is replaced by another one that draws the
+            //  same, at the row the bar is on: nothing to repaint, but the
+            //  selection is a new session and the panel must follow
+            dash.cleanup();
+            const fresh = buildDashboard({ nodes: 1 });
+            try {
+                const shown = [];
+                const selection = { setText: t => shown.push(t) };
+                const main = fresh.wfc.viewControllers.main;
+                const getView = main.getView;
+                main.getView = id => (3 === id ? selection : getView(id));
+                fresh.tick();
+                const first = fresh.wfc.selectedSessionId;
+                shown.length = 0;
+
+                fresh.disconnect(fresh.connections[0]);
+                const again = fresh.connect(1, 'Sysop', {
+                    lastLoginTs: new Date('2026-11-14T10:00:00Z').toISOString(),
+                    desc: '-WFC-',
+                });
+                fresh.tick();
+                assert.notEqual(fresh.wfc.selectedSessionId, first);
+                assert.equal(fresh.wfc.selectedSessionId, again.session.uniqueId);
+                assert.equal(shown.length, 1, 'panel updated');
+                assert.ok(shown[0].includes('Sysop Real'));
+            } finally {
+                fresh.cleanup();
+            }
+        });
+
         it('is not changed by a node connecting', () => {
             view().focusNext();
             dash.connect(9, 'Eve', { lastLoginTs: new Date().toISOString() });
@@ -284,6 +360,61 @@ describe('WFC refresh paints only what changed', () => {
             assert.equal(view().getFocusItemIndex(), 1);
             assert.equal(dash.wfc.selectedSessionId, sid(1));
             assert.ok(rowsDrawn(t.wire.toString('latin1')).includes(7), 'new row drawn');
+        });
+    });
+
+    describe('kick', () => {
+        const confirm = () => {
+            dash.wfc.menuMethods.setNodeStatusSelection({ ch: '2' }, {}, () => {});
+            const main = dash.wfc.viewControllers.main;
+            const getView = main.getView;
+            main.getView = id =>
+                CONFIRM_XY === id
+                    ? { dimens: { width: 10 }, position: { row: 20, col: 5 } }
+                    : getView(id);
+            //  the prompt itself needs art; stop at opening it
+            dash.wfc.promptForInput = () => {};
+            dash.wfc.menuMethods.kickSelectedNode({}, {}, () => {});
+            main.getView = getView;
+            assert.ok(dash.wfc._kickTarget, 'prompt opened');
+        };
+        const yes = () => dash.wfc.menuMethods.kickNodeYes({}, {}, () => {});
+
+        it('kicks the caller that was confirmed', () => {
+            confirm();
+            const target = dash.connections[1];
+            yes();
+            assert.ok(target.ended);
+            assert.ok(!dash.connections[0].ended && !dash.connections[2].ended);
+        });
+
+        it('kicks nobody if the confirmed caller hung up during the prompt', () => {
+            confirm();
+            dash.disconnect(dash.connections[1]);
+            dash.wfc._clientDisconnected({}); //  selection falls back to row 0
+            yes();
+            dash.connections.forEach(c => assert.ok(!c.ended));
+        });
+
+        it('kicks nobody if a new caller has the number meanwhile', () => {
+            confirm();
+            dash.disconnect(dash.connections[1]);
+            const newcomer = dash.connect(2, 'Mallory', {
+                lastLoginTs: new Date().toISOString(),
+            });
+            yes();
+            assert.ok(!newcomer.ended);
+            dash.connections.forEach(c => assert.ok(!c.ended));
+        });
+
+        it('forgets the target when the op says no, or after one kick', () => {
+            confirm();
+            dash.wfc.menuMethods.kickNodeNo({}, {}, () => {});
+            assert.equal(dash.wfc._kickTarget, undefined);
+            let err;
+            dash.wfc.menuMethods.kickNodeYes({}, {}, e => (err = e));
+            assert.ok(err);
+            dash.connections.forEach(c => assert.ok(!c.ended));
         });
     });
 
