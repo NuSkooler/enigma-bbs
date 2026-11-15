@@ -119,6 +119,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 * **FTN import and export do less work per message.** Looking up a message by a meta value, which the tosser does for every imported message (the MSGID duplicate check, resolving `REPLY`), used to read through the whole `message_meta` table; a new index makes it a direct lookup (about 50 ms down to a few microseconds on a board with 36,000 messages). EchoMail export now loads each message, looks up its `REPLY` and records it as exported once, however many uplinks it goes to, where it used to do all of that once per uplink; EchoMail relay does the same across all the destinations of a network. On that board, relaying 4,983 messages to three destinations went from about 21 to about 16 seconds. What each uplink receives is unchanged.
 
+* **Art goes to the caller in one write.** Each escape sequence and run of text in a piece of art used to be its own socket write, so one 80x25 screen went out as several hundred TCP segments, SSH messages or WebSocket frames (607 to 823 for screens in the stock theme). It is now sent as one, and so is a form redrawn in full, as is the WFC's periodic refresh. What the caller receives is byte for byte the same for ANSI, PETSCII, ATASCII and RIP callers, and art shown with `baudRate` is paced exactly as before.
+
 * **A NetMail addressed only to our FTN address no longer stalls the import.** Such a NetMail, with no local user of that name, is meant for the SysOp. It was never stored, and the packet import it was in never finished.
 
 ## 0.5.1-beta
