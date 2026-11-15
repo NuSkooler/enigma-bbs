@@ -37,6 +37,7 @@ const SystemMetaNames = {
     ExternalFlavor: 'external_flavor', //  "Flavor" of message - imported from or to be exported to. See Message.AddressFlavor
     RemoteToUser: 'remote_to_user', //  Opaque value depends on external system, e.g. FTN address
     RemoteFromUser: 'remote_from_user', //  Opaque value depends on external system, e.g. FTN address
+    FtnExportPending: 'ftn_export_pending', //  FTN uplink an EchoMail export has yet to deliver to; one row per uplink
 };
 exports.SystemMetaNames = SystemMetaNames;
 
