@@ -742,7 +742,32 @@ function exactOrFolded(cp, idx) {
 }
 
 //  Result of mapping one code point: { bytes, reverse } or undefined.
+//  Memoized per charset for the BMP: the mapping is pure and results are frozen,
+//  so a shared result can never be corrupted by a caller. (Code points above
+//  U+FFFF only map as C0/C1 pass-through, which never reaches here, so the cache
+//  is bounded at 64K entries per charset.)
+const RESOLVE_CACHE = [new Map(), new Map()];
+const NO_RESULT = Symbol('no result');
+
 function resolve(cp, idx) {
+    if (undefined === cp || cp > 0xffff || cp < 0 || (cp | 0) !== cp) {
+        return resolveUncached(cp, idx);
+    }
+    const cache = RESOLVE_CACHE[idx];
+    let r = cache.get(cp);
+    if (undefined === r) {
+        r = resolveUncached(cp, idx);
+        if (r) {
+            Object.freeze(r.bytes);
+            Object.freeze(r);
+        }
+        cache.set(cp, undefined === r ? NO_RESULT : r);
+        return r;
+    }
+    return NO_RESULT === r ? undefined : r;
+}
+
+function resolveUncached(cp, idx) {
     const exact = exactByte(cp, idx);
     if (undefined !== exact) {
         return { bytes: [exact], reverse: false };
