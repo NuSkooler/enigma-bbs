@@ -74,6 +74,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none. Make sure there is free disk space for it.
 
+* **EchoMail export now retries an uplink that failed** ([#1026](https://github.com/NuSkooler/enigma-bbs/issues/1026)). A message that could not be delivered to one of an area's uplinks is sent to that uplink, and only that uplink, by the next export scan. There is nothing to migrate, and the area's last scan IDs are kept as they are. The log shows `Export retry complete` (`info`) or `Export retry incomplete; will retry` (`warn`), with the area and the uplinks, when a scan retries something.
+
+  **Action:** none. Mail an uplink missed *before* the upgrade is not resent, because nothing recorded which uplink missed it.
+
 * **The ActivityPub actor cache is emptied once, at the first start.** Cached remote actors could have been planted by another server, and such an entry cannot be told from a genuine one, so the `actors` collection in `db/activitypub.sqlite3` is cleared once and actors are fetched again as they are needed. Follower and following lists, posts and reactions are not touched. The log shows `Purging the ActivityPub actor cache` and `Purged the ActivityPub actor cache`; 50,000 cached actors took under a second.
 
   **Action:** none. Delivery to followers is not interrupted: when a post, boost or like goes out, followers in the cache get it at once, and a follower that is not in the cache is fetched again in the background (four at a time across the board, once however many posts are waiting on it) and gets it once found, if it still follows. On a board with many followers, the first posts after the upgrade reach most followers a little later than usual, and expect more outbound fetching for a while. A follower that cannot be fetched is not tried again for six hours (this is kept in memory, so a restart tries it again).
