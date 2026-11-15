@@ -11,6 +11,7 @@ const {
     getActiveConnectionList,
     AllConnections,
     getConnectionByNodeId,
+    getActiveConnections,
     removeClient,
 } = require('./client_connections');
 const StatLog = require('./stat_log');
@@ -271,6 +272,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
 
         this.selectedNodeStatusIndex = -1; // no selection
+        this.selectedSessionId = null; //  the session the op selected; the index follows it
         this.refreshing = false;
         this.pendingPages = []; //  [ { sessionId, userName, nodeId, message, timestamp } ]
 
@@ -311,6 +313,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 const index = this._getNodeStatusIndexByNodeId(nodeStatusView, nodeId);
                 if (index > -1) {
                     this.selectedNodeStatusIndex = index;
+                    this.selectedSessionId = nodeStatusView.getItem(index).sessionId;
                     this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex);
 
                     const nodeStatusSelectionView = this.getView(
@@ -334,6 +337,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             },
             kickNodeNo: (formData, extraArgs, cb) => {
                 //this._startRefreshing();
+                delete this._kickTarget;
                 return cb(null);
             },
             chatWithSelectedNode: (formData, extraArgs, cb) => {
@@ -548,24 +552,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         });
                     }
 
-                    const nodeStatusView = this.getView(
-                        'main',
-                        MciViewIds.main.nodeStatus
-                    );
-                    const nodeStatusSelectionView = this.getView(
-                        'main',
-                        MciViewIds.main.selectedNodeStatusInfo
-                    );
-
-                    if (nodeStatusView && nodeStatusSelectionView) {
-                        nodeStatusView.on('index update', index => {
-                            const item = nodeStatusView.getItem(index);
-                            this._updateNodeStatusSelection(
-                                nodeStatusSelectionView,
-                                item
-                            );
-                        });
-                    }
+                    this._bindNodeStatusSelection();
 
                     return callback(null);
                 },
@@ -694,6 +681,34 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         });
     }
 
+    //  Follow the op's arrow/page keys in the node list. Not tied to the
+    //  selection info view: a theme without one still has a selection.
+    _bindNodeStatusSelection() {
+        const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
+        if (!nodeStatusView) {
+            return;
+        }
+        nodeStatusView.on('index update', index =>
+            this._onNodeStatusIndexUpdate(
+                nodeStatusView,
+                this.getView('main', MciViewIds.main.selectedNodeStatusInfo),
+                index
+            )
+        );
+    }
+
+    //  The node list's focus moved (arrow/page keys): that is the selection now
+    _onNodeStatusIndexUpdate(nodeStatusView, nodeStatusSelectionView, index) {
+        const item = nodeStatusView.getItem(index);
+        if (item) {
+            this.selectedNodeStatusIndex = index;
+            this.selectedSessionId = item.sessionId;
+        }
+        if (nodeStatusSelectionView) {
+            this._updateNodeStatusSelection(nodeStatusSelectionView, item);
+        }
+    }
+
     _getSelectedNodeItem() {
         const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
         if (!nodeStatusView) {
@@ -720,6 +735,16 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (this.client.node === parseInt(nodeItem.node)) {
             return cb(null);
         }
+
+        //  Who the op is being asked about. The prompt is open for as long as
+        //  the op takes, and the list moves under it (a node hangs up, the
+        //  selection falls back, a new caller gets the number): Y kicks this
+        //  session or nobody.
+        this._kickTarget = {
+            sessionId: nodeItem.sessionId,
+            node: nodeItem.node,
+            userName: nodeItem.userName,
+        };
 
         const promptOptions = {
             clearAtSubmit: true,
@@ -824,16 +849,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _kickSelectedNode(cb) {
-        const nodeItem = this._getSelectedNodeItem();
-        if (!nodeItem) {
-            return cb(Errors.UnexpectedState('Expecting a selected node'));
+        const target = this._kickTarget;
+        delete this._kickTarget;
+        if (!target) {
+            return cb(Errors.UnexpectedState('Expecting a node to kick'));
         }
 
-        const client = getConnectionByNodeId(parseInt(nodeItem.node));
+        //  by session: node numbers are reused
+        const client = getActiveConnections(AllConnections).find(
+            ac => !_.isNil(target.sessionId) && ac.session.uniqueId === target.sessionId
+        );
         if (!client) {
-            return cb(
-                Errors.UnexpectedState(`Expecting a client for node ID ${nodeItem.node}`)
+            this.client.log.info(
+                { node: target.node, userName: target.userName },
+                'Node to kick is gone; nobody kicked'
             );
+            return cb(null);
         }
 
         //  :TODO: optional kick art
@@ -1094,7 +1125,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             SysopChat.clearSessionsForClient(client);
         }
 
-        this.selectedNodeStatusIndex = 0; // will select during refresh
+        //  The selection is kept when another node left; _refreshNodeStatus()
+        //  falls back to the first row if it was the selected one.
 
         //  Form 0 views are not ours to paint while a sub-viewer is up
         if (!this._mainFormOwnsScreen()) {
@@ -1415,23 +1447,21 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
     //
     //  What the node list draws, as a string to compare: each row through the
-    //  view's itemFormat and focusItemFormat, as VerticalMenuView draws it,
-    //  plus the selection. Fields no format shows (timeOnMinutes moves every
-    //  tick) are left out, so they cannot cause a repaint. The view's own
-    //  focus index is in it: an op who moved the bar with the arrow keys gets
-    //  it put back at the next refresh, as before.
+    //  view's itemFormat and focusItemFormat, as VerticalMenuView draws it.
+    //  Fields no format shows (timeOnMinutes moves every tick) are left out,
+    //  so they cannot cause a repaint. The selection is not in it: it is
+    //  checked against the view's own focus (what is drawn), which the op's
+    //  arrow keys move and redraw by themselves.
     //
     _nodeStatusPaintKey(nodeStatusView, items) {
         const itemFormat = nodeStatusView.itemFormat || '{text}';
         const focusItemFormat = nodeStatusView.focusItemFormat;
-        return JSON.stringify({
-            rows: items.map(item => [
+        return JSON.stringify(
+            items.map(item => [
                 stringFormat(itemFormat, item),
                 focusItemFormat ? stringFormat(focusItemFormat, item) : null,
-            ]),
-            selected: this.selectedNodeStatusIndex,
-            focused: nodeStatusView.getFocusItemIndex(),
-        });
+            ])
+        );
     }
 
     _refreshNodeStatus(cb) {
@@ -1473,8 +1503,19 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 });
             });
 
-        // If this is our first pass, we'll also update the selection
-        const firstStatusRefresh = nodeStatusView.getCount() === 0;
+        //  The selected node's row now; if it is gone (or nothing was
+        //  selected yet, the first pass) fall back to the first row.
+        let selectedIndex = nodeStatusItems.findIndex(
+            item =>
+                !_.isNil(this.selectedSessionId) &&
+                item.sessionId === this.selectedSessionId
+        );
+        const selectionLost = selectedIndex < 0 && nodeStatusItems.length > 0;
+        if (selectionLost) {
+            selectedIndex = 0;
+            this.selectedSessionId = nodeStatusItems[0].sessionId;
+        }
+        this.selectedNodeStatusIndex = selectedIndex;
 
         //  Nothing the list would draw has changed: leave it be. The items
         //  still take the fresh values, as setItems() would have given them,
@@ -1487,7 +1528,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (
             lastPaint &&
             lastPaint.view === nodeStatusView &&
-            lastPaint.key === paintKey
+            lastPaint.key === paintKey &&
+            !selectionLost &&
+            //  an empty list has no row to be focused
+            (selectedIndex < 0 || nodeStatusView.getFocusItemIndex() === selectedIndex)
         ) {
             nodeStatusItems.forEach((item, i) => {
                 Object.assign(nodeStatusView.getItem(i), item);
@@ -1505,16 +1549,16 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex); // redraws
         this._lastNodeStatusPaint = {
             view: nodeStatusView,
-            key: this._nodeStatusPaintKey(nodeStatusView, nodeStatusItems),
+            key: paintKey,
         };
 
-        if (firstStatusRefresh) {
+        if (selectionLost) {
             const nodeStatusSelectionView = this.getView(
                 'main',
                 MciViewIds.main.selectedNodeStatusInfo
             );
             if (nodeStatusSelectionView) {
-                const item = nodeStatusView.getItem(0);
+                const item = nodeStatusView.getItem(selectedIndex);
                 this._updateNodeStatusSelection(nodeStatusSelectionView, item);
             }
         }

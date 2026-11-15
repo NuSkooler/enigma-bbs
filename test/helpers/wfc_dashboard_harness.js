@@ -126,11 +126,21 @@ function captureSession(ClientTerminal) {
     return { term, writes };
 }
 
+let sessionSeq = 0;
+
 //  A connection as client_connections.getActiveConnectionList() reads one
 function fakeConnection(node, userName, { lastLoginTs, desc = 'Main Menu' } = {}) {
     return {
         node,
-        session: { id: 1000 + node, serverName: 'SSH', isSecure: true },
+        session: {
+            id: 1000 + node,
+            uniqueId: `sess-${node}-${++sessionSeq}`,
+            serverName: 'SSH',
+            isSecure: true,
+        },
+        end() {
+            this.ended = true;
+        },
         friendlyRemoteAddress: () => `10.0.0.${node}`,
         currentMenuModule: { menuConfig: { desc } },
         user: {
@@ -138,6 +148,7 @@ function fakeConnection(node, userName, { lastLoginTs, desc = 'Main Menu' } = {}
             username: userName,
             properties: { last_login_timestamp: lastLoginTs },
             isAuthenticated: () => true,
+            isValid: () => false,
             isVisible: () => true,
             isAvailable: () => true,
             realName: () => `${userName} Real`,
@@ -299,6 +310,7 @@ function buildDashboard({ requireCore = defaultRequireCore, nodes = 3 } = {}) {
             getFocusedView: () => views[1],
             detachClientEvents: () => {},
         };
+        wfc._bindNodeStatusSelection(); //  the real wiring, as _displayMainPage() does
     };
     buildViews();
 
