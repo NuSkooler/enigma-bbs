@@ -188,9 +188,11 @@ binkp: {
 }
 ```
 
-A symlink is judged by the file it points to, and a truncate never follows a symlink.
+Symlinks: a delete removes the link itself, never the file it points to, so a `^` symlink inside a mail directory is removed once sent. A truncate never goes through a symlink: a `#` line whose file is a symlink is sent and marked sent, but nothing is truncated, and the log says why.
 
-ENiGMA½'s own configuration, security, database and log directories (`paths.config`, `paths.security`, `paths.db`, `paths.modsDb`, `paths.logs`) and the directory holding the loaded `config.hjson` are **never** sent from or disposed in, whether listed here or not. A flow file entry naming a file there is skipped, logged as a warning each time it is seen, left in the flow file, shown by `oputil bso list` as `REFUSED`, and does not make the node due for a poll. If a mail directory itself lies inside one of these (a `config.hjson` kept at the top of the install, say), the mail directory still works: the more specific directory wins. A file base storage directory there can still be sent from.
+ENiGMA½'s own configuration, security, database and log directories (`paths.config`, `paths.security`, `paths.db`, `paths.modsDb`, `paths.logs`) and the directory holding the loaded `config.hjson` are **never** sent from a flow file or as a direct-attach netmail file, nor disposed in, whether listed here or not (a symlink is judged by the file it points to). A flow file entry naming a file there is skipped, logged as a warning when first seen and then at most once an hour, left in the flow file, shown by `oputil bso list` as `REFUSED`, and does not make the node due for a poll. If a mail directory itself lies inside one of these (a `config.hjson` kept at the top of the install, say), the mail directory still works: the more specific directory wins. A file base storage directory there can still be sent from. File requests (`binkp.freq`) serve only the files and areas you configure for them and are not covered by this list.
+
+When a queued file is gone from its stored path but a file of that name sits beside the flow file, and the entry may not be taken from there (a send-and-keep line, or a stored path whose directory is not named like an outbound), it is not sent. The log says the file is beside the flow file, and `oputil bso list` shows it as `MISFILED`; `oputil bso prune` never removes it. Fix the path in the flow file or move the file back.
 
 ### `flowLockTimeoutMs`
 

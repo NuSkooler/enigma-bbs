@@ -467,6 +467,10 @@ Two more flags come from the rules for which files a flow file may act on (see
   directories. It is never sent and never pruned; remove the line from the flow file.
 - `KEPT`: the entry asks for the file to be deleted or truncated after sending, but the
   file is outside the mail directories. It is sent and left in place.
+- `MISFILED`: the stored path is gone, but a file of that name is beside the flow file,
+  and this entry may not be sent from there. It is not sent, and `prune` never removes
+  it, since that would leave the file on disk with nothing pointing at it. Fix the path
+  in the flow file, or move the file back; `bso list` shows both paths.
 
 ## FAT Disk Image Management
 The `fat` command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the `v86_door` module.
