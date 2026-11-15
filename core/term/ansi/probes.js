@@ -131,7 +131,7 @@ function ansiAttemptDetectUTF8(client, cb) {
                     const [, w] = pos;
                     const len = w - initialPosition[1];
                     if (!isNaN(len) && len >= ASCIIPortion.length + 6) {
-                        //  CP437 displays 3 chars each Unicode skull
+                        //  CP437 displays 3 chars each U+9760 (CJK wide character)
                         client.log.info(
                             'Terminal identified as UTF-8 but does not appear to be. Overriding to "ansi".'
                         );
@@ -142,7 +142,7 @@ function ansiAttemptDetectUTF8(client, cb) {
                 cb
             );
 
-            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`); //  Unicode skulls on each side
+            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`); //  U+9760 (CJK 靠, a wide character) on each side
             client.term.rawWrite(ansi.queryPos());
         },
         'Detect UTF-8 stage 1 timed out',
@@ -191,9 +191,9 @@ function ansiProbeUTF8Upward(client, cb) {
                     const [, w] = pos;
                     const len = w - initialPosition[1];
                     //
-                    //  UTF-8: each U+9760 skull occupies 1 or 2 display columns
+                    //  UTF-8: each U+9760 character occupies 1 or 2 display columns
                     //  (narrow or wide), giving len < ASCIIPortion.length + 6.
-                    //  CP437: each skull is 3 separate bytes = 3 columns each,
+                    //  CP437: each is 3 separate bytes = 3 columns each,
                     //  giving len >= ASCIIPortion.length + 6 (mirrors the
                     //  downgrade check in ansiAttemptDetectUTF8).
                     //
