@@ -6,7 +6,7 @@ sidebar:
 ---
 ## Amiga Doors via vAmiga
 
-ENiGMA½ can run Amiga BBS doors written for [AmiExpress](https://www.aminet.net/search?query=amiexpress) (the "/X" family) in an Amiga emulator that is built in: the [vAmiga](https://github.com/dirkwhoffmann/vAmiga) core, compiled to WebAssembly and shipped in the `enigma-vamiga` npm package. There is no external emulator to install, and no Kickstart ROM or Workbench is needed: the package bundles the [AROS](https://aros.org) ROM. The `amiga_door` module runs the emulator in a worker thread and bridges the caller to it.
+ENiGMA½ can run Amiga BBS doors written for [AmiExpress](https://www.aminet.net/search?query=amiexpress) (the "/X" family) in an Amiga emulator that is built in: the [vAmiga](https://github.com/dirkwhoffmann/vAmiga) core, compiled to WebAssembly and shipped in the `enigma-vamiga` npm package. There is no external emulator to install, and no Kickstart ROM or Workbench is needed: the package bundles the [AROS](https://aros.sourceforge.io/) ROM. The `amiga_door` module runs the emulator in a worker thread and bridges the caller to it.
 
 :::note
 An Amiga door is not a standalone program. An XIM door is a client of a running /X node: it asks the BBS for the user's name, the time left, a key, a line of input, or to print something. ENiGMA½ boots a small host shim (`axshim`) inside the emulated Amiga that impersonates a node for the door and relays everything to ENiGMA½ over the emulated serial port. The shim and its library are in the repository (`misc/amiga_door/`); you only need to put a door on a disk image.
