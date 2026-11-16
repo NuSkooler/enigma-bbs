@@ -627,3 +627,263 @@ describe('bso_flow — rewriteFlowFile', () => {
         assert.deepEqual(order, ['a', 'b']);
     });
 });
+
+describe('bso_flow — review follow-ups', () => {
+    let tmpDir;
+    let flowPath;
+
+    const BOM = Buffer.from([0xef, 0xbb, 0xbf]);
+    const latin1 = s => Buffer.from(s, 'latin1');
+    const asOtherUser = () => {
+        const me = process.getuid();
+        _hooks.getuid = () => (0 === me ? 4242 : me + 1);
+    };
+    const markText = text => lines => {
+        const mark = [];
+        lines.forEach((l, i) => {
+            if ('send' === l.kind && l.text === text) mark.push(i);
+        });
+        return mark.length ? { mark } : null;
+    };
+
+    beforeEach(async () => {
+        tmpDir = await fsp.mkdtemp(paths.join(os.tmpdir(), 'enigma_bso_flow_rf_'));
+        flowPath = paths.join(tmpDir, '00680001.flo');
+    });
+
+    afterEach(async () => {
+        _hooks.getuid = () =>
+            'function' === typeof process.getuid ? process.getuid() : undefined;
+        await fsp.chmod(tmpDir, 0o755).catch(() => {});
+        await fsp.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    describe('a UTF-8 byte order mark at the start of the file', () => {
+        it('is not part of the first line', () => {
+            const lines = parseFlowBuffer(
+                Buffer.concat([BOM, latin1('^/ob/x.pkt\n/fb/a.zip\n')])
+            );
+            assert.equal(lines[0].kind, 'send');
+            assert.equal(lines[0].directive, '^');
+            assert.equal(lines[0].path, '/ob/x.pkt');
+            assert.equal(lines[0].offset, 3);
+            assert.equal(lines.bom, '\xef\xbb\xbf');
+            assert.ok(
+                serializeFlowLines(lines).equals(
+                    Buffer.concat([BOM, latin1('^/ob/x.pkt\n/fb/a.zip\n')])
+                )
+            );
+        });
+
+        it('only counts at the very start', () => {
+            const lines = parseFlowBuffer(
+                Buffer.concat([latin1('/fb/a.zip\n'), BOM, latin1('^/x\n')])
+            );
+            //  Further down it is just bytes, read as the start of a name.
+            assert.equal(lines[1].directive, '');
+            assert.equal(lines[1].relative, true);
+        });
+
+        it('is kept when a line is marked, replacing the file', async () => {
+            await fsp.writeFile(
+                flowPath,
+                Buffer.concat([BOM, latin1('^/ob/x.pkt\n/fb/a.zip\n')])
+            );
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/x.pkt'));
+            assert.equal(result.how, 'replaced');
+            assert.ok(
+                (await fsp.readFile(flowPath)).equals(
+                    Buffer.concat([BOM, latin1('~/ob/x.pkt\n/fb/a.zip\n')])
+                )
+            );
+        });
+
+        it('is kept when the first line is removed', async () => {
+            await fsp.writeFile(
+                flowPath,
+                Buffer.concat([BOM, latin1('/fb/gone.zip\n/fb/a.zip\n')])
+            );
+            await rewriteFlowFile(flowPath, () => ({ remove: [0] }));
+            assert.ok(
+                (await fsp.readFile(flowPath)).equals(
+                    Buffer.concat([BOM, latin1('/fb/a.zip\n')])
+                )
+            );
+        });
+
+        it('is kept, and the right byte marked, in place', async function () {
+            if ('function' !== typeof process.getuid) return this.skip();
+            asOtherUser();
+            await fsp.writeFile(
+                flowPath,
+                Buffer.concat([BOM, latin1('^/ob/x.pkt\n/fb/a.zip\n')])
+            );
+            let result = await rewriteFlowFile(flowPath, markText('^/ob/x.pkt'));
+            assert.equal(result.how, 'marked-in-place');
+            assert.ok(
+                (await fsp.readFile(flowPath)).equals(
+                    Buffer.concat([BOM, latin1('~/ob/x.pkt\n/fb/a.zip\n')])
+                )
+            );
+
+            result = await rewriteFlowFile(flowPath, () => ({ remove: [1] }));
+            assert.equal(result.deleted, true, 'only a ~ line left');
+        });
+
+        it('is kept by an in-place rewrite', async function () {
+            if ('function' !== typeof process.getuid) return this.skip();
+            asOtherUser();
+            await fsp.writeFile(
+                flowPath,
+                Buffer.concat([BOM, latin1('/fb/a.zip\n/fb/b.zip\n')])
+            );
+            const result = await rewriteFlowFile(flowPath, markText('/fb/a.zip'));
+            assert.equal(result.how, 'rewritten-in-place');
+            assert.ok(
+                (await fsp.readFile(flowPath)).equals(
+                    Buffer.concat([BOM, latin1('~/fb/a.zip\n/fb/b.zip\n')])
+                )
+            );
+        });
+    });
+
+    describe('a flow file that is a symlink', () => {
+        let realDir;
+        let realPath;
+
+        beforeEach(async () => {
+            realDir = paths.join(tmpDir, 'real');
+            await fsp.mkdir(realDir);
+            realPath = paths.join(realDir, 'shared.flo');
+            await fsp.writeFile(realPath, '^/ob/a.pkt\n^/ob/b.pkt\n');
+            await fsp.symlink(realPath, flowPath);
+        });
+
+        it('edits the file it leads to and keeps the link', async () => {
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'));
+            assert.equal(result.how, 'replaced');
+            assert.ok((await fsp.lstat(flowPath)).isSymbolicLink(), 'still a link');
+            assert.equal(
+                await fsp.readFile(realPath, 'latin1'),
+                '~/ob/a.pkt\n^/ob/b.pkt\n'
+            );
+            assert.deepEqual(
+                (await fsp.readdir(realDir)).filter(n => isFlowTempFileName(n)),
+                []
+            );
+        });
+
+        it('edits it in place too', async function () {
+            if ('function' !== typeof process.getuid) return this.skip();
+            asOtherUser();
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'));
+            assert.equal(result.how, 'marked-in-place');
+            assert.ok((await fsp.lstat(flowPath)).isSymbolicLink());
+            assert.equal(
+                await fsp.readFile(realPath, 'latin1'),
+                '~/ob/a.pkt\n^/ob/b.pkt\n'
+            );
+        });
+
+        it('removes both the file and the link when nothing is left', async () => {
+            await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'));
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/b.pkt'));
+            assert.equal(result.deleted, true);
+            await assert.rejects(fsp.lstat(flowPath), { code: 'ENOENT' });
+            await assert.rejects(fsp.access(realPath), { code: 'ENOENT' });
+        });
+    });
+
+    describe('a flow file that cannot be removed', () => {
+        //  A directory we may not create or remove files in. Root ignores
+        //  the permission bits, so this cannot be shown as root.
+        beforeEach(function () {
+            if ('function' !== typeof process.getuid || 0 === process.getuid()) {
+                return this.skip();
+            }
+        });
+
+        it('still gets its last line marked, so it is not sent again', async () => {
+            await fsp.writeFile(flowPath, '@/fb/payload.zip\n');
+            await fsp.chmod(tmpDir, 0o555);
+
+            const result = await rewriteFlowFile(flowPath, markText('@/fb/payload.zip'));
+            assert.equal(result.deleted, false);
+            assert.equal(result.how, 'marked-in-place');
+            assert.equal(await fsp.readFile(flowPath, 'latin1'), '~/fb/payload.zip\n');
+        });
+
+        it('a line with no directive is rewritten in place', async () => {
+            await fsp.writeFile(flowPath, '/fb/payload.zip\r\n');
+            await fsp.chmod(tmpDir, 0o555);
+
+            const result = await rewriteFlowFile(flowPath, markText('/fb/payload.zip'));
+            assert.equal(result.how, 'rewritten-in-place');
+            assert.equal(await fsp.readFile(flowPath, 'latin1'), '~/fb/payload.zip\r\n');
+        });
+    });
+
+    describe('the line length limit', () => {
+        it('is not tripped by the ~ our own mark adds', async () => {
+            const longest = `/${'a'.repeat(MAX_LINE_BYTES - 1)}`;
+            assert.equal(parseFlowLine(longest).kind, 'send');
+
+            await fsp.writeFile(flowPath, `${longest}\n^/ob/other.pkt\n`);
+            await rewriteFlowFile(flowPath, markText(longest));
+
+            const lines = parseFlowBuffer(await fsp.readFile(flowPath));
+            assert.equal(lines[0].kind, 'skip');
+            assert.equal(lines[0].raw, `~${longest}`);
+
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/other.pkt'));
+            assert.equal(
+                result.deleted,
+                true,
+                'nothing left: the marked line is not live'
+            );
+        });
+
+        it('still applies to everything else', () => {
+            const tooLong = `/${'a'.repeat(MAX_LINE_BYTES)}`;
+            assert.equal(parseFlowLine(tooLong).kind, 'invalid');
+            assert.equal(parseFlowLine(`^${tooLong.slice(1)}`).kind, 'invalid');
+        });
+    });
+
+    it('an in-place rewrite survives short writes', async function () {
+        if ('function' !== typeof process.getuid) return this.skip();
+        asOtherUser();
+        const content = latin1('/fb/caf\xe9.zip\r\n/fb/a.zip\n#/ob/b.su0\n');
+        await fsp.writeFile(flowPath, content);
+
+        //  A write() that only ever manages one byte.
+        const realOpen = fsp.open;
+        fsp.open = async (...args) => {
+            const fh = await realOpen(...args);
+            if (args[0] === flowPath && 'r+' === args[1]) {
+                const write = fh.write.bind(fh);
+                fh.write = (buf, off, len, pos) => write(buf, off, Math.min(1, len), pos);
+            }
+            return fh;
+        };
+        let result;
+        try {
+            result = await rewriteFlowFile(flowPath, markText('/fb/a.zip'));
+        } finally {
+            fsp.open = realOpen;
+        }
+        assert.equal(result.how, 'rewritten-in-place');
+        assert.ok(
+            (await fsp.readFile(flowPath)).equals(
+                latin1('/fb/caf\xe9.zip\r\n~/fb/a.zip\n#/ob/b.su0\n')
+            )
+        );
+    });
+
+    it('a relative skipped line knows where it pointed', () => {
+        const l = parseFlowLine('~sub/x.zip');
+        assert.equal(l.kind, 'skip');
+        assert.equal(l.relative, true);
+        assert.equal(parseFlowLine('!/abs/x.zip').relative, false);
+    });
+});

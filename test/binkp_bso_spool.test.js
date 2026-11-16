@@ -3034,3 +3034,48 @@ describe('BsoSpool — a real session marks lines and keeps the rest byte for by
             .catch(done);
     });
 });
+
+describe('BsoSpool — review follow-ups', () => {
+    beforeEach(cleanOutbound);
+
+    const flowPath = () => path.join(outboundDir(tmpDir), '00680001.flo');
+    const entriesFor = report => {
+        const node = report.find(n => 104 === n.address.net && 1 === n.address.node);
+        return node ? node.entries : [];
+    };
+
+    it('a byte order mark before the first line neither hides its directive nor gets it pruned', async () => {
+        const pkt = path.join(outboundDir(tmpDir), 'bom.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+        await fsp.writeFile(flowPath(), Buffer.concat([bom, Buffer.from(`^${pkt}\n`)]));
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.deepEqual(
+            files.map(f => [f.path, f.disposition]),
+            [[pkt, 'delete']]
+        );
+        assert.equal(entriesFor(await spool.inspectOutbound())[0].status, 'pending');
+
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        assert.deepEqual(removed, []);
+        assert.ok(
+            (await fsp.readFile(flowPath())).equals(
+                Buffer.concat([bom, Buffer.from(`^${pkt}\n`)])
+            )
+        );
+    });
+
+    it('lists a relative ~ or ! line relative to the flow file, not the working directory', async () => {
+        await fsp.writeFile(flowPath(), '~sub/sent.zip\n!other.zip\n/abs/x.zip\n');
+        const entries = entriesFor(await spool.inspectOutbound());
+        assert.equal(
+            entries.find(e => 'sent' === e.status).path,
+            path.join(outboundDir(tmpDir), 'sub', 'sent.zip')
+        );
+        assert.equal(
+            entries.find(e => 'skip' === e.status).path,
+            path.join(outboundDir(tmpDir), 'other.zip')
+        );
+    });
+});

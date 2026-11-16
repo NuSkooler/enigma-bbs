@@ -475,7 +475,11 @@ class BsoSpool {
                     add(addr, {
                         ...base,
                         status: '~' === line.directive ? 'sent' : 'skip',
-                        path: displayPath(line),
+                        //  A relative one is relative to the flow file, as
+                        //  for a line still to be sent; the transit sweep
+                        //  resolves these paths.
+                        path:
+                            textPath(flowLineTarget(filePath, line)) || displayPath(line),
                     });
                     continue;
                 }
@@ -1276,9 +1280,10 @@ async function flowHasPending(flowPath, addr, repeatMs, policy) {
 //  The filesystem path a 'send' line names, before any fallback, or null
 //  when it names nothing on this platform.
 //
-//  A bare name is relative to the flow file's own directory, the first place
-//  FTS-5005.003 suggests and where hpt resolves them -- never to whatever
-//  directory this process happens to be running in. A DOS path is a path
+//  A relative path (name.pkt, sub/name.pkt) is relative to the flow file's
+//  own directory, the first place FTS-5005.003 suggests and where hpt
+//  resolves them -- never to whatever directory this process happens to be
+//  running in. A DOS path is a path
 //  only on Windows; elsewhere only the basename fallback can find it.
 //
 function flowLineTarget(flowPath, line) {
@@ -1294,6 +1299,12 @@ function flowLineTarget(flowPath, line) {
         return null;
     }
     return line.path;
+}
+
+//  |p| when it is a path as text, else null (no path, or one that is not
+//  UTF-8).
+function textPath(p) {
+    return 'string' === typeof p ? p : null;
 }
 
 //  A line's path as text for a listing: the path when it is UTF-8, the raw

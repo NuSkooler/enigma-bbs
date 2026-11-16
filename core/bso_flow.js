@@ -47,6 +47,10 @@ const SKIP_DIRECTIVES = ['~', '!'];
 //  The directives that may be replaced by '~' with a single byte write.
 const MARKABLE_IN_PLACE = ['^', '-', '#', '@'];
 
+//  A UTF-8 byte order mark, as latin1 characters. Some editors put one at
+//  the start of a file; it is not part of the first line.
+const UTF8_BOM = '\xef\xbb\xbf';
+
 //  Longest line read as a path. binkd splits at MAXPATHLEN (4096); anything
 //  longer is not a path any mailer agrees on.
 const MAX_LINE_BYTES = 4096;
@@ -122,7 +126,7 @@ function trailingSpaceStart(s) {
 }
 
 //
-//  What the path part of a line is: absolute, a DOS path, a bare name
+//  What the path part of a line is: absolute, a DOS path, a path
 //  relative to the flow file's directory, or not something we take as a path.
 //
 function classifyBody(body) {
@@ -158,7 +162,7 @@ function classifyBody(body) {
 //    path          |body| for the filesystem: a string, or a Buffer when it
 //                  is not valid UTF-8. Informational only for 'skip': a line
 //                  binkd marked '~' over a leading '/' has lost it
-//    relative      a bare name, meant relative to the flow file's directory
+//    relative      a relative path, meant relative to the flow file's directory
 //    dos           a DOS path (C:\..., \\server\...)
 //    reason        why a line is 'unknown' or 'invalid'
 //    lead          offset of |text| within |raw|
@@ -191,7 +195,10 @@ function parseFlowLine(raw, eol = '') {
         return line;
     }
 
-    if (text.length > MAX_LINE_BYTES) {
+    //  A '~' does not count: marking a line sent adds one to a line that had
+    //  no directive, and that must not turn a line we accepted into one we
+    //  do not.
+    if (text.length - ('~' === text[0] ? 1 : 0) > MAX_LINE_BYTES) {
         line.kind = 'invalid';
         line.reason = `longer than ${MAX_LINE_BYTES} bytes`;
         return line;
@@ -210,6 +217,13 @@ function parseFlowLine(raw, eol = '') {
         line.directive = first;
         line.body = text.slice(1);
         line.path = line.body ? decodePath(line.body) : null;
+        if (line.body) {
+            //  Where it would have pointed, for whoever wants to know what a
+            //  skipped line referred to (the transit sweep does).
+            const classified = classifyBody(line.body);
+            line.relative = Boolean(classified.relative);
+            line.dos = Boolean(classified.dos);
+        }
         return line;
     }
 
@@ -238,10 +252,18 @@ function parseFlowLine(raw, eol = '') {
 //  line's index is its position in the file. Each line also carries
 //  |offset|, its first byte in |buf|.
 //
+//  A UTF-8 byte order mark at the start of the file is not part of the first
+//  line; it is kept as |lines.bom| and written back by serializeFlowLines().
+//
 function parseFlowBuffer(buf) {
     const s = Buffer.isBuffer(buf) ? buf.toString('latin1') : String(buf || '');
     const lines = [];
     let pos = 0;
+    const bom = s.startsWith(UTF8_BOM) ? UTF8_BOM : '';
+    //  Not enumerable: |lines| is still just the lines to anything iterating
+    //  or comparing it.
+    Object.defineProperty(lines, 'bom', { value: bom, enumerable: false });
+    pos = bom.length;
     while (pos < s.length) {
         const nl = s.indexOf('\n', pos);
         const end = nl < 0 ? s.length : nl;
@@ -253,8 +275,8 @@ function parseFlowBuffer(buf) {
     return lines;
 }
 
-function serializeFlowLines(lines) {
-    return Buffer.from(lines.map(l => `${l.raw}${l.eol}`).join(''), 'latin1');
+function serializeFlowLines(lines, bom = lines.bom || '') {
+    return Buffer.from(bom + lines.map(l => `${l.raw}${l.eol}`).join(''), 'latin1');
 }
 
 //
@@ -413,6 +435,25 @@ async function replaceAtomically(flowPath, st, buf) {
     await syncDir(dir);
 }
 
+//  Write all of |buf| at |position|; a single write() may write less.
+async function writeAll(fh, buf, position) {
+    let done = 0;
+    while (done < buf.length) {
+        const { bytesWritten } = await fh.write(
+            buf,
+            done,
+            buf.length - done,
+            position + done
+        );
+        if (bytesWritten <= 0) {
+            const err = new Error('Flow file write made no progress');
+            err.code = 'EIO';
+            throw err;
+        }
+        done += bytesWritten;
+    }
+}
+
 //
 //  Rewrite the file where it is, keeping its inode, owner and mode. Not
 //  atomic: written over the top and then cut to length, so a reader catching
@@ -421,7 +462,7 @@ async function replaceAtomically(flowPath, st, buf) {
 async function rewriteInPlace(flowPath, buf) {
     const fh = await fsp.open(flowPath, 'r+');
     try {
-        await fh.write(buf, 0, buf.length, 0);
+        await writeAll(fh, buf, 0);
         await fh.truncate(buf.length);
         await fh.sync();
     } finally {
@@ -439,7 +480,7 @@ async function markInPlace(flowPath, lines, indices) {
         const tilde = Buffer.from('~', 'latin1');
         for (const idx of indices) {
             const line = lines[idx];
-            await fh.write(tilde, 0, 1, line.offset + line.lead);
+            await writeAll(fh, tilde, line.offset + line.lead);
         }
         await fh.sync();
     } finally {
@@ -464,7 +505,7 @@ function noteInPlace(flowPath, why) {
 }
 
 async function writeEdited(flowPath, read, out, marked, removed) {
-    const buf = serializeFlowLines(out);
+    const buf = serializeFlowLines(out, read.lines.bom);
 
     let why;
     if (ownedByOther(read.st)) {
@@ -499,9 +540,14 @@ async function writeEdited(flowPath, read, out, marked, removed) {
 }
 
 async function rewriteLocked(flowPath, edit) {
+    //  A flow file may be a symlink (an outbound shared by linking a node's
+    //  flow file into place). Edit the file it leads to: renaming over the
+    //  link would replace the link and leave that file as it was.
+    let realPath;
     let read;
     try {
-        read = await readFlowFile(flowPath);
+        realPath = await fsp.realpath(flowPath);
+        read = await readFlowFile(realPath);
     } catch (err) {
         if ('ENOENT' === err.code) {
             return { changed: false, missing: true, marked: [], removed: [] };
@@ -533,25 +579,34 @@ async function rewriteLocked(flowPath, edit) {
     });
 
     if (!flowHasLive(out)) {
+        let removedFile = true;
         try {
-            await fsp.unlink(flowPath);
+            await fsp.unlink(realPath);
         } catch (err) {
             if ('ENOENT' !== err.code) {
+                removedFile = false;
                 log().warn(
                     { path: flowPath, error: err.message },
-                    'Could not remove a flow file with nothing left to send'
+                    'Could not remove a flow file with nothing left to send; writing it with the lines marked instead'
                 );
-                return { changed: false, marked: [], removed: [], lines: read.lines };
             }
         }
-        log().debug(
-            { path: flowPath, marked: marked.length, removed: removed.length },
-            'Flow file finished with; removed'
-        );
-        return { changed: true, deleted: true, marked, removed, lines: read.lines };
+        if (removedFile) {
+            if (realPath !== flowPath) {
+                //  And the link, which now leads nowhere.
+                await fsp.unlink(flowPath).catch(() => {});
+            }
+            log().debug(
+                { path: flowPath, marked: marked.length, removed: removed.length },
+                'Flow file finished with; removed'
+            );
+            return { changed: true, deleted: true, marked, removed, lines: read.lines };
+        }
+        //  Not removed: the edit still has to land, or what was just sent
+        //  looks unsent and goes again next session.
     }
 
-    const how = await writeEdited(flowPath, read, out, marked, removed);
+    const how = await writeEdited(realPath, read, out, marked, removed);
     log().debug(
         { path: flowPath, marked: marked.length, removed: removed.length, how },
         'Flow file updated'
