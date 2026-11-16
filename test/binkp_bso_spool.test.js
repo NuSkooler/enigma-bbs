@@ -2943,3 +2943,94 @@ describe('attachSpoolToSession — the same file listed twice', () => {
         assert.deepEqual(calls, [1, 2]);
     });
 });
+
+describe('BsoSpool — a real session marks lines and keeps the rest byte for byte', () => {
+    beforeEach(cleanOutbound);
+
+    it('marks every copy of what was sent, deletes the ^ file, and leaves other lines exactly as they were', done => {
+        const dir = outboundDir(tmpDir);
+        const flowPath = path.join(dir, '00020002.flo'); //  1:2/2, the caller
+        const pkt = path.join(dir, 'aabbccdd.pkt');
+        const foreign = Buffer.from('!/fb/caf\xe9.zip\r\n', 'latin1');
+
+        const received = [];
+        const finish = err => {
+            server.close();
+            done(err);
+        };
+
+        const check = async () => {
+            //  Flow file bookkeeping runs on 'file-sent' and is not awaited
+            //  by the session, so give it a moment.
+            const deadline = Date.now() + 2000;
+            let content;
+            for (;;) {
+                content = await fsp.readFile(flowPath);
+                if (!content.includes(Buffer.from(`^${pkt}`)) || Date.now() > deadline)
+                    break;
+                await new Promise(r => setTimeout(r, 20));
+            }
+            assert.deepEqual(received, ['aabbccdd.pkt'], 'sent once');
+            assert.ok(
+                content.equals(
+                    Buffer.concat([
+                        foreign,
+                        Buffer.from(`~${pkt}\n$kept-by-other-software\n~${pkt}\n`),
+                    ])
+                ),
+                content.toString('latin1')
+            );
+            await assert.rejects(fsp.access(pkt), { code: 'ENOENT' });
+        };
+
+        let server;
+        fsp.writeFile(pkt, 'PKT')
+            .then(() =>
+                fsp.writeFile(
+                    flowPath,
+                    Buffer.concat([
+                        foreign,
+                        Buffer.from(`^${pkt}\n$kept-by-other-software\n^${pkt}\n`),
+                    ])
+                )
+            )
+            .then(() => {
+                server = net.createServer(serverSocket => {
+                    const serverSess = new BinkpSession(serverSocket, {
+                        role: 'answering',
+                        addresses: ['1:1/1@testnet'],
+                        getPassword: () => null,
+                        tempDir: os.tmpdir(),
+                    });
+                    attachSpoolToSession(serverSess, spool, null).then(() =>
+                        serverSess.start()
+                    );
+                });
+
+                server.listen(0, '127.0.0.1', async () => {
+                    const clientSocket = net.createConnection(
+                        server.address().port,
+                        '127.0.0.1'
+                    );
+                    const clientSess = new BinkpSession(clientSocket, {
+                        role: 'originating',
+                        addresses: ['1:2/2@testnet'],
+                        getPassword: () => null,
+                        tempDir: os.tmpdir(),
+                    });
+                    //  As the existing session test does; nothing is queued for
+                    //  1:1/1, and received files go to the spool's inbound.
+                    await attachSpoolToSession(clientSess, spool, [
+                        { zone: 1, net: 1, node: 1 },
+                    ]);
+                    clientSess.on('file-received', name => received.push(name));
+                    clientSess.on('session-end', () => {
+                        check().then(() => finish(), finish);
+                    });
+                    clientSess.on('error', finish);
+                    clientSess.start();
+                });
+            })
+            .catch(done);
+    });
+});
