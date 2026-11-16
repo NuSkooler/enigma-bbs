@@ -207,8 +207,9 @@ function scanAnsiSlow(s, i) {
     return ANSI_STICKY.lastIndex;
 }
 
-//  Columns a bare ESC[C (no argument) moves when measured.
-const BARE_CUF = 0;
+//  A bare ESC[C (no argument, or ESC[;C) moves one column, as terminals do.
+//  ESC[0C is measured as 0; |CF00 emits it.
+const BARE_CUF = 1;
 
 //  Display cells of the ANSI sequence just scanned: ESC[nC moves n.
 function ansiCellWidth() {

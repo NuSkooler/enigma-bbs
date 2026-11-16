@@ -297,6 +297,17 @@ describe('pipe_codes', () => {
             assert.equal(P.width(`${ESC}[0C`), 0);
         });
 
+        it('counts a bare ESC[C as one column, as a terminal moves', () => {
+            for (const opts of [undefined, ANSI_ONLY]) {
+                assert.equal(P.width(`${ESC}[C`, opts), 1);
+                assert.equal(P.width(`a${ESC}[Cb`, opts), 3);
+                assert.equal(P.width(`${ESC}[;C`, opts), 1);
+                assert.equal(P.renderWithWidth(`a${ESC}[Cb`, opts).width, 3);
+            }
+            assert.equal(P.splitPos(`a${ESC}[Cb`, 2), 4);
+            assert.equal(P.substr(`a${ESC}[Cbc`, 1, 2), `${ESC}[Cb`);
+        });
+
         it('ansi: pipes are literal text', () => {
             assert.equal(P.width('|07x', ANSI_ONLY), 4);
         });

@@ -31,7 +31,7 @@ const ESC = '\x1b';
 //  What a terminal shows: escapes dropped, ESC[nC as n spaces
 function visible(s) {
     return pipeToAnsi(s)
-        .replace(/\x1b\[(\d*)C/g, (m, n) => ' '.repeat(parseInt(n, 10) || 0))
+        .replace(/\x1b\[(\d*)C/g, (m, n) => ' '.repeat('' === n ? 1 : parseInt(n, 10)))
         .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
 }
 
@@ -112,6 +112,12 @@ describe('pipe code measuring (#1022)', () => {
             assert.equal(renderStringLength('a||b', editor), 4);
             assert.equal(renderStringLength('||07', editor), 1);
             assert.equal(renderStringLength('|07|UN', editor), 3);
+        });
+
+        it('a bare ESC[C is one column', () => {
+            assert.equal(renderStringLength(`a${ESC}[Cb`), 3);
+            assert.equal(ansiRenderStringLength(`a${ESC}[Cb`), 3);
+            assert.equal(ansiRenderStringLength(`a${ESC}[0Cb`), 2);
         });
 
         it('ansiRenderStringLength() ignores pipes', () => {
