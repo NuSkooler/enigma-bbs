@@ -177,6 +177,7 @@ function cmdStatus() {
         let missingTotal = 0;
         let unreadableTotal = 0;
         let refusedTotal = 0;
+        let refusedLinkTotal = 0;
         let misfiledTotal = 0;
         let unparsedTotal = 0;
         for (const node of interesting) {
@@ -184,7 +185,12 @@ function cmdStatus() {
             const missing = live.filter(e => 'missing' === e.status);
             missingTotal += missing.length;
             unreadableTotal += live.filter(e => 'unreadable' === e.status).length;
-            refusedTotal += live.filter(e => 'refused' === e.status).length;
+            refusedTotal += live.filter(
+                e => 'refused' === e.status && !e.linkTarget
+            ).length;
+            refusedLinkTotal += live.filter(
+                e => 'refused' === e.status && e.linkTarget
+            ).length;
             misfiledTotal += live.filter(e => 'misfiled' === e.status).length;
             unparsedTotal += live.filter(
                 e => 'unknown' === e.status || 'invalid' === e.status
@@ -264,6 +270,16 @@ function cmdStatus() {
                 'directories. Those are never sent; remove them from the flow file.'
             );
         }
+
+        if (refusedLinkTotal > 0) {
+            console.info('');
+            console.info(
+                `${refusedLinkTotal} flow ${
+                    1 === refusedLinkTotal ? 'file is a link' : 'files are links'
+                } into ENiGMA's configuration, database or log directories,`
+            );
+            console.info('and not read; see "bso list".');
+        }
     });
 }
 
@@ -309,7 +325,7 @@ function cmdList(addressArg) {
                     'unknown' === entry.status || 'invalid' === entry.status
                         ? entry.line
                         : entry.path
-                )}`
+                )}${entry.linkTarget ? `  ->  ${shownPath(entry.linkTarget)}` : ''}`
             );
         }
 
@@ -342,7 +358,21 @@ function cmdList(addressArg) {
             }
         }
 
-        const refused = live.filter(e => 'refused' === e.status);
+        const refused = live.filter(e => 'refused' === e.status && !e.linkTarget);
+        const refusedLinks = live.filter(e => 'refused' === e.status && e.linkTarget);
+        if (refusedLinks.length > 0) {
+            console.info('');
+            console.info(
+                `${refusedLinks.length} flow ${
+                    1 === refusedLinks.length ? 'file is a link' : 'files are links'
+                } into ENiGMA's configuration, database or log directories.`
+            );
+            console.info(
+                `${
+                    1 === refusedLinks.length ? 'It is' : 'They are'
+                } not read, sent from or changed. Remove the link, or replace it with the flow file.`
+            );
+        }
         if (refused.length > 0) {
             console.info('');
             console.info(

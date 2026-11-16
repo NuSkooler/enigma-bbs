@@ -556,8 +556,37 @@ function warnLinkRefused(flowPath, realPath, protectedDir) {
     warnedLinks.set(flowPath, now);
     log().warn(
         { path: flowPath, target: realPath, protectedDir },
-        'Flow file is a link into a protected directory; not changing it'
+        'Flow file is a link into a protected directory; not reading or changing it'
     );
+}
+
+//
+//  When |flowPath| is a symlink whose target |policy| refuses (a protected
+//  directory), { realPath, protectedDir }; otherwise null. Such a flow file is
+//  neither read nor changed. Warns, once an hour per link, unless |quiet|.
+//
+async function flowLinkRefused(flowPath, policy, { quiet = false } = {}) {
+    if (!policy) {
+        return null;
+    }
+    let realPath;
+    try {
+        if (!(await fsp.lstat(flowPath)).isSymbolicLink()) {
+            return null;
+        }
+        realPath = await fsp.realpath(flowPath);
+    } catch {
+        //  Gone, or a link to nothing: there is nothing to read either way.
+        return null;
+    }
+    const classified = policy.classifyRealPath(realPath);
+    if (!classified.refused) {
+        return null;
+    }
+    if (!quiet) {
+        warnLinkRefused(flowPath, realPath, classified.protectedDir);
+    }
+    return { realPath, protectedDir: classified.protectedDir };
 }
 
 async function rewriteLocked(flowPath, edit, { policy } = {}) {
@@ -571,26 +600,19 @@ async function rewriteLocked(flowPath, edit, { policy } = {}) {
     try {
         isLink = (await fsp.lstat(flowPath)).isSymbolicLink();
         realPath = isLink ? await fsp.realpath(flowPath) : flowPath;
+        if (isLink && policy) {
+            const classified = policy.classifyRealPath(realPath);
+            if (classified.refused) {
+                warnLinkRefused(flowPath, realPath, classified.protectedDir);
+                return { changed: false, refused: true, marked: [], removed: [] };
+            }
+        }
         read = await readFlowFile(realPath);
     } catch (err) {
         if ('ENOENT' === err.code) {
             return { changed: false, missing: true, marked: [], removed: [] };
         }
         throw err;
-    }
-
-    if (isLink && policy) {
-        const classified = policy.classifyRealPath(realPath);
-        if (classified.refused) {
-            warnLinkRefused(flowPath, realPath, classified.protectedDir);
-            return {
-                changed: false,
-                refused: true,
-                marked: [],
-                removed: [],
-                lines: read.lines,
-            };
-        }
     }
 
     const plan = edit(read.lines) || {};
@@ -750,6 +772,7 @@ module.exports = {
     flowHasLive,
     readFlowFile,
     rewriteFlowFile,
+    flowLinkRefused,
     withFlowFileWrite,
     isFlowTempFileName,
     printablePath,

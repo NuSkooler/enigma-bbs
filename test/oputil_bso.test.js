@@ -190,6 +190,28 @@ describe('oputil bso', function () {
         );
     });
 
+    it('list shows a flow file linked into a protected directory as REFUSED, and prune leaves it', async () => {
+        const { root, flowPath, realFile } = await makeFixture('linked');
+        //  The config directory (|root|) is protected; the flow file links there.
+        const target = path.join(root, 'linked-target.clo');
+        await fsp.writeFile(target, `^${realFile}\n`);
+        await fsp.unlink(flowPath);
+        await fsp.symlink(target, flowPath);
+
+        const list = runOputil(root, ['list', NODE]);
+        assert.equal(list.code, 0);
+        assert.ok(list.out.includes(`REFUSED`), list.out);
+        assert.ok(list.out.includes(`${flowPath}  ->  ${target}`), list.out);
+        assert.match(list.out, /not read, sent from or changed/);
+
+        const status = runOputil(root, ['status']);
+        assert.match(status.out, /1 flow file is a link into ENiGMA's configuration/);
+
+        runOputil(root, ['prune', NODE, '--yes']);
+        assert.ok((await fsp.lstat(flowPath)).isSymbolicLink());
+        assert.equal(await fsp.readFile(target, 'utf8'), `^${realFile}\n`);
+    });
+
     // ── 4. the scripting contract ─────────────────────────────────────────────
 
     it('exits non-zero and prints usage for an address it cannot parse', async () => {

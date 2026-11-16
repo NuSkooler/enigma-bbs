@@ -28,6 +28,7 @@ const {
 const {
     readFlowFile,
     rewriteFlowFile,
+    flowLinkRefused,
     withFlowFileWrite,
     isFlowTempFileName,
     printablePath,
@@ -404,7 +405,9 @@ class BsoSpool {
     //  character, more than 4096 bytes, no path at all, or a path that is
     //  not UTF-8); both carry |reason|, are never sent and never pruned, and
     //  keep their flow file in place. Lines are parsed by parseFlowLine() in
-    //  core/bso_flow.js.
+    //  core/bso_flow.js. A flow file that is a symlink into a protected
+    //  directory is not read: it is one 'refused' entry for the flow file
+    //  itself, with |linkTarget| naming where it leads.
     //
     //
     //  |options.onUnreadable| is called with the path of any flow file that
@@ -442,6 +445,26 @@ class BsoSpool {
                     size: stat.size,
                     timestamp: Math.floor(stat.mtimeMs / 1000),
                     disposition: 'delete',
+                });
+                return;
+            }
+
+            //  A flow file linked into a protected directory is not read; it is
+            //  listed as refused itself. Quiet: this is a report.
+            const linkRefused = await flowLinkRefused(filePath, policy, { quiet: true });
+            if (linkRefused) {
+                add(addr, {
+                    kind: 'flow',
+                    status: 'refused',
+                    path: filePath,
+                    linkTarget: linkRefused.realPath,
+                    protectedDir: linkRefused.protectedDir,
+                    size: null,
+                    timestamp: null,
+                    disposition: null,
+                    flowFile: filePath,
+                    lineIdx: null,
+                    line: null,
                 });
                 return;
             }
@@ -955,6 +978,10 @@ class BsoSpool {
         if (!policy) {
             policy = await this._flowPathPolicy();
         }
+        //  A flow file linked into a protected directory is not read at all.
+        if (await flowLinkRefused(flowPath, policy)) {
+            return [];
+        }
         const { lines } = await readFlowFile(flowPath);
         const results = [];
 
@@ -1268,6 +1295,9 @@ function uniquePacketName(filePath) {
 //  "Session complete".
 //
 async function flowHasPending(flowPath, addr, repeatMs, policy) {
+    if (await flowLinkRefused(flowPath, policy)) {
+        return false;
+    }
     const read = await readFlowFile(flowPath).catch(() => null);
     if (!read) {
         return false;

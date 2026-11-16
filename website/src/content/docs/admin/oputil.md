@@ -465,6 +465,8 @@ Two more flags come from the rules for which files a flow file may act on (see
 
 - `REFUSED`: the entry names a file in ENiGMA½'s configuration, security, database or log
   directories. It is never sent and never pruned; remove the line from the flow file.
+  A flow file that is itself a link into one of those directories is shown as one
+  `REFUSED` entry, `link  ->  target`; it is not read. Remove the link.
 - `KEPT`: the entry asks for the file to be deleted or truncated after sending, but the
   file is outside the mail directories. It is sent and left in place.
 - `MISFILED`: the stored path is gone, but a file of that name is beside the flow file,

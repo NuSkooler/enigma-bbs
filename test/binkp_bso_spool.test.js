@@ -3107,20 +3107,72 @@ describe('BsoSpool — a flow file that is a symlink', () => {
         }
     });
 
-    it('does not change a link into a protected directory', async () => {
-        const prot = path.join(tmpDir, 'protected-cfg');
-        const { pkt, target, link } = await linkedFlow(prot);
-        const guarded = new BsoSpool({
-            ...makeConfig(tmpDir),
-            flowPaths: { protectedDirs: [prot] },
+    describe('a link into a protected directory', () => {
+        let prot;
+        let guarded;
+        let linked;
+
+        beforeEach(async () => {
+            prot = path.join(tmpDir, 'protected-cfg');
+            linked = await linkedFlow(prot);
+            guarded = new BsoSpool({
+                ...makeConfig(tmpDir),
+                flowPaths: { protectedDirs: [prot] },
+            });
         });
-        try {
-            const files = await guarded.getOutboundFilesForNode(TEST_ADDR);
-            await files[0].disposeFn();
-            assert.ok((await fsp.lstat(link)).isSymbolicLink());
-            assert.equal(await fsp.readFile(target, 'utf8'), `^${pkt}\n`);
-        } finally {
+
+        afterEach(async () => {
             await fsp.rm(prot, { recursive: true, force: true });
-        }
+        });
+
+        it('is not read: nothing queued, nothing pending, warned once per window', async () => {
+            const loggerModule = require('../core/logger.js');
+            const warnings = [];
+            const original = loggerModule.log.warn;
+            loggerModule.log.warn = (fields, message) =>
+                warnings.push({ fields, message });
+            try {
+                assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+                assert.deepEqual(await guarded.getNodesWithPendingMail(), []);
+            } finally {
+                loggerModule.log.warn = original;
+            }
+            const linkWarnings = warnings.filter(w =>
+                /link into a protected directory/.test(w.message)
+            );
+            assert.equal(linkWarnings.length, 1, JSON.stringify(warnings));
+            assert.ok(
+                linkWarnings.every(w => w.fields.path === linked.link),
+                JSON.stringify(linkWarnings)
+            );
+        });
+
+        it('is listed as one refused entry for the flow file, and prune leaves it alone', async () => {
+            const node = (await guarded.inspectOutbound()).find(
+                n => 104 === n.address.net && 1 === n.address.node
+            );
+            assert.equal(node.entries.length, 1);
+            assert.equal(node.entries[0].status, 'refused');
+            assert.equal(node.entries[0].path, linked.link);
+            assert.equal(node.entries[0].linkTarget, await fsp.realpath(linked.target));
+
+            const { removed } = await guarded.pruneMissingRefs(TEST_ADDR, {
+                dryRun: false,
+            });
+            assert.deepEqual(removed, []);
+            assert.ok((await fsp.lstat(linked.link)).isSymbolicLink());
+            assert.equal(await fsp.readFile(linked.target, 'utf8'), `^${linked.pkt}\n`);
+        });
+
+        it('is not changed by marking', async () => {
+            await guarded._applyFlowDisposition(
+                linked.link,
+                0,
+                `^${linked.pkt}`,
+                await guarded.flowPathPolicy()
+            );
+            assert.ok((await fsp.lstat(linked.link)).isSymbolicLink());
+            assert.equal(await fsp.readFile(linked.target, 'utf8'), `^${linked.pkt}\n`);
+        });
     });
 });
