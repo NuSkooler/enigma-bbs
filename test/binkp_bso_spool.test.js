@@ -3079,3 +3079,48 @@ describe('BsoSpool — review follow-ups', () => {
         );
     });
 });
+
+describe('BsoSpool — a flow file that is a symlink', () => {
+    beforeEach(cleanOutbound);
+
+    async function linkedFlow(targetDir) {
+        await fsp.mkdir(targetDir, { recursive: true });
+        const pkt = path.join(outboundDir(tmpDir), 'linked.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        const target = path.join(targetDir, 'shared.flo');
+        await fsp.writeFile(target, `^${pkt}\n`);
+        const link = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.symlink(target, link);
+        return { pkt, target, link };
+    }
+
+    it('marks the file it leads to and removes only the link', async () => {
+        const elsewhere = path.join(tmpDir, 'elsewhere');
+        const { pkt, target, link } = await linkedFlow(elsewhere);
+        try {
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            await files[0].disposeFn();
+            await assert.rejects(fsp.lstat(link), { code: 'ENOENT' });
+            assert.equal(await fsp.readFile(target, 'utf8'), `~${pkt}\n`);
+        } finally {
+            await fsp.rm(elsewhere, { recursive: true, force: true });
+        }
+    });
+
+    it('does not change a link into a protected directory', async () => {
+        const prot = path.join(tmpDir, 'protected-cfg');
+        const { pkt, target, link } = await linkedFlow(prot);
+        const guarded = new BsoSpool({
+            ...makeConfig(tmpDir),
+            flowPaths: { protectedDirs: [prot] },
+        });
+        try {
+            const files = await guarded.getOutboundFilesForNode(TEST_ADDR);
+            await files[0].disposeFn();
+            assert.ok((await fsp.lstat(link)).isSymbolicLink());
+            assert.equal(await fsp.readFile(target, 'utf8'), `^${pkt}\n`);
+        } finally {
+            await fsp.rm(prot, { recursive: true, force: true });
+        }
+    });
+});

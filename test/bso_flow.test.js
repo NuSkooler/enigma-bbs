@@ -785,12 +785,63 @@ describe('bso_flow — review follow-ups', () => {
             );
         });
 
-        it('removes both the file and the link when nothing is left', async () => {
+        it('when nothing is left, marks and keeps the file it leads to and removes only the link', async () => {
             await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'));
             const result = await rewriteFlowFile(flowPath, markText('^/ob/b.pkt'));
-            assert.equal(result.deleted, true);
+            assert.equal(result.deleted, true, 'gone from where it was found');
+            assert.equal(result.linkTarget, realPath);
             await assert.rejects(fsp.lstat(flowPath), { code: 'ENOENT' });
-            await assert.rejects(fsp.access(realPath), { code: 'ENOENT' });
+            assert.equal(
+                await fsp.readFile(realPath, 'latin1'),
+                '~/ob/a.pkt\n~/ob/b.pkt\n',
+                'kept, marked, so nothing else reading it sends it again'
+            );
+        });
+
+        it('does the same when the file it leads to belongs to another user', async function () {
+            if ('function' !== typeof process.getuid) return this.skip();
+            asOtherUser();
+            await fsp.writeFile(realPath, '^/ob/a.pkt\n');
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'));
+            assert.equal(result.deleted, true);
+            assert.equal(result.how, 'marked-in-place');
+            await assert.rejects(fsp.lstat(flowPath), { code: 'ENOENT' });
+            assert.equal(await fsp.readFile(realPath, 'latin1'), '~/ob/a.pkt\n');
+        });
+
+        it('leaves a link into a protected directory, and what it leads to, alone', async () => {
+            const { FlowPathPolicy } = require('../core/bso_flow_paths.js');
+            const policy = await FlowPathPolicy.build({
+                settings: { protectedDirs: [realDir] },
+                spoolDirs: [tmpDir],
+            });
+
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'), {
+                policy,
+            });
+            assert.equal(result.changed, false);
+            assert.equal(result.refused, true);
+            assert.ok((await fsp.lstat(flowPath)).isSymbolicLink());
+            assert.equal(
+                await fsp.readFile(realPath, 'latin1'),
+                '^/ob/a.pkt\n^/ob/b.pkt\n'
+            );
+        });
+
+        it('follows a link elsewhere when given the policy', async () => {
+            const { FlowPathPolicy } = require('../core/bso_flow_paths.js');
+            const policy = await FlowPathPolicy.build({
+                settings: { protectedDirs: [paths.join(tmpDir, 'config')] },
+                spoolDirs: [tmpDir],
+            });
+            const result = await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'), {
+                policy,
+            });
+            assert.equal(result.how, 'replaced');
+            assert.equal(
+                await fsp.readFile(realPath, 'latin1'),
+                '~/ob/a.pkt\n^/ob/b.pkt\n'
+            );
         });
     });
 

@@ -3491,17 +3491,22 @@ function FTNMessageScanTossModule() {
     //  owed to somebody?" and "what may the sweep delete?" -- so they cannot
     //  disagree with each other.
     //
-    this.transitReferencedPaths = function (cb) {
+    //  A BsoSpool over our outbound, as the mailer sees it.
+    this.outboundSpool = function () {
         const { BsoSpool } = require('../binkp/bso_spool.js');
         const { flowPathSettings } = require('../bso_flow_paths.js');
         const config = Config();
 
-        const spool = new BsoSpool({
+        return new BsoSpool({
             paths: _.get(config, 'scannerTossers.ftn_bso.paths', {}),
             networks: _.get(config, 'messageNetworks.ftn.networks', {}),
             defaultNetwork: _.get(config, 'scannerTossers.ftn_bso.defaultNetwork'),
             flowPaths: flowPathSettings(config),
         });
+    };
+
+    this.transitReferencedPaths = function (cb) {
+        const spool = self.outboundSpool();
 
         //
         //  A flow file we could not read contributes no references, which is
@@ -4216,69 +4221,81 @@ function FTNMessageScanTossModule() {
                 let removed = 0;
                 let ticPaths = [];
 
-                rewriteFlowFile(flowFilePath, lines => {
-                    //  Only lines still waiting to be sent; '~' and '!' lines
-                    //  are not, and nor is anything not understood.
-                    const matched = [];
-                    lines.forEach((line, i) => {
-                        if ('send' === line.kind && line.path === targetPath) {
-                            matched.push(i);
-                        }
-                    });
+                self.outboundSpool()
+                    .flowPathPolicy()
+                    .then(policy =>
+                        rewriteFlowFile(
+                            flowFilePath,
+                            lines => {
+                                //  Only lines still waiting to be sent; '~' and '!' lines
+                                //  are not, and nor is anything not understood.
+                                const matched = [];
+                                lines.forEach((line, i) => {
+                                    if (
+                                        'send' === line.kind &&
+                                        line.path === targetPath
+                                    ) {
+                                        matched.push(i);
+                                    }
+                                });
 
-                    if (0 === matched.length) {
-                        return null;
-                    }
-
-                    const companion = withCompanionTicRefs(lines, matched);
-                    removed = matched.length;
-                    ticPaths = companion.ticPaths;
-                    return { remove: Array.from(companion.indices) };
-                }).then(
-                    result => {
-                        //  No flow file for this node is the ordinary case.
-                        if (!result.changed) {
-                            return done(null);
-                        }
-
-                        //
-                        //  Rewrite first, then unlink. The other order leaves
-                        //  the flow file naming files that no longer exist if
-                        //  the write fails, which is the dangling reference
-                        //  #735 is about.
-                        //
-                        //  companionTicPath() rather than the raw reference
-                        //  text: resolveFlowRef() falls back to the basename
-                        //  beside the flow file when the stored path no longer
-                        //  resolves, so unlinking the literal text missed the
-                        //  file in exactly that case -- and it is also the
-                        //  containment rule, since a generated TIC is always a
-                        //  sibling of its flow file.
-                        //
-                        async.each(
-                            ticPaths,
-                            (ref, nextTic) => {
-                                const ticPath = companionTicPath(flowFilePath, ref);
-                                if (!ticPath) {
-                                    return nextTic(null);
+                                if (0 === matched.length) {
+                                    return null;
                                 }
-                                fs.unlink(ticPath, () => nextTic(null));
+
+                                const companion = withCompanionTicRefs(lines, matched);
+                                removed = matched.length;
+                                ticPaths = companion.ticPaths;
+                                return { remove: Array.from(companion.indices) };
                             },
-                            () => {
-                                Log.debug(
-                                    {
-                                        flowFile: flowFilePath,
-                                        file: paths.basename(targetPath),
-                                        removed,
-                                    },
-                                    'Dequeued superseded file from downlink outbound'
-                                );
+                            { policy }
+                        )
+                    )
+                    .then(
+                        result => {
+                            //  No flow file for this node is the ordinary case.
+                            if (!result.changed) {
                                 return done(null);
                             }
-                        );
-                    },
-                    err => done(err)
-                );
+
+                            //
+                            //  Rewrite first, then unlink. The other order leaves
+                            //  the flow file naming files that no longer exist if
+                            //  the write fails, which is the dangling reference
+                            //  #735 is about.
+                            //
+                            //  companionTicPath() rather than the raw reference
+                            //  text: resolveFlowRef() falls back to the basename
+                            //  beside the flow file when the stored path no longer
+                            //  resolves, so unlinking the literal text missed the
+                            //  file in exactly that case -- and it is also the
+                            //  containment rule, since a generated TIC is always a
+                            //  sibling of its flow file.
+                            //
+                            async.each(
+                                ticPaths,
+                                (ref, nextTic) => {
+                                    const ticPath = companionTicPath(flowFilePath, ref);
+                                    if (!ticPath) {
+                                        return nextTic(null);
+                                    }
+                                    fs.unlink(ticPath, () => nextTic(null));
+                                },
+                                () => {
+                                    Log.debug(
+                                        {
+                                            flowFile: flowFilePath,
+                                            file: paths.basename(targetPath),
+                                            removed,
+                                        },
+                                        'Dequeued superseded file from downlink outbound'
+                                    );
+                                    return done(null);
+                                }
+                            );
+                        },
+                        err => done(err)
+                    );
             },
             err => {
                 if (err && isBusyError(err)) {

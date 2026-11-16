@@ -588,6 +588,7 @@ class BsoSpool {
     //  caller is told what would go.
     //
     async pruneMissingRefs(addr, { dryRun = true, lockTimeoutMs } = {}) {
+        const policy = await this._flowPathPolicy();
         const target = (await this.inspectOutbound()).find(n =>
             sameAddress(n.address, addr)
         );
@@ -632,7 +633,7 @@ class BsoSpool {
                     },
                     done => {
                         //  rewriteFlowFile() takes the in-process chain itself.
-                        this._pruneFromFlowFile(flowPath, entries)
+                        this._pruneFromFlowFile(flowPath, entries, policy)
                             .then(spliced => {
                                 actuallyRemoved.push(...spliced);
                                 done(null);
@@ -686,62 +687,66 @@ class BsoSpool {
     //  collects a TIC for a file it never receives -- #735, but inflicted on
     //  someone else's system under our From and our Seenby. See #862.
     //
-    async _pruneFromFlowFile(flowPath, entries) {
+    async _pruneFromFlowFile(flowPath, entries, policy = null) {
         let spliced = [];
         let ticPaths = [];
 
-        const result = await rewriteFlowFile(flowPath, lines => {
-            //
-            //  Only entries still standing where the listing found them. The
-            //  listing was taken before the lock, so ftn_bso may have appended
-            //  or a session may have marked something since -- and a line that
-            //  has moved says nothing trustworthy about what follows it either,
-            //  so it contributes no companion.
-            //
-            spliced = entries.filter(
-                e =>
-                    e.lineIdx < lines.length &&
-                    'send' === lines[e.lineIdx].kind &&
-                    lines[e.lineIdx].text === e.line
-            );
+        const result = await rewriteFlowFile(
+            flowPath,
+            lines => {
+                //
+                //  Only entries still standing where the listing found them. The
+                //  listing was taken before the lock, so ftn_bso may have appended
+                //  or a session may have marked something since -- and a line that
+                //  has moved says nothing trustworthy about what follows it either,
+                //  so it contributes no companion.
+                //
+                spliced = entries.filter(
+                    e =>
+                        e.lineIdx < lines.length &&
+                        'send' === lines[e.lineIdx].kind &&
+                        lines[e.lineIdx].text === e.line
+                );
 
-            const companion = withCompanionTicRefs(
-                lines,
-                spliced.map(e => e.lineIdx)
-            );
-            ticPaths = companion.ticPaths;
+                const companion = withCompanionTicRefs(
+                    lines,
+                    spliced.map(e => e.lineIdx)
+                );
+                ticPaths = companion.ticPaths;
 
-            //
-            //  Report the companions too. An operator told "removed 1" while
-            //  two lines went has been told something false about their own
-            //  spool.
-            //
-            //  Inserted in line order rather than appended, so the listing
-            //  reads the way the flow file does -- a payload followed by the
-            //  TIC that announces it. Appending them all at the end put two
-            //  payloads above two TICs, and the CLI's "(TIC announcing it)"
-            //  then named the wrong file.
-            //
-            for (const idx of companion.indices) {
-                if (spliced.some(e => e.lineIdx === idx)) {
-                    continue;
+                //
+                //  Report the companions too. An operator told "removed 1" while
+                //  two lines went has been told something false about their own
+                //  spool.
+                //
+                //  Inserted in line order rather than appended, so the listing
+                //  reads the way the flow file does -- a payload followed by the
+                //  TIC that announces it. Appending them all at the end put two
+                //  payloads above two TICs, and the CLI's "(TIC announcing it)"
+                //  then named the wrong file.
+                //
+                for (const idx of companion.indices) {
+                    if (spliced.some(e => e.lineIdx === idx)) {
+                        continue;
+                    }
+                    spliced.push({
+                        kind: 'flow',
+                        status: 'companion',
+                        path: companionTicPath(flowPath, lines[idx].path),
+                        size: null,
+                        timestamp: null,
+                        disposition: 'delete',
+                        flowFile: flowPath,
+                        lineIdx: idx,
+                        line: lines[idx].text,
+                    });
                 }
-                spliced.push({
-                    kind: 'flow',
-                    status: 'companion',
-                    path: companionTicPath(flowPath, lines[idx].path),
-                    size: null,
-                    timestamp: null,
-                    disposition: 'delete',
-                    flowFile: flowPath,
-                    lineIdx: idx,
-                    line: lines[idx].text,
-                });
-            }
-            spliced.sort((a, b) => a.lineIdx - b.lineIdx);
+                spliced.sort((a, b) => a.lineIdx - b.lineIdx);
 
-            return { remove: Array.from(companion.indices) };
-        });
+                return { remove: Array.from(companion.indices) };
+            },
+            { policy }
+        );
 
         if (!result.changed) {
             return [];
@@ -913,6 +918,11 @@ class BsoSpool {
     //  directory the spool reads flow files from is always one their '^' and
     //  '#' entries may be disposed in. See core/bso_flow_paths.js.
     //
+    //  The same, for other modules that rewrite flow files in this outbound.
+    flowPathPolicy() {
+        return this._flowPathPolicy();
+    }
+
     async _flowPathPolicy() {
         const outboundDirs = await this._allOutboundDirs();
 
@@ -1052,7 +1062,8 @@ class BsoSpool {
                 //  Bookkeeping keys off the line as it was written, not off
                 //  |resolved.path| — so a reference rescued by the fallback
                 //  above is still marked sent correctly.
-                disposeFn: () => this._applyFlowDisposition(flowPath, lineIdx, captured),
+                disposeFn: () =>
+                    this._applyFlowDisposition(flowPath, lineIdx, captured, policy),
             });
         }
 
@@ -1068,11 +1079,11 @@ class BsoSpool {
         return withFlowFileWrite(flowPath, work);
     }
 
-    async _applyFlowDisposition(flowPath, lineIdx, originalText) {
-        return this._applyFlowDispositionLocked(flowPath, lineIdx, originalText);
+    async _applyFlowDisposition(flowPath, lineIdx, originalText, policy = null) {
+        return this._applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy);
     }
 
-    async _applyFlowDispositionLocked(flowPath, lineIdx, originalText) {
+    async _applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy = null) {
         //  The file-side action (unlink for 'delete', truncate for 'truncate')
         //  is already performed by BinkpSession._applyDisposition before the
         //  'file-sent' event fires; session.js owns file lifecycle. This
@@ -1084,26 +1095,30 @@ class BsoSpool {
         //  rewriteFlowFile() does both, serialized with every other rewrite
         //  of this file in the process.
         try {
-            await rewriteFlowFile(flowPath, lines => {
-                const same = l => 'send' === l.kind && l.text === originalText;
+            await rewriteFlowFile(
+                flowPath,
+                lines => {
+                    const same = l => 'send' === l.kind && l.text === originalText;
 
-                //  The line has to still be there: where we read it, or --
-                //  if lines before it were removed since -- somewhere else.
-                //  Otherwise the flow file was rewritten out from under us
-                //  (another session, a manual cleanup), and neither marking
-                //  nor removing it is safe.
-                const at = lines[lineIdx];
-                if (!(at && same(at)) && !lines.some(same)) {
-                    return null;
-                }
+                    //  The line has to still be there: where we read it, or --
+                    //  if lines before it were removed since -- somewhere else.
+                    //  Otherwise the flow file was rewritten out from under us
+                    //  (another session, a manual cleanup), and neither marking
+                    //  nor removing it is safe.
+                    const at = lines[lineIdx];
+                    if (!(at && same(at)) && !lines.some(same)) {
+                        return null;
+                    }
 
-                //  Every copy of the line: the file went once for all of them.
-                const mark = [];
-                lines.forEach((l, idx) => {
-                    if (same(l)) mark.push(idx);
-                });
-                return { mark };
-            });
+                    //  Every copy of the line: the file went once for all of them.
+                    const mark = [];
+                    lines.forEach((l, idx) => {
+                        if (same(l)) mark.push(idx);
+                    });
+                    return { mark };
+                },
+                { policy }
+            );
         } catch (err) {
             Log.warn(
                 { path: flowPath, error: err.message },

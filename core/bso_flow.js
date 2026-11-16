@@ -539,20 +539,58 @@ async function writeEdited(flowPath, read, out, marked, removed) {
     return 'rewritten-in-place';
 }
 
-async function rewriteLocked(flowPath, edit) {
+//  Warnings about a flow file link that leads somewhere it must not be
+//  edited: once an hour per link, like the spool's other flow warnings.
+const LINK_WARN_REPEAT_MS = 60 * 60 * 1000;
+const warnedLinks = new Map();
+
+function warnLinkRefused(flowPath, realPath, protectedDir) {
+    const now = Date.now();
+    const last = warnedLinks.get(flowPath);
+    if (last && now - last < LINK_WARN_REPEAT_MS) {
+        return;
+    }
+    if (warnedLinks.size >= 1024) {
+        warnedLinks.clear();
+    }
+    warnedLinks.set(flowPath, now);
+    log().warn(
+        { path: flowPath, target: realPath, protectedDir },
+        'Flow file is a link into a protected directory; not changing it'
+    );
+}
+
+async function rewriteLocked(flowPath, edit, { policy } = {}) {
     //  A flow file may be a symlink (an outbound shared by linking a node's
     //  flow file into place). Edit the file it leads to: renaming over the
-    //  link would replace the link and leave that file as it was.
+    //  link would replace the link and leave that file as it was. Never
+    //  delete it, though -- only the link, which is what is in our outbound.
     let realPath;
+    let isLink;
     let read;
     try {
-        realPath = await fsp.realpath(flowPath);
+        isLink = (await fsp.lstat(flowPath)).isSymbolicLink();
+        realPath = isLink ? await fsp.realpath(flowPath) : flowPath;
         read = await readFlowFile(realPath);
     } catch (err) {
         if ('ENOENT' === err.code) {
             return { changed: false, missing: true, marked: [], removed: [] };
         }
         throw err;
+    }
+
+    if (isLink && policy) {
+        const classified = policy.classifyRealPath(realPath);
+        if (classified.refused) {
+            warnLinkRefused(flowPath, realPath, classified.protectedDir);
+            return {
+                changed: false,
+                refused: true,
+                marked: [],
+                removed: [],
+                lines: read.lines,
+            };
+        }
     }
 
     const plan = edit(read.lines) || {};
@@ -578,32 +616,75 @@ async function rewriteLocked(flowPath, edit) {
         out.push(markedSet.has(idx) ? markedLine(line) : line);
     });
 
-    if (!flowHasLive(out)) {
-        let removedFile = true;
+    const finished = !flowHasLive(out);
+
+    if (finished && isLink) {
+        //  Mark the file the link leads to, so anything else reading it does
+        //  not send it again, and remove only the link.
+        const how = await writeEdited(realPath, read, out, marked, removed);
         try {
-            await fsp.unlink(realPath);
+            await fsp.unlink(flowPath);
         } catch (err) {
             if ('ENOENT' !== err.code) {
-                removedFile = false;
                 log().warn(
                     { path: flowPath, error: err.message },
-                    'Could not remove a flow file with nothing left to send; writing it with the lines marked instead'
+                    'Could not remove a flow file link with nothing left to send; its file is marked'
                 );
+                return {
+                    changed: true,
+                    deleted: false,
+                    how,
+                    marked,
+                    removed,
+                    lines: read.lines,
+                };
             }
         }
-        if (removedFile) {
-            if (realPath !== flowPath) {
-                //  And the link, which now leads nowhere.
-                await fsp.unlink(flowPath).catch(() => {});
-            }
+        log().debug(
+            {
+                path: flowPath,
+                target: realPath,
+                marked: marked.length,
+                removed: removed.length,
+            },
+            'Flow file link finished with; link removed, its file marked and kept'
+        );
+        return {
+            changed: true,
+            deleted: true,
+            linkTarget: realPath,
+            how,
+            marked,
+            removed,
+            lines: read.lines,
+        };
+    }
+
+    if (finished) {
+        try {
+            await fsp.unlink(flowPath);
             log().debug(
                 { path: flowPath, marked: marked.length, removed: removed.length },
                 'Flow file finished with; removed'
             );
             return { changed: true, deleted: true, marked, removed, lines: read.lines };
+        } catch (err) {
+            if ('ENOENT' === err.code) {
+                return {
+                    changed: true,
+                    deleted: true,
+                    marked,
+                    removed,
+                    lines: read.lines,
+                };
+            }
+            log().warn(
+                { path: flowPath, error: err.message },
+                'Could not remove a flow file with nothing left to send; writing it with the lines marked instead'
+            );
+            //  Not removed: the edit still has to land, or what was just
+            //  sent looks unsent and goes again next session.
         }
-        //  Not removed: the edit still has to land, or what was just sent
-        //  looks unsent and goes again next session.
     }
 
     const how = await writeEdited(realPath, read, out, marked, removed);
@@ -628,11 +709,20 @@ async function rewriteLocked(flowPath, edit) {
 //  another user, or cannot be replaced -- rewritten in place, by single byte
 //  '~' overwrites when only marking.
 //
-//  Resolves { changed, deleted, missing, marked, removed, lines } with
-//  |lines| as read (so callers can report what they removed).
+//  A flow file that is a symlink is edited where it leads, keeping the link.
+//  When nothing is left, the file it leads to is written with the lines
+//  marked and kept, and only the link is removed. With |options.policy| (a
+//  FlowPathPolicy from core/bso_flow_paths.js), a link leading into a
+//  protected directory is not changed at all.
 //
-function rewriteFlowFile(flowPath, edit) {
-    return withFlowFileWrite(flowPath, () => rewriteLocked(flowPath, edit));
+//  Resolves { changed, deleted, missing, refused, linkTarget, marked,
+//  removed, lines }: |deleted| means the flow file is gone from where the
+//  caller found it (for a link, the link; |linkTarget| then names the file
+//  kept), |refused| that a link was not followed, and |lines| is the file as
+//  read (so callers can report what they removed).
+//
+function rewriteFlowFile(flowPath, edit, options = {}) {
+    return withFlowFileWrite(flowPath, () => rewriteLocked(flowPath, edit, options));
 }
 
 function isFlowTempFileName(name) {
