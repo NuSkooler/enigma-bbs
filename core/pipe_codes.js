@@ -285,6 +285,7 @@ function scanLegacy(s, i, c0) {
 }
 
 const isLegacyStart = c => 64 === c || 3 === c || 25 === c || 17 === c;
+const LEGACY_START_RE = /[@\x03\x19\x11]/; //  eslint-disable-line no-control-regex
 
 function legacyValue(s, i, fam) {
     switch (fam) {
@@ -501,7 +502,20 @@ function mciShown(code, extra, opts, f) {
     if (!resolver) {
         return undefined;
     }
-    const raw = resolver(opts.client, code, extra);
+    let raw;
+    const memo = opts.mciMemo;
+    if (memo) {
+        //  one resolution per distinct code per measuring call (|RR moves on)
+        const key = undefined === extra ? code : code + extra;
+        if (memo.has(key)) {
+            raw = memo.get(key);
+        } else {
+            raw = resolver(opts.client, code, extra);
+            memo.set(key, raw);
+        }
+    } else {
+        raw = resolver(opts.client, code, extra);
+    }
     if (f & F_BODY) {
         if (!raw) {
             return undefined;
@@ -509,6 +523,18 @@ function mciShown(code, extra, opts, f) {
         return 'string' === typeof raw ? raw : sgrFromPipeColor(raw);
     }
     return 'string' === typeof raw ? raw : undefined;
+}
+
+//
+//  |opts| for one measuring call (width, splitPos, substr, truncate): with a
+//  client, each distinct MCI code is resolved once for the call, however
+//  often it appears (a generator such as |RR moves on each time it runs). A
+//  caller that measures in several calls passes its own { mciMemo: new Map() }.
+//
+function measureOpts(opts) {
+    return opts && opts.client && !opts.mciMemo
+        ? Object.assign({}, opts, { mciMemo: new Map() })
+        : opts;
 }
 
 //  ── Width primitives ─────────────────────────────────────────────────────────
@@ -623,8 +649,11 @@ function renderGeneric(s, opts, f) {
     if (f & F_ANSIONLY) {
         return s;
     }
-    const len = s.length;
     const legacy = 0 !== (f & F_LEGACY);
+    if (-1 === s.indexOf('|') && (!legacy || !LEGACY_START_RE.test(s))) {
+        return s; //  nothing that could start a code
+    }
+    const len = s.length;
     let out = '';
     let last = 0;
     for (let i = 0; i < len; ++i) {
@@ -742,6 +771,7 @@ function width(s, opts) {
     if (!s) {
         return 0;
     }
+    opts = measureOpts(opts);
     let f = flagsOf(opts);
     if (f & F_ANSIONLY) {
         return widthAnsi(s);
@@ -750,6 +780,21 @@ function width(s, opts) {
         f |= F_ESC;
     }
     const legacy = 0 !== (f & F_LEGACY);
+    if (!legacy && PRINTABLE_ASCII_RE.test(s)) {
+        //  the common case: plain ASCII, so codes can only start at a '|'
+        let w = s.length;
+        let i = s.indexOf('|');
+        while (-1 !== i) {
+            const e = scanPipe(s, i, f);
+            if (e < 0) {
+                i = s.indexOf('|', i + 1);
+                continue;
+            }
+            w += pipeTokenWidth(s, i, e, opts, f) - (e - i);
+            i = s.indexOf('|', e);
+        }
+        return w;
+    }
     const len = s.length;
     let w = 0;
     let i = 0;
@@ -796,6 +841,8 @@ function width(s, opts) {
     return w;
 }
 
+const PRINTABLE_ASCII_RE = /^[\x20-\x7e]*$/;
+
 //  Width of the pipe token just scanned at s[i..e).
 function pipeTokenWidth(s, i, e, opts, f) {
     const type = tType;
@@ -827,6 +874,7 @@ function splitPos(s, cols, opts) {
     if (!s) {
         return 0;
     }
+    opts = measureOpts(opts);
     let f = flagsOf(opts);
     if (!(f & F_ANSIONLY) && !(opts && false === opts.ansi)) {
         f |= F_ESC;
@@ -909,7 +957,8 @@ function splitPos(s, cols, opts) {
 
 //
 //  Remove every code render() would consume and keep what it shows
-//  literally: '||' becomes '|' (ui), |CF05 becomes five spaces, and an |AA
+//  literally: '||' becomes '|' (ui), |CF05 becomes five spaces (never more
+//  spaces than the code is long: |CF99 gives five), and an |AA
 //  code is dropped only when it is a known MCI code (opts.knownMci, else the
 //  set predefined_mci.js registered) -- an unknown one stays as typed. With
 //  no set at all every |AA code is dropped, so nothing leaks.
@@ -933,7 +982,7 @@ function strip(s, opts) {
     }
     const known = (opts && opts.knownMci) || injectedKnownMci;
     if (UI === f) {
-        return stripUi(s, known);
+        return stripUi(s, known, !!(opts && opts.rerender));
     }
     const legacy = 0 !== (f & F_LEGACY);
     const len = s.length;
@@ -968,7 +1017,7 @@ function strip(s, opts) {
             rep = '|';
         } else if (T.MOVE === type) {
             if (70 === tDir) {
-                rep = ' '.repeat(tVal);
+                rep = ' '.repeat(Math.min(tVal, e - i)); //  never longer than the code
             }
         } else if (T.LEGACY === type) {
             if (LEG_CNET === tVal && 110 === s.charCodeAt(i + 1)) {
@@ -982,10 +1031,14 @@ function strip(s, opts) {
     return 0 === last ? s : out + s.slice(last);
 }
 
-function stripUi(s, known) {
+//  |rerender|: the result is source text that may be rendered again, so
+//  '||' stays '||' and a literal pipe that would start a code once the codes
+//  around it are gone is written '||'.
+function stripUi(s, known, rerender) {
     let i = s.indexOf('|');
     let out = '';
     let last = 0;
+    const lit = rerender ? [] : null;
     while (-1 !== i) {
         //  colour codes are nearly all of them: no scanner call
         const c1 = s.charCodeAt(i + 1);
@@ -999,24 +1052,31 @@ function stripUi(s, known) {
         }
         const e = scanPipe(s, i, UI);
         if (e < 0) {
+            if (rerender) {
+                lit.push(out.length + i - last, '');
+            }
             i = s.indexOf('|', i + 1);
             continue;
         }
         const type = tType;
         if (T.MCI === type && known && !known.has(s.slice(i + 1, i + 3))) {
+            if (rerender) {
+                lit.push(out.length + i - last, s.slice(i, e));
+            }
             i = s.indexOf('|', e); //  stays literal
             continue;
         }
         out += s.slice(last, i);
         if (T.PIPE === type) {
-            out += '|';
+            out += rerender ? '||' : '|';
         } else if (T.MOVE === type && 70 === tDir) {
-            out += ' '.repeat(tVal);
+            out += ' '.repeat(Math.min(tVal, e - i)); //  never longer than the code
         }
         last = e;
         i = s.indexOf('|', e);
     }
-    return 0 === last ? s : out + s.slice(last);
+    const res = 0 === last ? s : out + s.slice(last);
+    return rerender && lit.length > 0 ? escapePipes(res, lit, UI) : res;
 }
 
 //  ── substr (#1022) ───────────────────────────────────────────────────────────
@@ -1031,18 +1091,38 @@ const ANSI_ONLY = { dialect: 'ansi' };
 //  *   A wide character straddling the start edge becomes a space; one
 //      straddling the end edge is left out.
 //  *   A cursor-forward or MCI value straddling an edge is cut to its
-//      visible part. Zero-width codes directly after the window are kept.
+//      visible part. Zero-width codes directly after the window are kept,
+//      and so are the colour codes (pipe colours, SGR, the body dialect's
+//      colour codes) anywhere after it, so the colour in effect after a cut
+//      is the one the whole string ends with.
 //
 //  The result is source text that is rendered again, so it must not form a
-//  code the input did not have. In the ui dialect a literal '|' is emitted
-//  as '||' (inside an MCI value slice too), and a kept zero-width cursor
-//  code a following digit could extend (|CU1, |CU) is emitted as its escape.
-//  The body dialects have no pipe escape, so a join is still possible there.
+//  code the input did not have. Literal pipes keep their source form ('||'
+//  stays '||', a lone '|' stays '|'), so the common case is byte for byte
+//  the input; in the ui dialect a lone '|' that would now start a code with
+//  what follows it ("|0|01" cut to "|0" + "1") is emitted as '||' (inside an
+//  MCI value slice too). A kept zero-width cursor code a following digit
+//  could extend (|CU1, |CU) is emitted as its escape. The body dialects have
+//  no pipe escape, so a join is still possible there.
 //
 function substr(s, start, length, opts) {
+    return substrCut(s, start, length, opts, true);
+}
+
+//  Where substrCut() stopped reading |s|, and the cells read up to there,
+//  for truncate().
+let cutStop = 0;
+let cutCol = 0;
+//  With |deferEscape|: the literal pipes substrCut() did not escape yet.
+let cutLit = null;
+
+function substrCut(s, start, length, opts, colorsAfterCut, deferEscape) {
+    cutStop = 0;
+    cutCol = 0;
     if (!s) {
         return '';
     }
+    opts = measureOpts(opts);
     start = start || 0;
     const end = start + (undefined === length ? Infinity : length);
     let f = flagsOf(opts);
@@ -1057,6 +1137,9 @@ function substr(s, start, length, opts) {
     let out = '';
     let i = 0;
     let runStart = true; //  the next text character starts a text run
+    //  literal pipes emitted, for escapePipes(): [offset in out, source code
+    //  the pipe starts ('' for a lone pipe)]
+    const lit = esc ? [] : null;
     outer: while (i < len) {
         const c = s.charCodeAt(i);
         let e = -1;
@@ -1080,7 +1163,8 @@ function substr(s, start, length, opts) {
                 }
                 if (124 === c && esc) {
                     if (col >= start) {
-                        out += '||'; //  a literal pipe stays literal
+                        lit.push(out.length, ''); //  checked at the end
+                        out += '|';
                     }
                     ++col;
                     ++i;
@@ -1161,12 +1245,17 @@ function substr(s, start, length, opts) {
                 : mciShown(s.slice(i + 1, i + 3), undefined, opts, f);
             if (undefined === v) {
                 //  shows literally: one cell per character
+                const col0 = col;
                 for (let k = i; k < e; ++k) {
                     if (col >= end) {
+                        col = col0; //  for cutCol: reading stops before the code
                         break outer;
                     }
                     if (col >= start) {
-                        out += esc && 124 === s.charCodeAt(k) ? '||' : s[k];
+                        if (esc && 124 === s.charCodeAt(k)) {
+                            lit.push(out.length, s.slice(i, e));
+                        }
+                        out += s[k];
                     }
                     col += 1;
                 }
@@ -1200,10 +1289,13 @@ function substr(s, start, length, opts) {
                     const b = Math.min(col + w, end);
                     if (b > a) {
                         const part = substr(v, a - col, b - a, ANSI_ONLY);
-                        out +=
-                            esc && -1 !== part.indexOf('|')
-                                ? part.replace(/\|/g, '||')
-                                : part;
+                        if (esc) {
+                            for (let k = part.indexOf('|'); -1 !== k;) {
+                                lit.push(out.length + k, '');
+                                k = part.indexOf('|', k + 1);
+                            }
+                        }
+                        out += part;
                     }
                     col += w;
                     i = e;
@@ -1231,7 +1323,134 @@ function substr(s, start, length, opts) {
         }
         i = e;
     }
-    return out;
+    cutStop = i;
+    cutCol = col;
+    if (colorsAfterCut && i < len) {
+        out = withColorsAfter(out, colorsAfter(s, i, f), f);
+    }
+    if (deferEscape) {
+        cutLit = lit; //  the caller escapes, once it has added what follows
+        return out;
+    }
+    return esc && lit.length > 0 ? escapePipes(out, lit, f) : out;
+}
+
+//
+//  |out| + |colors|, unless the two would join into a code neither has
+//  ("@0D" then "@X1F" reads "@0D@" in the body dialect, which has no
+//  escape): then the colours are left out.
+//
+function withColorsAfter(out, colors, f) {
+    if (!colors) {
+        return out;
+    }
+    const joined = out + colors;
+    const legacy = 0 !== (f & F_LEGACY);
+    for (let k = Math.max(0, out.length - 5); k < out.length; ++k) {
+        const c = joined.charCodeAt(k);
+        let e = -1;
+        if (124 === c && !(f & (F_ANSIONLY | F_PIPEESC))) {
+            e = scanPipe(joined, k, f); //  (ui: escapePipes() handles a lone pipe)
+        } else if (27 === c && f & F_ESC) {
+            e = scanAnsi(joined, k);
+        } else if (legacy && isLegacyStart(c)) {
+            e = scanLegacy(joined, k, c);
+        }
+        if (e > out.length) {
+            return out;
+        }
+    }
+    return joined;
+}
+
+//  The colour codes in s[i..]: |##, SGR (ESC[..m) and the body dialect's
+//  colour codes. Text, cursor codes and MCI codes are left out.
+function colorsAfter(s, i, f) {
+    const pipes = !(f & F_ANSIONLY);
+    const esc = 0 !== (f & F_ESC);
+    const legacy = 0 !== (f & F_LEGACY);
+    const len = s.length;
+    let out = '';
+    let runA = 0; //  adjacent kept codes are copied in one slice
+    let runB = 0;
+    let nextPipe = pipes ? s.indexOf('|', i) : -1;
+    let nextEsc = esc ? s.indexOf('\x1b', i) : -1;
+    while (i < len) {
+        if (!legacy) {
+            //  only '|' and ESC start a code: jump to the next one
+            if (-1 !== nextPipe && nextPipe < i) {
+                nextPipe = s.indexOf('|', i);
+            }
+            if (-1 !== nextEsc && nextEsc < i) {
+                nextEsc = s.indexOf('\x1b', i);
+            }
+            if (-1 === nextPipe && -1 === nextEsc) {
+                break;
+            }
+            i =
+                -1 === nextPipe
+                    ? nextEsc
+                    : -1 === nextEsc
+                      ? nextPipe
+                      : Math.min(nextPipe, nextEsc);
+        }
+        const c = s.charCodeAt(i);
+        let e = -1;
+        let keep = false;
+        if (124 === c) {
+            if (pipes) {
+                if (isDigit(s.charCodeAt(i + 1)) && isDigit(s.charCodeAt(i + 2))) {
+                    e = i + 3; //  |## is a colour in every dialect that has pipes
+                    keep = true;
+                } else {
+                    e = scanPipe(s, i, f);
+                    keep = e > 0 && T.COLOR === tType;
+                }
+            }
+        } else if (27 === c) {
+            if (esc) {
+                e = scanAnsi(s, i);
+                keep = e > 0 && 109 === aCmd; //  SGR
+            }
+        } else if (legacy && isLegacyStart(c)) {
+            e = scanLegacy(s, i, c);
+            //  not CNET n1 (new line) / f1 (clear screen)
+            keep = e > 0 && !(LEG_CNET === tVal && /[nf]/.test(s[i + 1]));
+        }
+        if (keep) {
+            if (i !== runB) {
+                if (runB > runA) {
+                    out += s.slice(runA, runB);
+                }
+                runA = i;
+            }
+            runB = e;
+        }
+        i = e > 0 ? e : i + 1;
+    }
+    return runB > runA ? out + s.slice(runA, runB) : out;
+}
+
+//
+//  substr() output with '||' for each literal pipe that would read as the
+//  start of a code it was not: a lone '|' that now starts one, or the pipe of
+//  a code shown literally that was cut or now reads longer (|CF1 then 2).
+//  A code shows the same when re-read whole, so it keeps its form.
+//
+function escapePipes(out, lit, f) {
+    let res = null;
+    let last = 0;
+    for (let k = 0; k < lit.length; k += 2) {
+        const p = lit[k];
+        const src = lit[k + 1];
+        const e = scanPipe(out, p, f);
+        if (e < 0 || (src && e - p === src.length && out.startsWith(src, p))) {
+            continue;
+        }
+        res = (null === res ? '' : res) + out.slice(last, p) + '|';
+        last = p;
+    }
+    return null === res ? out : res + out.slice(last);
 }
 
 //
@@ -1242,13 +1461,40 @@ function truncate(s, opts) {
     if (!s) {
         return '';
     }
-    opts = opts || {};
+    opts = measureOpts(opts) || {};
     const len = opts.length || 30;
     const omission = 'string' === typeof opts.omission ? opts.omission : '...';
-    if (width(s, opts) <= len) {
+    //  cut first; only the rest is measured to know whether it all fits
+    const omissionWidth = '...' === omission ? 3 : width(omission, opts);
+    const cut = substrCut(s, 0, Math.max(0, len - omissionWidth), opts, false, true);
+    const stop = cutStop;
+    const lit = cutLit;
+    if (cutCol + (stop < s.length ? width(s.slice(stop), opts) : 0) <= len) {
         return s;
     }
-    return substr(s, 0, Math.max(0, len - width(omission, opts)), opts) + omission;
+    //  the omission is drawn in the colour in effect where the cut is; the
+    //  colour codes after the cut follow it, so the end state is the same
+    let f = flagsOf(opts);
+    if (!(f & F_ANSIONLY) && false !== opts.ansi) {
+        f |= F_ESC;
+    }
+    const out = withColorsAfter(
+        cut + omission,
+        stop < s.length ? colorsAfter(s, stop, f) : '',
+        f
+    );
+    if (!lit) {
+        return out; //  no pipe escape in this dialect: withColorsAfter() did it
+    }
+    //  ui: the literal pipes of the cut, and those of the omission, are
+    //  checked against what follows them now (the omission is source text:
+    //  a code in it keeps its meaning)
+    for (let k = omission.indexOf('|'); -1 !== k;) {
+        const e = scanPipe(omission, k, f);
+        lit.push(cut.length + k, e < 0 ? '' : omission.slice(k, e));
+        k = omission.indexOf('|', e < 0 ? k + 1 : e);
+    }
+    return lit.length > 0 ? escapePipes(out, lit, f) : out;
 }
 
 //

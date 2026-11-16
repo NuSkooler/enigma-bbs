@@ -113,6 +113,7 @@ class VerticalMenuView extends MenuView {
             text = strUtil.renderTruncate(text, {
                 length: this.dimens.width,
                 omission: this.textOverflow,
+                dialect: 'ansi',
             });
         }
 

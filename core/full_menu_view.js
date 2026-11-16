@@ -256,6 +256,7 @@ class FullMenuView extends MenuView {
                     length:
                         this.dimens.width - (relativeColumn + this.textOverflow.length),
                     omission: this.textOverflow,
+                    dialect: 'ansi',
                 });
             }
         }

@@ -2,7 +2,6 @@
 'use strict';
 
 //  ENiGMA½
-const ANSI = require('./ansi_term.js');
 const { charDisplayWidth, strDisplayWidth } = require('./display_width.js');
 const PipeCodes = require('./pipe_codes.js');
 
@@ -23,6 +22,7 @@ exports.stringToNullTermBuffer = stringToNullTermBuffer;
 exports.charDisplayWidth = charDisplayWidth;
 exports.strDisplayWidth = strDisplayWidth;
 exports.renderSubstr = renderSubstr;
+exports.renderFirstChar = renderFirstChar;
 exports.renderTruncate = renderTruncate;
 exports.renderStringLength = renderStringLength;
 exports.ansiRenderStringLength = ansiRenderStringLength;
@@ -143,6 +143,12 @@ function stylizeString(s, style) {
     return s;
 }
 
+//
+//  useRenderLen: true (the default) measures |s| as pipeToAnsi() draws it;
+//  false uses s.length; a number is a width the caller has already measured;
+//  an object is renderStringLength() opts, e.g. { dialect: 'ansi' } for text
+//  that has already been rendered.
+//
 function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen = true) {
     len = len || 0;
     padChar = padChar || ' ';
@@ -150,7 +156,14 @@ function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen = true) {
     stringSGR = stringSGR || '';
     padSGR = padSGR || '';
 
-    const renderLen = useRenderLen ? renderStringLength(s) : s.length;
+    let renderLen;
+    if ('number' === typeof useRenderLen) {
+        renderLen = useRenderLen;
+    } else if (_.isObject(useRenderLen)) {
+        renderLen = renderStringLength(s, useRenderLen);
+    } else {
+        renderLen = useRenderLen ? renderStringLength(s) : s.length;
+    }
     const padLen = len > renderLen ? len - renderLen : 0;
 
     switch (justify) {
@@ -242,63 +255,40 @@ function stringToNullTermBuffer(s, options = { encoding: 'utf8', maxBufLen: -1 }
     return buf;
 }
 
-const PIPE_REGEXP = /(\|[A-Z\d]{2})/g;
-const ANSI_OR_PIPE_REGEXP = new RegExp(
-    PIPE_REGEXP.source + '|' + ANSI.getFullMatchRegExp().source,
-    'g'
-);
+const ANSI_ONLY = { dialect: 'ansi' };
 
 //
-//  Similar to substr() but works with ANSI/Pipe code strings
+//  Similar to substr() but works with ANSI/Pipe code strings: |start| and
+//  |length| are display cells, codes before the window are kept so the colour
+//  in effect carries into it. See PipeCodes.substr(). opts: { dialect, client }
+//  as for renderStringLength().
 //
-function renderSubstr(str, start, length) {
+function renderSubstr(str, start, length, opts) {
     //  shortcut for empty strings
     if (0 === str.length) {
         return str;
     }
 
-    start = start || 0;
-    length = length || str.length - start;
+    return PipeCodes.substr(str, start, length || undefined, opts);
+}
 
-    const re = ANSI_OR_PIPE_REGEXP;
-    re.lastIndex = 0; //  we recycle the obj; must reset!
-
-    let pos = 0;
-    let match;
-    const parts = [];
-    let renderLen = 0;
-    let s;
-    do {
-        pos = re.lastIndex;
-        match = re.exec(str);
-
-        if (match) {
-            if (match.index > pos) {
-                s = str.slice(
-                    pos + start,
-                    Math.min(match.index, pos + (length - renderLen))
-                );
-                start = 0; //  start offset applies only once
-                parts.push(s);
-                renderLen += s.length;
-            }
-
-            parts.push(match[0]);
-        }
-    } while (renderLen < length && 0 !== re.lastIndex);
-
-    //  remainder
-    if (pos + start < str.length && renderLen < length) {
-        parts.push(str.slice(pos + start, pos + start + (length - renderLen)));
-    }
-
-    return parts.join('');
+//
+//  The first character of |s| as it is drawn, with any codes in front of it:
+//  a fill or progress bar character. A wide character is kept, where a cut
+//  to one column would leave nothing.
+//
+function renderFirstChar(s) {
+    const one = renderSubstr(s, 0, 1);
+    return !s || renderStringLength(one) > 0 ? one : renderSubstr(s, 0, 2);
 }
 
 const DefaultTruncateLen = 30;
 const DefaultTruncateOmission = '...';
 
 function renderTruncate(str, options) {
+    if ('string' !== typeof str) {
+        return ''; //  as before: a number or other non-string truncates to ''
+    }
     //  shortcut for empty strings
     if (0 === str.length) {
         return str;
@@ -310,101 +300,37 @@ function renderTruncate(str, options) {
         ? options.omission
         : DefaultTruncateOmission;
 
-    let out = renderSubstr(str, 0, options.length - options.omission.length);
-    if (out.length < str.length) {
-        out += options.omission;
-    }
-
-    return out;
+    return PipeCodes.truncate(str, options);
 }
 
 //
-//  Method to return the "rendered" length taking into account Pipe and ANSI color codes.
+//  Method to return the "rendered" length (display columns) of a string
+//  carrying Pipe and ANSI codes, measured the way pipeToAnsi() draws it:
+//  "||" is one column, an MCI or |C[FBUD]## code that will not resolve shows
+//  literally and counts as such, and ANSI ESC[<N>C moves forward <N>.
 //
-//  We additionally account for ANSI *forward* movement ESC sequences
-//  in the form of ESC[<N>C where <N> is the "go forward" character count.
+//  opts (optional): { dialect, client } -- pass the client the text will be
+//  rendered with so MCI codes measure as their values. dialect 'ansi' is
+//  ansiRenderStringLength(). See pipe_codes.js.
 //
-//  See also https://github.com/chalk/ansi-regex/blob/master/index.js
-//
-function renderStringLength(s) {
-    let m;
-    let pos;
-    let len = 0;
-
-    const re = ANSI_OR_PIPE_REGEXP;
-    re.lastIndex = 0; //  we recycle the regex; reset
-
-    //
-    //  Loop counting only literal (non-control) sequences
-    //  paying special attention to ESC[<N>C which means forward <N>
-    //
-    do {
-        pos = re.lastIndex;
-        m = re.exec(s);
-
-        if (m) {
-            if (m.index > pos) {
-                len += strDisplayWidth(s.slice(pos, m.index));
-            }
-
-            if ('C' === m[3]) {
-                //  ESC[<N>C is forward/right
-                len += parseInt(m[2], 10) || 0;
-            }
-        }
-    } while (0 !== re.lastIndex);
-
-    if (pos < s.length) {
-        len += strDisplayWidth(s.slice(pos));
+function renderStringLength(s, opts) {
+    if ('string' !== typeof s) {
+        //  as before: no length (a number, null) measures 0
+        return s && s.length > 0 ? PipeCodes.width(String(s), opts) : 0;
     }
-
-    return len;
+    return PipeCodes.width(s, opts);
 }
 
 //  Like renderStringLength() but ANSI only (no pipe codes accounted for)
-const ANSI_FULL_MATCH_REGEXP = ANSI.getFullMatchRegExp();
-
 function ansiRenderStringLength(s) {
-    let m;
-    let pos;
-    let len = 0;
-
-    const re = ANSI_FULL_MATCH_REGEXP;
-    re.lastIndex = 0; //  we recycle the regex; reset
-
-    //
-    //  Loop counting only literal (non-control) sequences
-    //  paying special attention to ESC[<N>C which means forward <N>
-    //
-    //  ANSI_FULL_MATCH_REGEXP groups: m[1]=args, m[2]=letter
-    //
-    do {
-        pos = re.lastIndex;
-        m = re.exec(s);
-
-        if (m) {
-            if (m.index > pos) {
-                len += strDisplayWidth(s.slice(pos, m.index));
-            }
-
-            if ('C' === m[2]) {
-                //  ESC[<N>C is forward/right
-                len += parseInt(m[1], 10) || 0;
-            }
-        }
-    } while (0 !== re.lastIndex);
-
-    if (pos < s.length) {
-        len += strDisplayWidth(s.slice(pos));
-    }
-
-    return len;
+    return PipeCodes.width(s, ANSI_ONLY);
 }
 
 //
 //  Returns the string index at which |width| display columns have been consumed,
-//  skipping ANSI escape sequences and (when pipeCodeSupport is true) |XX pipe
-//  color codes transparently.
+//  skipping ANSI escape sequences and (when pipeCodeSupport is true) pipe
+//  codes transparently. pipeCodeSupport may also be an opts object for
+//  renderStringLength(), e.g. { dialect: 'color' } for editor text.
 //
 //  Wide characters (display width 2) that would straddle the boundary snap the
 //  split point to just before that character — a wide char is never split.
@@ -413,43 +339,12 @@ function ansiRenderStringLength(s) {
 //  _splitPos in line_buffer.js.
 //
 function renderSplitPos(str, width, pipeCodeSupport = true) {
-    const re = pipeCodeSupport ? ANSI_OR_PIPE_REGEXP : ANSI_FULL_MATCH_REGEXP;
-    //  Group indices differ by regex:
-    //    ANSI_OR_PIPE_REGEXP:   m[1]=pipe, m[2]=ANSI-args, m[3]=ANSI-letter
-    //    ANSI_FULL_MATCH_REGEXP:           m[1]=ANSI-args, m[2]=ANSI-letter
-    const cmdIdx = pipeCodeSupport ? 3 : 2;
-    const argIdx = pipeCodeSupport ? 2 : 1;
-    re.lastIndex = 0;
-    let vis = 0;
-    let i = 0;
-    let m = re.exec(str);
-
-    while (i < str.length && vis < width) {
-        if (m && m.index === i) {
-            //  It's a code sequence — skip it (0 display width), but handle ESC[NC
-            if (m[cmdIdx] === 'C') {
-                const fwd = parseInt(m[argIdx], 10) || 0;
-                if (vis + fwd > width) {
-                    break; //  cursor-forward would overshoot
-                }
-                vis += fwd;
-            }
-            i += m[0].length;
-            m = re.exec(str);
-        } else {
-            //  Literal character — measure display width by codepoint
-            const cp = str.codePointAt(i);
-            const ch = String.fromCodePoint(cp);
-            const w = charDisplayWidth(ch);
-            if (vis + w > width) {
-                break; //  wide char straddles boundary — snap before it
-            }
-            vis += w;
-            i += ch.length; //  advance by codepoint length (handles surrogate pairs)
-        }
-    }
-
-    return i;
+    const opts = _.isObject(pipeCodeSupport)
+        ? pipeCodeSupport
+        : pipeCodeSupport
+          ? undefined
+          : ANSI_ONLY;
+    return PipeCodes.splitPos(str, width, opts);
 }
 
 const BYTE_SIZE_ABBRS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']; //  :)
@@ -629,8 +524,11 @@ function isAnsiLine(line) {
 //  * Tabs
 //  * Contiguous 3+ spaces before the end of the line
 //
+//  message bodies are drawn by controlCodesToAnsi()
+const BODY_LEGACY = { dialect: 'bodyLegacy' };
+
 function isFormattedLine(line) {
-    if (renderStringLength(line) < line.length) {
+    if (renderStringLength(line, BODY_LEGACY) < line.length) {
         return true; //  ANSI or Pipe Codes
     }
 

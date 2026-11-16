@@ -2,6 +2,7 @@
 'use strict';
 
 const { renderStringLength, ansiRenderStringLength } = require('./string_util');
+const PipeCodes = require('./pipe_codes.js');
 
 //  deps
 const assert = require('assert');
@@ -48,16 +49,39 @@ function wordWrapText(text, options) {
     options.tabWidth = options.tabWidth || 4;
     options.tabChar = options.tabChar || ' ';
 
-    const lenFunc = options.pipeCodeSupport ? renderStringLength : ansiRenderStringLength;
+    //  options.client: the client the wrapped text is rendered with, so MCI
+    //  codes measure as their values
+    //  (each distinct MCI code is resolved once for the whole wrap)
+    const measure = options.client
+        ? { client: options.client, mciMemo: new Map() }
+        : undefined;
+    const lenFunc = options.pipeCodeSupport
+        ? s => renderStringLength(s, measure)
+        : ansiRenderStringLength;
 
     //  ESC sequences and (with pipeCodeSupport) pipe codes are kept whole when
     //  a word is broken.
     //
     //  :TODO: Need to create ansi.getMatchRegex or something - this is used all over
-    const pipeCode = options.pipeCodeSupport ? '|\\|[A-Z\\d]{2}' : '';
-    const REGEXP_CODE = new RegExp(
-        `(\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]${pipeCode})`
-    );
+    const REGEXP_CODE = /(\x1b\[[?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu])/; //  eslint-disable-line no-control-regex
+
+    //  Like word.split(REGEXP_CODE): text at the even indexes, codes at the odd
+    //  ones. With pipeCodeSupport the pipe code tokenizer finds the codes, so
+    //  "||07" is a literal pipe and "07", not a pipe and a colour.
+    function splitCodes(word) {
+        if (!options.pipeCodeSupport) {
+            return word.split(REGEXP_CODE);
+        }
+        const parts = [''];
+        PipeCodes.walk(word, undefined, (type, start, end) => {
+            if (PipeCodes.T.TEXT === type) {
+                parts[parts.length - 1] += word.slice(start, end);
+            } else {
+                parts.push(word.slice(start, end), '');
+            }
+        });
+        return parts;
+    }
 
     //
     //  Breaks a word into pieces of at most |width| columns. A piece ends
@@ -75,7 +99,7 @@ function wordWrapText(text, options) {
         const pieces = [''];
         let pieceLen = 0;
 
-        word.split(REGEXP_CODE).forEach((part, index) => {
+        splitCodes(word).forEach((part, index) => {
             //  split() puts the captured codes at the odd indexes
             const tokens =
                 index % 2
@@ -141,11 +165,12 @@ function wordWrapText(text, options) {
 
             //  Track last active numeric pipe colour code so continuation lines
             //  inherit the correct colour when pipeCodeSupport is enabled.
-            if (options.pipeCodeSupport) {
-                const codes = w.match(/\|[0-9]{2}/g);
-                if (codes) {
-                    lastColorCode = codes[codes.length - 1];
-                }
+            if (options.pipeCodeSupport && -1 !== w.indexOf('|')) {
+                PipeCodes.walk(w, undefined, (type, start, end) => {
+                    if (PipeCodes.T.COLOR === type) {
+                        lastColorCode = w.slice(start, end);
+                    }
+                });
             }
         });
     }

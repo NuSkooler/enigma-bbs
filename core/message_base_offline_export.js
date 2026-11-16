@@ -13,7 +13,7 @@ const {
     updateMessageAreaLastReadId,
 } = require('./message_area.js');
 const FileArea = require('./file_base_area.js');
-const { renderSubstr } = require('./string_util.js');
+const { renderFirstChar } = require('./string_util.js');
 const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
 const Events = require('./events.js');
@@ -160,7 +160,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             options.extraArgs
         );
 
-        this.config.progBarChar = renderSubstr(this.config.progBarChar || '▒', 0, 1);
+        this.config.progBarChar = renderFirstChar(this.config.progBarChar || '▒');
 
         this.sysTempDownloadArea = FileArea.getFileAreaByTag(
             FileArea.WellKnownAreaTags.TempDownloads

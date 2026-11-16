@@ -8,12 +8,16 @@ const {
     pad: padStr,
     stylizeString,
     renderSubstr,
+    renderFirstChar,
     renderStringLength,
     stripAllLineFeeds,
 } = require('./string_util.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 const stringFormat = require('./string_format');
+
+//  What drawText() writes is already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
 
 //  deps
 const _ = require('lodash');
@@ -32,11 +36,7 @@ class TextView extends View {
             this.maxLength = this.client.term.termWidth - this.position.col;
         }
 
-        this.fillChar = renderSubstr(
-            miscUtil.valueWithDefault(options.fillChar, ' '),
-            0,
-            1
-        );
+        this.fillChar = renderFirstChar(miscUtil.valueWithDefault(options.fillChar, ' '));
         this.justify = options.justify || 'left';
         this.resizable = miscUtil.valueWithDefault(options.resizable, true);
         this.horizScroll = miscUtil.valueWithDefault(options.horizScroll, true);
@@ -76,7 +76,7 @@ class TextView extends View {
             );
         } else {
             textToDraw = _.isString(this.textMaskChar)
-                ? new Array(renderStringLength(s) + 1).join(this.textMaskChar)
+                ? new Array(renderStringLength(s, ANSI_ONLY) + 1).join(this.textMaskChar)
                 : stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
         }
 
@@ -88,7 +88,8 @@ class TextView extends View {
                     textToDraw = renderSubstr(
                         textToDraw,
                         renderLength - this.dimens.width,
-                        renderLength
+                        renderLength,
+                        ANSI_ONLY
                     );
                 }
             } else {
@@ -101,10 +102,16 @@ class TextView extends View {
                         renderSubstr(
                             textToDraw,
                             0,
-                            this.dimens.width - this.textOverflow.length
+                            this.dimens.width - this.textOverflow.length,
+                            ANSI_ONLY
                         ) + this.textOverflow;
                 } else {
-                    textToDraw = renderSubstr(textToDraw, 0, this.dimens.width);
+                    textToDraw = renderSubstr(
+                        textToDraw,
+                        0,
+                        this.dimens.width,
+                        ANSI_ONLY
+                    );
                 }
             }
         }
@@ -180,12 +187,13 @@ class TextView extends View {
 
         const formatObj = getPredefinedMCIFormatObject(this.client, text);
         if (formatObj) {
-            text = stringFormat(text, formatObj);
+            //  measured with the client it is rendered with below
+            text = stringFormat(text, formatObj, { client: this.client });
         }
 
         this.text = pipeToAnsi(stripAllLineFeeds(text), this.client);
         if (this.maxLength > 0) {
-            this.text = renderSubstr(this.text, 0, this.maxLength);
+            this.text = renderSubstr(this.text, 0, this.maxLength, ANSI_ONLY);
         }
 
         this.text = stylizeString(

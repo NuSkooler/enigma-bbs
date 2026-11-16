@@ -5,7 +5,7 @@
 const { MenuModule, MenuFlags } = require('./menu_module.js');
 const FileEntry = require('./file_entry.js');
 const FileArea = require('./file_base_area.js');
-const { renderSubstr } = require('./string_util.js');
+const { renderFirstChar } = require('./string_util.js');
 const { Errors } = require('./enig_error.js');
 const DownloadQueue = require('./download_queue.js');
 const { exportFileList } = require('./file_base_list_export.js');
@@ -79,7 +79,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
             this.config.tsFormat ||
             this.client.currentTheme.helpers.getDateTimeFormat('short');
         this.config.descWidth = this.config.descWidth || 45; //  ie FILE_ID.DIZ
-        this.config.progBarChar = renderSubstr(this.config.progBarChar || '▒', 0, 1);
+        this.config.progBarChar = renderFirstChar(this.config.progBarChar || '▒');
         this.config.compressThreshold = this.config.compressThreshold || 1440000; //  >= 1.44M by default :)
     }
 

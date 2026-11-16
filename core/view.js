@@ -5,7 +5,11 @@ const events = require('events');
 const ansi = require('./ansi_term.js');
 const colorCodes = require('./color_codes.js');
 const enigAssert = require('./enigma_assert.js');
-const { renderSubstr, renderStringLength, renderSplitPos } = require('./string_util.js');
+const {
+    renderFirstChar,
+    renderStringLength,
+    renderSplitPos,
+} = require('./string_util.js');
 
 //  deps
 const _ = require('lodash');
@@ -247,7 +251,7 @@ class View extends events.EventEmitter {
                     if (_.isNumber(value)) {
                         this.fillChar = String.fromCharCode(value);
                     } else if (_.isString(value)) {
-                        this.fillChar = renderSubstr(value, 0, 1);
+                        this.fillChar = renderFirstChar(value);
                     }
                 }
                 break;

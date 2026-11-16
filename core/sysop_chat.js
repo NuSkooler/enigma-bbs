@@ -415,7 +415,11 @@ exports.getModule = class SysopChatModule extends MenuModule {
         const prefixFmt = inputView.prefixFormat || this.config.prefixFormat || '';
         const resolvedPrefix = prefixFmt
             ? pipeToAnsi(
-                  stringFormat(prefixFmt, { userName: this.client.user.username }),
+                  stringFormat(
+                      prefixFmt,
+                      { userName: this.client.user.username },
+                      { client }
+                  ),
                   client
               )
             : '';

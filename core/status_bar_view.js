@@ -16,6 +16,9 @@ const stringFormat = require('./string_format');
 
 const _ = require('lodash');
 
+//  Panel values are already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
+
 //
 //  StatusBarView (%SB) — a text view with two modes:
 //
@@ -113,7 +116,7 @@ class StatusBarView extends TextView {
         const formatObj = getPredefinedMCIFormatObject(this.client, text);
         let result = text;
         if (formatObj) {
-            result = stringFormat(text, formatObj);
+            result = stringFormat(text, formatObj, { client: this.client });
         }
         return pipeToAnsi(stripAllLineFeeds(result), this.client);
     }
@@ -223,8 +226,8 @@ class StatusBarView extends TextView {
             if (vLen > w) {
                 val =
                     'clip-left' === panel.overflow
-                        ? renderSubstr(val, vLen - w, w)
-                        : renderSubstr(val, 0, w);
+                        ? renderSubstr(val, vLen - w, w, ANSI_ONLY)
+                        : renderSubstr(val, 0, w, ANSI_ONLY);
             }
 
             //  pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen)

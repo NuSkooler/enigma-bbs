@@ -18,12 +18,22 @@ exports.pipeColorToAnsi = PipeCodes.pipeColorSgr;
 
 //  :TODO: Not really happy with the module name of "color_codes". Would like something better ... control_code_string?
 
+//
+//  Remove the pipe codes pipeToAnsi() would consume: colours, cursor codes
+//  (|CF05 becomes five spaces) and known MCI codes. An unknown |XY stays, as
+//  it shows literally. The result can be rendered again (achievement titles
+//  are): "||" stays "||", and a pipe the removal would turn into a code is
+//  escaped.
+//
+const STRIP_RERENDER = { rerender: true };
+
 function stripMciColorCodes(s) {
-    return s.replace(/\|[A-Z\d]{2}/g, '');
+    return PipeCodes.strip(s, STRIP_RERENDER);
 }
 
+//  Display columns of |s| as pipeToAnsi() without a client would draw it.
 function pipeStringLength(s) {
-    return stripMciColorCodes(s).length;
+    return PipeCodes.width(s);
 }
 
 //

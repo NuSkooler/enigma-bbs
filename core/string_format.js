@@ -133,10 +133,12 @@ function getPadAlign(align) {
     );
 }
 
-function formatString(value, tokens) {
+//  |measure|: renderStringLength() opts ({ client }) for a result that is
+//  rendered with a client, so MCI codes in a value measure as their values
+function formatString(value, tokens, measure) {
     const fill = tokens.fill || (tokens['0'] ? '0' : ' ');
     const align = tokens.align || (tokens['0'] ? '=' : '<');
-    const precision = Number(tokens.precision || renderStringLength(value) + 1);
+    const precision = Number(tokens.precision || renderStringLength(value, measure) + 1);
 
     if ('' !== tokens.type && 's' !== tokens.type) {
         throw new ValueError(`Unknown format code "${tokens.type}" for String object`);
@@ -159,10 +161,13 @@ function formatString(value, tokens) {
     }
 
     return pad(
-        renderSubstr(value, 0, precision),
+        renderSubstr(value, 0, precision, measure),
         Number(tokens.width),
         fill,
-        getPadAlign(align)
+        getPadAlign(align),
+        '',
+        '',
+        measure || true
     );
 }
 
@@ -337,7 +342,15 @@ function getValue(obj, path) {
     throw new KeyError(quote(path));
 }
 
-module.exports = function format(fmt, obj) {
+//
+//  opts (optional): { client } when the result will be rendered with that
+//  client (pipeToAnsi(text, client)): string values are then padded and cut
+//  by what their MCI codes show for it.
+//
+module.exports = function format(fmt, obj, opts) {
+    //  one MCI resolution per distinct code for the whole format() call
+    const measure =
+        opts && opts.client ? { client: opts.client, mciMemo: new Map() } : undefined;
     const re = REGEXP_BASIC_FORMAT;
     re.lastIndex = 0; //  reset from prev
 
@@ -374,7 +387,7 @@ module.exports = function format(fmt, obj) {
                 if (_.isNumber(value)) {
                     out += formatNumber(value, tokens);
                 } else {
-                    out += formatString(value, tokens);
+                    out += formatString(value, tokens, measure);
                 }
             } catch (e) {
                 if (e instanceof KeyError) {

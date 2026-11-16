@@ -1093,7 +1093,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const idle = _.get(this.config, 'ticker.idleText');
         this._tickerIdle = true;
         if (idle) {
-            view.setText(stringFormat(idle, this.stats || {}));
+            view.setText(stringFormat(idle, this.stats || {}, { client: this.client }));
         }
     }
 
@@ -1407,7 +1407,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             if (!_.isString(fmt)) {
                 return;
             }
-            updates[name] = stringFormat(fmt, { ...(this.stats || {}), count });
+            updates[name] = stringFormat(
+                fmt,
+                { ...(this.stats || {}), count },
+                { client: this.client }
+            );
         });
 
         if (!_.isEmpty(updates)) {
@@ -1430,7 +1434,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
 
         const fmt = this.config.statusBarFormat || DefaultStatusBarFormat;
-        view.setText(stringFormat(fmt, this.stats || {}));
+        view.setText(stringFormat(fmt, this.stats || {}, { client: this.client }));
     }
 
     _getNodeStatusIndexByNodeId(nodeStatusView, nodeId) {
@@ -1706,7 +1710,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         } else {
             items.forEach((item, i) => {
                 out += pipeToAnsi(
-                    stringFormat(fmt, this._messageFormatObj(item, i)),
+                    stringFormat(fmt, this._messageFormatObj(item, i), {
+                        client: this.client,
+                    }),
                     this.client
                 );
                 out += '\r\n';
