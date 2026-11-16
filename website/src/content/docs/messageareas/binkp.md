@@ -170,6 +170,30 @@ A BSO flow file stores an **absolute path** to each file queued for a node. If t
 
 Raise it if you have a dangling reference you already know about and have not dealt with yet. To see what is affected and act on it, use [`oputil bso status`](../admin/oputil.md) — and note that a node whose queued entries have *all* gone missing is deliberately not polled, so that command is the only place it shows up.
 
+### `binkp.flowDispositionRoots`
+
+A flow file line starting with `^` (or `-`) asks for the file to be deleted once it is sent, and `#` asks for it to be truncated. ENiGMA½ carries that out only for files inside the **mail directories**:
+
+- every outbound directory it scans for flow files (`outbound/`, per-network directories, zone directories such as `outbound.002/`, and point directories under them);
+- `paths.inbound`, `paths.secInbound` and `paths.ticTransit`;
+- any directory listed in `flowDispositionRoots` (default `[]`).
+
+A file elsewhere is still sent, but left in place, and the line is marked sent as usual. ENiGMA½ logs a warning naming the node and the file, at most once an hour per flow file, and `oputil bso list` shows the entry as `KEPT`.
+
+Everything ENiGMA½ queues itself (packets, bundles, generated `.tic` files) is in the outbound, so nothing needs listing for that. List a directory when other software sharing the outbound queues files from it that should be removed after sending, for example a separate tosser's inbound:
+
+```hjson
+binkp: {
+    flowDispositionRoots: [ "/var/spool/husky/inbound" ]
+}
+```
+
+Symlinks: a delete removes the link itself, never the file it points to, so a `^` symlink inside a mail directory is removed once sent. A truncate never goes through a symlink: a `#` line whose file is a symlink is sent and marked sent, but nothing is truncated, and the log says why.
+
+ENiGMA½'s own configuration, security, database and log directories (`paths.config`, `paths.security`, `paths.db`, `paths.modsDb`, `paths.logs`) and the directory holding the loaded `config.hjson` are **never** sent from a flow file or as a direct-attach netmail file, nor disposed in, whether listed here or not (a symlink is judged by the file it points to). A flow file entry naming a file there is skipped, logged as a warning when first seen and then at most once an hour, left in the flow file, shown by `oputil bso list` as `REFUSED`, and does not make the node due for a poll. If a mail directory itself lies inside one of these (a `config.hjson` kept at the top of the install, say), the mail directory still works: the more specific directory wins. A file base storage directory there can still be sent from. File requests (`binkp.freq`) serve only the files and areas you configure for them and are not covered by this list.
+
+When a queued file is gone from its stored path but a file of that name sits beside the flow file, and the entry may not be taken from there (a send-and-keep line, or a stored path whose directory is not named like an outbound), it is not sent. The log says the file is beside the flow file, and `oputil bso list` shows it as `MISFILED`; `oputil bso prune` never removes it. Fix the path in the flow file or move the file back.
+
 ### `flowLockTimeoutMs`
 
 :::note
@@ -315,7 +339,7 @@ Both sides decide this the same way, by counting the command frames sent and rec
 | `nodes` (hosts, ports, passwords, `pull`, TLS) | next session, inbound or outbound | Immediately |
 | `freq` | next inbound session | Immediately |
 | `crashmailDebounceMs` | next crashmail burst | Immediately |
-| `tempDir`, `staleLockMaxAgeMs`, `flowRefWarnRepeatMs` | next session | Immediately |
+| `tempDir`, `staleLockMaxAgeMs`, `flowRefWarnRepeatMs`, `flowDispositionRoots` | next session | Immediately |
 | `flowLockTimeoutMs` (under `ftn_bso`) | next outbound queue | Immediately |
 | `ftn_bso` `paths` and `messageNetworks.ftn.networks` | next session or poll | Immediately |
 | `pullSchedule` | the pull timer | On reload — the timer is rebuilt |
@@ -343,7 +367,7 @@ Systems upgraded from before 0.5.1-beta may still have mail queued under the pre
 1. `ftn_bso` scans message areas → writes `.pkt` files and flow file references into the outbound spool
 2. `ftn_bso` emits a `NewOutboundBSO` event with the destination address
 3. The BinkP module receives the event, debounces briefly (`crashmailDebounceMs`), then dials the destination
-4. After a successful send, the flow file entry is rewritten as `~`-prefixed and the packet file is deleted; once every line in a flow file is `~`-prefixed the flow file itself is removed
+4. After a successful send, the flow file entry is rewritten as `~`-prefixed and the packet file is deleted (see [`flowDispositionRoots`](#binkpflowdispositionroots) for where that applies); once every line in a flow file is `~`-prefixed the flow file itself is removed
 5. Independently, the pull-cycle timer dials every configured peer on `pullSchedule` so quiet hubs get periodic touches even when we have nothing for them (the `binkpPullNow` task runs the same cycle on demand)
 
 **Inbound flow:**

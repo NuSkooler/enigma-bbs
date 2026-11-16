@@ -2034,6 +2034,14 @@
                                     "type": "number",
                                     "default": 3600000
                                 },
+                                "flowDispositionRoots": {
+                                    "description": "Directories, besides the outbound, inbound and TIC transit directories, in which a flow file's '^', '-' and '#' entries are deleted or truncated after sending. Elsewhere the file is sent and left in place.",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "default": []
+                                },
                                 "inboundTempMaxAgeMs": {
                                     "type": "number",
                                     "default": 3600000

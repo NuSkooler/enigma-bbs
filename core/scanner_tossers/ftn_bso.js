@@ -48,6 +48,37 @@ const {
     flowRefBody,
 } = require('../bso_util.js');
 const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
+const { flowRefLineProblem } = require('../bso_flow_paths.js');
+
+//
+//  An error when |outboundPath| -- where a packet or bundle is about to be
+//  moved -- could not then be referenced from a flow file with |directive|,
+//  else null. Asked *before* the move: once the file is in the outbound, a
+//  refused reference leaves it there with nothing pointing at it, and a
+//  retry makes another one each pass. Before the move it is still in the
+//  export temp area and the export simply fails, to be retried.
+//
+function unqueueableOutboundPath(outboundPath, directive) {
+    const problem = flowRefLineProblem(directive, absoluteFlowRef(outboundPath));
+    if (!problem) {
+        return null;
+    }
+    Log.error(
+        { path: outboundPath, reason: problem },
+        'Outbound path cannot be written to a flow file; not moving the packet into the outbound'
+    );
+    return Errors.Invalid(
+        `Outbound path ${JSON.stringify(outboundPath)} cannot be queued: ${problem}`
+    );
+}
+
+//  A flow file reference as an absolute path. A flow file is read by other
+//  processes with other working directories, so a relative paths.outbound
+//  must not leak into one. Anything that is not a path is passed through for
+//  flowFileAppendRefs() to refuse.
+function absoluteFlowRef(p) {
+    return 'string' === typeof p && p.length > 0 ? paths.resolve(p) : p;
+}
 const TicFileWriter = require('../tic_file_writer.js');
 const FtnPacketWriter = require('../ftn_packet_writer.js');
 const ticForward = require('../tic_forward.js');
@@ -349,12 +380,38 @@ function FTNMessageScanTossModule() {
     //  core/bso_lock.js for why that is mandatory rather than defensive, and
     //  why it is the same lock BinkP sessions and external mailers take.
     //
+    //  Every reference must be an absolute path that every reader takes the
+    //  same way: no control characters, no leading whitespace or directive
+    //  character, at most 2047 bytes (see flowRefLineProblem()). If any one is
+    //  not, nothing is written and |cb| gets an error -- writing the rest
+    //  would split a payload from its TIC.
+    //
     this.flowFileAppendRefs = function (filePath, fileRefs, directive, destAddress, cb) {
-        const appendLines = fileRefs.reduce((content, ref) => {
-            const refDirective = _.isObject(ref) ? ref.directive || '' : directive;
+        let appendLines = '';
+        for (const ref of fileRefs) {
+            const refDirective = (_.isObject(ref) ? ref.directive : directive) || '';
             const refPath = _.isObject(ref) ? ref.path : ref;
-            return content + `${refDirective}${refPath}\n`;
-        }, '');
+            const problem = flowRefLineProblem(refDirective, refPath);
+            if (problem) {
+                Log.warn(
+                    {
+                        path: filePath,
+                        ref: refPath,
+                        directive: refDirective,
+                        reason: problem,
+                    },
+                    'Refusing to write flow file reference'
+                );
+                return cb(
+                    Errors.Invalid(
+                        `Flow file reference ${JSON.stringify(
+                            `${refDirective}${refPath}`
+                        )} not written: ${problem}`
+                    )
+                );
+            }
+            appendLines += `${refDirective}${refPath}\n`;
+        }
 
         //
         //  We have to ensure the *directory* of |filePath| exists here esp.
@@ -1118,10 +1175,18 @@ function FTNMessageScanTossModule() {
     //  nothing delivered. Calls back with no error of its own; the caller
     //  decides what a failed destination means for it.
     //
+    //  |options.trackPending|: record, with each message's Exported bit, every
+    //  destination it is for as pending (System/ftn_export_pending, one row per
+    //  uplink), and clear a destination's rows once its packets are delivered.
+    //  What is left names exactly the uplinks still owed the message, for the
+    //  export scan to retry; see performEchoMailExport(). Relay does not use
+    //  it: it retries from a watermark per uplink.
+    //
     this.exportEchoMailToDestinations = function (destinations, items, cb, options) {
         const claimed = [];
         const onDestinationDone =
             (options && options.onDestinationDone) || ((dest, next) => next());
+        const trackPending = true === (options && options.trackPending);
 
         //  A destination that got nothing: say so, with enough to act on -- a
         //  bare err.message here read as an unattributed SQL or fs complaint
@@ -1166,7 +1231,13 @@ function FTNMessageScanTossModule() {
                     );
                 },
                 function packetise(callback) {
-                    return self.packetiseEchoMail(destinations, items, claimed, callback);
+                    return self.packetiseEchoMail(
+                        destinations,
+                        items,
+                        claimed,
+                        callback,
+                        { trackPending }
+                    );
                 },
                 function deliver(callback) {
                     //  One destination at a time: two of them can want the same
@@ -1182,6 +1253,13 @@ function FTNMessageScanTossModule() {
                         (dest, nextDest) => {
                             const done = onceDeferred(() => {
                                 if (!dest.error) {
+                                    if (trackPending) {
+                                        //  normally all cleared packet by packet
+                                        self.clearEchoMailExportPending(
+                                            dest,
+                                            dest.pendingMessageIds || []
+                                        );
+                                    }
                                     return onDestinationDone(dest, () => nextDest());
                                 }
                                 finishFailed(dest, () =>
@@ -1191,6 +1269,16 @@ function FTNMessageScanTossModule() {
 
                             if (dest.error) {
                                 return done();
+                            }
+                            if (trackPending) {
+                                //  A packet in outbound is delivered whatever
+                                //  happens to the next one: a partial failure
+                                //  leaves owed only what did not go out.
+                                dest.onPacketsDelivered = files =>
+                                    self.clearEchoMailExportPending(
+                                        dest,
+                                        dest.writer ? dest.writer.messageIdsIn(files) : []
+                                    );
                             }
                             try {
                                 self.deliverEchoMailPackets(
@@ -1227,7 +1315,8 @@ function FTNMessageScanTossModule() {
     //
     //  Leaves each healthy destination's packet paths in |dest.exportedFiles|.
     //
-    this.packetiseEchoMail = function (destinations, items, claimed, cb) {
+    this.packetiseEchoMail = function (destinations, items, claimed, cb, options) {
+        const trackPending = true === (options && options.trackPending);
         destinations.forEach(dest => {
             dest.writer = new FtnPacketWriter({
                 targetSize: self.moduleConfig.packetTargetByteSize,
@@ -1249,7 +1338,7 @@ function FTNMessageScanTossModule() {
         async.eachSeries(
             items,
             (item, nextItem) => {
-                return self.exportEchoMailItem(item, () => nextItem());
+                return self.exportEchoMailItem(item, () => nextItem(), { trackPending });
             },
             () => {
                 async.eachSeries(
@@ -1276,7 +1365,8 @@ function FTNMessageScanTossModule() {
         );
     };
 
-    this.exportEchoMailItem = function (item, cb) {
+    this.exportEchoMailItem = function (item, cb, options) {
+        const trackPending = true === (options && options.trackPending);
         const targets = item.destinations.filter(dest => !dest.error);
         if (0 === targets.length) {
             return cb(); //  everyone it was for has failed; do not even load it
@@ -1400,6 +1490,21 @@ function FTNMessageScanTossModule() {
                                           },
                                       ]
                                     : [];
+
+                                //  Every destination the message is for, not
+                                //  only those it was handed to: one that has
+                                //  already failed in this call is owed it too.
+                                //  Written with the Exported bit, so that a
+                                //  message the scan can no longer select
+                                //  always says who is still owed it.
+                                if (trackPending) {
+                                    metaValues.push({
+                                        category: 'System',
+                                        name: Message.SystemMetaNames.FtnExportPending,
+                                        value: item.destinations.map(d => d.uplink),
+                                    });
+                                }
+
                                 base.setStateFlags0BitAndMeta(
                                     Message.StateFlags0.Exported,
                                     metaValues,
@@ -1409,6 +1514,12 @@ function FTNMessageScanTossModule() {
                                             //  out: a retry would mint a second
                                             //  MSGID for it.
                                             failAll(handed, err);
+                                        } else if (trackPending) {
+                                            item.destinations.forEach(d => {
+                                                d.pendingMessageIds =
+                                                    d.pendingMessageIds || [];
+                                                d.pendingMessageIds.push(base.messageId);
+                                            });
                                         }
                                         return done();
                                     })
@@ -1419,6 +1530,47 @@ function FTNMessageScanTossModule() {
                 );
             })
         );
+    };
+
+    //
+    //  |dest| has delivered |messageIds|: it is no longer owed them.
+    //
+    //  Not in a transaction, deliberately: each statement is atomic on its
+    //  own, and a row left behind costs one resend to this uplink, which is
+    //  all a transaction could save. A failure is logged and does not fail the
+    //  destination -- its packets are already in outbound.
+    //
+    this.clearEchoMailExportPending = function (dest, messageIds) {
+        dest.clearedMessageIds = dest.clearedMessageIds || new Set();
+        const ids = messageIds.filter(id => !dest.clearedMessageIds.has(id));
+        ids.forEach(id => dest.clearedMessageIds.add(id));
+        if (0 === ids.length) {
+            return;
+        }
+        const CHUNK = 500; //  SQLite's host parameter limit
+        try {
+            for (let i = 0; i < ids.length; i += CHUNK) {
+                const chunk = ids.slice(i, i + CHUNK);
+                msgDb
+                    .prepare(
+                        `DELETE FROM message_meta
+                        WHERE meta_category = 'System' AND meta_name = ?
+                          AND meta_value = ?
+                          AND message_id IN (${chunk.map(() => '?').join(',')});`
+                    )
+                    .run(Message.SystemMetaNames.FtnExportPending, dest.uplink, ...chunk);
+            }
+        } catch (err) {
+            Log.error(
+                {
+                    uplink: dest.uplink,
+                    areaTag: dest.logInfo.areaTag,
+                    messages: ids.length,
+                    error: err.message,
+                },
+                'EchoMail delivered, but could not record it; the next export scan will send it to this uplink again'
+            );
+        }
     };
 
     //
@@ -1448,7 +1600,12 @@ function FTNMessageScanTossModule() {
     //  Bundle |exportedFileNames| for |dest| if it takes bundles, move them into
     //  its outbound directory, and reference them from its flow file.
     //
+    //  |dest.onPacketsDelivered(packets)|, if set, is told as each of
+    //  |exportedFileNames| is in outbound and referenced: a bare packet on its
+    //  own, every packet at once when they went out in one bundle.
+    //
     this.deliverEchoMailPackets = function (dest, exportedFileNames, cb) {
+        const packetFiles = exportedFileNames;
         const exportOpts = dest.exportOpts;
         const outgoingDir = dest.outgoingDir;
         const exportType = dest.exportType;
@@ -1535,6 +1692,11 @@ function FTNMessageScanTossModule() {
                                 );
                             }
 
+                            const unqueueable = unqueueableOutboundPath(newPath, '^');
+                            if (unqueueable) {
+                                return nextFile(unqueueable);
+                            }
+
                             fse.move(oldPath, newPath, err => {
                                 if (err) {
                                     //  The packet is still in the temp
@@ -1568,7 +1730,7 @@ function FTNMessageScanTossModule() {
                                 //  directive of '^' = delete file after transfer
                                 self.flowFileAppendRefs(
                                     flowFilePath,
-                                    [newPath],
+                                    [absoluteFlowRef(newPath)],
                                     '^',
                                     exportOpts.destAddress,
                                     err => {
@@ -1602,6 +1764,13 @@ function FTNMessageScanTossModule() {
                                                 'Failed appending flow reference record!'
                                             );
                                             return nextFile(err);
+                                        }
+                                        if (dest.onPacketsDelivered) {
+                                            dest.onPacketsDelivered(
+                                                packetFiles.includes(oldPath)
+                                                    ? [oldPath]
+                                                    : packetFiles
+                                            );
                                         }
                                         nextFile();
                                     }
@@ -1862,6 +2031,14 @@ function FTNMessageScanTossModule() {
                                 )}${newExt}`
                             );
 
+                            const unqueueable = unqueueableOutboundPath(
+                                exportOpts.exportedToPath,
+                                '^'
+                            );
+                            if (unqueueable) {
+                                return callback(unqueueable);
+                            }
+
                             return fse.move(
                                 exportOpts.pktFileName,
                                 exportOpts.exportedToPath,
@@ -1879,7 +2056,7 @@ function FTNMessageScanTossModule() {
 
                             return self.flowFileAppendRefs(
                                 flowFilePath,
-                                [exportOpts.exportedToPath],
+                                [absoluteFlowRef(exportOpts.exportedToPath)],
                                 '^',
                                 exportOpts.routeAddress,
                                 callback
@@ -2017,34 +2194,70 @@ function FTNMessageScanTossModule() {
         uplinks,
         cb
     ) {
+        return self.exportEchoMailEntriesToUplinks(
+            messageUuids.map(uuid => ({ uuid, uplinks })),
+            areaConfig,
+            uplinks,
+            cb
+        );
+    };
+
+    //
+    //  |entries| are [ { uuid, uplinks } ], in message order, each naming the
+    //  uplinks that message goes to. Destinations are created in |uplinkOrder|,
+    //  for those of its uplinks some entry names.
+    //
+    //  Every uplink a message is handed to is recorded as owed it until its
+    //  packets are delivered (see |trackPending| in
+    //  exportEchoMailToDestinations), so an uplink that fails here is retried
+    //  by the next export scan -- and only that uplink.
+    //
+    this.exportEchoMailEntriesToUplinks = function (
+        entries,
+        areaConfig,
+        uplinkOrder,
+        cb
+    ) {
         //  One uplink failing must not abandon the rest, but it must not pass
         //  for success either: the caller advances the area's last scan ID on
         //  a clean return, and doing that after a failed uplink is what turns
         //  a recoverable error into mail nobody ever sees again.
         const logInfo = { areaTag: areaConfig.tag, network: areaConfig.network };
-        const destinations = uplinks
+        const wanted = new Set(entries.flatMap(e => e.uplinks));
+        const destinations = uplinkOrder
+            .filter(uplink => wanted.has(uplink))
             .map(uplink =>
                 self.createEchoMailDestination(uplink, areaConfig.network, logInfo)
             )
             .filter(Boolean);
 
-        const items = messageUuids.map(uuid => ({ uuid, destinations }));
+        const items = entries
+            .map(entry => ({
+                uuid: entry.uuid,
+                destinations: destinations.filter(d => entry.uplinks.includes(d.uplink)),
+            }))
+            .filter(item => item.destinations.length > 0);
 
-        self.exportEchoMailToDestinations(destinations, items, () => {
-            const failedUplinks = destinations
-                .filter(dest => dest.error)
-                .map(dest => dest.uplink);
-            if (failedUplinks.length > 0) {
-                return cb(
-                    Errors.General(
-                        `Failed exporting to ${failedUplinks.join(
-                            ', '
-                        )}; messages will be retried`
-                    )
-                );
-            }
-            return cb(null);
-        });
+        self.exportEchoMailToDestinations(
+            destinations,
+            items,
+            () => {
+                const failedUplinks = destinations
+                    .filter(dest => dest.error)
+                    .map(dest => dest.uplink);
+                if (failedUplinks.length > 0) {
+                    return cb(
+                        Errors.General(
+                            `Failed exporting to ${failedUplinks.join(
+                                ', '
+                            )}; messages will be retried`
+                        )
+                    );
+                }
+                return cb(null);
+            },
+            { trackPending: true }
+        );
     };
 
     this.setReplyToMsgIdFtnReplyKludge = function (message, cb) {
@@ -3247,12 +3460,14 @@ function FTNMessageScanTossModule() {
     //
     this.transitReferencedPaths = function (cb) {
         const { BsoSpool } = require('../binkp/bso_spool.js');
+        const { flowPathSettings } = require('../bso_flow_paths.js');
         const config = Config();
 
         const spool = new BsoSpool({
             paths: _.get(config, 'scannerTossers.ftn_bso.paths', {}),
             networks: _.get(config, 'messageNetworks.ftn.networks', {}),
             defaultNetwork: _.get(config, 'scannerTossers.ftn_bso.defaultNetwork'),
+            flowPaths: flowPathSettings(config),
         });
 
         //
@@ -4736,9 +4951,9 @@ function FTNMessageScanTossModule() {
         //  so the pair stays ordered and adjacent.
         //
         const queue = ticPath => {
-            const refs = [{ directive: '', path: localInfo.newPath }];
+            const refs = [{ directive: '', path: absoluteFlowRef(localInfo.newPath) }];
             if (ticPath) {
-                refs.push({ directive: '^', path: ticPath });
+                refs.push({ directive: '^', path: absoluteFlowRef(ticPath) });
             }
 
             self.flowFileAppendRefs(flowFilePath, refs, undefined, downlink, err => {
@@ -4821,6 +5036,11 @@ function FTNMessageScanTossModule() {
         //
         //  NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
         //
+        //  Other tossers write state_flags0 too (ActivityPub marks a post it
+        //  exported, email a failure), so this also passes over a message one
+        //  of them got to first. That is long-standing behaviour and is kept
+        //  as is; see test/ftn_export_retry.test.js.
+        //
         const getNewUuidsSql = `SELECT message_id, message_uuid
             FROM message m
             WHERE area_tag = ? AND message_id > ? AND
@@ -4828,6 +5048,7 @@ function FTNMessageScanTossModule() {
                 FROM message_meta
                 WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
             ORDER BY message_id;`;
+
         //  we shouldn't, but be sure we don't try to pick up private mail here
         const config = Config();
         const areaTags = Object.keys(config.messageNetworks.ftn.areas).filter(
@@ -4848,6 +5069,13 @@ function FTNMessageScanTossModule() {
                 //
                 async.waterfall(
                     [
+                        function retryPending(callback) {
+                            return self.retryPendingEchoMailExport(
+                                areaTag,
+                                areaConfig,
+                                () => callback(null)
+                            );
+                        },
                         function getLastScanId(callback) {
                             self.getAreaLastScanId(areaTag, ScanToss.Export, callback);
                         },
@@ -4883,6 +5111,13 @@ function FTNMessageScanTossModule() {
                                         //  short-circuit the waterfall past
                                         //  updateLastScanId so these messages
                                         //  come round again next scan.
+                                        //
+                                        //  Those that went out to some uplink
+                                        //  are now flagged and come round as
+                                        //  retries, to the uplinks that
+                                        //  missed them; those that went out
+                                        //  to none are still unflagged and
+                                        //  come round here, to every uplink.
                                         Log.warn(
                                             {
                                                 areaTag: areaTag,
@@ -4922,6 +5157,111 @@ function FTNMessageScanTossModule() {
             },
             err => {
                 return cb(err);
+            }
+        );
+    };
+
+    //
+    //  Send each message of |areaTag| that is still owed to some uplink to the
+    //  uplinks owed it. Before the scan's new mail, so that every uplink gets
+    //  an area's messages in order, and in a call of its own, so that a
+    //  message that fails every time for an uplink holds back only that
+    //  uplink's retries, not its new mail.
+    //
+    //  The export scan's query cannot select these: the Exported bit is
+    //  written as soon as a message goes to its first destination. Each
+    //  carries one ftn_export_pending row per uplink still owed it (see
+    //  exportEchoMailEntriesToUplinks), so the retry goes to those uplinks
+    //  only, and reuses the MSGID stored with the bit. No watermark: the rows
+    //  are the whole of the retry state.
+    //
+    //  An owed uplink that cannot be sent to -- no longer in the area's
+    //  uplinks, spelled differently there now, or without a node entry -- is
+    //  left alone, row and all: dropping its rows on a config edit would
+    //  silently lose the mail if the edit were a mistake. It is warned about
+    //  on every scan instead, since the rows wait for the config to change.
+    //
+    this.retryPendingEchoMailExport = function (areaTag, areaConfig, cb) {
+        let rows;
+        try {
+            rows = msgDb
+                .prepare(
+                    `SELECT m.message_uuid, mm.meta_value AS uplink
+                    FROM message_meta mm
+                    JOIN message m ON m.message_id = mm.message_id
+                    WHERE mm.meta_category = 'System' AND mm.meta_name = ?
+                      AND m.area_tag = ?
+                    ORDER BY m.message_id;`
+                )
+                .all(Message.SystemMetaNames.FtnExportPending, areaTag);
+        } catch (err) {
+            Log.warn(
+                { areaTag, error: err.message },
+                'Could not read EchoMail owed to uplinks'
+            );
+            return cb(null);
+        }
+        if (0 === rows.length) {
+            return cb(null);
+        }
+
+        const configured = areaConfig.uplinks;
+        const entries = [];
+        const stranded = { uplinks: new Set(), messages: new Set() };
+        rows.forEach(row => {
+            if (
+                !configured.includes(row.uplink) ||
+                !self.getNodeConfigByAddress(row.uplink)
+            ) {
+                stranded.uplinks.add(row.uplink);
+                stranded.messages.add(row.message_uuid);
+                return;
+            }
+            let entry = entries[entries.length - 1];
+            if (!entry || entry.uuid !== row.message_uuid) {
+                entry = { uuid: row.message_uuid, uplinks: [] };
+                entries.push(entry);
+            }
+            entry.uplinks.push(row.uplink);
+        });
+
+        if (stranded.uplinks.size > 0) {
+            Log.warn(
+                {
+                    areaTag,
+                    uplinks: Array.from(stranded.uplinks),
+                    messages: stranded.messages.size,
+                },
+                "EchoMail owed to uplinks this area cannot send to is not being sent: list each uplink in the area's uplinks exactly as logged here, with a nodes entry, or it is never sent"
+            );
+        }
+        if (0 === entries.length) {
+            return cb(null);
+        }
+
+        const uplinks = _.uniq(entries.flatMap(e => e.uplinks));
+        return self.exportEchoMailEntriesToUplinks(
+            entries,
+            areaConfig,
+            configured,
+            err => {
+                if (err) {
+                    Log.warn(
+                        {
+                            areaTag,
+                            uplinks,
+                            messages: entries.length,
+                            error: err.message,
+                        },
+                        'Export retry incomplete; will retry'
+                    );
+                } else {
+                    Log.info(
+                        { areaTag, uplinks, messagesExported: entries.length },
+                        'Export retry complete'
+                    );
+                }
+                return cb(null);
             }
         );
     };

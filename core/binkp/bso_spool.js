@@ -21,6 +21,11 @@ const {
 } = require('../bso_util');
 const bsoLock = require('../bso_lock');
 const { withFlowFileLock, isBusyError } = require('../bso_lock');
+const {
+    FlowPathPolicy,
+    basenameFallbackAllowed,
+    isControlFileName,
+} = require('../bso_flow_paths');
 
 // In priority order (highest first)
 const FLOW_EXTS = ['ilo', 'clo', 'dlo', 'flo', 'hlo'];
@@ -87,6 +92,10 @@ const warnedFlowRefs = new Map();
 //    networks         : messageNetworks.ftn.networks  (for zone/dir resolution)
 //    defaultNetwork   : scannerTossers.ftn_bso.defaultNetwork  (which network
 //                       owns the bare outbound/ dir; see core/bso_util.js)
+//    flowPaths        : flowPathSettings(config) from core/bso_flow_paths.js:
+//                       protected directories, file base storage and the
+//                       operator's flowDispositionRoots. Optional; the mail
+//                       directories come from |paths| and the outbound scan.
 //
 class BsoSpool {
     //  flow file path -> tail of the in-flight rewrite chain for it.
@@ -105,6 +114,7 @@ class BsoSpool {
             typeof config.flowRefWarnRepeatMs === 'number'
                 ? config.flowRefWarnRepeatMs
                 : DEFAULT_FLOW_REF_WARN_REPEAT_MS;
+        this._flowPaths = config.flowPaths || {};
     }
 
     // ── Lock management ──────────────────────────────────────────────────────
@@ -170,6 +180,7 @@ class BsoSpool {
     // Call disposeFn() after the remote acknowledges receipt (file-sent event).
     async getOutboundFilesForNode(addr) {
         const results = [];
+        const policy = await this._flowPathPolicy();
 
         for (const { dir, base, entries } of await this._spoolTargetsForNode(addr)) {
             for (const ext of DIRECT_EXTS) {
@@ -181,6 +192,19 @@ class BsoSpool {
                     const stat = await fsp.stat(filePath);
                     // Zero-byte .ilo = poll trigger, not actual mail
                     if (stat.size === 0) continue;
+                    //  Found by the scan, so the entry itself is in the
+                    //  outbound and unlinking it touches nothing else; but a
+                    //  symlink here must not send a protected file.
+                    if (
+                        await refusedTarget(
+                            policy,
+                            filePath,
+                            addr,
+                            filePath,
+                            this._flowRefWarnRepeatMs
+                        )
+                    )
+                        continue;
                     results.push({
                         //  FTS-5005.003 §3.1: a netmail flow file "must be
                         //  dynamically renamed at the moment of sending to a
@@ -193,6 +217,7 @@ class BsoSpool {
                         size: stat.size,
                         timestamp: Math.floor(stat.mtimeMs / 1000),
                         disposition: 'delete',
+                        allowed: true,
                         //  Direct-attach has no flow file to annotate, and the
                         //  session layer (BinkpSession._applyDisposition) already
                         //  unlinks/truncates per the queued disposition. Nothing
@@ -215,7 +240,7 @@ class BsoSpool {
 
                 const flowPath = path.join(dir, actual);
                 try {
-                    results.push(...(await this._parseFlowFile(flowPath, addr)));
+                    results.push(...(await this._parseFlowFile(flowPath, addr, policy)));
                 } catch (err) {
                     if (err.code !== 'ENOENT') {
                         Log.warn(
@@ -298,18 +323,36 @@ class BsoSpool {
     async getNodesWithPendingMail() {
         const seen = new Set();
         const results = [];
+        const policy = await this._flowPathPolicy();
 
         await this._forEachOutboundFile(async ({ addr, filePath, isFlow }) => {
             const key = addr.toString();
             if (seen.has(key)) return;
 
             if (isFlow) {
-                if (!(await flowHasPending(filePath, addr, this._flowRefWarnRepeatMs)))
+                if (
+                    !(await flowHasPending(
+                        filePath,
+                        addr,
+                        this._flowRefWarnRepeatMs,
+                        policy
+                    ))
+                )
                     return;
             } else {
                 // Direct-attach: zero-byte = poll flag, not mail
                 const stat = await fsp.stat(filePath).catch(() => null);
                 if (!stat || stat.size === 0) return;
+                if (
+                    await refusedTarget(
+                        policy,
+                        filePath,
+                        addr,
+                        filePath,
+                        this._flowRefWarnRepeatMs
+                    )
+                )
+                    return;
             }
 
             seen.add(key);
@@ -325,9 +368,16 @@ class BsoSpool {
     //
     //  Returns [{ address, entries: [...] }] sorted by address, where each
     //  entry is { kind, status, path, size, timestamp, disposition, flowFile,
-    //  lineIdx, line }. |status| is 'pending', 'sent' or 'missing'; a
-    //  'missing' entry is one whose reference resolves to no file on disk,
-    //  which is the condition that never resolves itself.
+    //  lineIdx, line }. |status| is 'pending', 'sent', 'missing', 'unreadable'
+    //  or 'refused'; a 'missing' entry is one whose reference resolves to no
+    //  file on disk, which is the condition that never resolves itself. A
+    //  'refused' entry names a file in a protected directory, which is never
+    //  sent (see core/bso_flow_paths.js). A 'misfiled' entry's stored path is
+    //  gone but a file of that name sits beside the flow file, which this
+    //  entry may not be sent from (|besideFlowFile| names it): it is not
+    //  missing, and must not be pruned. A pending flow entry also carries
+    //  |dispositionAllowed|: false when its '^', '-' or '#' will not be
+    //  carried out because the file is outside the mail directories.
     //
     //
     //  |options.onUnreadable| is called with the path of any flow file that
@@ -340,6 +390,7 @@ class BsoSpool {
     //
     async inspectOutbound(options = {}) {
         const byNode = new Map();
+        const policy = await this._flowPathPolicy();
 
         const add = (addr, entry) => {
             const key = addr.toString();
@@ -356,9 +407,10 @@ class BsoSpool {
                 if (!stat || 0 === stat.size) {
                     return;
                 }
+                const classified = await policy.classify(filePath);
                 add(addr, {
                     kind: 'direct',
-                    status: 'pending',
+                    status: classified && classified.refused ? 'refused' : 'pending',
                     path: filePath,
                     size: stat.size,
                     timestamp: Math.floor(stat.mtimeMs / 1000),
@@ -400,7 +452,12 @@ class BsoSpool {
                 //  Resolve quietly: this is a report, and shouting into the
                 //  log every time an operator runs it would bury the periodic
                 //  warning that actually marks a change of state.
-                const resolved = await resolveFlowRefQuiet(filePath, ref);
+                const resolved = await resolveFlowRefQuiet(filePath, ref, prefix, policy);
+                const classified = resolved ? await policy.classify(resolved.path) : null;
+                const dispositionCheck = resolved
+                    ? await judgeDisposition(policy, disposition, resolved.path)
+                    : null;
+                let besideFlowFile = null;
 
                 //  Absent is not the same as unreadable, and only the first
                 //  is safe to prune. A file behind a permissions problem, a
@@ -409,7 +466,19 @@ class BsoSpool {
                 //  would discard mail over a transient fault.
                 let status = 'pending';
                 if (!resolved) {
-                    status = (await isGenuinelyAbsent(ref)) ? 'missing' : 'unreadable';
+                    if (!(await isGenuinelyAbsent(ref))) {
+                        status = 'unreadable';
+                    } else {
+                        //  Gone from where it was queued, but a file of that
+                        //  name is beside the flow file -- moved, not lost.
+                        //  This entry may not be sent from there (see
+                        //  resolveFlowRef()), and pruning it would strand
+                        //  the file, so it gets a status prune leaves alone.
+                        besideFlowFile = await misfiledPath(filePath, ref);
+                        status = besideFlowFile ? 'misfiled' : 'missing';
+                    }
+                } else if (classified && classified.refused) {
+                    status = 'refused';
                 }
 
                 add(addr, {
@@ -419,6 +488,10 @@ class BsoSpool {
                     size: resolved ? resolved.stat.size : null,
                     timestamp: resolved ? Math.floor(resolved.stat.mtimeMs / 1000) : null,
                     disposition,
+                    dispositionAllowed:
+                        'keep' === disposition ||
+                        Boolean(dispositionCheck && dispositionCheck.allowed),
+                    ...(besideFlowFile ? { besideFlowFile } : {}),
                     flowFile: filePath,
                     lineIdx: i,
                     line: trimmed,
@@ -773,7 +846,44 @@ class BsoSpool {
         return path.join(dir, `${nodeBaseName(addr)}.bsy`);
     }
 
-    async _parseFlowFile(flowPath, addr) {
+    //
+    //  Which directories a flow file line may act on, for this pass. Built
+    //  from the same |paths| and outbound scan used to find flow files, so a
+    //  directory the spool reads flow files from is always one their '^' and
+    //  '#' entries may be disposed in. See core/bso_flow_paths.js.
+    //
+    async _flowPathPolicy() {
+        const outboundDirs = await this._allOutboundDirs();
+
+        const outboundNames = new Set(
+            Object.keys(this._networks).map(n => n.toLowerCase())
+        );
+        for (const { dir } of outboundDirs) {
+            outboundNames.add(path.basename(dir).toLowerCase());
+        }
+        if (this._paths.outbound) {
+            outboundNames.add(
+                path.basename(path.resolve(this._paths.outbound)).toLowerCase()
+            );
+        }
+
+        return FlowPathPolicy.build({
+            settings: this._flowPaths,
+            spoolDirs: [
+                ...outboundDirs.map(d => d.dir),
+                this._paths.inbound,
+                this._paths.secInbound,
+                this._paths.ticTransit,
+            ],
+            outboundNames,
+            log: Log,
+        });
+    }
+
+    async _parseFlowFile(flowPath, addr, policy) {
+        if (!policy) {
+            policy = await this._flowPathPolicy();
+        }
         const content = await fsp.readFile(flowPath, 'utf8');
         const lines = content.split('\n');
         const results = [];
@@ -784,23 +894,70 @@ class BsoSpool {
             if (!trimmed || trimmed[0] === '~') continue;
 
             const firstChar = trimmed[0];
-            let disposition, filePath;
+            let disposition, filePath, directive;
 
             if (firstChar === '^' || firstChar === '-') {
                 disposition = 'delete';
+                directive = firstChar;
                 filePath = trimmed.slice(1);
             } else if (firstChar === '#') {
                 disposition = 'truncate';
+                directive = firstChar;
                 filePath = trimmed.slice(1);
             } else {
                 disposition = 'keep';
+                directive = '';
                 filePath = trimmed;
             }
 
             const resolved = await resolveFlowRef(flowPath, filePath, addr, {
                 repeatMs: this._flowRefWarnRepeatMs,
+                directive,
+                policy,
             });
             if (!resolved) continue;
+
+            if (
+                await refusedTarget(
+                    policy,
+                    resolved.path,
+                    addr,
+                    flowPath,
+                    this._flowRefWarnRepeatMs
+                )
+            )
+                continue;
+
+            //  The spool decides; the session (BinkpSession._applyDisposition)
+            //  carries it out, checking again just before it acts.
+            let allowed = true;
+            let checkTarget = null;
+            if ('keep' !== disposition) {
+                const classified = await judgeDisposition(
+                    policy,
+                    disposition,
+                    resolved.path
+                );
+                allowed = Boolean(classified && classified.allowed);
+                if (allowed) {
+                    const target = resolved.path;
+                    checkTarget = () => judgeDisposition(policy, disposition, target);
+                } else {
+                    warnThrottled(
+                        `outside\0${flowPath}`,
+                        this._flowRefWarnRepeatMs,
+                        {
+                            node: nodeLabel(flowPath, addr),
+                            file: resolved.path,
+                            disposition,
+                            flowFile: flowPath,
+                        },
+                        '[BinkP/BSO] Flow file entry is outside the mail directories; sending it but ' +
+                            'leaving the file in place. To have it deleted or truncated after sending, ' +
+                            'add its directory to scannerTossers.ftn_bso.binkp.flowDispositionRoots'
+                    );
+                }
+            }
 
             const lineIdx = i;
             const captured = trimmed; // close over the line as it was when read
@@ -810,6 +967,8 @@ class BsoSpool {
                 size: resolved.stat.size,
                 timestamp: Math.floor(resolved.stat.mtimeMs / 1000),
                 disposition,
+                allowed,
+                checkTarget,
                 //  Bookkeeping keys off the line as it was written, not off
                 //  |resolved.path| — so a reference rescued by the fallback
                 //  above is still marked sent correctly.
@@ -1046,16 +1205,115 @@ function uniquePacketName(filePath) {
 //  poller would dial it every cycle only to transfer nothing and log a clean
 //  "Session complete".
 //
-async function flowHasPending(flowPath, addr, repeatMs) {
+async function flowHasPending(flowPath, addr, repeatMs, policy) {
     const content = await fsp.readFile(flowPath, 'utf8').catch(() => '');
     for (const line of content.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed || trimmed[0] === '~') continue;
 
-        const ref = /^[\^#-]/.test(trimmed) ? trimmed.slice(1) : trimmed;
-        if (await resolveFlowRef(flowPath, ref, addr, { repeatMs })) return true;
+        const directive = /^[\^#-]/.test(trimmed) ? trimmed[0] : '';
+        const ref = directive ? trimmed.slice(1) : trimmed;
+        const resolved = await resolveFlowRef(flowPath, ref, addr, {
+            repeatMs,
+            directive,
+            policy,
+        });
+        if (!resolved) continue;
+
+        //  A file that will never be sent gives no reason to dial.
+        if (await refusedTarget(policy, resolved.path, addr, flowPath, repeatMs))
+            continue;
+        return true;
     }
     return false;
+}
+
+//
+//  True, after saying so, when |filePath| lies in a protected directory and
+//  must not be sent. Warned at first sight and again each |repeatMs| per
+//  flow file and path: it is a standing condition, and up to four places
+//  ask about it on every poll.
+//
+//  A file that vanished between resolving and classifying is treated the
+//  same way -- there is nothing to send.
+//
+async function refusedTarget(policy, filePath, addr, flowPath, repeatMs) {
+    const classified = await policy.classify(filePath);
+    if (!classified) {
+        return true;
+    }
+    if (!classified.refused) {
+        return false;
+    }
+    warnThrottled(
+        `refused\0${flowPath}\0${filePath}`,
+        typeof repeatMs === 'number' ? repeatMs : DEFAULT_FLOW_REF_WARN_REPEAT_MS,
+        {
+            node: nodeLabel(flowPath, addr),
+            file: filePath,
+            protectedDir: classified.protectedDir,
+            flowFile: flowPath,
+        },
+        '[BinkP/BSO] Outbound entry names a file in a protected directory; not sending it'
+    );
+    return true;
+}
+
+//
+//  Whether |disposition| may be carried out on |filePath|. A delete removes
+//  the directory entry, never what a symlink points to, so it is judged by
+//  where the entry is; a truncate writes to the file itself, so it is judged
+//  by where the file really is (and the session never truncates through a
+//  symlink in any case).
+//
+function judgeDisposition(policy, disposition, filePath) {
+    return 'delete' === disposition
+        ? policy.classifyEntry(filePath)
+        : policy.classify(filePath);
+}
+
+//
+//  The file of |ref|'s name beside |flowPath|, when its stored path is gone
+//  and one is there -- a file moved rather than lost. Not for a BSO control
+//  or flow file name: that is some other node's file, not this entry's, and
+//  the entry is simply missing.
+//
+async function misfiledPath(flowPath, ref) {
+    const base = String(ref || '')
+        .split(/[\\/]/)
+        .pop();
+    if (!base || '.' === base || '..' === base || isControlFileName(base)) {
+        return null;
+    }
+    const alt = path.join(path.dirname(flowPath), base);
+    if (alt === ref) {
+        return null;
+    }
+    const stat = await fsp.stat(alt).catch(() => null);
+    return stat && stat.isFile() ? alt : null;
+}
+
+//
+//  Log |message| unless |key| was logged within |repeatMs|. A standing
+//  condition is said again now and then rather than once per process, where
+//  it scrolls away, or once per poll, where it buries everything else.
+//
+function warnThrottled(key, repeatMs, fields, message) {
+    const now = Date.now();
+    const last = warnedFlowRefs.get(key);
+    if (last && now - last < repeatMs) return;
+    if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) {
+        //  Drop what has aged out first. Clearing wholesale would throw away
+        //  entries warned seconds ago and let them repeat straight away,
+        //  which on a spool with many dangling refs turns the throttle into
+        //  a firehose.
+        for (const [k, when] of warnedFlowRefs) {
+            if (now - when >= repeatMs) warnedFlowRefs.delete(k);
+        }
+        if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) warnedFlowRefs.clear();
+    }
+    warnedFlowRefs.set(key, now);
+    Log.warn(fields, message);
 }
 
 //
@@ -1065,9 +1323,16 @@ async function flowHasPending(flowPath, addr, repeatMs) {
 //  Flow files carry absolute paths (FTS-5005.003 §3.1). A stored path that no
 //  longer resolves means the file moved out from under the reference — a
 //  relocated outbound tree, or a sysop hand-recovering mail that was filed in
-//  the wrong directory. Before giving up we look for the referenced basename
-//  in the flow file's own directory, which makes that recovery a matter of
-//  moving files rather than also hand-editing flow files.
+//  the wrong directory (#734). Before giving up we look for the referenced
+//  basename in the flow file's own directory, which makes that recovery a
+//  matter of moving files rather than also hand-editing flow files.
+//
+//  That rescue is for the packets, bundles and TICs queued with '^' (or '#',
+//  '-'), whose home is an outbound directory. It is not tried for a
+//  send-and-keep line, whose file never lives in the outbound; nor onto a BSO
+//  control or flow file name; nor unless the stored path's own directory is
+//  named like an outbound. See basenameFallbackAllowed() in
+//  core/bso_flow_paths.js. |directive| is the line's prefix ('' for none).
 //
 //  A reference that resolves nowhere is logged once per process. Silence here
 //  is how misfiled outbound mail hides: the session finds nothing to send and
@@ -1077,25 +1342,16 @@ async function resolveFlowRef(
     flowPath,
     ref,
     addr,
-    { quiet = false, repeatMs = DEFAULT_FLOW_REF_WARN_REPEAT_MS } = {}
+    {
+        quiet = false,
+        repeatMs = DEFAULT_FLOW_REF_WARN_REPEAT_MS,
+        directive = '',
+        policy = null,
+    } = {}
 ) {
     const warnEvery = (key, fields, message) => {
         if (quiet) return;
-        const now = Date.now();
-        const last = warnedFlowRefs.get(key);
-        if (last && now - last < repeatMs) return;
-        if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) {
-            //  Drop what has aged out first. Clearing wholesale would throw
-            //  away entries warned seconds ago and let them repeat straight
-            //  away, which on a spool with many dangling refs turns the
-            //  throttle into a firehose.
-            for (const [k, when] of warnedFlowRefs) {
-                if (now - when >= repeatMs) warnedFlowRefs.delete(k);
-            }
-            if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) warnedFlowRefs.clear();
-        }
-        warnedFlowRefs.set(key, now);
-        Log.warn(fields, message);
+        warnThrottled(key, repeatMs, fields, message);
     };
 
     const tryStat = async p => {
@@ -1125,11 +1381,33 @@ async function resolveFlowRef(
 
     //  Split on either separator — the reference may have been written by a
     //  mailer running on the other sort of platform.
-    const base = ref.split(/[\\/]/).pop();
-    const alt = base && path.join(path.dirname(flowPath), base);
-    if (alt && alt !== ref) {
-        stat = await tryStat(alt);
-        if (stat) return { path: alt, stat };
+    if (basenameFallbackAllowed(ref, directive, policy ? policy.outboundNames : null)) {
+        const base = ref.split(/[\\/]/).pop();
+        const alt = base && path.join(path.dirname(flowPath), base);
+        if (alt && alt !== ref) {
+            stat = await tryStat(alt);
+            if (stat) return { path: alt, stat };
+        }
+    } else if (!quiet) {
+        //  Not the same thing as missing, and the operator needs to tell them
+        //  apart: the file is right there, this entry just may not use it.
+        const beside = await misfiledPath(flowPath, ref);
+        if (beside) {
+            warnEvery(
+                `misfiled\0${flowPath}\0${ref}`,
+                {
+                    node: nodeLabel(flowPath, addr),
+                    file: path.basename(beside),
+                    ref,
+                    besideFlowFile: beside,
+                    flowFile: flowPath,
+                },
+                '[BinkP/BSO] Queued file is not at its stored path. A file of that name is ' +
+                    'beside the flow file, but this entry may not be sent from there; fix ' +
+                    'the path in the flow file or move the file back. See "oputil bso status"'
+            );
+            return null;
+        }
     }
 
     //  Name the node and the file, not just the path: the operator's question
@@ -1183,8 +1461,8 @@ async function isGenuinelyAbsent(p) {
 //  Resolve without logging. The operator's listing asks about every entry
 //  every time it runs; the periodic warning is what marks a change of state,
 //  and burying it under one line per run per reference defeats it.
-function resolveFlowRefQuiet(flowPath, ref) {
-    return resolveFlowRef(flowPath, ref, null, { quiet: true });
+function resolveFlowRefQuiet(flowPath, ref, directive, policy) {
+    return resolveFlowRef(flowPath, ref, null, { quiet: true, directive, policy });
 }
 
 //
@@ -1260,7 +1538,10 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         for (const addr of remoteAddrs) {
             const files = await spool.getOutboundFilesForNode(addr);
             for (const f of files) {
-                session.queueFile(f.path, f.name, f.size, f.timestamp, f.disposition);
+                session.queueFile(f.path, f.name, f.size, f.timestamp, f.disposition, {
+                    allowed: f.allowed,
+                    checkTarget: f.checkTarget,
+                });
                 registerDispose(f);
             }
         }
@@ -1313,7 +1594,8 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
                             f.name,
                             f.size,
                             f.timestamp,
-                            f.disposition
+                            f.disposition,
+                            { allowed: f.allowed, checkTarget: f.checkTarget }
                         );
                         registerDispose(f);
                     }

@@ -53,10 +53,13 @@ function makeSpool() {
         );
     }
 
+    const { flowPathSettings } = require('../bso_flow_paths.js');
     return new BsoSpool({
         paths: bsoConfig.paths || {},
         networks: config.messageNetworks?.ftn?.networks || {},
         defaultNetwork: bsoConfig.defaultNetwork,
+        //  So the listing shows what the BBS would actually do with each entry.
+        flowPaths: flowPathSettings(config),
     });
 }
 
@@ -164,11 +167,15 @@ function cmdStatus() {
 
         let missingTotal = 0;
         let unreadableTotal = 0;
+        let refusedTotal = 0;
+        let misfiledTotal = 0;
         for (const node of interesting) {
             const live = liveEntries(node);
             const missing = live.filter(e => 'missing' === e.status);
             missingTotal += missing.length;
             unreadableTotal += live.filter(e => 'unreadable' === e.status).length;
+            refusedTotal += live.filter(e => 'refused' === e.status).length;
+            misfiledTotal += live.filter(e => 'misfiled' === e.status).length;
 
             console.info(
                 `${padRight(node.address.toString(), 22)}${padLeft(
@@ -206,6 +213,32 @@ function cmdStatus() {
                 'volume that is not mounted. Those are never pruned; see "bso list".'
             );
         }
+
+        if (misfiledTotal > 0) {
+            console.info('');
+            console.info(
+                `${misfiledTotal} queued ${
+                    1 === misfiledTotal ? 'entry names a file' : 'entries name files'
+                } that ${
+                    1 === misfiledTotal ? 'is' : 'are'
+                } not at the stored path but beside the flow file.`
+            );
+            console.info(
+                'Those are not sent from there and never pruned; see "bso list".'
+            );
+        }
+
+        if (refusedTotal > 0) {
+            console.info('');
+            console.info(
+                `${refusedTotal} queued ${
+                    1 === refusedTotal ? 'entry names a file' : 'entries name files'
+                } in ENiGMA's configuration, database or log`
+            );
+            console.info(
+                'directories. Those are never sent; remove them from the flow file.'
+            );
+        }
     });
 }
 
@@ -235,7 +268,12 @@ function cmdList(addressArg) {
                 {
                     missing: 'MISSING',
                     unreadable: 'UNREADABLE',
-                }[entry.status] || 'ok';
+                    refused: 'REFUSED',
+                    misfiled: 'MISFILED',
+                }[entry.status] ||
+                ('pending' === entry.status && false === entry.dispositionAllowed
+                    ? 'KEPT'
+                    : 'ok');
             console.info(
                 `  ${padRight(flag, 9)}${padLeft(friendlySize(entry.size), 10)}${padLeft(
                     friendlyAge(entry.timestamp),
@@ -254,6 +292,51 @@ function cmdList(addressArg) {
                 'a volume that is not mounted. Those are not pruned: the file may well'
             );
             console.info('still be there. Fix the access and they will send.');
+        }
+
+        const misfiled = live.filter(e => 'misfiled' === e.status);
+        if (misfiled.length > 0) {
+            console.info('');
+            console.info(
+                `${misfiled.length} MISFILED: the stored path is gone, but a file of that name is`
+            );
+            console.info(
+                'beside the flow file. It is not sent from there and is never pruned. Fix the'
+            );
+            console.info('path in the flow file, or move the file back to it:');
+            for (const entry of misfiled) {
+                console.info(`    ${entry.besideFlowFile}  ->  ${entry.path}`);
+            }
+        }
+
+        const refused = live.filter(e => 'refused' === e.status);
+        if (refused.length > 0) {
+            console.info('');
+            console.info(
+                `${refused.length} ${
+                    1 === refused.length ? 'is' : 'are'
+                } in ENiGMA's configuration, database or log directories and`
+            );
+            console.info(
+                `will never be sent. Remove ${
+                    1 === refused.length ? 'it' : 'them'
+                } from the flow file.`
+            );
+        }
+
+        const kept = live.filter(
+            e => 'pending' === e.status && false === e.dispositionAllowed
+        );
+        if (kept.length > 0) {
+            console.info('');
+            console.info(
+                `${kept.length} KEPT ${
+                    1 === kept.length ? 'entry is' : 'entries are'
+                } outside the mail directories: sent, but not deleted or`
+            );
+            console.info(
+                'truncated afterwards. See scannerTossers.ftn_bso.binkp.flowDispositionRoots.'
+            );
         }
 
         const missing = live.filter(e => 'missing' === e.status);

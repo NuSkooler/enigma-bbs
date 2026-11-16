@@ -22,6 +22,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.1-beta to 0.6.0-beta
 
+* **Flow file paths are handled more strictly.** A flow file's `^`, `-` and `#` lines (delete or truncate a file once it is sent) are now carried out only inside the mail directories: the outbound directories, `paths.inbound`, `paths.secInbound` and `paths.ticTransit`. Everything ENiGMA½ queues itself is in the outbound, so most boards need do nothing.
+
+  **What changes by itself:** if other software shares your outbound and queues `^` or `#` attachments from somewhere else (a separate tosser routing files through its own inbound, for example), those files are still sent, but no longer deleted or truncated afterwards. The log says `outside the mail directories` and `oputil bso list` shows them as `KEPT`. A flow file entry naming a file in ENiGMA½'s configuration, security, database or log directories is no longer sent at all (`REFUSED`). A `#` line whose file is a symlink is still sent and marked sent, but no longer truncated (the log says so); a `^` symlink in a mail directory removes the link, never what it points to. Recovering a moved packet by its name beside the flow file now needs a `^`, `-` or `#` line whose stored path points into a directory named like an outbound (`outbound`, a network's outbound directory, either with a zone suffix, or a point directory). Other entries whose file sits beside the flow file are not sent; `oputil bso list` shows them as `MISFILED` and `prune` leaves them alone, so fix the path or move the file back.
+
+  **Action:** if you see `KEPT` entries that should be removed after sending, add their directory to the new `scannerTossers.ftn_bso.binkp.flowDispositionRoots` list. See [`flowDispositionRoots`](website/src/content/docs/messageareas/binkp.md#binkpflowdispositionroots).
+
 * **ATASCII (Atari) callers (new, optional).** ENiGMA½ can now talk to Atari 8-bit style terminals: SyncTERM and IcyTerm in their Atari modes, and, through a dedicated Telnet port, terminal programs that announce nothing (real Atari hardware has not been tested). See [ATASCII (Atari) Callers](website/src/content/docs/servers/loginservers/atascii.md).
 
   **What changes by itself:** a caller whose terminal announces the Telnet terminal type `ATASCII` is now sent ATASCII. Before, such a caller was sent ANSI, which an ATASCII terminal prints as a screen of escape codes. They see your existing menus and art translated, in one colour and wrapped at 40 columns: readable, not pretty, and in most stock menus the item in focus looks the same as the others, because the stock theme marks focus with brightness, which one colour cannot show. Nothing changes for ANSI or PETSCII callers, and nothing in your configuration, menus or themes is touched.
@@ -73,6 +79,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 * **A new index on message meta is built once, at the first start.** It makes looking up a message by a meta value, which the FTN tosser does for every imported message, a direct lookup. ENiGMA½ builds it by itself the first time it starts after the upgrade. A board with 36,000 messages (818,000 meta rows) took about a second, and the index added about 47 MB to `db/message.sqlite3`.
 
   **Action:** none. Make sure there is free disk space for it.
+
+* **EchoMail export now retries an uplink that failed** ([#1026](https://github.com/NuSkooler/enigma-bbs/issues/1026)). A message that could not be delivered to one of an area's uplinks is sent to that uplink, and only that uplink, by the next export scan. There is nothing to migrate, and the area's last scan IDs are kept as they are. The log shows `Export retry complete` (`info`) or `Export retry incomplete; will retry` (`warn`), with the area and the uplinks, when a scan retries something.
+
+  Mail owed to an uplink waits for that uplink exactly as it was spelled in the area's `uplinks` when the mail was written. If you remove an uplink from an area, respell it (adding a point `.0` or an `@network`, say) or remove its `nodes` entry while mail is still owed to it, every export scan logs at `warn`: `EchoMail owed to uplinks this area cannot send to is not being sent`, with the area, the uplinks and the number of messages. The mail is kept, not dropped. Put the uplink back as logged, with a `nodes` entry, and the next scan sends it.
+
+  **Action:** none. Mail an uplink missed *before* the upgrade is not resent, because nothing recorded which uplink missed it.
 
 * **The ActivityPub actor cache is emptied once, at the first start.** Cached remote actors could have been planted by another server, and such an entry cannot be told from a genuine one, so the `actors` collection in `db/activitypub.sqlite3` is cleared once and actors are fetched again as they are needed. Follower and following lists, posts and reactions are not touched. The log shows `Purging the ActivityPub actor cache` and `Purged the ActivityPub actor cache`; 50,000 cached actors took under a second.
 

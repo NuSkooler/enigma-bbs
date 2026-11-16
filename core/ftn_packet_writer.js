@@ -34,6 +34,7 @@ module.exports = class FtnPacketWriter {
         this.allocatePacketPath = allocatePacketPath;
 
         this.files = [];
+        this.messageIdsByFile = new Map(); //  file -> [ messageId ], as written
         this.packet = null;
         this.ws = null;
         this.size = targetSize; //  so the first message opens a packet
@@ -62,6 +63,7 @@ module.exports = class FtnPacketWriter {
                 if (this.remainBuf) {
                     this.size += this.packet.writeMessageEntry(this.ws, this.remainBuf);
                     this.remainBuf = null;
+                    this._recordMessage(this.remainMessageId);
                 }
             }
 
@@ -77,6 +79,7 @@ module.exports = class FtnPacketWriter {
                     this.remainMessageId = message.messageId;
                 } else {
                     this.ws.write(msgBuf);
+                    this._recordMessage(message.messageId);
                 }
 
                 return cb(this.error);
@@ -105,6 +108,7 @@ module.exports = class FtnPacketWriter {
             this._openPacket(this.remainMessageId);
             this.ws.write(this.remainBuf);
             this.remainBuf = null;
+            this._recordMessage(this.remainMessageId);
             return this._finalizePacket(err => cb(err, this.files));
         };
 
@@ -152,6 +156,19 @@ module.exports = class FtnPacketWriter {
         //  closed first, so the removal is not racing an open descriptor
         ws.destroy();
         return finishedOnce(ws, () => unlinkAll());
+    }
+
+    //  The messages written into each of |files|.
+    messageIdsIn(files) {
+        return files.flatMap(file => this.messageIdsByFile.get(file) || []);
+    }
+
+    _recordMessage(messageId) {
+        const file = this.files[this.files.length - 1];
+        if (!this.messageIdsByFile.has(file)) {
+            this.messageIdsByFile.set(file, []);
+        }
+        this.messageIdsByFile.get(file).push(messageId);
     }
 
     _openPacket(messageId) {

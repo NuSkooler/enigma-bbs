@@ -11,6 +11,7 @@ const Config = require('./config.js').get;
 const stringFormat = require('../core/string_format.js');
 const MultiLineEditTextView =
     require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+const { TextView } = require('../core/text_view.js');
 const { Errors, ErrorReasons } = require('../core/enig_error.js');
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
@@ -1107,14 +1108,45 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return views;
     }
 
+    //
+    //  |options|:
+    //    filter          only views whose format holds one of these strings
+    //    appendMultiLine an MLE gets the text added rather than replaced
+    //    pipeSupport     an MLE gets the text through setPipeText()
+    //    skipUnchanged   a view whose text comes out the same is not drawn
+    //                    again. For screens refreshed on a timer, where most
+    //                    values hold still from one tick to the next. Only
+    //                    a plain TextView (or one that keeps TextView's
+    //                    setText() and getData(), e.g. a StatusBarView) is
+    //                    compared; anything else is drawn as without it.
+    //                    A caller that writes over its custom views outside
+    //                    of them must leave this off for the next call, or
+    //                    what it covered stays covered.
+    //
     updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
         options = options || {};
         const views = this.getCustomViewsWithFilter(formName, startId, options);
         const config = this.menuConfig.config;
+        let drawn = 0;
 
         views.forEach(view => {
             const format = config[view.key];
             const text = stringFormat(format, fmtObj);
+
+            if (options.skipUnchanged && MenuModule.canSkipUnchangedText(view)) {
+                //  getData() is the text as setText() leaves it -- predefined
+                //  MCI resolved, pipe codes converted, clipped and styled --
+                //  which is exactly what redraw() puts on screen
+                const prev = view.getData();
+                view.setText(text, false); //  false=do not draw yet
+                if (view.getData() !== prev || !view.hasDrawnOnce) {
+                    view.redraw();
+                    ++drawn;
+                }
+                return;
+            }
+
+            ++drawn;
 
             if (view instanceof MultiLineEditTextView) {
                 if (options.appendMultiLine) {
@@ -1142,11 +1174,27 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //
         //  Drawing the views above leaves the terminal cursor wherever the last
         //  one finished -- typically parked on a status line well away from the
-        //  view the user is actually typing into. Put it back (#831).
+        //  view the user is actually typing into. Put it back (#831). Nothing
+        //  drawn, nothing moved: leave the cursor alone.
         //
-        if (views.length > 0) {
+        if (drawn > 0) {
             this.repositionCursorToFocusedView(formName);
         }
+    }
+
+    //
+    //  A view whose setText(text, false) followed by redraw() draws what
+    //  setText(text) would, and whose getData() is the text it draws.
+    //  EditTextView and MaskEditTextView keep the caller's raw text after the
+    //  first draw, so a later redraw() is not the same picture; a ButtonView's
+    //  getData() is not its text at all.
+    //
+    static canSkipUnchangedText(view) {
+        return (
+            view instanceof TextView &&
+            view.setText === TextView.prototype.setText &&
+            view.getData === TextView.prototype.getData
+        );
     }
 
     //

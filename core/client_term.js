@@ -15,6 +15,9 @@ exports.ClientTerminal = ClientTerminal;
 //  |how| for a write that is translated but not filtered (see _write())
 const UNFILTERED = Object.freeze({ unfiltered: true });
 
+//  see _flushBatchBeforeDrip(): logged once per process
+let loggedDripInBatch = false;
+
 function ClientTerminal(output) {
     this.output = output;
 
@@ -297,6 +300,7 @@ ClientTerminal.prototype.ripDripWrite = function (buf, bytesPerSec, cb, markScre
         return cb(null);
     }
 
+    this._flushBatchBeforeDrip();
     return this._drip(
         this._unfilteredTranslate(buf, UNFILTERED),
         bytesPerSec,
@@ -513,6 +517,11 @@ ClientTerminal.prototype.commitWrite = function (cb) {
     this._writeBuf = null;
     this._writeBufPassThrough = null;
     this._writeBufDepth = 0;
+    return this._sendBatch(chunks, passThroughChunks, cb);
+};
+
+//  The bytes of a batch (see commitWrite()) to the socket, in one write
+ClientTerminal.prototype._sendBatch = function (chunks, passThroughChunks, cb) {
     if (chunks.length === 0) {
         if (cb) {
             cb(null);
@@ -565,13 +574,41 @@ ClientTerminal.prototype.commitWrite = function (cb) {
     });
 };
 
+//
+//  A drip (dripWrite(), nativeDripWrite(), ripDripWrite()) goes straight to
+//  the socket. Started while a beginWrite() batch is open, it would put its
+//  bytes on the wire before what the batch already holds, though that was
+//  written first. So what the batch holds goes now, ahead of the drip, and
+//  the batch stays open (same depth) for what comes after; the drip's own
+//  pacing is not touched. Called before the drip's bytes are translated, so
+//  the translator and filter see everything in wire order too.
+//
+ClientTerminal.prototype._flushBatchBeforeDrip = function () {
+    if (!this._writeBuf || 0 === this._writeBuf.length) {
+        return;
+    }
+    if (!loggedDripInBatch) {
+        loggedDripInBatch = true;
+        Log.debug(
+            { bytes: this._writeBuf.reduce((n, c) => n + c.length, 0) },
+            'Baud emulation started inside a write batch; sending the batch first'
+        );
+    }
+    const chunks = this._writeBuf;
+    const passThroughChunks = this._writeBufPassThrough;
+    this._writeBuf = [];
+    this._writeBufPassThrough = null;
+    this._sendBatch(chunks, passThroughChunks);
+};
+
 ClientTerminal.prototype.pipeWrite = function (s, cb) {
     this.write(renegadeToAnsi(s, this), null, cb); //  null = use default for |convertLineFeeds|
 };
 
 //  dripWrite() — send |buf| to the socket at |bytesPerSec|, calling |cb| when done.
 //  Goes directly to this.output, intentionally bypassing _writeBuf batching (the two
-//  are mutually exclusive: batch = instant display; drip = throttled display).
+//  are mutually exclusive: batch = instant display; drip = throttled display). An
+//  open batch is sent first (see _flushBatchBeforeDrip()).
 //  |buf| is translated for the terminal's emulation up front, as a whole, so
 //  what is dripped is what goes on the wire. The output filter (RIP) sees
 //  each piece as it is sent, so that a write landing between two pieces
@@ -581,6 +618,7 @@ ClientTerminal.prototype.dripWrite = function (buf, bytesPerSec, cb) {
         return cb(null);
     }
 
+    this._flushBatchBeforeDrip();
     return this._drip(
         this.emulation.outputTranslator.translate(buf),
         bytesPerSec,
@@ -600,6 +638,7 @@ ClientTerminal.prototype.nativeDripWrite = function (buf, options, bytesPerSec, 
         return cb(null);
     }
 
+    this._flushBatchBeforeDrip();
     return this._drip(
         this._unfilteredTranslate(buf, { native: options }),
         bytesPerSec,

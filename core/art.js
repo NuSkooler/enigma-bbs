@@ -865,43 +865,30 @@ function display(client, art, options, cb) {
         });
     });
 
-    //  Server-side baud emulation: collect all output into chunks, then drip at
-    //  the target byte rate after parsing completes. Works for every terminal.
+    //
+    //  All of the art's output is collected into |chunks| while parsing and
+    //  sent once the parser completes: in one write without a baud rate (one
+    //  socket write, one SSH CHANNEL_DATA or WebSocket frame, instead of one
+    //  per parser event), or dripped at the target byte rate with one
+    //  (server-side baud emulation, for every terminal). The bytes are the
+    //  same either way: the output translator and filter keep their state
+    //  across writes, so a stream sent whole or in pieces comes out the same.
     //  baudRate / 10 = bytes/sec (standard 8N1: 8 data + 1 start + 1 stop bits).
+    //
     const bytesPerSec = options.baudRate > 0 ? Math.floor(options.baudRate / 10) : 0;
     const drip = bytesPerSec > 0;
-    const dripChunks = drip ? [] : null;
+    const chunks = [];
 
-    //  native art: every byte as it is, written in one piece on completion
-    const nativeChunks = native ? [] : null;
-
-    //  RIP art goes out unfiltered, all of it; anything else is ENiGMA's
-    //  ANSI output as usual
-    const write = rip
-        ? data => client.term.writeUnfilteredRip(data)
-        : data => client.term.rawWrite(data);
-
+    //  native art: every byte as it is; anything else encoded for the session
     parser.on('literal', literal => {
-        if (native) {
-            return nativeChunks.push(literal);
-        }
-        const encoded = client.term.encode(literal, false);
-        if (drip) {
-            dripChunks.push(encoded);
-        } else {
-            write(encoded);
-        }
+        chunks.push(native ? literal : client.term.encode(literal, false));
     });
 
     parser.on('control', control => {
         if (native) {
-            return nativeChunks.push(control);
+            return chunks.push(control);
         }
-        if (drip) {
-            dripChunks.push(Buffer.isBuffer(control) ? control : Buffer.from(control));
-        } else {
-            write(rip && !Buffer.isBuffer(control) ? Buffer.from(control) : control);
-        }
+        chunks.push(Buffer.isBuffer(control) ? control : Buffer.from(control));
     });
 
     //
@@ -909,13 +896,23 @@ function display(client, art, options, cb) {
     //  (CP437 as the art was read), whatever the session's encoding is.
     //
     parser.on('rip', command => {
-        const encoded = iconv.encode(command, 'cp437');
-        if (drip) {
-            dripChunks.push(encoded);
-        } else {
-            write(encoded);
-        }
+        chunks.push(iconv.encode(command, 'cp437'));
     });
+
+    //  Without a baud rate: what has been collected, in one write. RIP art
+    //  goes out unfiltered, all of it; anything else is ENiGMA's ANSI output
+    //  as usual
+    const writeCollected = () => {
+        if (0 === chunks.length) {
+            return;
+        }
+        const bytes = Buffer.concat(chunks);
+        chunks.length = 0;
+        if (rip) {
+            return client.term.writeUnfilteredRip(bytes);
+        }
+        return client.term.rawWrite(bytes);
+    };
 
     //  set once the parser is done: from there on, what is thrown comes from
     //  |cb|, which has been called
@@ -930,7 +927,7 @@ function display(client, art, options, cb) {
         };
 
         if (native) {
-            const nativeBytes = Buffer.concat(nativeChunks);
+            const nativeBytes = Buffer.concat(chunks);
             const nativeOptions = NATIVE_ART[native.emulation].writeOptions(
                 native,
                 options
@@ -947,25 +944,23 @@ function display(client, art, options, cb) {
             );
         }
 
+        if (!drip) {
+            writeCollected();
+            return cb(null, mciMap, extraInfo);
+        }
+
+        //  baud emulation: the whole of it, dripped
+        const bytes = Buffer.concat(chunks);
         if (rip) {
-            if (!drip) {
-                return cb(null, mciMap, extraInfo);
-            }
             return client.term.ripDripWrite(
-                Buffer.concat(dripChunks),
+                bytes,
                 bytesPerSec,
                 err => cb(err, mciMap, extraInfo),
                 true
             );
         }
 
-        if (!drip) {
-            return cb(null, mciMap, extraInfo);
-        }
-
-        client.term.dripWrite(Buffer.concat(dripChunks), bytesPerSec, err =>
-            cb(err, mciMap, extraInfo)
-        );
+        client.term.dripWrite(bytes, bytesPerSec, err => cb(err, mciMap, extraInfo));
     });
 
     let initSeq = '';
@@ -996,7 +991,13 @@ function display(client, art, options, cb) {
     }
 
     if (initSeq) {
-        client.term.rawWrite(initSeq);
+        if (drip || rip) {
+            //  ahead of the art, as it is: not dripped, and filtered for RIP
+            client.term.rawWrite(initSeq);
+        } else {
+            //  in the art's one write
+            chunks.push(Buffer.from(initSeq));
+        }
     }
 
     //
@@ -1008,11 +1009,7 @@ function display(client, art, options, cb) {
     //  at column 1 anyway.
     //
     if (rip && RIP_COMMAND_FIRST_RE.test(art)) {
-        if (drip) {
-            dripChunks.push(Buffer.from('\r'));
-        } else {
-            write(Buffer.from('\r'));
-        }
+        chunks.push(Buffer.from('\r'));
     }
 
     //
@@ -1027,17 +1024,24 @@ function display(client, art, options, cb) {
     }
 
     parser.reset(art);
-    if (!rip) {
-        return parser.parse();
-    }
-
-    //  one command line of many megabytes overflows the stack in the
-    //  parser's expression; that is a bad file, not a reason to bring the
-    //  board down
     try {
         return parser.parse();
     } catch (e) {
-        if (completed || !(e instanceof RangeError)) {
+        if (completed) {
+            throw e;
+        }
+
+        //  The parser gave up part way. What it parsed goes out all the same,
+        //  as it did when each piece was written as soon as it was parsed
+        //  (native art and baud emulation have always waited for the end)
+        if (!native && !drip) {
+            writeCollected();
+        }
+
+        //  one command line of many megabytes overflows the stack in the
+        //  parser's expression; that is a bad file, not a reason to bring the
+        //  board down
+        if (!rip || !(e instanceof RangeError)) {
             throw e;
         }
         parser.removeAllListeners();

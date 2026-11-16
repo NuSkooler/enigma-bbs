@@ -713,10 +713,12 @@ exports.getModule = class mrcModule extends MenuModule {
     }
 
     updateCustomViews() {
+        //  STATS and USERLIST come round often and mostly say the same thing
         return this.updateCustomViewTextsWithFilter(
             'mrcChat',
             MciViewIds.mrcChat.customRangeStart,
-            this.customFormatObj
+            this.customFormatObj,
+            { skipUnchanged: true }
         );
     }
 

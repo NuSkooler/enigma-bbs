@@ -25,3 +25,7 @@ website/src/api/openapi.yaml
 
 #  Handlebars, not HTML: prettier's parser mangles the {{{...}}} placeholders.
 website/scripts/redoc-template.hbs
+
+#  Published NodeInfo JSON schemas, kept verbatim so they diff cleanly against
+#  upstream.
+test/fixtures/nodeinfo

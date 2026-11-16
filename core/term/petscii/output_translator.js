@@ -210,6 +210,43 @@ function xterm256ToAnsi(n) {
 
 const ZERO_WIDTH_RE = /[\p{Mn}\p{Me}\p{Cf}]/u;
 
+//  Glyph decisions are pure functions of (charset, code point), so BMP results are
+//  cached per charset as a packed int: the byte, plus GLYPH_REVERSE when the glyph
+//  needs reverse video; GLYPH_ZERO_WIDTH for characters that draw nothing.
+const GLYPH_UNKNOWN = -2;
+const GLYPH_ZERO_WIDTH = -1;
+const GLYPH_REVERSE = 0x100;
+const GLYPH_CACHES = new Map(); //  charset name -> Int32Array(0x10000)
+
+function glyphDecide(ch, cp, charset) {
+    if (ZERO_WIDTH_RE.test(ch)) {
+        return GLYPH_ZERO_WIDTH;
+    }
+    const byte = unicodeToByte(cp, charset);
+    if (undefined === byte || isControlByte(byte)) {
+        const rev = reverseOnlyByte(cp);
+        return undefined !== rev ? rev | GLYPH_REVERSE : UNMAPPED;
+    }
+    return byte;
+}
+
+function glyphLookup(ch, cp, charset) {
+    if (cp > 0xffff) {
+        return glyphDecide(ch, cp, charset);
+    }
+    let cache = GLYPH_CACHES.get(charset);
+    if (undefined === cache) {
+        cache = new Int32Array(0x10000).fill(GLYPH_UNKNOWN);
+        GLYPH_CACHES.set(charset, cache);
+    }
+    let packed = cache[cp];
+    if (GLYPH_UNKNOWN === packed) {
+        packed = glyphDecide(ch, cp, charset);
+        cache[cp] = packed;
+    }
+    return packed;
+}
+
 function charsetSelectByte(charset) {
     return Charsets.UpperGraphics === charset
         ? Controls.charsetUpper
@@ -679,7 +716,8 @@ function createPetsciiTranslator({
 
     function glyph(ch) {
         const cp = ch.codePointAt(0);
-        if (ZERO_WIDTH_RE.test(ch)) {
+        const packed = glyphLookup(ch, cp, activeCharset());
+        if (GLYPH_ZERO_WIDTH === packed) {
             return;
         }
 
@@ -688,15 +726,9 @@ function createPetsciiTranslator({
         if (st.conceal) {
             byte = SPACE;
         } else {
-            byte = unicodeToByte(cp, activeCharset());
-            if (undefined === byte || isControlByte(byte)) {
-                const rev = reverseOnlyByte(cp);
-                if (undefined !== rev) {
-                    byte = rev;
-                    attrs.reverse = true;
-                } else {
-                    byte = UNMAPPED;
-                }
+            byte = packed & 0xff;
+            if (packed & GLYPH_REVERSE) {
+                attrs.reverse = true;
             }
         }
 
