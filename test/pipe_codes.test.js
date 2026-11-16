@@ -219,6 +219,50 @@ describe('pipe_codes', () => {
             assert.equal(P.render('|EMx', body), '|EMx');
         });
 
+        describe('empty MCI values render as nothing (a user with no location)', () => {
+            //  LO and UR empty, as userStatAsString(..., '') gives them
+            const blank = (client, code) => ({ LO: '', UR: '', UN: 'Bob' })[code];
+            const CASES = [
+                ['|LO', ''],
+                ['|LO rest', ' rest'],
+                ['|LO|UR rest', ' rest'],
+                ['Loc: |LO', 'Loc: '],
+                ['|LO rest |UN', ' rest Bob'],
+            ];
+
+            it('render()', () => {
+                for (const [s, want] of CASES) {
+                    assert.equal(P.render(s, { client: {}, resolveMci: blank }), want, s);
+                }
+            });
+
+            it('renegadeToAnsi()', () => {
+                const previous = P.setMciResolver(blank);
+                try {
+                    for (const [s, want] of CASES) {
+                        assert.equal(renegadeToAnsi(s, {}), want, s);
+                    }
+                } finally {
+                    P.setMciResolver(previous.resolver, previous.knownMci);
+                }
+            });
+
+            it('width() and renderWithWidth() agree with what shows', () => {
+                const opts = { client: {}, resolveMci: blank };
+                for (const [s, want] of CASES) {
+                    assert.equal(P.width(s, opts), want.length, s);
+                    assert.deepEqual(P.renderWithWidth(s, opts), {
+                        text: want,
+                        width: want.length,
+                    });
+                }
+            });
+
+            it('still shows the code without a client', () => {
+                assert.equal(P.render('|LO rest'), '|LO rest');
+            });
+        });
+
         it('uses the injected resolver when none is passed', () => {
             const previous = P.setMciResolver(resolveMci, KNOWN_MCI);
             try {

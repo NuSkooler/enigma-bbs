@@ -613,9 +613,10 @@ function renderUi(s, opts) {
         last = e;
         i = s.indexOf('|', e);
     } while (-1 !== i);
-    //  renegadeToAnsi() returned |s| unchanged when nothing had been appended,
-    //  i.e. when every code before the first text resolved to ''.
-    return 0 === out.length ? s : out + s.slice(last);
+    //  An MCI value can be '' ("|LO rest" for a user with no location): that
+    //  renders as nothing, wherever it is. (renegadeToAnsi() used to return the
+    //  raw source when every leading code was empty.)
+    return out + s.slice(last);
 }
 
 function renderGeneric(s, opts, f) {
@@ -723,9 +724,6 @@ function renderWithWidth(s, opts) {
         last = e;
         i = s.indexOf('|', e);
     } while (-1 !== i);
-    if (0 === out.length) {
-        return { text: s, width: textWidth(s, 0, s.length) };
-    }
     const text = out + s.slice(last);
     return {
         text,
