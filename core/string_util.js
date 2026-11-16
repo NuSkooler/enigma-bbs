@@ -3,11 +3,11 @@
 
 //  ENiGMA½
 const ANSI = require('./ansi_term.js');
+const { charDisplayWidth, strDisplayWidth } = require('./display_width.js');
 
 //  deps
 const iconv = require('iconv-lite');
 const _ = require('lodash');
-const wcwidth = require('wcwidth');
 
 exports.stylizeString = stylizeString;
 exports.pad = pad;
@@ -239,30 +239,6 @@ function stringToNullTermBuffer(s, options = { encoding: 'utf8', maxBufLen: -1 }
     let buf = iconv.encode(`${s}\0`, options.encoding).slice(0, options.maxBufLen);
     buf[buf.length - 1] = '\0'; //  make abs sure we null term even if truncated
     return buf;
-}
-
-//
-//  Returns the terminal display width (columns) of a single character: 0 for
-//  combining/NUL, 1 for narrow, 2 for wide (CJK ideographs, Hangul, fullwidth
-//  forms, etc.).  Uses wcwidth(3) semantics — the same algorithm used by
-//  terminal emulators and ncurses.
-//
-function charDisplayWidth(ch) {
-    const w = wcwidth(ch);
-    return w < 0 ? 0 : w; //  wcwidth returns -1 for non-printable; treat as 0
-}
-
-//
-//  Returns the total terminal display width of a plain string (no ANSI/pipe
-//  codes — for already-stripped or literal text only).  Iterates by Unicode
-//  codepoint so surrogate pairs (supplementary CJK, emoji) are handled correctly.
-//
-function strDisplayWidth(s) {
-    let w = 0;
-    for (const ch of s) {
-        w += charDisplayWidth(ch);
-    }
-    return w;
 }
 
 const PIPE_REGEXP = /(\|[A-Z\d]{2})/g;
