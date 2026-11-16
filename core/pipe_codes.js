@@ -1503,6 +1503,94 @@ function colorCodeAt(s, i) {
     return isDigit(c1) && isDigit(c2) ? (c1 - 48) * 10 + (c2 - 48) : -1;
 }
 
+//  ── mapText ──────────────────────────────────────────────────────────────────
+
+//
+//  |s| with fn() applied to its text and every code left as it is (ANSI
+//  escapes included). The text is handed to fn() in one piece, so a word
+//  split by a colour code is still one word; when fn() changes the length
+//  (toUpperCase() of 'ß'), each text run is mapped on its own instead.
+//
+function mapText(s, fn, opts) {
+    if (!s) {
+        return '';
+    }
+    let f = flagsOf(opts);
+    if (!(opts && false === opts.ansi)) {
+        f |= F_ESC;
+    }
+    const legacy = 0 !== (f & F_LEGACY);
+    if (
+        -1 === s.indexOf('|') &&
+        -1 === s.indexOf('\x1b') &&
+        !(legacy && LEGACY_START_RE.test(s))
+    ) {
+        return fn(s);
+    }
+    const pipes = !(f & F_ANSIONLY);
+    const len = s.length;
+    let plain = '';
+    let codes = null; //  [start, end, offset in plain] per code
+    let last = 0;
+    for (let i = 0; i < len; ++i) {
+        const c = s.charCodeAt(i);
+        let e = -1;
+        if (124 === c) {
+            if (pipes) {
+                e = scanPipe(s, i, f);
+            }
+        } else if (27 === c) {
+            if (f & F_ESC) {
+                e = scanAnsi(s, i);
+            }
+        } else if (legacy && isLegacyStart(c)) {
+            e = scanLegacy(s, i, c);
+        } else {
+            continue;
+        }
+        if (e < 0) {
+            continue;
+        }
+        if (i > last) {
+            plain += s.slice(last, i);
+        }
+        (codes || (codes = [])).push(i, e, plain.length);
+        last = e;
+        i = e - 1;
+    }
+    if (null === codes) {
+        return fn(s);
+    }
+    if (last < len) {
+        plain += s.slice(last);
+    }
+    if (0 === plain.length) {
+        return s;
+    }
+    const mapped = fn(plain);
+    let out = '';
+    if (mapped.length === plain.length) {
+        let p = 0;
+        for (let k = 0; k < codes.length; k += 3) {
+            const q = codes[k + 2];
+            out += mapped.slice(p, q) + s.slice(codes[k], codes[k + 1]);
+            p = q;
+        }
+        return out + mapped.slice(p);
+    }
+    //  the length changed: map each text run on its own
+    let prev = 0;
+    for (let k = 0; k < codes.length; k += 3) {
+        const a = codes[k];
+        if (a > prev) {
+            out += fn(s.slice(prev, a));
+        }
+        out += s.slice(a, codes[k + 1]);
+        prev = codes[k + 1];
+    }
+    return prev < len ? out + fn(s.slice(prev)) : out;
+}
+
 //  ── walk / tokenize (tests and tooling; not on the hot paths) ────────────────
 
 //  walk(s, opts, onToken(type, start, end, value))
@@ -1587,6 +1675,7 @@ exports.substr = substr;
 exports.truncate = truncate;
 exports.splitPos = splitPos;
 exports.colorCodeAt = colorCodeAt;
+exports.mapText = mapText;
 exports.pipeColorSgr = pipeColorSgr;
 exports.setMciResolver = setMciResolver;
 exports.walk = walk;

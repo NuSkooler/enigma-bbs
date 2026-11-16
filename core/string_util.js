@@ -52,11 +52,30 @@ const SIMPLE_ELITE_MAP = {
     t: '7',
 };
 
+//
+//  |s| in a text style (upper, lower, title, l33t, ...). Only the text is
+//  styled: pipe codes and ANSI escapes are left as they are, so 'upper' no
+//  longer turns an SGR's 'm' into 'M', nor 'lower' |UN into |un.
+//
 function stylizeString(s, style) {
     if (!s) {
         return '';
     }
+    if (!style || 'normal' === style || 'N' === style) {
+        return s;
+    }
+    if (-1 === s.indexOf('|') && -1 === s.indexOf('\x1b')) {
+        return styleText(s, style); //  no codes: the common case
+    }
+    return stylizeCodedString(s, style);
+}
 
+//  Apart from stylizeString() so that its common case allocates no closure
+function stylizeCodedString(s, style) {
+    return PipeCodes.mapText(s, t => styleText(t, style));
+}
+
+function styleText(s, style) {
     var len = s.length;
     var c;
     var i;

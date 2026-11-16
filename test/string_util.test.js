@@ -9,6 +9,7 @@ const {
     ansiRenderStringLength,
     renderSplitPos,
     stripAllControlCodes,
+    stylizeString,
 } = require('../core/string_util.js');
 
 // ─── charDisplayWidth ─────────────────────────────────────────────────────────
@@ -324,5 +325,45 @@ describe('stripAllControlCodes', () => {
                 '\x1b[1;32mx p'
             );
         });
+    });
+});
+
+// ─── stylizeString ────────────────────────────────────────────────────────────
+
+describe('stylizeString', () => {
+    const SGR = '\x1b[22;37m';
+
+    it('styles the text and leaves ANSI escapes alone', () => {
+        assert.equal(stylizeString(`${SGR}hi`, 'upper'), `${SGR}HI`);
+        assert.equal(
+            stylizeString(`\x1b[1;32mHI\x1b[0m`, 'lower'),
+            '\x1b[1;32mhi\x1b[0m'
+        );
+    });
+
+    it('leaves pipe codes alone', () => {
+        assert.equal(stylizeString('|UN Bob', 'lower'), '|UN bob');
+        assert.equal(stylizeString('|15test', 'l33t'), '|157357');
+        assert.equal(stylizeString('|cf ok', 'upper'), '|CF OK'); //  lower case is text
+    });
+
+    it('a word split by a code is still one word', () => {
+        assert.equal(
+            stylizeString('|15hello |07wor|08ld', 'title'),
+            '|15Hello |07Wor|08ld'
+        );
+        assert.equal(stylizeString('he|07LLO', 'first lower'), 'hE|07LLO');
+    });
+
+    it('styles each run alone when the style changes the length', () => {
+        assert.equal(stylizeString('|15straße|07x', 'upper'), '|15STRASSE|07X');
+    });
+
+    it('plain text is styled as before', () => {
+        assert.equal(stylizeString('Hello World', 'upper'), 'HELLO WORLD');
+        assert.equal(stylizeString('hello world', 'title'), 'Hello World');
+        assert.equal(stylizeString('Hello', 'normal'), 'Hello');
+        assert.equal(stylizeString('Hello', 'nope'), 'Hello');
+        assert.equal(stylizeString('', 'upper'), '');
     });
 });
