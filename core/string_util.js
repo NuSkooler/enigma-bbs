@@ -442,7 +442,7 @@ function stripAnsiControlCodes(input, options) {
 //  pipe escape, so both pipes show). Only pipe codes: the PCBoard/WWIV/CNET
 //  families are left alone here.
 //
-const EXPORT_PIPE_STRIP = { dialect: 'bodyLegacy', legacy: false };
+const EXPORT_PIPE_STRIP = { dialect: 'body', legacy: false };
 
 //  Stripping is iterated to a fixed point; this only bounds pathological input.
 const MAX_CONTROL_CODE_STRIP_PASSES = 8;
@@ -525,10 +525,10 @@ function isAnsiLine(line) {
 //  * Contiguous 3+ spaces before the end of the line
 //
 //  message bodies are drawn by controlCodesToAnsi()
-const BODY_LEGACY = { dialect: 'bodyLegacy' };
+const BODY = { dialect: 'body' };
 
 function isFormattedLine(line) {
-    if (renderStringLength(line, BODY_LEGACY) < line.length) {
+    if (renderStringLength(line, BODY) < line.length) {
         return true; //  ANSI or Pipe Codes
     }
 

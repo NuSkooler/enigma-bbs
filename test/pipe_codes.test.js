@@ -62,12 +62,9 @@ describe('pipe_codes', () => {
             assert.deepEqual(bad, []);
         });
 
-        it('body: render(bodyLegacy) reproduces controlCodesToAnsi()', () => {
+        it('body: render(body) reproduces controlCodesToAnsi()', () => {
             const bad = mismatches(FIXTURES.body, (s, c) =>
-                P.render(
-                    s,
-                    c ? withClient({ dialect: 'bodyLegacy' }) : { dialect: 'bodyLegacy' }
-                )
+                P.render(s, c ? withClient({ dialect: 'body' }) : { dialect: 'body' })
             );
             assert.deepEqual(bad, []);
         });
@@ -157,10 +154,10 @@ describe('pipe_codes', () => {
             ]);
         });
 
-        it('bodyLegacy: |1A is colour 1 and |A1 an MCI code', () => {
-            assert.deepEqual(types('|1A|A1', { dialect: 'bodyLegacy' }), [
-                [COLOR, '|1A'],
-                [MCI, '|A1'],
+        it('body: |1A and |A1 are text; |CF05 is a cursor code', () => {
+            assert.deepEqual(types('|1A|A1|CF05', { dialect: 'body' }), [
+                [TEXT, '|1A|A1'],
+                [MOVE, '|CF05'],
             ]);
         });
 
@@ -214,9 +211,30 @@ describe('pipe_codes', () => {
         });
 
         it('body: a numeric MCI value is a colour, an empty one literal', () => {
-            const body = withClient({ dialect: 'bodyLegacy' });
+            const body = withClient({ dialect: 'body' });
             assert.equal(P.render('|QQx', body), `${P.pipeColorSgr(7)}x`);
             assert.equal(P.render('|EMx', body), '|EMx');
+        });
+
+        describe('message bodies (controlCodesToAnsi)', () => {
+            const body = withClient({ dialect: 'body' });
+
+            it('|1A-style text shows as typed (it used to be colour 1, eating the A)', () => {
+                assert.equal(controlCodesToAnsi('|1Ahello'), '|1Ahello');
+                assert.equal(controlCodesToAnsi('x|0Zy'), 'x|0Zy');
+                assert.equal(P.render('|1Ahello', body), '|1Ahello');
+            });
+
+            it('|CF05 moves the cursor in an ANSI body; a plain body shows it', () => {
+                assert.equal(P.render('|CF05x', body), `${ESC}[5Cx`);
+                assert.equal(shows('|CF05x', body), '     x');
+                assert.equal(controlCodesToAnsi('|CF05x'), '|CF05x');
+            });
+
+            it('"||07x" is still "|" then colour 07, and "a||b" two pipes', () => {
+                assert.equal(controlCodesToAnsi('||07x'), `|${P.pipeColorSgr(7)}x`);
+                assert.equal(controlCodesToAnsi('a||b'), 'a||b');
+            });
         });
 
         describe('empty MCI values render as nothing (a user with no location)', () => {
@@ -503,7 +521,6 @@ describe('pipe_codes', () => {
             ui: undefined,
             uiClient: CLIENT,
             bodyClient: withClient({ dialect: 'body' }),
-            bodyLegacyClient: withClient({ dialect: 'bodyLegacy' }),
         };
 
         it('width(s) equals the ANSI-only width of render(s)', () => {

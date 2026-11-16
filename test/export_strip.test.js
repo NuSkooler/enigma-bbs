@@ -35,6 +35,10 @@ describe('Export stripping (message body grammar)', function () {
         ['|40x|99', 'x', '|32-|99 are consumed'],
         ['a||b', 'a||b', 'no pipe escape in a message body'],
         ['||07x', '|x', '"|" then colour 07'],
+        ['|CF05x', '     x', 'a cursor-forward becomes spaces'],
+        ['a |CF99 b', 'a       b', 'never more spaces than the code is long'],
+        ['|CU02x|CB1y', 'xy', 'other cursor codes go'],
+        ['|1Ahello', '|1Ahello', '|1A shows as typed'],
         ['@X1Fhi', '@X1Fhi', 'the PCBoard family is left alone'],
     ];
 

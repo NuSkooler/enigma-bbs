@@ -18,10 +18,9 @@
 //  body  message bodies and file descriptions (controlCodesToAnsi): no '||'
 //        escape, plus @X##, @##@, ^C# and CNET ^Y / ^Q codes.
 //
-//  bodyLegacy reproduces today's controlCodesToAnsi() pipe quirks exactly
-//  ('|1A' is colour 1, no |C[FBUD]## form). 'ansi' is for text that has
-//  already been rendered: only ANSI escapes are codes. 'color' is the editors'
-//  live-preview grammar: only |## colour codes; everything else is literal.
+//  'ansi' is for text that has already been rendered: only ANSI escapes are
+//  codes. 'color' is the editors' live-preview grammar: only |## colour
+//  codes; everything else is literal.
 //
 //  MCI values are resolved through a function predefined_mci.js injects
 //  with setMciResolver(); nothing here requires predefined_mci or config, so
@@ -54,7 +53,6 @@ const T = {
 const F_ESC = 1; //  ANSI escapes are tokens
 const F_MOVE = 2; //  |C[FBUD]## movement form
 const F_LEGACY = 4; //  @X## @##@ ^C# CNET
-const F_NUMPFX = 8; //  bodyLegacy: |1A = colour 1, |A1 = MCI 'A1'
 const F_PIPEESC = 16; //  || = literal '|'
 const F_BODY = 32; //  body MCI value rule (falsy -> literal, non-string -> colour)
 const F_ANSIONLY = 64; //  already rendered: only ESC sequences are codes
@@ -63,7 +61,6 @@ const F_COLORONLY = 128; //  only |## colour codes
 const DIALECT = {
     ui: F_PIPEESC | F_MOVE,
     body: F_MOVE | F_LEGACY | F_BODY,
-    bodyLegacy: F_LEGACY | F_NUMPFX | F_BODY,
     color: F_COLORONLY,
     ansi: F_ESC | F_ANSIONLY,
 };
@@ -128,15 +125,10 @@ function scanPipe(s, i, f) {
             tVal = (c1 - 48) * 10 + (c2 - 48);
             return i + 3;
         }
-        if (f & F_NUMPFX && isUpper(c2)) {
-            tType = T.COLOR; //  parseInt('1A') === 1
-            tVal = c1 - 48;
-            return i + 3;
-        }
         return -1;
     }
     if (isUpper(c1)) {
-        if (isUpper(c2) || (f & F_NUMPFX && isDigit(c2))) {
+        if (isUpper(c2)) {
             tType = T.MCI;
             return i + 3;
         }

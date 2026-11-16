@@ -64,11 +64,15 @@ function renegadeToAnsi(s, client) {
 //  * http://wiki.synchro.net/custom:colors
 //  * https://archive.org/stream/C-Net_Pro_3.0_1994_Perspective_Software/C-Net_Pro_3.0_1994_Perspective_Software_djvu.txt
 //
-const BODY_LEGACY = { dialect: 'bodyLegacy' };
+//  Pipe codes follow the UI grammar minus the "||" escape (as on Renegade,
+//  Synchronet and Mystic, "||05" is "|" then colour 05): |1A is text, and
+//  |C[FBUD]## moves the cursor when a client resolves it.
+//
+const BODY = { dialect: 'body' };
 
 function controlCodesToAnsi(s, client) {
     if (!s || 'string' !== typeof s) {
         return s; //  as it always has: a number or other non-string comes back as is
     }
-    return PipeCodes.render(s, client ? { dialect: 'bodyLegacy', client } : BODY_LEGACY);
+    return PipeCodes.render(s, client ? { dialect: 'body', client } : BODY);
 }
