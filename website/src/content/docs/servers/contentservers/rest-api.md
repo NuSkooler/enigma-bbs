@@ -191,7 +191,7 @@ Set to `["*"]` to allow any origin (suitable only for fully public read endpoint
 
 ## stripAnsi Query Parameter
 
-Text fields such as message bodies, file descriptions, and area descriptions may contain ANSI escape sequences. By default the API strips these before returning them. Pass `?stripAnsi=false` to receive raw ANSI-bearing content:
+Text fields such as message bodies, file descriptions, and area descriptions may contain ANSI escape sequences and [pipe codes](../../art/colour-codes.md). By default the API strips both before returning them, leaving what a caller would see as text: a colour code or a known MCI code such as `|UN` is removed, an unknown `|ZZ` stays, and `|CF05` becomes five spaces (never more than the code is long). Pass `?stripAnsi=false` to receive the raw content:
 
 ```
 GET /_enig/api/v1/messages/areas/local_general/messages?stripAnsi=false
