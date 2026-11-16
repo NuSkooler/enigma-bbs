@@ -17,7 +17,6 @@ const {
     canonicalNetworkNameForAddress,
     withCompanionTicRefs,
     companionTicPath,
-    flowRefBody,
 } = require('../bso_util');
 const bsoLock = require('../bso_lock');
 const { withFlowFileLock, isBusyError } = require('../bso_lock');
@@ -26,6 +25,13 @@ const {
     basenameFallbackAllowed,
     isControlFileName,
 } = require('../bso_flow_paths');
+const {
+    rewriteFlowFile,
+    readFlowFileChecked,
+    withFlowFileWrite,
+    isFlowTempFileName,
+    printablePath,
+} = require('../bso_flow');
 
 // In priority order (highest first)
 const FLOW_EXTS = ['ilo', 'clo', 'dlo', 'flo', 'hlo'];
@@ -98,9 +104,10 @@ const warnedFlowRefs = new Map();
 //                       directories come from |paths| and the outbound scan.
 //
 class BsoSpool {
-    //  flow file path -> tail of the in-flight rewrite chain for it.
-    //  Static: two spool instances in one process still share the files.
-    static _flowWrites = new Map();
+    //  flow file path -> tail of the in-flight rewrite chain for it. Shared
+    //  with everything else in the process that rewrites a flow file; see
+    //  withFlowFileWrite() in core/bso_flow.js.
+    static _flowWrites = require('../bso_flow')._flowWrites;
 
     constructor(config) {
         this._paths = config.paths || {};
@@ -155,6 +162,12 @@ class BsoSpool {
                     await sweep(path.join(dir, file), false);
                     continue;
                 }
+                if (isFlowTempFileName(file)) {
+                    //  Left by a rewrite that never finished (a crash
+                    //  between writing it and renaming it into place).
+                    await this._reapStaleTemp(path.join(dir, file));
+                    continue;
+                }
                 if (!/\.bsy$/i.test(file)) continue;
                 if (await this._reapIfStale(path.join(dir, file))) reaped++;
             }
@@ -171,6 +184,13 @@ class BsoSpool {
     // is still fresh, or when stat/unlink errors prevent a confident reap.
     async _reapIfStale(bsyPath) {
         return bsoLock.reapIfStale(bsyPath, this._staleLockMaxAgeMs, Log);
+    }
+
+    async _reapStaleTemp(tmpPath) {
+        const stat = await fsp.stat(tmpPath).catch(() => null);
+        if (stat && Date.now() - stat.mtimeMs > this._staleLockMaxAgeMs) {
+            await fsp.unlink(tmpPath).catch(() => {});
+        }
     }
 
     // ── Outbound file enumeration ────────────────────────────────────────────
@@ -378,6 +398,15 @@ class BsoSpool {
     //  missing, and must not be pruned. A pending flow entry also carries
     //  |dispositionAllowed|: false when its '^', '-' or '#' will not be
     //  carried out because the file is outside the mail directories.
+    //  A 'skip' entry is a '!' line, which is never sent. An 'unknown' entry
+    //  is a line whose first character is no directive and starts no path,
+    //  and an 'invalid' one a line no mailer reads the same way (a control
+    //  character, more than 4096 bytes, no path at all, or a path that is
+    //  not UTF-8); both carry |reason|, are never sent and never pruned, and
+    //  keep their flow file in place. Lines are parsed by parseFlowLine() in
+    //  core/bso_flow.js. A flow file that is a symlink into a protected
+    //  directory is not read: it is one 'refused' entry for the flow file
+    //  itself, with |linkTarget| naming where it leads.
     //
     //
     //  |options.onUnreadable| is called with the path of any flow file that
@@ -419,40 +448,111 @@ class BsoSpool {
                 return;
             }
 
-            const content = await fsp.readFile(filePath, 'utf8').catch(() => null);
-            if (null === content) {
+            //  A zero length read of a flow file whose size says otherwise is
+            //  a read that raced someone else's in-place rewrite, and counts
+            //  as unreadable (see readFlowFile()). Quiet: this is a report.
+            const checked = await readFlowFileChecked(filePath, policy, {
+                quiet: true,
+            }).catch(() => null);
+            if (null === checked) {
                 if (options.onUnreadable) {
                     options.onUnreadable(filePath);
                 }
                 return;
             }
 
-            const lines = content.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                const trimmed = lines[i].trim();
-                if (!trimmed) continue;
+            if (checked.refused) {
+                //  A flow file linked into a protected directory is not read;
+                //  it is listed as refused itself. To a caller deciding what
+                //  is unreferenced (the transit sweep) it is also no answer:
+                //  whatever it names is unknown, not unwanted.
+                add(addr, {
+                    kind: 'flow',
+                    status: 'refused',
+                    path: filePath,
+                    linkTarget: checked.refused.realPath,
+                    protectedDir: checked.refused.protectedDir,
+                    size: null,
+                    timestamp: null,
+                    disposition: null,
+                    flowFile: filePath,
+                    lineIdx: null,
+                    line: null,
+                });
+                if (options.onUnreadable) {
+                    options.onUnreadable(filePath);
+                }
+                return;
+            }
 
-                if ('~' === trimmed[0]) {
+            const read = checked.read;
+            const lines = read.lines;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if ('blank' === line.kind) continue;
+
+                const base = {
+                    kind: 'flow',
+                    flowFile: filePath,
+                    lineIdx: i,
+                    line: line.text,
+                };
+
+                if ('skip' === line.kind) {
+                    //  '~' is a line already processed; '!' one to leave
+                    //  alone. Neither is sent.
                     add(addr, {
-                        kind: 'flow',
-                        status: 'sent',
-                        path: trimmed.slice(1),
-                        flowFile: filePath,
-                        lineIdx: i,
-                        line: trimmed,
+                        ...base,
+                        status: '~' === line.directive ? 'sent' : 'skip',
+                        //  A relative one is relative to the flow file, as
+                        //  for a line still to be sent; the transit sweep
+                        //  resolves these paths.
+                        path:
+                            textPath(flowLineTarget(filePath, line)) || displayPath(line),
                     });
                     continue;
                 }
 
-                const prefix = /^[\^#-]/.test(trimmed) ? trimmed[0] : '';
-                const ref = prefix ? trimmed.slice(1) : trimmed;
-                const disposition =
-                    '#' === prefix ? 'truncate' : prefix ? 'delete' : 'keep';
+                if ('send' !== line.kind) {
+                    //  Not understood: never sent, never pruned, and it keeps
+                    //  the flow file in place. The operator decides.
+                    add(addr, {
+                        ...base,
+                        status: line.kind,
+                        reason: line.reason,
+                        path: displayPath(line),
+                        size: null,
+                        timestamp: null,
+                        disposition: line.disposition,
+                    });
+                    continue;
+                }
+
+                const disposition = line.disposition;
+
+                if (Buffer.isBuffer(line.path)) {
+                    //  Bytes that are not UTF-8. ENiGMA cannot send it under a
+                    //  name, but whether it is there still decides between
+                    //  something to fix and something to prune.
+                    const there = !(await isGenuinelyAbsent(
+                        flowLineTarget(filePath, line)
+                    ));
+                    add(addr, {
+                        ...base,
+                        status: there ? 'invalid' : 'missing',
+                        reason: there ? 'path is not valid UTF-8' : undefined,
+                        path: displayPath(line),
+                        size: null,
+                        timestamp: null,
+                        disposition,
+                    });
+                    continue;
+                }
 
                 //  Resolve quietly: this is a report, and shouting into the
                 //  log every time an operator runs it would bury the periodic
                 //  warning that actually marks a change of state.
-                const resolved = await resolveFlowRefQuiet(filePath, ref, prefix, policy);
+                const resolved = await resolveFlowRefQuiet(filePath, line, policy);
                 const classified = resolved ? await policy.classify(resolved.path) : null;
                 const dispositionCheck = resolved
                     ? await judgeDisposition(policy, disposition, resolved.path)
@@ -466,7 +566,7 @@ class BsoSpool {
                 //  would discard mail over a transient fault.
                 let status = 'pending';
                 if (!resolved) {
-                    if (!(await isGenuinelyAbsent(ref))) {
+                    if (!(await isGenuinelyAbsent(flowLineTarget(filePath, line)))) {
                         status = 'unreadable';
                     } else {
                         //  Gone from where it was queued, but a file of that
@@ -474,7 +574,11 @@ class BsoSpool {
                         //  This entry may not be sent from there (see
                         //  resolveFlowRef()), and pruning it would strand
                         //  the file, so it gets a status prune leaves alone.
-                        besideFlowFile = await misfiledPath(filePath, ref);
+                        besideFlowFile = await misfiledPath(
+                            filePath,
+                            line.path,
+                            flowLineTarget(filePath, line)
+                        );
                         status = besideFlowFile ? 'misfiled' : 'missing';
                     }
                 } else if (classified && classified.refused) {
@@ -482,9 +586,11 @@ class BsoSpool {
                 }
 
                 add(addr, {
-                    kind: 'flow',
+                    ...base,
                     status,
-                    path: resolved ? resolved.path : ref,
+                    path: resolved
+                        ? resolved.path
+                        : flowLineTarget(filePath, line) || line.path,
                     size: resolved ? resolved.stat.size : null,
                     timestamp: resolved ? Math.floor(resolved.stat.mtimeMs / 1000) : null,
                     disposition,
@@ -492,9 +598,6 @@ class BsoSpool {
                         'keep' === disposition ||
                         Boolean(dispositionCheck && dispositionCheck.allowed),
                     ...(besideFlowFile ? { besideFlowFile } : {}),
-                    flowFile: filePath,
-                    lineIdx: i,
-                    line: trimmed,
                 });
             }
         });
@@ -514,6 +617,7 @@ class BsoSpool {
     //  caller is told what would go.
     //
     async pruneMissingRefs(addr, { dryRun = true, lockTimeoutMs } = {}) {
+        const policy = await this._flowPathPolicy();
         const target = (await this.inspectOutbound()).find(n =>
             sameAddress(n.address, addr)
         );
@@ -557,9 +661,8 @@ class BsoSpool {
                         log: Log,
                     },
                     done => {
-                        this._withFlowFileWrite(flowPath, () =>
-                            this._pruneFromFlowFile(flowPath, entries)
-                        )
+                        //  rewriteFlowFile() takes the in-process chain itself.
+                        this._pruneFromFlowFile(flowPath, entries, policy)
                             .then(spliced => {
                                 actuallyRemoved.push(...spliced);
                                 done(null);
@@ -613,77 +716,69 @@ class BsoSpool {
     //  collects a TIC for a file it never receives -- #735, but inflicted on
     //  someone else's system under our From and our Seenby. See #862.
     //
-    async _pruneFromFlowFile(flowPath, entries) {
-        const content = await fsp.readFile(flowPath, 'utf8').catch(() => null);
-        if (null === content) {
+    async _pruneFromFlowFile(flowPath, entries, policy = null) {
+        let spliced = [];
+        let ticPaths = [];
+
+        const result = await rewriteFlowFile(
+            flowPath,
+            lines => {
+                //
+                //  Only entries still standing where the listing found them. The
+                //  listing was taken before the lock, so ftn_bso may have appended
+                //  or a session may have marked something since -- and a line that
+                //  has moved says nothing trustworthy about what follows it either,
+                //  so it contributes no companion.
+                //
+                spliced = entries.filter(
+                    e =>
+                        e.lineIdx < lines.length &&
+                        'send' === lines[e.lineIdx].kind &&
+                        lines[e.lineIdx].text === e.line
+                );
+
+                const companion = withCompanionTicRefs(
+                    lines,
+                    spliced.map(e => e.lineIdx)
+                );
+                ticPaths = companion.ticPaths;
+
+                //
+                //  Report the companions too. An operator told "removed 1" while
+                //  two lines went has been told something false about their own
+                //  spool.
+                //
+                //  Inserted in line order rather than appended, so the listing
+                //  reads the way the flow file does -- a payload followed by the
+                //  TIC that announces it. Appending them all at the end put two
+                //  payloads above two TICs, and the CLI's "(TIC announcing it)"
+                //  then named the wrong file.
+                //
+                for (const idx of companion.indices) {
+                    if (spliced.some(e => e.lineIdx === idx)) {
+                        continue;
+                    }
+                    spliced.push({
+                        kind: 'flow',
+                        status: 'companion',
+                        path: companionTicPath(flowPath, lines[idx].path),
+                        size: null,
+                        timestamp: null,
+                        disposition: 'delete',
+                        flowFile: flowPath,
+                        lineIdx: idx,
+                        line: lines[idx].text,
+                    });
+                }
+                spliced.sort((a, b) => a.lineIdx - b.lineIdx);
+
+                return { remove: Array.from(companion.indices) };
+            },
+            { policy }
+        );
+
+        if (!result.changed) {
             return [];
-        }
-
-        const lines = content.split('\n');
-
-        //
-        //  Only entries still standing where the listing found them. The
-        //  listing was taken before the lock, so ftn_bso may have appended or
-        //  a session may have marked something since -- and a line that has
-        //  moved says nothing trustworthy about what follows it either, so it
-        //  contributes no companion.
-        //
-        const spliced = entries.filter(
-            e => e.lineIdx < lines.length && lines[e.lineIdx].trim() === e.line
-        );
-
-        const { indices, ticPaths } = withCompanionTicRefs(
-            lines,
-            spliced.map(e => e.lineIdx)
-        );
-
-        //
-        //  Report the companions too. An operator told "removed 1" while two
-        //  lines went has been told something false about their own spool.
-        //
-        //  Inserted in line order rather than appended, so the listing reads
-        //  the way the flow file does -- a payload followed by the TIC that
-        //  announces it. Appending them all at the end put two payloads above
-        //  two TICs, and the CLI's "(TIC announcing it)" then named the wrong
-        //  file.
-        //
-        const companions = [];
-        for (const idx of indices) {
-            if (spliced.some(e => e.lineIdx === idx)) {
-                continue;
-            }
-            companions.push({
-                kind: 'flow',
-                status: 'companion',
-                path: companionTicPath(flowPath, flowRefBody(lines[idx])),
-                size: null,
-                timestamp: null,
-                disposition: 'delete',
-                flowFile: flowPath,
-                lineIdx: idx,
-                line: lines[idx].trim(),
-            });
-        }
-
-        spliced.push(...companions);
-        spliced.sort((a, b) => a.lineIdx - b.lineIdx);
-
-        //  Descending, so removing one cannot shift the index of the next.
-        for (const idx of Array.from(indices).sort((a, b) => b - a)) {
-            lines.splice(idx, 1);
-        }
-
-        const hasLive = lines.some(l => {
-            const t = l.trim();
-            return t.length > 0 && '~' !== t[0];
-        });
-
-        if (hasLive) {
-            await fsp.writeFile(flowPath, lines.join('\n'), 'utf8');
-        } else {
-            //  Nothing left to send; ftn_bso recreates the flow file next
-            //  time it queues something, same as a normal drain.
-            await fsp.unlink(flowPath).catch(() => {});
         }
 
         //
@@ -852,6 +947,11 @@ class BsoSpool {
     //  directory the spool reads flow files from is always one their '^' and
     //  '#' entries may be disposed in. See core/bso_flow_paths.js.
     //
+    //  The same, for other modules that rewrite flow files in this outbound.
+    flowPathPolicy() {
+        return this._flowPathPolicy();
+    }
+
     async _flowPathPolicy() {
         const outboundDirs = await this._allOutboundDirs();
 
@@ -884,35 +984,58 @@ class BsoSpool {
         if (!policy) {
             policy = await this._flowPathPolicy();
         }
-        const content = await fsp.readFile(flowPath, 'utf8');
-        const lines = content.split('\n');
+        //  A flow file linked into a protected directory is not read at all.
+        const checked = await readFlowFileChecked(flowPath, policy);
+        if (checked.refused) {
+            return [];
+        }
+        const { lines } = checked.read;
         const results = [];
 
+        //  The same line twice queues its file once, and sending it marks
+        //  every copy (see _applyFlowDispositionLocked()).
+        const queued = new Set();
+
         for (let i = 0; i < lines.length; i++) {
-            const raw = lines[i];
-            const trimmed = raw.trim();
-            if (!trimmed || trimmed[0] === '~') continue;
+            const line = lines[i];
 
-            const firstChar = trimmed[0];
-            let disposition, filePath, directive;
-
-            if (firstChar === '^' || firstChar === '-') {
-                disposition = 'delete';
-                directive = firstChar;
-                filePath = trimmed.slice(1);
-            } else if (firstChar === '#') {
-                disposition = 'truncate';
-                directive = firstChar;
-                filePath = trimmed.slice(1);
-            } else {
-                disposition = 'keep';
-                directive = '';
-                filePath = trimmed;
+            if ('unknown' === line.kind || 'invalid' === line.kind) {
+                warnThrottled(
+                    `unparsed\0${flowPath}`,
+                    this._flowRefWarnRepeatMs,
+                    {
+                        node: nodeLabel(flowPath, addr),
+                        line: printablePath(line.text),
+                        reason: line.reason,
+                        flowFile: flowPath,
+                    },
+                    '[BinkP/BSO] Flow file has a line that is not a directive and path ENiGMA can read; ' +
+                        'leaving it in place and not sending it. See "oputil bso list"'
+                );
+                continue;
             }
 
-            const resolved = await resolveFlowRef(flowPath, filePath, addr, {
+            if ('send' !== line.kind || queued.has(line.text)) continue;
+
+            if (Buffer.isBuffer(line.path)) {
+                warnThrottled(
+                    `encoding\0${flowPath}`,
+                    this._flowRefWarnRepeatMs,
+                    {
+                        node: nodeLabel(flowPath, addr),
+                        line: printablePath(line.text),
+                        flowFile: flowPath,
+                    },
+                    '[BinkP/BSO] Flow file entry names a path that is not valid UTF-8; not sending it. ' +
+                        'See "oputil bso list"'
+                );
+                continue;
+            }
+
+            const disposition = line.disposition;
+
+            const resolved = await resolveFlowRef(flowPath, line, addr, {
                 repeatMs: this._flowRefWarnRepeatMs,
-                directive,
                 policy,
             });
             if (!resolved) continue;
@@ -959,8 +1082,9 @@ class BsoSpool {
                 }
             }
 
+            queued.add(line.text);
             const lineIdx = i;
-            const captured = trimmed; // close over the line as it was when read
+            const captured = line.text; // close over the line as it was when read
             results.push({
                 name: path.basename(resolved.path),
                 path: resolved.path,
@@ -972,7 +1096,8 @@ class BsoSpool {
                 //  Bookkeeping keys off the line as it was written, not off
                 //  |resolved.path| — so a reference rescued by the fallback
                 //  above is still marked sent correctly.
-                disposeFn: () => this._applyFlowDisposition(flowPath, lineIdx, captured),
+                disposeFn: () =>
+                    this._applyFlowDisposition(flowPath, lineIdx, captured, policy),
             });
         }
 
@@ -980,83 +1105,54 @@ class BsoSpool {
     }
 
     //
-    //  Serialize flow file rewrites per file.
-    //
-    //  _applyFlowDisposition() is a whole-file read-modify-write, and a session
-    //  that ships more than one file for a node runs one per file --
-    //  concurrently. Each read the file with every line still unmarked, marked
-    //  its own, and wrote its own copy back, so the last writer won and every
-    //  other line silently lost its '~'.
-    //
-    //  Forwarding a file echo makes that immediately harmful: the payload and
-    //  its TIC go out together, and the payload is queued 'keep' because it
-    //  lives in the file base. Losing its mark left it looking unsent, so it
-    //  was re-sent on every session from then on -- the downlink receiving the
-    //  same file forever, with no TIC. Observed end to end between two live
-    //  instances; for mail the same race merely leaves dangling references,
-    //  since those entries carry '^' and the file is gone by the next pass.
-    //
-    //  The per-node .bsy cannot help here: the session holds it for its whole
-    //  duration, so both rewrites are inside it. This is in-process contention
-    //  and wants an in-process lock.
+    //  Serialize flow file rewrites per file, within this process. See
+    //  withFlowFileWrite() in core/bso_flow.js, which every flow file rewrite
+    //  in the process goes through.
     //
     _withFlowFileWrite(flowPath, work) {
-        const prev = BsoSpool._flowWrites.get(flowPath) || Promise.resolve();
-        const next = prev.then(work, work);
-
-        BsoSpool._flowWrites.set(flowPath, next);
-
-        //  Drop the chain once it drains so a long-lived process does not
-        //  accumulate an entry per flow file ever written.
-        next.finally(() => {
-            if (BsoSpool._flowWrites.get(flowPath) === next) {
-                BsoSpool._flowWrites.delete(flowPath);
-            }
-        });
-
-        return next;
+        return withFlowFileWrite(flowPath, work);
     }
 
-    async _applyFlowDisposition(flowPath, lineIdx, originalTrimmed) {
-        return this._withFlowFileWrite(flowPath, () =>
-            this._applyFlowDispositionLocked(flowPath, lineIdx, originalTrimmed)
-        );
+    async _applyFlowDisposition(flowPath, lineIdx, originalText, policy = null) {
+        return this._applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy);
     }
 
-    async _applyFlowDispositionLocked(flowPath, lineIdx, originalTrimmed) {
+    async _applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy = null) {
         //  The file-side action (unlink for 'delete', truncate for 'truncate')
         //  is already performed by BinkpSession._applyDisposition before the
         //  'file-sent' event fires; session.js owns file lifecycle. This
         //  method's job is purely flow-file bookkeeping:
-        //    1. Mark the entry as done by prepending '~' to the original line.
-        //    2. If no live entries remain, unlink the flow file itself so a
+        //    1. Mark the entry as done: '~' and its path.
+        //    2. If nothing is left waiting, remove the flow file itself so a
         //       quiet node doesn't accumulate dead-marker files indefinitely.
         //       ftn_bso recreates the flow file on the next outbound queue.
+        //  rewriteFlowFile() does both, serialized with every other rewrite
+        //  of this file in the process.
         try {
-            const content = await fsp.readFile(flowPath, 'utf8');
-            const lines = content.split('\n');
+            await rewriteFlowFile(
+                flowPath,
+                lines => {
+                    const same = l => 'send' === l.kind && l.text === originalText;
 
-            if (lineIdx >= lines.length || lines[lineIdx].trim() !== originalTrimmed) {
-                //  Flow file was modified out from under us (concurrent
-                //  ftn_bso append, or another session). Skip both the rewrite
-                //  and the GC — neither is safe without our line in place.
-                return;
-            }
+                    //  The line has to still be there: where we read it, or --
+                    //  if lines before it were removed since -- somewhere else.
+                    //  Otherwise the flow file was rewritten out from under us
+                    //  (another session, a manual cleanup), and neither marking
+                    //  nor removing it is safe.
+                    const at = lines[lineIdx];
+                    if (!(at && same(at)) && !lines.some(same)) {
+                        return null;
+                    }
 
-            const prefix = /^[\^#-]/.test(originalTrimmed) ? originalTrimmed[0] : '';
-            const body = prefix ? originalTrimmed.slice(1) : originalTrimmed;
-            lines[lineIdx] = `~${body}`;
-
-            const hasLive = lines.some(l => {
-                const t = l.trim();
-                return t.length > 0 && t[0] !== '~';
-            });
-
-            if (hasLive) {
-                await fsp.writeFile(flowPath, lines.join('\n'), 'utf8');
-            } else {
-                await fsp.unlink(flowPath);
-            }
+                    //  Every copy of the line: the file went once for all of them.
+                    const mark = [];
+                    lines.forEach((l, idx) => {
+                        if (same(l)) mark.push(idx);
+                    });
+                    return { mark };
+                },
+                { policy }
+            );
         } catch (err) {
             Log.warn(
                 { path: flowPath, error: err.message },
@@ -1206,16 +1302,18 @@ function uniquePacketName(filePath) {
 //  "Session complete".
 //
 async function flowHasPending(flowPath, addr, repeatMs, policy) {
-    const content = await fsp.readFile(flowPath, 'utf8').catch(() => '');
-    for (const line of content.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed[0] === '~') continue;
+    const checked = await readFlowFileChecked(flowPath, policy).catch(() => null);
+    if (!checked || checked.refused) {
+        return false;
+    }
+    const read = checked.read;
+    for (const line of read.lines) {
+        //  Lines not understood, and paths ENiGMA cannot send under a name,
+        //  give no reason to dial; _parseFlowFile() says so when it runs.
+        if ('send' !== line.kind || Buffer.isBuffer(line.path)) continue;
 
-        const directive = /^[\^#-]/.test(trimmed) ? trimmed[0] : '';
-        const ref = directive ? trimmed.slice(1) : trimmed;
-        const resolved = await resolveFlowRef(flowPath, ref, addr, {
+        const resolved = await resolveFlowRef(flowPath, line, addr, {
             repeatMs,
-            directive,
             policy,
         });
         if (!resolved) continue;
@@ -1226,6 +1324,46 @@ async function flowHasPending(flowPath, addr, repeatMs, policy) {
         return true;
     }
     return false;
+}
+
+//
+//  The filesystem path a 'send' line names, before any fallback, or null
+//  when it names nothing on this platform.
+//
+//  A relative path (name.pkt, sub/name.pkt) is relative to the flow file's
+//  own directory, the first place FTS-5005.003 suggests and where hpt
+//  resolves them -- never to whatever directory this process happens to be
+//  running in. A DOS path is a path
+//  only on Windows; elsewhere only the basename fallback can find it.
+//
+function flowLineTarget(flowPath, line) {
+    if (!line || null === line.path || undefined === line.path) {
+        return null;
+    }
+    if (line.relative) {
+        return Buffer.isBuffer(line.path)
+            ? Buffer.concat([Buffer.from(path.dirname(flowPath) + path.sep), line.path])
+            : path.join(path.dirname(flowPath), line.path);
+    }
+    if (line.dos && 'win32' !== process.platform) {
+        return null;
+    }
+    return line.path;
+}
+
+//  |p| when it is a path as text, else null (no path, or one that is not
+//  UTF-8).
+function textPath(p) {
+    return 'string' === typeof p ? p : null;
+}
+
+//  A line's path as text for a listing: the path when it is UTF-8, the raw
+//  bytes shown one per character when it is not.
+function displayPath(line) {
+    if ('string' === typeof line.path) {
+        return line.path;
+    }
+    return line.body || line.text;
 }
 
 //
@@ -1278,7 +1416,7 @@ function judgeDisposition(policy, disposition, filePath) {
 //  or flow file name: that is some other node's file, not this entry's, and
 //  the entry is simply missing.
 //
-async function misfiledPath(flowPath, ref) {
+async function misfiledPath(flowPath, ref, target = ref) {
     const base = String(ref || '')
         .split(/[\\/]/)
         .pop();
@@ -1286,7 +1424,7 @@ async function misfiledPath(flowPath, ref) {
         return null;
     }
     const alt = path.join(path.dirname(flowPath), base);
-    if (alt === ref) {
+    if (alt === ref || alt === target) {
         return null;
     }
     const stat = await fsp.stat(alt).catch(() => null);
@@ -1332,7 +1470,8 @@ function warnThrottled(key, repeatMs, fields, message) {
 //  send-and-keep line, whose file never lives in the outbound; nor onto a BSO
 //  control or flow file name; nor unless the stored path's own directory is
 //  named like an outbound. See basenameFallbackAllowed() in
-//  core/bso_flow_paths.js. |directive| is the line's prefix ('' for none).
+//  core/bso_flow_paths.js. |line| is a 'send' line from parseFlowLine() in
+//  core/bso_flow.js.
 //
 //  A reference that resolves nowhere is logged once per process. Silence here
 //  is how misfiled outbound mail hides: the session finds nothing to send and
@@ -1340,15 +1479,14 @@ function warnThrottled(key, repeatMs, fields, message) {
 //
 async function resolveFlowRef(
     flowPath,
-    ref,
+    line,
     addr,
-    {
-        quiet = false,
-        repeatMs = DEFAULT_FLOW_REF_WARN_REPEAT_MS,
-        directive = '',
-        policy = null,
-    } = {}
+    { quiet = false, repeatMs = DEFAULT_FLOW_REF_WARN_REPEAT_MS, policy = null } = {}
 ) {
+    const ref = line.path;
+    const directive = line.directive;
+    const target = flowLineTarget(flowPath, line);
+
     const warnEvery = (key, fields, message) => {
         if (quiet) return;
         warnThrottled(key, repeatMs, fields, message);
@@ -1376,22 +1514,22 @@ async function resolveFlowRef(
         }
     };
 
-    let stat = await tryStat(ref);
-    if (stat) return { path: ref, stat };
+    let stat = target ? await tryStat(target) : null;
+    if (stat) return { path: target, stat };
 
     //  Split on either separator — the reference may have been written by a
     //  mailer running on the other sort of platform.
     if (basenameFallbackAllowed(ref, directive, policy ? policy.outboundNames : null)) {
         const base = ref.split(/[\\/]/).pop();
         const alt = base && path.join(path.dirname(flowPath), base);
-        if (alt && alt !== ref) {
+        if (alt && alt !== target) {
             stat = await tryStat(alt);
             if (stat) return { path: alt, stat };
         }
     } else if (!quiet) {
         //  Not the same thing as missing, and the operator needs to tell them
         //  apart: the file is right there, this entry just may not use it.
-        const beside = await misfiledPath(flowPath, ref);
+        const beside = await misfiledPath(flowPath, ref, target);
         if (beside) {
             warnEvery(
                 `misfiled\0${flowPath}\0${ref}`,
@@ -1450,6 +1588,10 @@ function sameAddress(a, b) {
 //  EACCES, EIO, ESTALE, EMFILE -- says the file may well exist and we simply
 //  could not look.
 async function isGenuinelyAbsent(p) {
+    if (!p) {
+        //  A path that names nothing on this platform (a DOS path here).
+        return true;
+    }
     try {
         await fsp.stat(p);
         return false;
@@ -1461,8 +1603,8 @@ async function isGenuinelyAbsent(p) {
 //  Resolve without logging. The operator's listing asks about every entry
 //  every time it runs; the periodic warning is what marks a change of state,
 //  and burying it under one line per run per reference defeats it.
-function resolveFlowRefQuiet(flowPath, ref, directive, policy) {
-    return resolveFlowRef(flowPath, ref, null, { quiet: true, directive, policy });
+function resolveFlowRefQuiet(flowPath, line, policy) {
+    return resolveFlowRef(flowPath, line, null, { quiet: true, policy });
 }
 
 //
@@ -1527,10 +1669,23 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
     //  disposeFn is null and we skip the disposeMap entry entirely. Only flow
     //  entries register a post-send hook (to mark the line with '~' and GC the
     //  flow file when no live entries remain).
+    //
+    //  Two entries can share a key: the same file listed by two flow files
+    //  (a legacy directory still draining, two flavours). Both lines are
+    //  finished with when the file has gone, so both are marked; replacing
+    //  the first hook left its line looking unsent.
+    //
     const registerDispose = f => {
-        if (f.disposeFn) {
-            disposeMap.set(`${f.name}\0${f.size}\0${f.timestamp}`, f.disposeFn);
+        if (!f.disposeFn) {
+            return;
         }
+        const key = `${f.name}\0${f.size}\0${f.timestamp}`;
+        const prev = disposeMap.get(key);
+        const next = f.disposeFn;
+        disposeMap.set(
+            key,
+            'function' === typeof prev ? () => prev().then(() => next()) : next
+        );
     };
 
     if (remoteAddrs && remoteAddrs.length > 0) {

@@ -432,6 +432,106 @@ describe('TIC hatching into the outbound', function () {
         });
     });
 
+    describe('dequeueing from a flow file', () => {
+        const latin1 = str => Buffer.from(str, 'latin1');
+        let dir;
+        let flowPath;
+
+        beforeEach(async () => {
+            dir = paths.join(outboundDir, 'outbound');
+            await fsp.mkdir(dir, { recursive: true });
+            flowPath = paths.join(dir, `${FLOW_A}.flo`);
+        });
+
+        const scrub = target =>
+            new Promise(resolve => inst.scrubFlowFileRefs(flowPath, target, resolve));
+
+        const append = (refs, directive) =>
+            new Promise((resolve, reject) =>
+                inst.flowFileAppendRefs(flowPath, refs, directive, undefined, err =>
+                    err ? reject(err) : resolve()
+                )
+            );
+
+        it('removes the flow file when only lines already sent are left', async () => {
+            const tic = paths.join(dir, 'aaaa0001.tic');
+            await fsp.writeFile(tic, 'Area X\r\n');
+            await fsp.writeFile(flowPath, `~/fb/old.zip\n/fb/new.zip\n^${tic}\n`);
+
+            await scrub('/fb/new.zip');
+
+            assert.equal(fs.existsSync(flowPath), false, 'nothing is left to send');
+            assert.equal(fs.existsSync(tic), false, 'its TIC is unlinked');
+        });
+
+        it('never removes a zero-length flow file (a poll request)', async () => {
+            const dlo = paths.join(dir, `${FLOW_A}.dlo`);
+            await fsp.writeFile(dlo, '');
+            await new Promise(resolve =>
+                inst.scrubFlowFileRefs(dlo, '/fb/new.zip', resolve)
+            );
+            assert.equal((await fsp.stat(dlo)).size, 0);
+        });
+
+        it('keeps every other line byte for byte', async () => {
+            await fsp.writeFile(
+                flowPath,
+                Buffer.concat([
+                    latin1('/fb/caf\xe9.zip\r\n'),
+                    latin1('/fb/new.zip\r\n'),
+                    latin1('  #/ob/0000fc9c.su0\r\n'),
+                ])
+            );
+            await scrub('/fb/new.zip');
+            assert.ok(
+                (await fsp.readFile(flowPath)).equals(
+                    Buffer.concat([
+                        latin1('/fb/caf\xe9.zip\r\n'),
+                        latin1('  #/ob/0000fc9c.su0\r\n'),
+                    ])
+                )
+            );
+        });
+
+        it("leaves a '!' line naming the file alone: it is not queued", async () => {
+            await fsp.writeFile(flowPath, '!/fb/new.zip\n/fb/other.zip\n');
+            await scrub('/fb/new.zip');
+            assert.equal(
+                await fsp.readFile(flowPath, 'utf8'),
+                '!/fb/new.zip\n/fb/other.zip\n'
+            );
+        });
+
+        it('writes nothing while the node is busy', async () => {
+            configModule.get().scannerTossers.ftn_bso.flowLockTimeoutMs = 50;
+            const content = '/fb/new.zip\n';
+            await fsp.writeFile(flowPath, content);
+            await fsp.writeFile(paths.join(dir, `${FLOW_A}.bsy`), '99999');
+
+            await scrub('/fb/new.zip');
+            assert.equal(await fsp.readFile(flowPath, 'utf8'), content);
+        });
+
+        it('starts a new line when the last one has no line feed', async () => {
+            await fsp.writeFile(flowPath, '~/fb/sent-by-someone-else.zip');
+            await append(['/fb/a.zip'], '');
+            await append(['/fb/b.zip'], '^');
+            assert.equal(
+                await fsp.readFile(flowPath, 'utf8'),
+                '~/fb/sent-by-someone-else.zip\n/fb/a.zip\n^/fb/b.zip\n'
+            );
+        });
+
+        it('writes a UTF-8 name as UTF-8', async () => {
+            await append(['/fb/naïve.zip'], '');
+            assert.ok(
+                (await fsp.readFile(flowPath)).equals(
+                    Buffer.from('/fb/naïve.zip\n', 'utf8')
+                )
+            );
+        });
+    });
+
     describe('a misconfigured echo', () => {
         it('queues nothing when the area names a network we do not have', async () => {
             push({
