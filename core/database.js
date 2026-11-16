@@ -12,6 +12,7 @@ const fse = require('fs-extra');
 const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment');
+const { ActiveUsersIndexSql } = require('./active_users');
 
 //  database handles
 const dbs = {};
@@ -838,6 +839,8 @@ const DB_INIT_TABLE = {
 
             CREATE INDEX IF NOT EXISTS user_property_id_and_name_index0
                 ON user_property (user_id, prop_name);
+
+            ${ActiveUsersIndexSql}
 
             CREATE TABLE IF NOT EXISTS user_group_member (
                 group_name  VARCHAR NOT NULL,

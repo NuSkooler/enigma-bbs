@@ -5,13 +5,12 @@ const Config = require('../../../config').get;
 const packageJson = require('../../../../package.json');
 const StatLog = require('../../../stat_log');
 const SysProps = require('../../../system_property');
-const SysLogKeys = require('../../../system_log');
+const { countActiveUsers } = require('../../../active_users');
 const { getBaseUrl, getWebDomain } = require('../../../web_util');
 const Collection = require('../../../activitypub/collection');
 
 // deps
-const { get: _get } = require('lodash');
-const moment = require('moment');
+const { get: _get, pick: _pick } = require('lodash');
 const async = require('async');
 
 function _buildProtocols(config) {
@@ -45,6 +44,18 @@ function _buildProtocols(config) {
     }
 
     return p;
+}
+
+//
+//  usage.users for a document: the registered user count, or nothing when it
+//  is unknown (the stat is set at startup, and could not be read). total is
+//  optional in every NodeInfo schema, whereas a made-up value would be read as
+//  a real one; 0 would claim there are no users on a board that has some.
+//
+function _baseUsers() {
+    //  not getSystemStatNum(): that reads a missing stat as 0
+    const total = parseInt(StatLog.getSystemStat(SysProps.TotalUserCount));
+    return Number.isInteger(total) && total >= 0 ? { total } : {};
 }
 
 const NodeInfoSchemaBase = 'http://nodeinfo.diaspora.software/ns/schema';
@@ -132,7 +143,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         this.log.info({ version }, 'Serving standard NodeInfo request');
 
         this._getNodeInfo(nodeInfo2Data => {
-            const config = Config();
+            const config = this._config();
             const apEnabled = _get(
                 config,
                 'contentServers.web.handlers.activityPub.enabled',
@@ -156,11 +167,13 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
                 services: { inbound: [], outbound: [] },
                 openRegistrations: nodeInfo2Data.openRegistrations,
                 usage: {
-                    users: {
-                        total: nodeInfo2Data.usage.users.total,
-                        activeHalfyear: nodeInfo2Data.usage.activeHalfyear || 0,
-                        activeMonth: nodeInfo2Data.usage.activeMonth || 0,
-                    },
+                    //  NodeInfo 2.x has no activeWeek, and total is only
+                    //  present when it is known.
+                    users: _pick(nodeInfo2Data.usage.users, [
+                        'total',
+                        'activeHalfyear',
+                        'activeMonth',
+                    ]),
                     localPosts: nodeInfo2Data.usage.localPosts,
                 },
                 metadata: {
@@ -203,18 +216,30 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
     _getNodeInfo(cb) {
         return this._getUsage(usage => {
             const nodeInfo = this._baseNodeInfo();
-            Object.assign(nodeInfo.usage, usage);
+            const { users: activeUsers, ...rest } = usage;
+            Object.assign(nodeInfo.usage, rest);
+
+            //  Nobody can have been active who is not registered
+            const users = nodeInfo.usage.users;
+            for (const [name, count] of Object.entries(activeUsers || {})) {
+                users[name] = Number.isInteger(users.total)
+                    ? Math.min(count, users.total)
+                    : count;
+            }
             return cb(nodeInfo);
         });
     }
 
-    _baseNodeInfo() {
+    _config() {
+        return Config();
+    }
+
+    _baseNodeInfo(config = this._config()) {
         //  https://github.com/jaywink/nodeinfo2/tree/master/schemas/1.0
-        const config = Config();
         return {
             version: '1.0',
             server: {
-                baseUrl: getBaseUrl(),
+                baseUrl: getBaseUrl(config),
                 name: config.general.boardName,
                 software: 'ENiGMA½ Bulletin Board Software',
                 version: packageJson.version,
@@ -225,9 +250,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
             services: { inbound: [], outbound: [] },
             openRegistrations: !config.general.closedSystem,
             usage: {
-                users: {
-                    total: StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1,
-                },
+                users: _baseUsers(),
                 localPosts: 0,
             },
         };
@@ -279,33 +302,19 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         const usage = {};
         let complete = true;
 
-        const setActive = (since, name, next) => {
-            const filter = {
-                logName: SysLogKeys.UserLoginHistory,
-                resultType: 'count',
-                dateNewer: moment().subtract(moment.duration(since, 'days')),
-            };
-            StatLog.findSystemLogEntries(filter, (err, count) => {
-                if (err) {
-                    complete = false;
-                } else {
-                    usage[name] = count;
-                }
-                return next(null);
-            });
+        const setActive = callback => {
+            try {
+                usage.users = countActiveUsers(require('../../../database').dbs.user);
+            } catch (e) {
+                complete = false;
+                this.log.warn({ error: e.message }, 'Failed to count active users');
+            }
+            return callback(null);
         };
 
         async.series(
             [
-                callback => {
-                    return setActive(180, 'activeHalfyear', callback);
-                },
-                callback => {
-                    return setActive(30, 'activeMonth', callback);
-                },
-                callback => {
-                    return setActive(7, 'activeWeek', callback);
-                },
+                setActive,
                 callback => {
                     Collection.countLocalPosts((err, count) => {
                         if (err) {
