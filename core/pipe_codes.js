@@ -974,8 +974,9 @@ function strip(s, opts) {
         f |= F_ESC;
     }
     const known = (opts && opts.knownMci) || injectedKnownMci;
-    if (UI === f) {
-        return stripUi(s, known, !!(opts && opts.rerender));
+    if (!(f & (F_LEGACY | F_ESC))) {
+        //  only '|' can start a code
+        return stripPipes(s, known, f, !!(opts && opts.rerender));
     }
     const legacy = 0 !== (f & F_LEGACY);
     const len = s.length;
@@ -1024,10 +1025,11 @@ function strip(s, opts) {
     return 0 === last ? s : out + s.slice(last);
 }
 
+//  strip() when only a '|' can start a code: jump from pipe to pipe.
 //  |rerender|: the result is source text that may be rendered again, so
 //  '||' stays '||' and a literal pipe that would start a code once the codes
 //  around it are gone is written '||'.
-function stripUi(s, known, rerender) {
+function stripPipes(s, known, f, rerender) {
     let i = s.indexOf('|');
     let out = '';
     let last = 0;
@@ -1043,7 +1045,7 @@ function stripUi(s, known, rerender) {
             i = s.indexOf('|', last);
             continue;
         }
-        const e = scanPipe(s, i, UI);
+        const e = scanPipe(s, i, f);
         if (e < 0) {
             if (rerender) {
                 lit.push(out.length + i - last, '');
@@ -1069,7 +1071,7 @@ function stripUi(s, known, rerender) {
         i = s.indexOf('|', e);
     }
     const res = 0 === last ? s : out + s.slice(last);
-    return rerender && lit.length > 0 ? escapePipes(res, lit, UI) : res;
+    return rerender && lit.length > 0 ? escapePipes(res, lit, f) : res;
 }
 
 //  ── substr (#1022) ───────────────────────────────────────────────────────────
