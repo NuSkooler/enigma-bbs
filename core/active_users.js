@@ -34,8 +34,9 @@ const ActiveUsersSql = `
     WHERE prop_name = '${UserProps.LastLoginTs}';`;
 
 //
-//  Returns { activeHalfyear, activeMonth, activeWeek }: distinct users whose last
-//  login is within 180 / 30 / 7 days of |nowMs| (default: now). One query;
+//  Returns { total, activeHalfyear, activeMonth, activeWeek }: distinct users whose last
+//  login is within 180 / 30 / 7 days of |nowMs| (default: now), capped at
+//  |total|, the live count of users (never a startup-time stat). Throws
 //  throws if |db| cannot be read.
 //
 //  A timestamp that cannot be parsed makes julianday() NULL, so that user is
@@ -43,16 +44,24 @@ const ActiveUsersSql = `
 //
 function countActiveUsers(db, nowMs = Date.now()) {
     const since = days => new Date(nowMs - days * 24 * 60 * 60 * 1000).toISOString();
-    const row = db.prepare(ActiveUsersSql).get({
+    const params = {
         halfyear: since(ActiveWindowDays.activeHalfyear),
         month: since(ActiveWindowDays.activeMonth),
         week: since(ActiveWindowDays.activeWeek),
-    });
+    };
 
+    //  one transaction, so the total and the counts describe the same moment
+    const { total, row } = db.transaction(() => ({
+        total: db.prepare('SELECT COUNT(*) AS total FROM user;').get().total,
+        row: db.prepare(ActiveUsersSql).get(params),
+    }))();
+
+    //  a count can only exceed the total by a timing quirk; never report it
     return {
-        activeHalfyear: row.activeHalfyear,
-        activeMonth: row.activeMonth,
-        activeWeek: row.activeWeek,
+        total,
+        activeHalfyear: Math.min(row.activeHalfyear, total),
+        activeMonth: Math.min(row.activeMonth, total),
+        activeWeek: Math.min(row.activeWeek, total),
     };
 }
 

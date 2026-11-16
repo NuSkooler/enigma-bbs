@@ -3,8 +3,6 @@ const { Errors } = require('../../../enig_error');
 const EngiAssert = require('../../../enigma_assert');
 const Config = require('../../../config').get;
 const packageJson = require('../../../../package.json');
-const StatLog = require('../../../stat_log');
-const SysProps = require('../../../system_property');
 const { countActiveUsers } = require('../../../active_users');
 const { getBaseUrl, getWebDomain } = require('../../../web_util');
 const Collection = require('../../../activitypub/collection');
@@ -46,18 +44,6 @@ function _buildProtocols(config) {
     return p;
 }
 
-//
-//  usage.users for a document: the registered user count, or nothing when it
-//  is unknown (the stat is set at startup, and could not be read). total is
-//  optional in every NodeInfo schema, whereas a made-up value would be read as
-//  a real one; 0 would claim there are no users on a board that has some.
-//
-function _baseUsers() {
-    //  not getSystemStatNum(): that reads a missing stat as 0
-    const total = parseInt(StatLog.getSystemStat(SysProps.TotalUserCount));
-    return Number.isInteger(total) && total >= 0 ? { total } : {};
-}
-
 const NodeInfoSchemaBase = 'http://nodeinfo.diaspora.software/ns/schema';
 
 //  How long a computed NodeInfo document is served before it is built again.
@@ -65,6 +51,11 @@ const NodeInfoSchemaBase = 'http://nodeinfo.diaspora.software/ns/schema';
 //  cached copy in between.
 const NodeInfoCacheTtlMs = 10 * 60 * 1000;
 exports.NodeInfoCacheTtlMs = NodeInfoCacheTtlMs;
+
+//  Counts from a run in which a query failed are kept this long, so a broken
+//  database is queried (and logged) once a minute rather than on every poll.
+const NodeInfoFailureTtlMs = 60 * 1000;
+exports.NodeInfoFailureTtlMs = NodeInfoFailureTtlMs;
 
 exports.moduleInfo = {
     name: 'NodeInfo2',
@@ -216,16 +207,12 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
     _getNodeInfo(cb) {
         return this._getUsage(usage => {
             const nodeInfo = this._baseNodeInfo();
-            const { users: activeUsers, ...rest } = usage;
+            //  usage.users is the live total and the active counts, or empty
+            //  when they could not be read: total is optional in every
+            //  NodeInfo schema, and a made-up one would be read as real.
+            const { users, ...rest } = usage;
             Object.assign(nodeInfo.usage, rest);
-
-            //  Nobody can have been active who is not registered
-            const users = nodeInfo.usage.users;
-            for (const [name, count] of Object.entries(activeUsers || {})) {
-                users[name] = Number.isInteger(users.total)
-                    ? Math.min(count, users.total)
-                    : count;
-            }
+            nodeInfo.usage.users = users || {};
             return cb(nodeInfo);
         });
     }
@@ -250,7 +237,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
             services: { inbound: [], outbound: [] },
             openRegistrations: !config.general.closedSystem,
             usage: {
-                users: _baseUsers(),
+                users: {}, //  total and active counts: see _getUsage()
                 localPosts: 0,
             },
         };
@@ -259,12 +246,12 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
     //
     //  cb(usage): the cached counts while they are fresh; otherwise computed
     //  once, however many requests are waiting for them. Counts from a run in
-    //  which a query failed are served but not cached, and a failure in the
+    //  which a query failed are kept only NodeInfoFailureTtlMs, and a failure in the
     //  computation itself still answers every waiter.
     //
     _getUsage(cb) {
         const cache = this._usageCache || (this._usageCache = { waiters: [] });
-        if (cache.usage && Date.now() - cache.builtAt < NodeInfoCacheTtlMs) {
+        if (cache.usage && Date.now() - cache.builtAt < cache.ttl) {
             return cb(cache.usage);
         }
 
@@ -274,10 +261,9 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         }
 
         const done = (usage, complete) => {
-            if (complete) {
-                cache.usage = usage;
-                cache.builtAt = Date.now();
-            }
+            cache.usage = usage;
+            cache.builtAt = Date.now();
+            cache.ttl = complete ? NodeInfoCacheTtlMs : NodeInfoFailureTtlMs;
             const waiters = cache.waiters;
             cache.waiters = [];
             waiters.forEach(waiter => {

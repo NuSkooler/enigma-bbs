@@ -44,6 +44,7 @@ function newValidator(schemaFile) {
 function newUserDb() {
     const db = new Database(':memory:');
     db.exec(`
+        CREATE TABLE user (id INTEGER PRIMARY KEY, user_name VARCHAR NOT NULL);
         CREATE TABLE user_property (
             user_id     INTEGER NOT NULL,
             prop_name   VARCHAR NOT NULL,
@@ -66,7 +67,21 @@ function stamp(ms, offsetMinutes = -420) {
     return d.toISOString().replace('Z', `${sign}${hh}:${mm}`);
 }
 
-function addLogin(db, userId, ms, offsetMinutes) {
+//  registered users 1..n
+function addUsers(db, n) {
+    const ins = db.prepare('INSERT OR IGNORE INTO user (id, user_name) VALUES (?, ?)');
+    for (let i = 1; i <= n; ++i) ins.run(i, `user${i}`);
+}
+
+//  records a login for a registered user (added if need be); |orphan| leaves
+//  the user table alone
+function addLogin(db, userId, ms, offsetMinutes, orphan = false) {
+    if (!orphan) {
+        db.prepare('INSERT OR IGNORE INTO user (id, user_name) VALUES (?, ?)').run(
+            userId,
+            `user${userId}`
+        );
+    }
     db.prepare(
         `INSERT OR REPLACE INTO user_property (user_id, prop_name, prop_value)
          VALUES (?, ?, ?)`
@@ -75,6 +90,13 @@ function addLogin(db, userId, ms, offsetMinutes) {
 
 describe('NodeInfo active users', function () {
     describe('countActiveUsers()', function () {
+        //  just the windows
+        const windows = (db, now = NOW) => {
+            const w = { ...countActiveUsers(db, now) };
+            delete w.total;
+            return w;
+        };
+
         it('uses the documented windows', () => {
             assert.deepEqual(
                 { ...ActiveWindowDays },
@@ -83,7 +105,7 @@ describe('NodeInfo active users', function () {
         });
 
         it('is all zero for a board nobody has logged in to', () => {
-            assert.deepEqual(countActiveUsers(newUserDb(), NOW), {
+            assert.deepEqual(windows(newUserDb()), {
                 activeHalfyear: 0,
                 activeMonth: 0,
                 activeWeek: 0,
@@ -96,7 +118,7 @@ describe('NodeInfo active users', function () {
             for (let i = 0; i < 50; ++i) {
                 addLogin(db, 1, NOW - i * 60 * 1000);
             }
-            assert.deepEqual(countActiveUsers(db, NOW), {
+            assert.deepEqual(windows(db), {
                 activeHalfyear: 1,
                 activeMonth: 1,
                 activeWeek: 1,
@@ -109,7 +131,7 @@ describe('NodeInfo active users', function () {
             addLogin(db, 2, NOW - 10 * DAY); //  month, half year
             addLogin(db, 3, NOW - 100 * DAY); //  half year
             addLogin(db, 4, NOW - 400 * DAY); //  none
-            assert.deepEqual(countActiveUsers(db, NOW), {
+            assert.deepEqual(windows(db), {
                 activeHalfyear: 3,
                 activeMonth: 2,
                 activeWeek: 1,
@@ -124,7 +146,7 @@ describe('NodeInfo active users', function () {
             addLogin(db, 4, NOW - 30 * DAY - 1000);
             addLogin(db, 5, NOW - 180 * DAY + 1000);
             addLogin(db, 6, NOW - 180 * DAY - 1000);
-            assert.deepEqual(countActiveUsers(db, NOW), {
+            assert.deepEqual(windows(db), {
                 activeHalfyear: 5, //  1 2 3 4 5
                 activeMonth: 3, //  1 2 3
                 activeWeek: 1, //  1
@@ -139,9 +161,17 @@ describe('NodeInfo active users', function () {
             addLogin(db, 3, NOW - 6 * DAY, 600);
             //  8 days ago, written in a zone whose clock reads later
             addLogin(db, 4, NOW - 8 * DAY, 840);
-            const counts = countActiveUsers(db, NOW);
+            const counts = windows(db);
             assert.equal(counts.activeWeek, 3);
             assert.equal(counts.activeMonth, 4);
+        });
+
+        it('returns the live number of users as total', () => {
+            const db = newUserDb();
+            addUsers(db, 3);
+            assert.equal(countActiveUsers(db, NOW).total, 3);
+            addUsers(db, 8);
+            assert.equal(countActiveUsers(db, NOW).total, 8);
         });
 
         it('ignores other properties and unreadable timestamps', () => {
@@ -158,7 +188,7 @@ describe('NodeInfo active users', function () {
             db.prepare(`INSERT INTO user_property VALUES (4, ?, NULL)`).run(
                 UserProps.LastLoginTs
             );
-            assert.deepEqual(countActiveUsers(db, NOW), {
+            assert.deepEqual(windows(db), {
                 activeHalfyear: 1,
                 activeMonth: 1,
                 activeWeek: 1,
@@ -214,12 +244,13 @@ describe('NodeInfo active users', function () {
             dbModule.dbs.user = realUserDb;
         });
 
-        //  total: the TotalUserCount stat (undefined = not set)
-        function setup(db, total) {
+        //  startupTotal: the TotalUserCount stat, set once at startup and never
+        //  updated; the documents must not use it
+        function setup(db, startupTotal = 1) {
             dbModule.dbs.user = db;
             StatLog.getSystemStat = name =>
                 SysProps.TotalUserCount === name
-                    ? total
+                    ? startupTotal
                     : realGetStat.call(StatLog, name);
             Collection.countLocalPosts = cb => cb(null, 11);
 
@@ -272,13 +303,14 @@ describe('NodeInfo active users', function () {
             addLogin(db, 2, now - 3 * DAY);
             addLogin(db, 3, now - 20 * DAY);
             addLogin(db, 4, now - 150 * DAY);
+            addUsers(db, 5);
             return db; //  user 5 never logged in
         }
 
         const validate10 = () => newValidator('nodeinfo2-1.0.schema.json');
 
         it('NodeInfo2 1.0 carries the counts under usage.users and validates', () => {
-            const handler = setup(busyBoard(), '5');
+            const handler = setup(busyBoard());
             const doc = nodeInfo2Doc(handler);
             const validate = validate10();
             assert.ok(validate(doc), JSON.stringify(validate.errors));
@@ -293,7 +325,7 @@ describe('NodeInfo active users', function () {
 
         for (const version of ['2.0', '2.1']) {
             it(`NodeInfo ${version} keeps its shape and validates`, () => {
-                const handler = setup(busyBoard(), '5');
+                const handler = setup(busyBoard());
                 const doc = standardDoc(handler, version);
                 const validate = newValidator(`nodeinfo-${version}.schema.json`);
                 assert.ok(validate(doc), JSON.stringify(validate.errors));
@@ -305,47 +337,72 @@ describe('NodeInfo active users', function () {
             });
         }
 
-        it('caps each count at the total', () => {
-            //  a stale total that is below the counts
-            const handler = setup(busyBoard(), '2');
-            const doc = nodeInfo2Doc(handler);
+        it('reports the live user count, not the stat set at startup', () => {
+            //  the board started with 2 users and has 5 now
+            const doc = nodeInfo2Doc(setup(busyBoard(), 2));
             assert.deepEqual(doc.usage.users, {
-                total: 2,
-                activeHalfyear: 2,
-                activeMonth: 2,
+                total: 5,
+                activeHalfyear: 4,
+                activeMonth: 3,
                 activeWeek: 2,
             });
+            const v21 = standardDoc(setup(busyBoard(), 2), '2.1');
+            assert.deepEqual(v21.usage.users, {
+                total: 5,
+                activeHalfyear: 4,
+                activeMonth: 3,
+            });
+
+            //  and a board that started empty is not stuck at 0
+            const fresh = nodeInfo2Doc(setup(busyBoard(), 0));
+            assert.equal(fresh.usage.users.total, 5);
+            assert.equal(fresh.usage.users.activeWeek, 2);
         });
 
-        it('leaves total out when the stat is not set, and still validates', () => {
+        it('reports the live total when the startup stat is unset', () => {
             for (const unset of [undefined, null, '', 'abc']) {
-                const handler = setup(busyBoard(), unset);
-                const doc = nodeInfo2Doc(handler);
-                assert.ok(!('total' in doc.usage.users), `total for ${unset}`);
+                const doc = nodeInfo2Doc(setup(busyBoard(), unset));
+                assert.equal(doc.usage.users.total, 5, `stat ${unset}`);
                 assert.ok(validate10()(doc));
-                //  counts do not depend on the total
-                assert.equal(doc.usage.users.activeHalfyear, 4);
-
-                const v21 = standardDoc(setup(busyBoard(), unset), '2.1');
-                assert.ok(!('total' in v21.usage.users));
-                assert.ok(newValidator('nodeinfo-2.1.schema.json')(v21));
             }
         });
 
-        it('reports a total of 0 as 0, not as unknown', () => {
-            const doc = nodeInfo2Doc(setup(newUserDb(), '0'));
-            assert.equal(doc.usage.users.total, 0);
+        it('caps each count at the total', () => {
+            //  logins recorded for user ids that are not (or no longer) users
+            const db = busyBoard();
+            addLogin(db, 90, Date.now() - 1000, undefined, true);
+            addLogin(db, 91, Date.now() - 1000, undefined, true);
+            addLogin(db, 92, Date.now() - 1000, undefined, true);
+            addLogin(db, 5, Date.now() - 1000);
+            addLogin(db, 4, Date.now() - 1000);
+            const doc = nodeInfo2Doc(setup(db));
+            assert.deepEqual(doc.usage.users, {
+                total: 5,
+                activeHalfyear: 5,
+                activeMonth: 5,
+                activeWeek: 5,
+            });
         });
 
-        it('leaves the counts out, rather than guessing, when they cannot be read', () => {
-            const db = new Database(':memory:'); //  no user_property table
-            const handler = setup(db, '5');
-            const doc = nodeInfo2Doc(handler);
-            assert.deepEqual(doc.usage.users, { total: 5 });
+        it('reports a total of 0 as 0', () => {
+            const doc = nodeInfo2Doc(setup(newUserDb(), 9));
+            assert.deepEqual(doc.usage.users, {
+                total: 0,
+                activeHalfyear: 0,
+                activeMonth: 0,
+                activeWeek: 0,
+            });
+        });
+
+        it('leaves usage.users empty, rather than guessing, when it cannot be read', () => {
+            const db = new Database(':memory:'); //  no tables
+            const doc = nodeInfo2Doc(setup(db, 5));
+            assert.deepEqual(doc.usage.users, {});
+            assert.equal(doc.usage.localPosts, 11);
             assert.ok(validate10()(doc));
 
-            const v20 = standardDoc(setup(db, '5'), '2.0');
-            assert.deepEqual(v20.usage.users, { total: 5 });
+            const v20 = standardDoc(setup(db, 5), '2.0');
+            assert.deepEqual(v20.usage.users, {});
             assert.ok(newValidator('nodeinfo-2.0.schema.json')(v20));
         });
     });
