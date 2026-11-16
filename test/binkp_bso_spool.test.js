@@ -2072,22 +2072,29 @@ describe('BsoSpool — pruning a forwarded file takes its TIC with it', () => {
         await fsp.writeFile(flowPath, `${gone}\n^${ticPath}\n^${live}\n`);
         const before = await fsp.readFile(flowPath, 'utf8');
 
-        //  Make the rewrite fail the way a full or read-only volume would.
-        const realWriteFile = fsp.writeFile;
-        fsp.writeFile = async (p, ...rest) => {
-            if (p === flowPath) {
+        //  Make the rewrite fail the way a full or read-only volume would:
+        //  the new copy cannot be put in place.
+        const realRename = fsp.rename;
+        fsp.rename = async (from, to, ...rest) => {
+            if (to === flowPath) {
                 const err = new Error('ENOSPC: no space left on device');
                 err.code = 'ENOSPC';
                 throw err;
             }
-            return realWriteFile(p, ...rest);
+            return realRename(from, to, ...rest);
         };
 
         try {
             await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
         } finally {
-            fsp.writeFile = realWriteFile;
+            fsp.rename = realRename;
         }
+
+        assert.deepEqual(
+            (await fsp.readdir(dir)).filter(n => n.startsWith('.enigma-flow-')),
+            [],
+            'and the temporary copy is cleaned up'
+        );
 
         assert.equal(
             await fsp.readFile(flowPath, 'utf8'),
@@ -2578,5 +2585,361 @@ describe('attachSpoolToSession', () => {
             clientSess.on('error', done);
             clientSess.start();
         });
+    });
+});
+
+// ── flow line directives, read and written through core/bso_flow.js ─────────
+
+describe('BsoSpool — every directive, read the way other mailers read it', () => {
+    beforeEach(cleanOutbound);
+
+    const flowPath = () => path.join(outboundDir(tmpDir), '00680001.flo');
+    const latin1 = s => Buffer.from(s, 'latin1');
+
+    function entriesFor(report) {
+        const node = report.find(
+            n => 104 === n.address.net && 1 === n.address.node && !n.address.point
+        );
+        return node ? node.entries : [];
+    }
+
+    async function packet(name, content = 'PKT') {
+        const p = path.join(outboundDir(tmpDir), name);
+        await fsp.writeFile(p, content);
+        return p;
+    }
+
+    it("'!' is skip: not sent, not pending, listed as skip", async () => {
+        const p = await packet('skipme.pkt');
+        await fsp.writeFile(flowPath(), `!${p}\n`);
+
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+        const entries = entriesFor(await spool.inspectOutbound());
+        assert.equal(entries.length, 1);
+        assert.equal(entries[0].status, 'skip');
+        assert.equal(entries[0].path, p);
+    });
+
+    it("'@' is send and keep", async () => {
+        const p = await packet('keepme.pkt');
+        await fsp.writeFile(flowPath(), `@${p}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1);
+        assert.equal(files[0].path, p);
+        assert.equal(files[0].disposition, 'keep');
+        assert.equal((await spool.getNodesWithPendingMail()).length, 1);
+
+        await files[0].disposeFn();
+        await assert.rejects(fsp.access(flowPath()), { code: 'ENOENT' });
+        await assert.doesNotReject(fsp.access(p), 'kept');
+    });
+
+    it('an unknown leading character is not sent, warned about, listed, and kept', async () => {
+        const p = await packet('dollar.pkt');
+        const other = await packet('other.pkt');
+        await fsp.writeFile(flowPath(), `$${p}\n^${other}\n`);
+
+        const loggerModule = require('../core/logger.js');
+        const warnings = [];
+        const original = loggerModule.log.warn;
+        loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
+        let files;
+        try {
+            files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        } finally {
+            loggerModule.log.warn = original;
+        }
+
+        assert.deepEqual(
+            files.map(f => f.path),
+            [other]
+        );
+        assert.ok(
+            warnings.some(w => /not a directive and path/.test(w.message)),
+            JSON.stringify(warnings)
+        );
+
+        const entries = entriesFor(await spool.inspectOutbound());
+        const unknown = entries.find(e => 'unknown' === e.status);
+        assert.ok(unknown, JSON.stringify(entries));
+        assert.equal(unknown.line, `$${p}`);
+
+        //  Sending the rest does not remove the line, or the flow file.
+        await files[0].disposeFn();
+        assert.equal(await fsp.readFile(flowPath(), 'utf8'), `$${p}\n~${other}\n`);
+    });
+
+    it('an invalid line (NUL) is not sent, not pruned, and keeps its flow file', async () => {
+        const other = await packet('other.pkt');
+        const bad = `^${path.join(outboundDir(tmpDir), 'a')}\x00b.pkt`;
+        await fsp.writeFile(flowPath(), `${bad}\n^${other}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.deepEqual(
+            files.map(f => f.path),
+            [other]
+        );
+
+        const entries = entriesFor(await spool.inspectOutbound());
+        assert.equal(
+            entries.find(e => 'invalid' === e.status).reason,
+            'control character'
+        );
+
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        assert.deepEqual(removed, []);
+
+        await files[0].disposeFn();
+        assert.equal(await fsp.readFile(flowPath(), 'latin1'), `${bad}\n~${other}\n`);
+    });
+
+    it('a bare relative name resolves beside the flow file, never in the working directory', async () => {
+        const cwdDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'enigma_bso_cwd_'));
+        await fsp.mkdir(path.join(cwdDir, 'config'));
+        const decoy = path.join(cwdDir, 'config', 'x.hjson');
+        await fsp.writeFile(decoy, 'DECOY');
+
+        const prevCwd = process.cwd();
+        process.chdir(cwdDir);
+        try {
+            await fsp.writeFile(flowPath(), '^config/x.hjson\n');
+            assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+            assert.equal(entriesFor(await spool.inspectOutbound())[0].status, 'missing');
+
+            //  The same name beside the flow file is what it means.
+            const beside = await packet('rel.pkt');
+            await fsp.writeFile(flowPath(), '^rel.pkt\n');
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            assert.deepEqual(
+                files.map(f => f.path),
+                [beside]
+            );
+            assert.equal(files[0].disposition, 'delete');
+            assert.equal(await fsp.readFile(decoy, 'utf8'), 'DECOY');
+        } finally {
+            process.chdir(prevCwd);
+            await fsp.rm(cwdDir, { recursive: true, force: true });
+        }
+    });
+
+    it('queues the same line once, and sending it marks every copy', async () => {
+        const p = await packet('dup.pkt');
+        const keep = await packet('keep.pkt');
+        await fsp.writeFile(flowPath(), `^${p}\n${keep}\n^${p}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.deepEqual(
+            files.map(f => f.path),
+            [p, keep]
+        );
+
+        await files[0].disposeFn();
+        assert.equal(await fsp.readFile(flowPath(), 'utf8'), `~${p}\n${keep}\n~${p}\n`);
+    });
+
+    it('marking a line keeps other lines byte for byte: latin1, CRLF, a BinkleyTerm space', async () => {
+        const p = await packet('mine.pkt');
+        const before = Buffer.concat([
+            latin1('/fb/caf\xe9.zip\r\n'),
+            latin1(`^${p}\r\n`),
+            latin1(' /fb/old-style.zip\n'),
+            Buffer.from('/fb/naïve.zip\n', 'utf8'),
+        ]);
+        await fsp.writeFile(flowPath(), before);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.deepEqual(
+            files.map(f => f.path),
+            [p]
+        );
+        await files[0].disposeFn();
+
+        const after = await fsp.readFile(flowPath());
+        assert.ok(
+            after.equals(
+                Buffer.concat([
+                    latin1('/fb/caf\xe9.zip\r\n'),
+                    latin1(`~${p}\r\n`),
+                    latin1(' /fb/old-style.zip\n'),
+                    Buffer.from('/fb/naïve.zip\n', 'utf8'),
+                ])
+            ),
+            after.toString('latin1')
+        );
+    });
+
+    it('a path that is not UTF-8 is not sent; listed as invalid while there, missing when gone', async () => {
+        const dir = outboundDir(tmpDir);
+        const name = latin1('caf\xe9.pkt');
+        await fsp.writeFile(Buffer.concat([Buffer.from(`${dir}/`), name]), 'PKT');
+        await fsp.writeFile(
+            flowPath(),
+            Buffer.concat([latin1('^'), Buffer.from(`${dir}/`), name, latin1('\n')])
+        );
+
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+        let entries = entriesFor(await spool.inspectOutbound());
+        assert.equal(entries[0].status, 'invalid');
+        assert.match(entries[0].reason, /UTF-8/);
+
+        await fsp.unlink(Buffer.concat([Buffer.from(`${dir}/`), name]));
+        entries = entriesFor(await spool.inspectOutbound());
+        assert.equal(entries[0].status, 'missing');
+    });
+
+    it('never deletes a pre-existing zero-length flow file (a poll request)', async () => {
+        const dlo = path.join(outboundDir(tmpDir), '00680001.dlo');
+        await fsp.writeFile(dlo, '');
+
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+        assert.deepEqual(entriesFor(await spool.inspectOutbound()), []);
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        //  And sending another flavour's last entry leaves it alone.
+        const p = await packet('crash.pkt');
+        await fsp.writeFile(flowPath(), `^${p}\n`);
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        await files[0].disposeFn();
+
+        assert.equal((await fsp.stat(dlo)).size, 0);
+    });
+
+    it('an empty flow file is not unreadable to the transit sweep', async () => {
+        await fsp.writeFile(flowPath(), '');
+        const unreadable = [];
+        await spool.inspectOutbound({ onUnreadable: p => unreadable.push(p) });
+        assert.deepEqual(unreadable, []);
+    });
+
+    it('a listing taken while a line is being marked still sees every reference', async () => {
+        //  The transit sweep deletes what no flow file references. A flow
+        //  file read mid-rewrite used to come back empty, so a payload still
+        //  owed to a downlink looked unreferenced.
+        const p = await packet('sent.pkt');
+        const payload = path.join(tmpDir, 'transit-payload.zip');
+        await fsp.writeFile(payload, 'PAYLOAD');
+        await fsp.writeFile(flowPath(), `^${p}\n${payload}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const realRename = fsp.rename;
+        let listing;
+        const unreadable = [];
+        fsp.rename = async (from, to) => {
+            if (to === flowPath()) {
+                listing = await spool.inspectOutbound({
+                    onUnreadable: f => unreadable.push(f),
+                });
+            }
+            return realRename(from, to);
+        };
+        try {
+            await files[0].disposeFn();
+        } finally {
+            fsp.rename = realRename;
+        }
+
+        assert.deepEqual(unreadable, []);
+        assert.ok(
+            entriesFor(listing).some(e => e.path === payload),
+            JSON.stringify(entriesFor(listing))
+        );
+        assert.equal(await fsp.readFile(flowPath(), 'utf8'), `~${p}\n${payload}\n`);
+    });
+
+    it('treats a zero-length read of a non-empty flow file as unreadable', async () => {
+        await fsp.writeFile(flowPath(), `^${path.join(tmpDir, 'x.pkt')}\n`);
+        const realOpen = fsp.open;
+        fsp.open = async (...args) => {
+            const fh = await realOpen(...args);
+            if (args[0] === flowPath()) {
+                fh.readFile = async () => Buffer.alloc(0);
+            }
+            return fh;
+        };
+        const unreadable = [];
+        try {
+            await spool.inspectOutbound({ onUnreadable: f => unreadable.push(f) });
+        } finally {
+            fsp.open = realOpen;
+        }
+        assert.deepEqual(unreadable, [flowPath()]);
+    });
+
+    it('prune keeps other lines byte for byte and removes a ~-only result', async () => {
+        const gone = path.join(tmpDir, 'gone', 'vanished.pkt');
+        await fsp.writeFile(
+            flowPath(),
+            Buffer.concat([latin1(`^${gone}\r\n`), latin1('~/fb/caf\xe9.zip\r\n')])
+        );
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        assert.equal(removed.length, 1);
+        await assert.rejects(fsp.access(flowPath()), { code: 'ENOENT' });
+
+        const live = await packet('live.pkt');
+        await fsp.writeFile(
+            flowPath(),
+            Buffer.concat([
+                latin1(`!/fb/caf\xe9.zip\r\n`),
+                latin1(`^${gone}\n`),
+                latin1(`^${live}\r\n`),
+            ])
+        );
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        assert.ok(
+            (await fsp.readFile(flowPath())).equals(
+                Buffer.concat([latin1(`!/fb/caf\xe9.zip\r\n`), latin1(`^${live}\r\n`)])
+            )
+        );
+    });
+
+    it('reaps a temporary file left by an unfinished rewrite once it is stale', async () => {
+        const old = path.join(outboundDir(tmpDir), '.enigma-flow-00680001.flo.1.aa.tmp');
+        const fresh = path.join(
+            outboundDir(tmpDir),
+            '.enigma-flow-00680001.flo.2.bb.tmp'
+        );
+        await fsp.writeFile(old, 'x');
+        await fsp.writeFile(fresh, 'x');
+        const past = new Date(Date.now() - 2 * 60 * 60 * 1000);
+        await fsp.utimes(old, past, past);
+
+        const reaper = new BsoSpool({
+            ...makeConfig(tmpDir),
+            staleLockMaxAgeMs: 60 * 1000,
+        });
+        await reaper.reapStaleLocks();
+
+        await assert.rejects(fsp.access(old), { code: 'ENOENT' });
+        await assert.doesNotReject(fsp.access(fresh));
+    });
+});
+
+describe('attachSpoolToSession — the same file listed twice', () => {
+    it('marks both lines when the file is sent', async () => {
+        const EventEmitter = require('events');
+        const session = new EventEmitter();
+        session.queueFile = () => {};
+
+        const calls = [];
+        const entry = n => ({
+            path: '/ob/x.pkt',
+            name: 'x.pkt',
+            size: 3,
+            timestamp: 1000,
+            disposition: 'delete',
+            disposeFn: async () => calls.push(n),
+        });
+        const fakeSpool = {
+            getOutboundFilesForNode: async () => [entry(1), entry(2)],
+            receiveFile: async () => {},
+        };
+
+        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR]);
+        await disposeMap.get('x.pkt\u00003\u00001000')();
+        assert.deepEqual(calls, [1, 2]);
     });
 });

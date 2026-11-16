@@ -34,6 +34,7 @@ const {
 } = require('./oputil_common.js');
 const { getHelpFor } = require('./oputil_help.js');
 const { formatByteSize, pad } = require('../string_util.js');
+const paths = require('path');
 
 exports.handleBsoCommand = handleBsoCommand;
 
@@ -116,9 +117,17 @@ function padRight(s, width) {
     return pad(String(s), width, ' ', 'left');
 }
 
-//  Entries an operator is waiting on, i.e. not the ones already sent.
+//  Entries an operator is waiting on: not the ones already sent ('~'), nor
+//  '!' lines, which say "leave this alone".
 function liveEntries(node) {
-    return node.entries.filter(e => 'sent' !== e.status);
+    return node.entries.filter(e => 'sent' !== e.status && 'skip' !== e.status);
+}
+
+//  A path from a flow file, safe to print: whatever another program wrote
+//  there, control characters are shown as escapes.
+function shownPath(p) {
+    const { printablePath } = require('../bso_flow.js');
+    return printablePath(p);
 }
 
 function withSpool(handler) {
@@ -169,6 +178,7 @@ function cmdStatus() {
         let unreadableTotal = 0;
         let refusedTotal = 0;
         let misfiledTotal = 0;
+        let unparsedTotal = 0;
         for (const node of interesting) {
             const live = liveEntries(node);
             const missing = live.filter(e => 'missing' === e.status);
@@ -176,6 +186,9 @@ function cmdStatus() {
             unreadableTotal += live.filter(e => 'unreadable' === e.status).length;
             refusedTotal += live.filter(e => 'refused' === e.status).length;
             misfiledTotal += live.filter(e => 'misfiled' === e.status).length;
+            unparsedTotal += live.filter(
+                e => 'unknown' === e.status || 'invalid' === e.status
+            ).length;
 
             console.info(
                 `${padRight(node.address.toString(), 22)}${padLeft(
@@ -228,6 +241,18 @@ function cmdStatus() {
             );
         }
 
+        if (unparsedTotal > 0) {
+            console.info('');
+            console.info(
+                `${unparsedTotal} flow file ${
+                    1 === unparsedTotal ? 'line is' : 'lines are'
+                } not a directive and path ENiGMA can read. Those are`
+            );
+            console.info(
+                'never sent and never pruned, and keep their flow file; see "bso list".'
+            );
+        }
+
         if (refusedTotal > 0) {
             console.info('');
             console.info(
@@ -270,6 +295,8 @@ function cmdList(addressArg) {
                     unreadable: 'UNREADABLE',
                     refused: 'REFUSED',
                     misfiled: 'MISFILED',
+                    unknown: 'UNKNOWN',
+                    invalid: 'INVALID',
                 }[entry.status] ||
                 ('pending' === entry.status && false === entry.dispositionAllowed
                     ? 'KEPT'
@@ -278,7 +305,11 @@ function cmdList(addressArg) {
                 `  ${padRight(flag, 9)}${padLeft(friendlySize(entry.size), 10)}${padLeft(
                     friendlyAge(entry.timestamp),
                     8
-                )}  ${entry.path}`
+                )}  ${shownPath(
+                    'unknown' === entry.status || 'invalid' === entry.status
+                        ? entry.line
+                        : entry.path
+                )}`
             );
         }
 
@@ -305,7 +336,9 @@ function cmdList(addressArg) {
             );
             console.info('path in the flow file, or move the file back to it:');
             for (const entry of misfiled) {
-                console.info(`    ${entry.besideFlowFile}  ->  ${entry.path}`);
+                console.info(
+                    `    ${shownPath(entry.besideFlowFile)}  ->  ${shownPath(entry.path)}`
+                );
             }
         }
 
@@ -322,6 +355,29 @@ function cmdList(addressArg) {
                     1 === refused.length ? 'it' : 'them'
                 } from the flow file.`
             );
+        }
+
+        const unparsed = live.filter(
+            e => 'unknown' === e.status || 'invalid' === e.status
+        );
+        if (unparsed.length > 0) {
+            console.info('');
+            console.info(
+                `${unparsed.length} UNKNOWN or INVALID ${
+                    1 === unparsed.length ? 'line is' : 'lines are'
+                } not a directive and path ENiGMA can read`
+            );
+            console.info(
+                '(shown above as written). They are never sent and never pruned, and keep'
+            );
+            console.info('the flow file in place. Fix or remove them by hand:');
+            for (const entry of unparsed) {
+                console.info(
+                    `    ${paths.basename(entry.flowFile)} line ${entry.lineIdx + 1}: ${
+                        entry.reason
+                    }`
+                );
+            }
         }
 
         const kept = live.filter(
@@ -403,7 +459,7 @@ function cmdPrune(addressArg) {
             //  an operator who asked to drop one missing file and sees two
             //  paths needs to know the second was not a second missing file.
             const note = 'companion' === entry.status ? '   (TIC announcing it)' : '';
-            console.info(`  ${entry.path}${note}`);
+            console.info(`  ${shownPath(entry.path)}${note}`);
         }
 
         if (!write) {
