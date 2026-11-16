@@ -3,6 +3,7 @@
 const _ = require('lodash');
 const Address = require('../ftn_address.js');
 const { BsoSpool } = require('./bso_spool.js');
+const { flowPathSettings } = require('../bso_flow_paths.js');
 
 //  Helpers shared across the BinkP module surface (caller, scanner_tosser).
 //  Anything reaching for `messageNetworks.ftn.networks` or the in-memory
@@ -77,6 +78,7 @@ function buildSpool(config) {
         defaultNetwork: ftnBsoCfg.defaultNetwork,
         staleLockMaxAgeMs: _.get(ftnBsoCfg, 'binkp.staleLockMaxAgeMs'),
         flowRefWarnRepeatMs: _.get(ftnBsoCfg, 'binkp.flowRefWarnRepeatMs'),
+        flowPaths: flowPathSettings(config),
     });
 }
 

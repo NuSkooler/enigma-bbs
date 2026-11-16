@@ -23,7 +23,9 @@ describe('BinkpSession — NR mode sending (issue #724)', function () {
         const f = await makeTempFile(body);
 
         const { session, peer } = await makeScriptedPair({ opts: ['NR', 'NDA'] });
-        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete');
+        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete', {
+            allowed: true,
+        });
 
         await runSession(session);
 
@@ -43,7 +45,9 @@ describe('BinkpSession — NR mode sending (issue #724)', function () {
         const f = await makeTempFile('DISPOSITION-DELETE');
 
         const { session } = await makeScriptedPair({ opts: ['NR'] });
-        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete');
+        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete', {
+            allowed: true,
+        });
 
         await runSession(session);
 
@@ -116,7 +120,9 @@ describe('BinkpSession — NR mode sending (issue #724)', function () {
             opts: ['NR'],
             dupeNames: [f.name],
         });
-        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete');
+        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete', {
+            allowed: true,
+        });
 
         //  A destructive skip: the peer has the file, so we drop ours.
         await runSession(session);
@@ -148,7 +154,8 @@ describe('BinkpSession — M_SKIP handling (FTS-1026)', function () {
             skipped.name,
             skipped.size,
             skipped.timestamp,
-            'delete'
+            'delete',
+            { allowed: true }
         );
         session.queueFile(kept.filePath, kept.name, kept.size, kept.timestamp, 'keep');
 
@@ -179,7 +186,9 @@ describe('BinkpSession — M_SKIP handling (FTS-1026)', function () {
             skippedName = name;
         });
 
-        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete');
+        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete', {
+            allowed: true,
+        });
 
         //  The file has left _sendQueue and _currentSend by now and lives in
         //  _pendingGots, which _checkDone waits on.
@@ -232,7 +241,9 @@ describe('BinkpSession — M_GET after transmission (FTS-1026)', function () {
                 return 'got';
             },
         });
-        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete');
+        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'delete', {
+            allowed: true,
+        });
 
         await runSession(session);
 

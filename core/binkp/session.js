@@ -32,6 +32,69 @@ function _isCompressed(filename) {
 }
 
 //
+//  Delete or truncate a file we have sent, as its flow file asked.
+//
+//  |checkTarget|, when given, is BsoSpool's classification of the file, run
+//  again here: the directory structure may have changed while the file was
+//  on the wire. unlink() never follows a final symlink, so a delete only ever
+//  removes the entry named.
+//
+async function deleteSentFile(filePath, checkTarget) {
+    if (checkTarget) {
+        const classified = await checkTarget();
+        if (!classified || !classified.allowed) {
+            Log.warn(
+                { path: filePath },
+                '[BinkP] Sent file is no longer inside the mail directories; leaving it in place'
+            );
+            return;
+        }
+    }
+    await fsp.unlink(filePath);
+}
+
+//
+//  Truncation is opened without following a final symlink and without
+//  O_TRUNC, so the file that is truncated is the one checked: the open file's
+//  inode has to be the one at the classified real path. O_NONBLOCK keeps a
+//  FIFO swapped in under the name from stalling the session. Neither flag
+//  exists on Windows, where the fallback is a plain open.
+//
+async function truncateSentFile(filePath, checkTarget) {
+    const flags =
+        fs.constants.O_WRONLY |
+        (fs.constants.O_NOFOLLOW || 0) |
+        (fs.constants.O_NONBLOCK || 0);
+
+    const handle = await fsp.open(filePath, flags);
+    try {
+        const stat = await handle.stat();
+        if (!stat.isFile()) {
+            throw new Error('not a regular file');
+        }
+
+        if (checkTarget) {
+            const classified = await checkTarget();
+            const real =
+                classified && classified.allowed
+                    ? await fsp.stat(classified.realPath).catch(() => null)
+                    : null;
+            if (!real || real.ino !== stat.ino || real.dev !== stat.dev) {
+                Log.warn(
+                    { path: filePath },
+                    '[BinkP] Sent file is no longer inside the mail directories; leaving it in place'
+                );
+                return;
+            }
+        }
+
+        await handle.truncate(0);
+    } finally {
+        await handle.close();
+    }
+}
+
+//
 //  BinkpSession — implements BinkP 1.1 as both answering and originating node.
 //
 //  opts:
@@ -70,8 +133,13 @@ function _isCompressed(filename) {
 //  not reduce to one is answered with M_GOT and never reaches a listener.
 //
 //  API:
-//    queueFile(filePath, name, size, timestamp, disposition)
+//    queueFile(filePath, name, size, timestamp, disposition, guard)
 //      disposition: 'delete' | 'truncate' | 'keep'
+//      guard: { allowed, checkTarget } as decided by BsoSpool. A delete or
+//        truncate happens only with allowed === true; without a guard the
+//        file is sent and left as it is.
+//        checkTarget(): re-classifies the file just before it is deleted or
+//        truncated; see core/bso_flow_paths.js.
 //    start()
 //
 class BinkpSession extends EventEmitter {
@@ -151,8 +219,15 @@ class BinkpSession extends EventEmitter {
         this._parser.on('frame', frame => this._onFrame(frame));
     }
 
-    queueFile(filePath, name, size, timestamp, disposition) {
-        this._sendQueue.push({ path: filePath, name, size, timestamp, disposition });
+    queueFile(filePath, name, size, timestamp, disposition, guard = null) {
+        this._sendQueue.push({
+            path: filePath,
+            name,
+            size,
+            timestamp,
+            disposition,
+            guard,
+        });
     }
 
     // Pause outbound file sending until releaseSend() is called.
@@ -708,6 +783,7 @@ class BinkpSession extends EventEmitter {
                 size: cs.size,
                 timestamp: cs.timestamp,
                 disposition: cs.disposition,
+                guard: cs.guard,
             });
             this._currentSend = null;
             setImmediate(() => this._sendNext());
@@ -831,6 +907,7 @@ class BinkpSession extends EventEmitter {
                 size: displaced.size,
                 timestamp: displaced.timestamp,
                 disposition: displaced.disposition,
+                guard: displaced.guard,
             });
         }
 
@@ -913,25 +990,37 @@ class BinkpSession extends EventEmitter {
     }
 
     _applyDisposition(file) {
+        if (file.disposition !== 'delete' && file.disposition !== 'truncate') {
+            return;
+        }
+
+        //  Only what BsoSpool explicitly allowed. A file queued without that
+        //  decision -- or outside the mail directories, which the spool has
+        //  already logged -- is sent and kept.
+        const guard = file.guard || {};
+        if (true !== guard.allowed) {
+            Log.debug(
+                { path: file.path, disposition: file.disposition },
+                '[BinkP] Leaving sent file in place'
+            );
+            return;
+        }
+
         let work;
         if (file.disposition === 'delete') {
-            work = fsp
-                .unlink(file.path)
-                .catch(err =>
-                    Log.warn(
-                        { path: file.path, error: err.message },
-                        '[BinkP] Could not delete sent file'
-                    )
-                );
-        } else if (file.disposition === 'truncate') {
-            work = fsp
-                .truncate(file.path, 0)
-                .catch(err =>
-                    Log.warn(
-                        { path: file.path, error: err.message },
-                        '[BinkP] Could not truncate sent file'
-                    )
-                );
+            work = deleteSentFile(file.path, guard.checkTarget).catch(err =>
+                Log.warn(
+                    { path: file.path, error: err.message },
+                    '[BinkP] Could not delete sent file'
+                )
+            );
+        } else {
+            work = truncateSentFile(file.path, guard.checkTarget).catch(err =>
+                Log.warn(
+                    { path: file.path, error: err.message },
+                    '[BinkP] Could not truncate sent file'
+                )
+            );
         }
 
         //  Not awaited here -- the protocol must keep moving -- but tracked so

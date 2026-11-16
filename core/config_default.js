@@ -1486,6 +1486,24 @@ module.exports = () => {
                     flowRefWarnRepeatMs: 60 * 60 * 1000,
 
                     //
+                    //  Extra directories in which a flow file's '^' (delete
+                    //  after sending), '-' and '#' (truncate) are carried out.
+                    //
+                    //  Those happen by default only inside the mail
+                    //  directories: the outbound directories, |inbound|,
+                    //  |secInbound| and |ticTransit|. A file elsewhere is
+                    //  still sent, but left in place, with a warning. List
+                    //  a directory here when other software sharing the
+                    //  outbound queues attachments from it that should be
+                    //  removed once sent, e.g. a separate tosser's inbound.
+                    //
+                    //  A file in ENiGMA's configuration, security, database
+                    //  or log directories is never sent from a flow file or
+                    //  disposed in, listed here or not.
+                    //
+                    flowDispositionRoots: [],
+
+                    //
                     //  Inbound temp file sweep. Inbound files are buffered as
                     //  binkp_in_*.dt under |tempDir| (defaults to OS temp) and
                     //  renamed into the inbound spool on successful receipt.

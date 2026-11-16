@@ -208,6 +208,30 @@ describe('TIC hatching into the outbound', function () {
             assert.deepEqual(lines, [info.newPath, `^${tics[0].path}`]);
         });
 
+        it('has the TIC deleted after sending and the payload kept', async () => {
+            //  oputil fb hatch queues through the same writer; its '^' TIC
+            //  must be in a mail directory (core/bso_flow_paths.js).
+            await announce();
+
+            const { buildSpool } = require('../core/binkp/util.js');
+            const Address = require('../core/ftn_address.js');
+            const files = await buildSpool(makeConfig()).getOutboundFilesForNode(
+                Address.fromString(DOWNLINK_A)
+            );
+
+            assert.deepEqual(
+                files.map(f => [
+                    paths.extname(f.path).toLowerCase(),
+                    f.disposition,
+                    f.allowed,
+                ]),
+                [
+                    ['.246', 'keep', true],
+                    ['.tic', 'delete', true],
+                ]
+            );
+        });
+
         it('names us as the Origin', async () => {
             //  The whole difference between hatching and forwarding. A
             //  downstream "Replaces" is scoped by origin, so this is what makes

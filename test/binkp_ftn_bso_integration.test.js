@@ -883,6 +883,45 @@ describe('ftn_bso ↔ BinkP integration', function () {
                                 files.every(f => f.disposition === 'delete'),
                                 'packets must be removed from the spool once sent'
                             );
+                            //  ...and the packets are in a mail directory, so
+                            //  that is what happens to them.
+                            assert.ok(
+                                files.every(f => true === f.allowed),
+                                'packets are inside the outbound the spool scans'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('leaves nothing in the outbound when the packet could not be referenced', done => {
+            //  A control character in the outbound path makes every flow file
+            //  reference to it unwritable. That is known before the move, so
+            //  the packet stays in the temp area and the export fails rather
+            //  than leaving an unreferenced packet in the outbound per attempt.
+            const label = `ctl${String.fromCharCode(9)}dir`;
+            runExport(
+                { label, packetNames: ['0000000c.pk_'] },
+                (err, { outDir, root }) => {
+                    try {
+                        //  ...and so the messages are retried (#1026)
+                        assert.ok(err, 'the export must report the failure');
+                    } catch (e) {
+                        return done(e);
+                    }
+                    Promise.all([
+                        fsp.readdir(outDir).catch(() => []),
+                        fsp.readdir(path.join(root, 'export_temp')),
+                    ])
+                        .then(([outbound, temp]) => {
+                            assert.deepEqual(outbound, [], 'no orphan in the outbound');
+                            assert.deepEqual(
+                                temp,
+                                ['0000000c.pk_'],
+                                'still in the temp area'
+                            );
                             done();
                         })
                         .catch(done);
@@ -1095,6 +1134,12 @@ describe('ftn_bso ↔ BinkP integration', function () {
                                 'the call to the uplink must have the packet queued'
                             );
                             assert.ok(files[0].path.endsWith('.pkt'));
+                            assert.equal(files[0].disposition, 'delete');
+                            assert.equal(
+                                files[0].allowed,
+                                true,
+                                'the routed packet is deleted once sent'
+                            );
                             done();
                         })
                         .catch(done);
@@ -1118,6 +1163,28 @@ describe('ftn_bso ↔ BinkP integration', function () {
                                 addrs.map(a => a.toString()),
                                 [UPLINK],
                                 'pending mail must be attributed to the uplink'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('leaves nothing in the outbound when the packet could not be referenced', done => {
+            runNetMailExport(
+                { ...CROSS_ZONE, label: `ctl${String.fromCharCode(9)}dir` },
+                (err, { root }) => {
+                    //  A NetMail that cannot be delivered is reported to its
+                    //  sender rather than failing the export as a whole.
+                    if (err) return done(err);
+                    fsp.readdir(path.join(root, 'outbound'))
+                        .catch(() => [])
+                        .then(entries => {
+                            assert.deepEqual(
+                                entries.filter(e => /\.pkt$/i.test(e)),
+                                [],
+                                'no orphan packet in the outbound'
                             );
                             done();
                         })
@@ -1152,6 +1219,11 @@ describe('ftn_bso ↔ BinkP integration', function () {
                         })
                         .then(files => {
                             assert.equal(files.length, 1);
+                            assert.equal(
+                                files[0].allowed,
+                                true,
+                                'outbound.002 is a mail directory too'
+                            );
                             done();
                         })
                         .catch(done);
@@ -1709,6 +1781,172 @@ describe('ftn_bso ↔ BinkP integration', function () {
                 '^'
             );
             assert.equal(content, '^/outbound/a.pkt\n^/outbound/b.pkt\n');
+        });
+
+        it('treats a missing shared directive as no prefix', async () => {
+            const content = await appendRefs('00da0203.flo', ['/files/keep.zip']);
+            assert.equal(content, '/files/keep.zip\n');
+        });
+
+        //  Every reader has to take a line the same way. Each of these is read
+        //  differently by at least one of binkd, Synchronet's binkit, Husky and
+        //  ENiGMA, so none is written -- and the whole append is refused, so a
+        //  payload is never queued without its TIC.
+        const REFUSED = {
+            'a relative path': [{ directive: '^', path: 'outbound/a.pkt' }],
+            'a line feed': [{ directive: '^', path: '/outbound/a.pkt\n/etc/passwd' }],
+            'a carriage return': [{ directive: '', path: '/outbound/a.pkt\r' }],
+            'a NUL': [
+                { directive: '', path: `/outbound/a${String.fromCharCode(0)}.pkt` },
+            ],
+            'another control character': [
+                { directive: '', path: `/outbound/a${String.fromCharCode(0x1b)}.pkt` },
+            ],
+            DEL: [{ directive: '', path: `/outbound/a${String.fromCharCode(0x7f)}.pkt` }],
+            'leading whitespace': [{ directive: '', path: ' /outbound/a.pkt' }],
+            'trailing whitespace': [{ directive: '^', path: '/outbound/a.pkt ' }],
+            'a second directive character': [
+                { directive: '^', path: '#/outbound/a.pkt' },
+            ],
+            'a directive character with no directive': [
+                { directive: '', path: '~/outbound/a.pkt' },
+            ],
+            'more than 2047 bytes': [{ directive: '^', path: `/${'x'.repeat(2046)}` }],
+            'an unknown directive': [{ directive: '@', path: '/outbound/a.pkt' }],
+            'one bad ref in a pair': [
+                { directive: '', path: '/files/fsxnet/NODELIST.Z21' },
+                { directive: '^', path: 'relative.tic' },
+            ],
+        };
+
+        Object.entries(REFUSED).forEach(([what, refs], idx) => {
+            it(`refuses ${what}, writing nothing`, async () => {
+                const name = `00da03${String(idx).padStart(2, '0')}.flo`;
+                await assert.rejects(appendRefs(name, refs), err => {
+                    assert.match(err.message, /not written/);
+                    return true;
+                });
+                await assert.rejects(
+                    fsp.access(path.join(tmpDir, 'outbound', name)),
+                    { code: 'ENOENT' },
+                    'no flow file content at all'
+                );
+            });
+        });
+
+        it('accepts a line of exactly 2047 bytes', async () => {
+            const ref = `/${'y'.repeat(2045)}`;
+            const content = await appendRefs('00da0400.flo', [
+                { directive: '^', path: ref },
+            ]);
+            assert.equal(Buffer.byteLength(content) - 1, 2047);
+        });
+    });
+
+    // ── ENiGMA's own '^' entries are in a mail directory ──────────────────────
+    //
+    //  '^' and '#' are only carried out inside the mail directories (see
+    //  core/bso_flow_paths.js). Everything ENiGMA queues with '^' -- EchoMail
+    //  packets and bundles, NetMail packets, generated TICs -- has to land in
+    //  one, or every board would collect sent files forever. The writers take
+    //  their directory from getOutgoingEchoMailPacketDir() (EchoMail, NetMail,
+    //  bundles: getOutgoingBundleFileName() builds inside the same directory)
+    //  and ticOutboundDirForDownlink() (TICs), so drive both through the
+    //  layouts that make them differ and ask a spool built from the same
+    //  configuration what it would do. Real exports are covered above and in
+    //  ftn_tic_forward / ftn_tic_hatch.
+
+    describe("ftn_bso — ENiGMA's own '^' entries are in a mail directory", () => {
+        const Address = require('../core/ftn_address.js');
+
+        const LAYOUTS = {
+            'single network': {
+                networks: { testnet: { localAddress: '1:218/700', defaultZone: 1 } },
+            },
+            'default network plus others': {
+                networks: {
+                    fidonet: { localAddress: '1:103/705' },
+                    fsxnet: { localAddress: '21:1/121' },
+                    araknet: { localAddress: '10:101/1' },
+                },
+                defaultNetwork: 'fidonet',
+            },
+            'no default network': {
+                networks: {
+                    fidonet: { localAddress: '1:103/705' },
+                    fsxnet: { localAddress: '21:1/121' },
+                },
+                defaultNetwork: null,
+            },
+            'mixed case network name': {
+                networks: {
+                    fidonet: { localAddress: '1:103/705' },
+                    fsxNet: { localAddress: '21:1/121' },
+                },
+                defaultNetwork: 'fidonet',
+            },
+        };
+
+        //  In-zone, cross-zone, a point, and a zone no network claims.
+        const DESTS = ['1:218/701', '2:280/464', '21:1/200', '21:1/200.5', '7:1/1'];
+
+        Object.entries(LAYOUTS).forEach(([label, layout]) => {
+            it(`for ${label}`, async () => {
+                const root = path.join(tmpDir, `roots_${label.replace(/[^a-z]/gi, '_')}`);
+                const config = makeConfig();
+                config.scannerTossers.ftn_bso.paths = {
+                    outbound: root,
+                    inbound: path.join(root, 'ftn_in'),
+                    secInbound: path.join(root, 'ftn_secin'),
+                };
+                if ('defaultNetwork' in layout) {
+                    config.scannerTossers.ftn_bso.defaultNetwork = layout.defaultNetwork;
+                }
+                config.messageNetworks.ftn.networks = layout.networks;
+
+                const prev = configModule._pushTestConfig(config);
+                try {
+                    const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+                    const { buildSpool } = require('../core/binkp/util.js');
+                    const mod = new getModule();
+                    //  ftn_bso reads these through |moduleConfig| and its
+                    //  network getters; see the notes above.
+                    mod.moduleConfig = config.scannerTossers.ftn_bso;
+                    mod.getNetworks = () => layout.networks;
+                    mod.getConfiguredDefaultNetwork = () =>
+                        config.scannerTossers.ftn_bso.defaultNetwork;
+
+                    for (const destStr of DESTS) {
+                        const dest = Address.fromString(destStr);
+                        const dirs = [mod.ticOutboundDirForDownlink(dest)];
+                        for (const netName of Object.keys(layout.networks)) {
+                            dirs.push(mod.getOutgoingEchoMailPacketDir(netName, dest));
+                        }
+
+                        for (const dir of dirs) {
+                            await fsp.mkdir(dir, { recursive: true });
+                            const queued = path.join(dir, 'a1b2c3d4.pkt');
+                            await fsp.writeFile(queued, 'PKT');
+
+                            //  A spool is rebuilt per poll and per session from
+                            //  the configuration in force; do the same.
+                            const policy = await buildSpool(config)._flowPathPolicy();
+                            const classified = await policy.classify(queued);
+                            await fsp.rm(dir, { recursive: true, force: true });
+
+                            assert.ok(
+                                classified && classified.allowed,
+                                `${label}: a packet for ${destStr} in ${path.relative(
+                                    root,
+                                    dir
+                                )} must be disposable`
+                            );
+                        }
+                    }
+                } finally {
+                    configModule._popTestConfig(prev);
+                }
+            });
         });
     });
 }); // describe('ftn_bso ↔ BinkP integration')
