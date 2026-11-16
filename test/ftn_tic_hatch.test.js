@@ -23,6 +23,7 @@ const paths = require('path');
 const configModule = require('../core/config.js');
 const TicFileInfo = require('../core/tic_file_info.js');
 const { buildHatchTic } = require('../core/tic_hatch.js');
+const { listQueued } = require('./helpers/bso_listing');
 
 describe('TIC hatching into the outbound', function () {
     let tmpDir;
@@ -215,7 +216,8 @@ describe('TIC hatching into the outbound', function () {
 
             const { buildSpool } = require('../core/binkp/util.js');
             const Address = require('../core/ftn_address.js');
-            const files = await buildSpool(makeConfig()).getOutboundFilesForNode(
+            const files = await listQueued(
+                buildSpool(makeConfig()),
                 Address.fromString(DOWNLINK_A)
             );
 
@@ -500,6 +502,25 @@ describe('TIC hatching into the outbound', function () {
                 await fsp.readFile(flowPath, 'utf8'),
                 '!/fb/new.zip\n/fb/other.zip\n'
             );
+        });
+
+        it('releases the lock even when what follows the rewrite throws', async () => {
+            await fsp.writeFile(flowPath, '/fb/new.zip\n/fb/other.zip\n');
+            const Log = require('../core/logger.js').log;
+            const debug = Log.debug;
+            Log.debug = (obj, msg) => {
+                if (/Dequeued superseded file/.test(String(msg))) {
+                    throw new Error('thrown after the rewrite');
+                }
+                return debug.call(Log, obj, msg);
+            };
+            try {
+                await scrub('/fb/new.zip');
+            } finally {
+                Log.debug = debug;
+            }
+            assert.equal(await fsp.readFile(flowPath, 'utf8'), '/fb/other.zip\n');
+            assert.equal(fs.existsSync(paths.join(dir, `${FLOW_A}.bsy`)), false);
         });
 
         it('writes nothing while the node is busy', async () => {

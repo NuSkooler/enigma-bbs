@@ -7,6 +7,7 @@ const os = require('os');
 
 const configModule = require('../core/config.js');
 const Events = require('../core/events.js');
+const { listQueued } = require('./helpers/bso_listing');
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -235,7 +236,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
 
                 // BsoSpool should find the same file
                 const addr = new Address({ zone: 1, net: 218, node: 701 });
-                const files = await spool.getOutboundFilesForNode(addr);
+                const files = await listQueued(spool, addr);
 
                 assert.equal(
                     files.length,
@@ -289,7 +290,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
                 );
 
                 const addr = new Address({ zone: 2, net: 100, node: 5 });
-                const files = await spool.getOutboundFilesForNode(addr);
+                const files = await listQueued(spool, addr);
 
                 assert.equal(
                     files.length,
@@ -415,7 +416,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
             const fileCounts = {};
             for (const uplink of uplinks) {
                 fileCounts[uplink.network] = (
-                    await ctx.spool.getOutboundFilesForNode(new Address(uplink.addr))
+                    await listQueued(ctx.spool, new Address(uplink.addr))
                 ).length;
             }
 
@@ -578,9 +579,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
                 );
                 assert.deepEqual(pending, ['1:103/705']);
 
-                const files = await ctx.spool.getOutboundFilesForNode(
-                    new Address(uplink.addr)
-                );
+                const files = await listQueued(ctx.spool, new Address(uplink.addr));
                 assert.equal(files.length, 1);
                 assert.equal(path.basename(files[0].path), 'legacy.pkt');
             } finally {
@@ -608,9 +607,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
                 assert.equal(pending.length, 1, 'node must not be reported twice');
 
                 //  ...but both files still ship
-                const files = await ctx.spool.getOutboundFilesForNode(
-                    new Address(uplink.addr)
-                );
+                const files = await listQueued(ctx.spool, new Address(uplink.addr));
                 assert.deepEqual(files.map(f => path.basename(f.path)).sort(), [
                     'current.pkt',
                     'legacy.pkt',
@@ -871,8 +868,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
                     if (err) return done(err);
                     const Address = require('../core/ftn_address.js');
 
-                    spoolFor(root)
-                        .getOutboundFilesForNode(new Address(DEST))
+                    listQueued(spoolFor(root), new Address(DEST))
                         .then(files => {
                             assert.deepEqual(
                                 files.map(f => path.basename(f.path)).sort(),
@@ -947,7 +943,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
 
                     Promise.all([
                         spool.getNodesWithPendingMail(),
-                        spool.getOutboundFilesForNode(addr),
+                        listQueued(spool, addr),
                     ])
                         .then(([pending, files]) => {
                             assert.ok(
@@ -1125,8 +1121,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
                 (err, { root }) => {
                     if (err) return done(err);
                     const Address = require('../core/ftn_address.js');
-                    spoolFor(root)
-                        .getOutboundFilesForNode(Address.fromString(UPLINK))
+                    listQueued(spoolFor(root), Address.fromString(UPLINK))
                         .then(files => {
                             assert.equal(
                                 files.length,
@@ -1213,7 +1208,8 @@ describe('ftn_bso ↔ BinkP integration', function () {
                                 entries.includes('01180001.clo'),
                                 `expected the zone 2 flow file, saw ${entries}`
                             );
-                            return spoolFor(root).getOutboundFilesForNode(
+                            return listQueued(
+                                spoolFor(root),
                                 Address.fromString(ZONE2_UPLINK)
                             );
                         })
@@ -1539,8 +1535,7 @@ describe('ftn_bso ↔ BinkP integration', function () {
                             defaultNetwork: 'fsxnet',
                         });
 
-                        spool
-                            .getOutboundFilesForNode(Address.fromString('1:154/10'))
+                        listQueued(spool, Address.fromString('1:154/10'))
                             .then(files => {
                                 assert.equal(
                                     files.length,

@@ -413,6 +413,11 @@ class FlowLockSet {
     }
 }
 
+//  True when |lock| is a FlowLockSet created by this module.
+function isFlowLockSet(lock) {
+    return Boolean(lock) && issuedLockSets.has(lock);
+}
+
 //
 //  Throws (Errors.General, ReasonCodes.NotHeld) unless |lock| is a
 //  FlowLockSet from this module that holds the .bsy beside |flowFilePath|
@@ -509,6 +514,7 @@ module.exports = {
     release,
     lockKey,
     FlowLockSet,
+    isFlowLockSet,
     assertFlowFileLockHeld,
     withFlowFileLock,
     isBusyError,

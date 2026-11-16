@@ -14,14 +14,45 @@ const {
     flowHasLive,
     readFlowFile,
     readFlowFileChecked,
-    rewriteFlowFile,
+    rewriteFlowFile: rewriteFlowFileUnderLock,
     withFlowFileWrite,
     isFlowTempFileName,
     printablePath,
     _hooks,
 } = require('../core/bso_flow.js');
+const bsoLock = require('../core/bso_lock.js');
 
 const latin1 = s => Buffer.from(s, 'latin1');
+
+//
+//  rewriteFlowFile() refuses to change a flow file unless the caller holds
+//  the .bsy beside it. Most tests here are about the rewrite itself, so this
+//  takes that lock around each call, as withFlowFileLock() would. Calls that
+//  overlap on one flow file share it (the lock set is re-entrant); it is
+//  released when the last of them finishes.
+//
+const testLock = new bsoLock.FlowLockSet();
+const testLockUsers = new Map();
+
+async function rewriteFlowFile(flowPath, edit, options = {}) {
+    const bsyPath = bsoLock.bsyPathForFlowFile(flowPath);
+    assert.ok(await testLock.acquire([bsyPath]), `lock ${bsyPath}`);
+    testLockUsers.set(bsyPath, (testLockUsers.get(bsyPath) || 0) + 1);
+    try {
+        return await rewriteFlowFileUnderLock(flowPath, edit, {
+            ...options,
+            lock: testLock,
+        });
+    } finally {
+        const left = testLockUsers.get(bsyPath) - 1;
+        if (left > 0) {
+            testLockUsers.set(bsyPath, left);
+        } else {
+            testLockUsers.delete(bsyPath);
+            await testLock.release([bsyPath]);
+        }
+    }
+}
 
 describe('bso_flow — parseFlowLine', () => {
     //  FTS-5005.003 sec. 3.1, and how binkd, Synchronet and Husky read them.
@@ -334,6 +365,98 @@ describe('bso_flow — rewriteFlowFile', () => {
         _hooks.getuid = () =>
             'function' === typeof process.getuid ? process.getuid() : undefined;
         await fsp.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    describe('the .bsy lock', () => {
+        const content = '^/ob/a.pkt\n/fb/b.zip\n';
+
+        async function assertRefused(lock) {
+            await fsp.writeFile(flowPath, content);
+            const before = await fsp.stat(flowPath);
+            let edited = false;
+            await assert.rejects(
+                rewriteFlowFileUnderLock(
+                    flowPath,
+                    lines => {
+                        edited = true;
+                        return markText('^/ob/a.pkt')(lines);
+                    },
+                    { lock }
+                ),
+                err => bsoLock.isNotHeldError(err) && /Lock not held/.test(err.message)
+            );
+            assert.equal(edited, false, 'not even read');
+            assert.equal(await fsp.readFile(flowPath, 'latin1'), content);
+            assert.equal((await fsp.stat(flowPath)).ino, before.ino);
+        }
+
+        it('is refused without one', async () => {
+            await assertRefused(undefined);
+        });
+
+        it('is refused with the lock of another flow file', async () => {
+            const other = new bsoLock.FlowLockSet();
+            await other.acquire([paths.join(tmpDir, '00680002.bsy')]);
+            try {
+                await assertRefused(other);
+            } finally {
+                await other.releaseAll();
+            }
+        });
+
+        it('is refused with the lock of the same name in another directory', async () => {
+            const other = new bsoLock.FlowLockSet();
+            await fsp.mkdir(paths.join(tmpDir, 'zone2'));
+            await other.acquire([paths.join(tmpDir, 'zone2', '00680001.bsy')]);
+            try {
+                await assertRefused(other);
+            } finally {
+                await other.releaseAll();
+            }
+        });
+
+        it('is refused once the lock has been released', async () => {
+            const lock = new bsoLock.FlowLockSet();
+            await lock.acquire([bsoLock.bsyPathForFlowFile(flowPath)]);
+            await lock.releaseAll();
+            await assertRefused(lock);
+        });
+
+        it('is refused with something that only looks like a lock', async () => {
+            await assertRefused({ holds: () => true, holdsFlowFile: () => true });
+        });
+
+        it('goes ahead under the lock withFlowFileLock() takes', async () => {
+            await fsp.writeFile(flowPath, content);
+            await new Promise((resolve, reject) =>
+                bsoLock.withFlowFileLock(
+                    flowPath,
+                    (done, lock) => {
+                        rewriteFlowFileUnderLock(flowPath, markText('^/ob/a.pkt'), {
+                            lock,
+                        }).then(() => done(null), done);
+                    },
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+            assert.equal(
+                await fsp.readFile(flowPath, 'latin1'),
+                '~/ob/a.pkt\n/fb/b.zip\n'
+            );
+        });
+
+        it('accepts the lock under the other spelling of its name', async () => {
+            const upper = paths.join(tmpDir, '00680001.FLO');
+            await fsp.writeFile(upper, content);
+            const lock = new bsoLock.FlowLockSet();
+            await lock.acquire([paths.join(tmpDir, '00680001.bsy')]);
+            try {
+                await rewriteFlowFileUnderLock(upper, markText('^/ob/a.pkt'), { lock });
+            } finally {
+                await lock.releaseAll();
+            }
+            assert.equal(await fsp.readFile(upper, 'latin1'), '~/ob/a.pkt\n/fb/b.zip\n');
+        });
     });
 
     it('marks a line and writes every other line back byte for byte', async () => {
@@ -945,6 +1068,9 @@ describe('bso_flow — review follow-ups', () => {
 
         it('still gets its last line marked, so it is not sent again', async () => {
             await fsp.writeFile(flowPath, '@/fb/payload.zip\n');
+            //  Taken before the directory is made read-only; there is no
+            //  creating it afterwards.
+            await testLock.acquire([bsoLock.bsyPathForFlowFile(flowPath)]);
             await fsp.chmod(tmpDir, 0o555);
 
             const result = await rewriteFlowFile(flowPath, markText('@/fb/payload.zip'));
@@ -955,6 +1081,9 @@ describe('bso_flow — review follow-ups', () => {
 
         it('a line with no directive is rewritten in place', async () => {
             await fsp.writeFile(flowPath, '/fb/payload.zip\r\n');
+            //  Taken before the directory is made read-only; there is no
+            //  creating it afterwards.
+            await testLock.acquire([bsoLock.bsyPathForFlowFile(flowPath)]);
             await fsp.chmod(tmpDir, 0o555);
 
             const result = await rewriteFlowFile(flowPath, markText('/fb/payload.zip'));

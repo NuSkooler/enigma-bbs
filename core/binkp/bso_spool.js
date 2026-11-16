@@ -8,6 +8,7 @@ const { moveFileWithCollisionHandling } = require('../file_util');
 const { isPlainFileName } = require('./file_name');
 const FNV1a = require('../fnv1a');
 const Log = require('../logger').log;
+const { Errors } = require('../enig_error');
 const {
     resolveDefaultNetworkName,
     resolveNetworkDefaultZone,
@@ -270,18 +271,26 @@ class BsoSpool {
     // Each entry: { name, path, size, timestamp, disposition, disposeFn }
     // Call disposeFn() after the remote acknowledges receipt (file-sent event).
     //
-    // |lock| is the FlowLockSet the session holds for |addr| (lockNode()).
-    // disposeFn() marks the flow file under it. Anything in a directory the
-    // lock does not cover is skipped: it is not read, so it is not sent.
-    async getOutboundFilesForNode(addr, { lock = null } = {}) {
+    // |lock| is the FlowLockSet the session holds for |addr| (lockNode()),
+    // and is required: without one this rejects (ReasonCodes.NotHeld).
+    // disposeFn() marks the flow file under it. Anything the lock does not
+    // cover -- another directory, or everything once the set is closed -- is
+    // skipped: it is not read, so it is not sent.
+    async getOutboundFilesForNode(addr, { lock } = {}) {
+        if (!bsoLock.isFlowLockSet(lock)) {
+            throw Errors.General(
+                "Lock not held: listing a node's outbound needs its lock set (lockNode())",
+                bsoLock.ReasonCodes.NotHeld
+            );
+        }
         const results = [];
         const policy = await this._flowPathPolicy();
 
         for (const { dir, base, entries } of await this._spoolTargetsForNode(addr)) {
-            if (lock && lock.closed) {
+            if (lock.closed) {
                 break;
             }
-            if (lock && !lock.holds(path.join(dir, `${base}.bsy`))) {
+            if (!lock.holds(path.join(dir, `${base}.bsy`))) {
                 if (entries.size > 0) {
                     Log.debug(
                         { node: nodeLabel(dir, addr), dir },
@@ -298,7 +307,7 @@ class BsoSpool {
                 const filePath = path.join(dir, actual);
                 //  Checked per file: the session may have ended, and its
                 //  locks gone, while this listing ran.
-                if (lock && !lock.holdsFlowFile(filePath)) continue;
+                if (!lock.holdsFlowFile(filePath)) continue;
                 try {
                     const stat = await fsp.stat(filePath);
                     // Zero-byte .ilo = poll trigger, not actual mail
@@ -350,7 +359,7 @@ class BsoSpool {
                 if (!actual) continue;
 
                 const flowPath = path.join(dir, actual);
-                if (lock && !lock.holdsFlowFile(flowPath)) continue;
+                if (!lock.holdsFlowFile(flowPath)) continue;
                 try {
                     results.push(
                         ...(await this._parseFlowFile(flowPath, addr, policy, lock))
@@ -754,9 +763,9 @@ class BsoSpool {
                         timeoutMs: lockTimeoutMs,
                         log: Log,
                     },
-                    done => {
+                    (done, lock) => {
                         //  rewriteFlowFile() takes the in-process chain itself.
-                        this._pruneFromFlowFile(flowPath, entries, policy)
+                        this._pruneFromFlowFile(flowPath, entries, policy, lock)
                             .then(spliced => {
                                 actuallyRemoved.push(...spliced);
                                 done(null);
@@ -810,7 +819,8 @@ class BsoSpool {
     //  collects a TIC for a file it never receives -- #735, but inflicted on
     //  someone else's system under our From and our Seenby. See #862.
     //
-    async _pruneFromFlowFile(flowPath, entries, policy = null) {
+    //  |lock|: the FlowLockSet holding the .bsy beside |flowPath|.
+    async _pruneFromFlowFile(flowPath, entries, policy = null, lock = null) {
         let spliced = [];
         let ticPaths = [];
 
@@ -868,7 +878,7 @@ class BsoSpool {
 
                 return { remove: Array.from(companion.indices) };
             },
-            { policy }
+            { policy, lock }
         );
 
         if (!result.changed) {
@@ -1074,7 +1084,9 @@ class BsoSpool {
         });
     }
 
-    async _parseFlowFile(flowPath, addr, policy, lock = null) {
+    //  |lock|: the FlowLockSet holding the .bsy beside |flowPath|. Required.
+    async _parseFlowFile(flowPath, addr, policy, lock) {
+        bsoLock.assertFlowFileLockHeld(lock, flowPath);
         if (!policy) {
             policy = await this._flowPathPolicy();
         }
@@ -1207,13 +1219,8 @@ class BsoSpool {
         return withFlowFileWrite(flowPath, work);
     }
 
-    async _applyFlowDisposition(
-        flowPath,
-        lineIdx,
-        originalText,
-        policy = null,
-        lock = null
-    ) {
+    //  |lock| is required; rewriteFlowFile() refuses without it.
+    async _applyFlowDisposition(flowPath, lineIdx, originalText, policy, lock) {
         return this._applyFlowDispositionLocked(
             flowPath,
             lineIdx,
@@ -1224,13 +1231,7 @@ class BsoSpool {
     }
 
     //  |lock|: the FlowLockSet holding the .bsy beside |flowPath|.
-    async _applyFlowDispositionLocked(
-        flowPath,
-        lineIdx,
-        originalText,
-        policy = null,
-        lock = null
-    ) {
+    async _applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy, lock) {
         //  The file-side action (unlink for 'delete', truncate for 'truncate')
         //  is already performed by BinkpSession._applyDisposition before the
         //  'file-sent' event fires; session.js owns file lifecycle. This
