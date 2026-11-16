@@ -151,6 +151,34 @@ describe('BSO .bsy flow file lock', function () {
         });
     });
 
+    describe('acquire when writing the lock fails', () => {
+        it('removes the lock it created and rejects', async () => {
+            const realOpen = fsp.open;
+            let closed = false;
+            fsp.open = async (p, flags, ...rest) => {
+                const fh = await realOpen.call(fsp, p, flags, ...rest);
+                if (p === bsyPath && 'wx' === flags) {
+                    fh.writeFile = async () => {
+                        throw Object.assign(new Error('no space'), { code: 'ENOSPC' });
+                    };
+                    const close = fh.close.bind(fh);
+                    fh.close = async () => {
+                        closed = true;
+                        return close();
+                    };
+                }
+                return fh;
+            };
+            try {
+                await assert.rejects(bsoLock.acquire(bsyPath), { code: 'ENOSPC' });
+            } finally {
+                fsp.open = realOpen;
+            }
+            assert.ok(closed, 'handle closed');
+            assert.ok(!fs.existsSync(bsyPath), 'no lock left behind');
+        });
+    });
+
     describe('withFlowFileLock', () => {
         it('runs the work holding the lock, and releases afterwards', done => {
             let heldDuringWork = false;

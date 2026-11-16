@@ -171,10 +171,20 @@ async function acquire(bsyPath, options = {}) {
         await fsp.mkdir(paths.dirname(bsyPath), { recursive: true });
     }
 
+    //  A lock created but not written is removed again: an error here
+    //  rejects, and nobody would release it.
     const tryCreate = async () => {
         const fh = await fsp.open(bsyPath, 'wx');
-        await fh.writeFile(String(process.pid)); //  §5.1: "may contain one line of PID information"
-        await fh.close();
+        let written = false;
+        try {
+            await fh.writeFile(String(process.pid)); //  §5.1: "may contain one line of PID information"
+            written = true;
+        } finally {
+            await fh.close().catch(() => {});
+            if (!written) {
+                await fsp.unlink(bsyPath).catch(() => {});
+            }
+        }
     };
 
     //  Someone else's spelling of the same lock counts as held.
