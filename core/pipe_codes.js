@@ -347,8 +347,11 @@ function sgrFromPipeColor(cc) {
 
 const SGR_CACHE = new Array(100);
 
-//  The SGR for pipe colour |n (0-99).
+//  The SGR for pipe colour |n; anything outside 0-31 gives 'normal'.
 function pipeColorSgr(n) {
+    if (!(n >= 0 && n < 100 && Number.isInteger(n))) {
+        return sgrFromPipeColor(n);
+    }
     return SGR_CACHE[n] || (SGR_CACHE[n] = sgrFromPipeColor(n));
 }
 

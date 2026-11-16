@@ -85,6 +85,30 @@ describe('pipe_codes', () => {
                 .map(row => row[0]);
             assert.deepEqual(bad, []);
         });
+
+        describe('with a client (the stub resolver injected)', () => {
+            let previous;
+            before(() => {
+                previous = P.setMciResolver(resolveMci, KNOWN_MCI);
+            });
+            after(() => {
+                P.setMciResolver(previous.resolver, previous.knownMci);
+            });
+
+            it('ui: renegadeToAnsi() matches the fixtures', () => {
+                const bad = FIXTURES.ui
+                    .filter(row => renegadeToAnsi(row[0], {}) !== expected(row, true))
+                    .map(row => row[0]);
+                assert.deepEqual(bad, []);
+            });
+
+            it('body: controlCodesToAnsi() matches the fixtures', () => {
+                const bad = FIXTURES.body
+                    .filter(row => controlCodesToAnsi(row[0], {}) !== expected(row, true))
+                    .map(row => row[0]);
+                assert.deepEqual(bad, []);
+            });
+        });
     });
 
     describe('grammar', () => {
@@ -172,6 +196,12 @@ describe('pipe_codes', () => {
     });
 
     describe('render()', () => {
+        it('controlCodesToAnsi() hands back a non-string as it always has', () => {
+            for (const v of [5, 0, true, null, undefined, '']) {
+                assert.equal(controlCodesToAnsi(v), v);
+            }
+        });
+
         it('resolves MCI and cursor codes only with a client', () => {
             assert.equal(P.render('|UN!'), '|UN!');
             assert.equal(P.render('|UN!', CLIENT), 'UNUNUN!');
