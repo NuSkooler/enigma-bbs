@@ -162,6 +162,18 @@ The default is 6× the internal session timeout (5 minutes), giving a generous s
 
 The same `.bsy` files are honoured by external mailers such as Binkd, and by the ENiGMA½ *tosser* when it queues outbound — see [`flowLockTimeoutMs`](#flowlocktimeoutms) below.
 
+### Busy nodes
+
+A session holds the `.bsy` lock of every address it carries mail for, from before it reads any flow file until after the last flow file it changed has been written (or, if a write is stuck, for at most 30 seconds after the session ends; a line not yet marked by then is sent again next session). For each address that is every `.bsy` covering its flow files: the one in its own outbound directory, and the one beside its flow files in any other existing outbound directory ENiGMA½ reads for it (a pre-0.5.1-beta directory still draining, a second network in the same zone, a point directory, under whichever case it is spelled on disk). A flow file that appears in another directory during the session waits for the next one.
+
+When a node calls in, it presents its addresses (AKAs), and ENiGMA½ locks each one, as [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §5.1 asks, before it answers the caller's password. It creates no directory to do so: a directory that does not exist holds no mail for the address. Up to 128 addresses from one caller are locked and served; any beyond that are ignored, with a warning. An address that is already locked (another session with that node, from ENiGMA½ or from another mailer sharing the outbound) is handled the way binkd handles it:
+
+- If a session password is configured for that address, the whole session is busy: ENiGMA½ answers `M_BSY` "Secure AKA *address* busy" instead of accepting the password, and nothing is sent or received. Another session for that system is already running.
+- Otherwise the address is dropped for this session: nothing is read, sent or marked for it, and the caller's other addresses are served as usual.
+- If every address is busy, the session is answered `M_BSY` "All AKAs are busy", again instead of accepting the password.
+
+When ENiGMA½ calls a node it locks that node (as above) before dialling and skips it if it is busy.
+
 ### Flow file lines
 
 ENiGMA½ reads each line of a flow file the way [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §3.1 and the other mailers that share an outbound read it:

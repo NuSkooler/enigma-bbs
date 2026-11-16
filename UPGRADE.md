@@ -40,6 +40,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none. Run `oputil bso status` once after upgrading if other software shares your outbound, to see whether it reports any `UNKNOWN` or `INVALID` lines.
 
+* **Every address a calling node presents is locked.** Before, only the first was, and flow files for the others could be read and changed while another session or mailer held their `.bsy`.
+
+  **What changes by itself:** a node that calls in while one of its addresses is in another session (a crossing call, or a second mailer sharing the outbound) is now answered `M_BSY` if that address has a session password, as binkd does, and otherwise served for its other addresses only; the busy address's mail waits for its next session. ENiGMA½ also creates `.bsy` files beside a node's flow files in a legacy or second outbound directory while a session with it runs. A caller presenting more than 128 addresses is served for the first 128.
+
+  **Action:** none.
+
 * **ATASCII (Atari) callers (new, optional).** ENiGMA½ can now talk to Atari 8-bit style terminals: SyncTERM and IcyTerm in their Atari modes, and, through a dedicated Telnet port, terminal programs that announce nothing (real Atari hardware has not been tested). See [ATASCII (Atari) Callers](website/src/content/docs/servers/loginservers/atascii.md).
 
   **What changes by itself:** a caller whose terminal announces the Telnet terminal type `ATASCII` is now sent ATASCII. Before, such a caller was sent ANSI, which an ATASCII terminal prints as a screen of escape codes. They see your existing menus and art translated, in one colour and wrapped at 40 columns: readable, not pretty, and in most stock menus the item in focus looks the same as the others, because the stock theme marks focus with brightness, which one colour cannot show. Nothing changes for ANSI or PETSCII callers, and nothing in your configuration, menus or themes is touched.
