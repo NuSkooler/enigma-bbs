@@ -156,6 +156,62 @@ describe('oputil bso', function () {
         assert.match(out, /never be sent/, 'and be called out as undeliverable');
     });
 
+    it('list flags lines it cannot read, prints them safely, and hides ! lines', async () => {
+        const { root, flowPath, realFile } = await makeFixture('unparsed');
+        await fsp.writeFile(
+            flowPath,
+            `^${realFile}\n$weird\n^/x/bad\x1b[2Jname.pkt\n!${realFile}\n`
+        );
+
+        const list = runOputil(root, ['list', NODE]);
+        assert.equal(list.code, 0);
+        assert.match(list.out, /UNKNOWN .*\$weird/);
+        assert.match(list.out, /INVALID .*\\x1b\[2J/, 'control characters escaped');
+        assert.ok(!list.out.includes('\x1b'), 'never written raw to the terminal');
+        assert.match(list.out, /line 2: unrecognised leading character/);
+        assert.match(list.out, /line 3: control character/);
+        assert.equal(
+            (
+                list.out.match(
+                    new RegExp(realFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
+                ) || []
+            ).length,
+            1,
+            'the ! line is not listed as queued'
+        );
+
+        const status = runOputil(root, ['status']);
+        assert.match(status.out, /2 flow file lines are not a directive and path/);
+
+        await runOputil(root, ['prune', NODE, '--yes']);
+        assert.ok(
+            (await fsp.readFile(flowPath, 'latin1')).includes('$weird'),
+            'never pruned'
+        );
+    });
+
+    it('list shows a flow file linked into a protected directory as REFUSED, and prune leaves it', async () => {
+        const { root, flowPath, realFile } = await makeFixture('linked');
+        //  The config directory (|root|) is protected; the flow file links there.
+        const target = path.join(root, 'linked-target.clo');
+        await fsp.writeFile(target, `^${realFile}\n`);
+        await fsp.unlink(flowPath);
+        await fsp.symlink(target, flowPath);
+
+        const list = runOputil(root, ['list', NODE]);
+        assert.equal(list.code, 0);
+        assert.ok(list.out.includes(`REFUSED`), list.out);
+        assert.ok(list.out.includes(`${flowPath}  ->  ${target}`), list.out);
+        assert.match(list.out, /not read, sent from or changed/);
+
+        const status = runOputil(root, ['status']);
+        assert.match(status.out, /1 flow file is a link into ENiGMA's configuration/);
+
+        runOputil(root, ['prune', NODE, '--yes']);
+        assert.ok((await fsp.lstat(flowPath)).isSymbolicLink());
+        assert.equal(await fsp.readFile(target, 'utf8'), `^${realFile}\n`);
+    });
+
     // ── 4. the scripting contract ─────────────────────────────────────────────
 
     it('exits non-zero and prints usage for an address it cannot parse', async () => {

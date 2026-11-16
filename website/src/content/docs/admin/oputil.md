@@ -465,12 +465,27 @@ Two more flags come from the rules for which files a flow file may act on (see
 
 - `REFUSED`: the entry names a file in ENiGMA½'s configuration, security, database or log
   directories. It is never sent and never pruned; remove the line from the flow file.
+  A flow file that is itself a link into one of those directories is shown as one
+  `REFUSED` entry, `link  ->  target`; it is not read. Remove the link.
 - `KEPT`: the entry asks for the file to be deleted or truncated after sending, but the
   file is outside the mail directories. It is sent and left in place.
 - `MISFILED`: the stored path is gone, but a file of that name is beside the flow file,
   and this entry may not be sent from there. It is not sent, and `prune` never removes
   it, since that would leave the file on disk with nothing pointing at it. Fix the path
   in the flow file, or move the file back; `bso list` shows both paths.
+
+Lines that are not a directive and a path ENiGMA½ can read (see
+[Flow file lines](../messageareas/binkp.md#flow-file-lines)) are listed as written, with
+any control characters shown as `\xNN`:
+
+- `UNKNOWN`: the line starts with a character that is neither a directive nor the start of
+  a path, such as `$`.
+- `INVALID`: the line contains a control character, is longer than 4096 bytes, has a
+  directive and no path, or names a path whose bytes are not UTF-8.
+
+Neither is ever sent or pruned, and the flow file is kept while one is there. `bso list`
+names the flow file and line number of each; fix or remove them by hand. Lines starting
+with `!` (leave alone) are not listed, like lines already sent.
 
 ## FAT Disk Image Management
 The `fat` command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the `v86_door` module.

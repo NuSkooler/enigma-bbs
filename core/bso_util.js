@@ -2,6 +2,7 @@
 'use strict';
 
 const Address = require('./ftn_address.js');
+const { parseFlowLine } = require('./bso_flow.js');
 
 //  deps
 const _ = require('lodash');
@@ -324,18 +325,26 @@ function legacyOutboundDirName(networks, defaultNetwork, networkName, zone) {
 }
 
 //
-//  Flow file reference lines, for the two things that rewrite one.
+//  Flow file reference lines. Superseded by parseFlowLine() in
+//  core/bso_flow.js, which everything in ENiGMA now uses; kept for any mod
+//  that called these.
 //
-//  FTS-5005.003 §3.1: each line is an absolute path, optionally prefixed with
-//  a directive -- '^' delete after send, '#' truncate, '-' leave, '~' already
-//  sent, '!' skip.
+//  FTS-5005.003 sec. 3.1: each line is a path, optionally prefixed with a
+//  directive -- '^' or '-' delete after send, '#' truncate, '@' send and keep,
+//  '~' or '!' skip (already processed).
 //
 function flowRefIsSent(line) {
-    return line.trim().startsWith('~');
+    const parsed = parseFlowLine(String(line));
+    return 'skip' === parsed.kind && '~' === parsed.directive;
 }
 
 function flowRefBody(line) {
-    return line.trim().replace(/^[\^#~!-]/, '');
+    const parsed = parseFlowLine(String(line));
+    return 'blank' === parsed.kind ? '' : parsed.body || parsed.text;
+}
+
+function asFlowLine(line) {
+    return 'string' === typeof line ? parseFlowLine(line) : line;
 }
 
 //
@@ -356,15 +365,22 @@ function flowRefBody(line) {
 //  Returns the companion's index, or -1. A line already marked sent is never a
 //  companion: it has gone, and rewriting history helps nobody.
 //
+//  |lines| are parsed lines (parseFlowLine() in core/bso_flow.js); plain
+//  strings are parsed here.
+//
 function companionTicIndex(lines, idx) {
-    const next = lines[idx + 1];
-    if (!next || flowRefIsSent(next) || !next.trim().startsWith('^')) {
+    const raw = lines[idx + 1];
+    if (undefined === raw || null === raw) {
+        return -1;
+    }
+    const next = asFlowLine(raw);
+    if ('send' !== next.kind || '^' !== next.directive || 'string' !== typeof next.path) {
         return -1;
     }
 
     //  extname(), not a bare /\.tic$/: the latter treats a dotfile named
     //  ".tic" as having that extension, which the form this replaced did not.
-    return '.tic' === paths.extname(flowRefBody(next)).toLowerCase() ? idx + 1 : -1;
+    return '.tic' === paths.extname(next.path).toLowerCase() ? idx + 1 : -1;
 }
 
 //
@@ -422,7 +438,7 @@ function withCompanionTicRefs(lines, indices) {
         }
 
         all.add(companion);
-        ticPaths.add(flowRefBody(lines[companion]));
+        ticPaths.add(asFlowLine(lines[companion]).path);
     }
 
     return { indices: all, ticPaths: Array.from(ticPaths) };

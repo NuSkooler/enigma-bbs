@@ -44,11 +44,10 @@ const {
     canonicalNetworkNameForAddress,
     withCompanionTicRefs,
     companionTicPath,
-    flowRefIsSent,
-    flowRefBody,
 } = require('../bso_util.js');
 const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
 const { flowRefLineProblem } = require('../bso_flow_paths.js');
+const { rewriteFlowFile } = require('../bso_flow.js');
 
 //
 //  An error when |outboundPath| -- where a packet or bundle is about to be
@@ -386,6 +385,13 @@ function FTNMessageScanTossModule() {
     //  not, nothing is written and |cb| gets an error -- writing the rest
     //  would split a payload from its TIC.
     //
+    //  Every path queued today is one ENiGMA chose: a packet or bundle it
+    //  wrote, a TIC it generated, or a file base entry. Keep it that way.
+    //  ENiGMA has no NetMail file attach; if one is ever added, the paths it
+    //  queues must come from ENiGMA's own storage, never from a message's
+    //  subject line (where some tossers take them from). A subject is written
+    //  by whoever sent the message.
+    //
     this.flowFileAppendRefs = function (filePath, fileRefs, directive, destAddress, cb) {
         let appendLines = '';
         for (const ref of fileRefs) {
@@ -435,7 +441,34 @@ function FTNMessageScanTossModule() {
                     log: Log,
                 },
                 done => {
-                    fs.appendFile(filePath, appendLines, done);
+                    //  A last line some other writer left without a line feed
+                    //  would otherwise run into our first one.
+                    fs.open(filePath, 'a+', (err, fd) => {
+                        if (err) {
+                            return done(err);
+                        }
+                        const finish = writeErr =>
+                            fs.close(fd, closeErr => done(writeErr || closeErr || null));
+                        fs.fstat(fd, (err, st) => {
+                            if (err) {
+                                return finish(err);
+                            }
+                            const append = text =>
+                                fs.write(fd, text, null, 'utf8', err => finish(err));
+                            if (0 === st.size) {
+                                return append(appendLines);
+                            }
+                            const last = Buffer.alloc(1);
+                            fs.read(fd, last, 0, 1, st.size - 1, err => {
+                                if (err) {
+                                    return finish(err);
+                                }
+                                append(
+                                    0x0a === last[0] ? appendLines : `\n${appendLines}`
+                                );
+                            });
+                        });
+                    });
                 },
                 err => {
                     if (err) {
@@ -3458,17 +3491,22 @@ function FTNMessageScanTossModule() {
     //  owed to somebody?" and "what may the sweep delete?" -- so they cannot
     //  disagree with each other.
     //
-    this.transitReferencedPaths = function (cb) {
+    //  A BsoSpool over our outbound, as the mailer sees it.
+    this.outboundSpool = function () {
         const { BsoSpool } = require('../binkp/bso_spool.js');
         const { flowPathSettings } = require('../bso_flow_paths.js');
         const config = Config();
 
-        const spool = new BsoSpool({
+        return new BsoSpool({
             paths: _.get(config, 'scannerTossers.ftn_bso.paths', {}),
             networks: _.get(config, 'messageNetworks.ftn.networks', {}),
             defaultNetwork: _.get(config, 'scannerTossers.ftn_bso.defaultNetwork'),
             flowPaths: flowPathSettings(config),
         });
+    };
+
+    this.transitReferencedPaths = function (cb) {
+        const spool = self.outboundSpool();
 
         //
         //  A flow file we could not read contributes no references, which is
@@ -3476,11 +3514,16 @@ function FTNMessageScanTossModule() {
         //  of this treat "unreferenced" as permission to destroy something. So
         //  an incomplete answer is no answer.
         //
-        //  Not hypothetical: _applyFlowDispositionLocked() and
-        //  _pruneFromFlowFile() rewrite a flow file with a plain writeFile,
-        //  which truncates in place, and inspectOutbound() reads without the
-        //  .bsy lock. A read landing mid-rewrite returns ''. performImport runs
-        //  on NewInboundBSO, i.e. during exactly that activity.
+        //  inspectOutbound() reads without the .bsy lock, and performImport
+        //  runs on NewInboundBSO, i.e. while sessions are marking lines.
+        //  ENiGMA's own rewrites replace a flow file atomically, but one owned
+        //  by another user is changed in place (see rewriteFlowFile() in
+        //  core/bso_flow.js), and other mailers rewrite theirs in place too.
+        //  A read that lands mid-rewrite and comes back empty is reported as
+        //  unreadable by readFlowFile(), and ends up here. So does a flow file
+        //  that is a link into a protected directory: it is not read, so what
+        //  it names is unknown, and a transit payload it names must not look
+        //  unwanted. The mailer warns about such a link hourly by name.
         //
         const unreadable = [];
 
@@ -3490,7 +3533,10 @@ function FTNMessageScanTossModule() {
                 if (unreadable.length > 0) {
                     return cb(
                         Errors.General(
-                            `${unreadable.length} flow file(s) could not be read; the outbound picture is incomplete`
+                            `${unreadable.length} flow file(s) could not be read, or are links ` +
+                                `into a protected directory and not read (${unreadable.join(
+                                    ', '
+                                )}); the outbound picture is incomplete`
                         )
                     );
                 }
@@ -4161,6 +4207,11 @@ function FTNMessageScanTossModule() {
     //  bso_spool. It was written here only, and the other path leaked TICs
     //  announcing files it had just dequeued; see #862.
     //
+    //  The rewrite is rewriteFlowFile() (core/bso_flow.js): atomic, other
+    //  lines kept byte for byte, and the flow file removed when nothing is
+    //  left waiting -- including when only '~' lines remain, as a session
+    //  does after sending the last entry.
+    //
     this.scrubFlowFileRefs = function (flowFilePath, targetPath, cb) {
         withFlowFileLock(
             flowFilePath,
@@ -4173,75 +4224,93 @@ function FTNMessageScanTossModule() {
                 log: Log,
             },
             done => {
-                fs.readFile(flowFilePath, 'utf8', (err, content) => {
-                    if (err) {
-                        //  no flow file for this node is the ordinary case
-                        return done('ENOENT' === err.code ? null : err);
-                    }
+                let removed = 0;
+                let ticPaths = [];
 
-                    const lines = content.split('\n');
+                self.outboundSpool()
+                    .flowPathPolicy()
+                    .then(policy =>
+                        rewriteFlowFile(
+                            flowFilePath,
+                            lines => {
+                                //  Only lines still waiting to be sent; '~' and '!' lines
+                                //  are not, and nor is anything not understood.
+                                const matched = [];
+                                lines.forEach((line, i) => {
+                                    if (
+                                        'send' === line.kind &&
+                                        line.path === targetPath
+                                    ) {
+                                        matched.push(i);
+                                    }
+                                });
 
-                    const matched = [];
-                    lines.forEach((line, i) => {
-                        if (!flowRefIsSent(line) && flowRefBody(line) === targetPath) {
-                            matched.push(i);
-                        }
-                    });
-
-                    if (0 === matched.length) {
-                        return done(null);
-                    }
-
-                    const { indices, ticPaths } = withCompanionTicRefs(lines, matched);
-                    const removed = matched.length;
-                    const keep = lines.filter((_line, i) => !indices.has(i));
-
-                    //
-                    //  Rewrite first, then unlink. The other order leaves the
-                    //  flow file naming files that no longer exist if the write
-                    //  fails, which is the dangling reference #735 is about.
-                    //
-                    //  companionTicPath() rather than the raw reference text:
-                    //  resolveFlowRef() falls back to the basename beside the
-                    //  flow file when the stored path no longer resolves, so
-                    //  unlinking the literal text missed the file in exactly
-                    //  that case -- and it is also the containment rule, since
-                    //  a generated TIC is always a sibling of its flow file.
-                    //
-                    const unlinkCompanions = () =>
-                        async.each(
-                            ticPaths,
-                            (ref, nextTic) => {
-                                const ticPath = companionTicPath(flowFilePath, ref);
-                                if (!ticPath) {
-                                    return nextTic(null);
+                                if (0 === matched.length) {
+                                    return null;
                                 }
-                                fs.unlink(ticPath, () => nextTic(null));
+
+                                const companion = withCompanionTicRefs(lines, matched);
+                                removed = matched.length;
+                                ticPaths = companion.ticPaths;
+                                return { remove: Array.from(companion.indices) };
                             },
-                            () => {
-                                Log.debug(
-                                    {
-                                        flowFile: flowFilePath,
-                                        file: paths.basename(targetPath),
-                                        removed,
-                                    },
-                                    'Dequeued superseded file from downlink outbound'
-                                );
+                            { policy }
+                        )
+                    )
+                    .then(
+                        result => {
+                            //  No flow file for this node is the ordinary case.
+                            if (!result.changed) {
                                 return done(null);
                             }
-                        );
 
-                    const remaining = keep.join('\n');
-                    if (!remaining.trim()) {
-                        return fs.unlink(flowFilePath, unlinkCompanions);
-                    }
-                    return fs.writeFile(flowFilePath, remaining, err =>
-                        err ? done(err) : unlinkCompanions()
+                            //
+                            //  Rewrite first, then unlink. The other order leaves
+                            //  the flow file naming files that no longer exist if
+                            //  the write fails, which is the dangling reference
+                            //  #735 is about.
+                            //
+                            //  companionTicPath() rather than the raw reference
+                            //  text: resolveFlowRef() falls back to the basename
+                            //  beside the flow file when the stored path no longer
+                            //  resolves, so unlinking the literal text missed the
+                            //  file in exactly that case -- and it is also the
+                            //  containment rule, since a generated TIC is always a
+                            //  sibling of its flow file.
+                            //
+                            async.each(
+                                ticPaths,
+                                (ref, nextTic) => {
+                                    const ticPath = companionTicPath(flowFilePath, ref);
+                                    if (!ticPath) {
+                                        return nextTic(null);
+                                    }
+                                    fs.unlink(ticPath, () => nextTic(null));
+                                },
+                                () => {
+                                    Log.debug(
+                                        {
+                                            flowFile: flowFilePath,
+                                            file: paths.basename(targetPath),
+                                            removed,
+                                        },
+                                        'Dequeued superseded file from downlink outbound'
+                                    );
+                                    return done(null);
+                                }
+                            );
+                        },
+                        err => done(err)
                     );
-                });
             },
             err => {
-                if (err && !isBusyError(err)) {
+                if (err && isBusyError(err)) {
+                    //  The superseded file stays queued for this downlink.
+                    Log.warn(
+                        { path: flowFilePath, file: paths.basename(targetPath) },
+                        'Flow file busy; superseded file not dequeued for this downlink'
+                    );
+                } else if (err) {
                     Log.warn(
                         { path: flowFilePath, error: err.message },
                         'Failed dequeuing superseded file'

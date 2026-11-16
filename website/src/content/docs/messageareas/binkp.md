@@ -162,6 +162,23 @@ The default is 6× the internal session timeout (5 minutes), giving a generous s
 
 The same `.bsy` files are honoured by external mailers such as Binkd, and by the ENiGMA½ *tosser* when it queues outbound — see [`flowLockTimeoutMs`](#flowlocktimeoutms) below.
 
+### Flow file lines
+
+ENiGMA½ reads each line of a flow file the way [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §3.1 and the other mailers that share an outbound read it:
+
+| Line starts with | Meaning |
+|---|---|
+| `^` or `-` | send, then delete the file |
+| `#` | send, then truncate the file |
+| `@`, or no directive | send and keep the file |
+| `~`, or its alternate `!` | skip: already processed (sent) |
+
+Leading and trailing whitespace is ignored, and so is a UTF-8 byte order mark at the start of the file (it is written back as it was). A path is normally absolute; a relative path (one not starting with `/`, such as `name.pkt` or `sub/name.pkt`) is taken relative to the flow file's own directory, never ENiGMA½'s working directory. That applies to `~` and `!` lines too, when ENiGMA½ needs to know what one referred to. A line that starts with any other punctuation, contains a control character, is longer than 4096 bytes, or has a directive and no path is never sent and never pruned, and the flow file is kept while it is there. ENiGMA½ logs a warning about it at most once an hour per flow file, and `oputil bso list` shows it as `UNKNOWN` or `INVALID`. A path whose bytes are not UTF-8 (one written in CP437 or latin1 by DOS-era software, say) is not sent either, and is listed as `INVALID` while the file is there.
+
+When ENiGMA½ marks a line sent, or removes one, it writes a new copy of the flow file beside it and renames it into place (for a flow file that is a symlink, beside the file the link leads to, keeping the link), so nothing reading the flow file at that moment sees it half written. Every line it did not change goes back exactly as it was: other software's bytes, CRLF or LF endings, and blank lines. The copy keeps the original's permissions and group. A flow file that belongs to another user (a separate mailer running as its own user, in a group-shared outbound) is not replaced, since that would make it ENiGMA½'s and could lock the other mailer out of it; it is changed in place instead, marking a `^`, `#`, `-` or `@` line by overwriting its first character with `~` as binkd does. Temporary copies are named `.enigma-flow-*.tmp`; one left behind by a crash is removed at startup once it is older than [`staleLockMaxAgeMs`](#binkpstalelockmaxagems).
+
+A flow file is removed only after ENiGMA½ has marked or removed a line in it and nothing is left to send, that is, every remaining line is blank or starts with `~` or `!`. A zero-length flow file (a poll request) or one holding only such lines that ENiGMA½ did not just change is left alone. If the flow file cannot be removed (a directory ENiGMA½ may not delete files in), it is written with the lines marked instead, so nothing already sent goes again. For a flow file that is a symlink, ENiGMA½ removes only the link, and writes the file it leads to with the lines marked; that file is never removed. A flow file that is a link into ENiGMA½'s configuration, security, database or log directories (see [`flowDispositionRoots`](#binkpflowdispositionroots)) is not read or changed at all: nothing is sent from it, it does not make the node due for a poll, a warning is logged at most once an hour, and `oputil bso list` shows it as `REFUSED` with the file it leads to. While it is there, the TIC passthrough transit sweep removes nothing, since it cannot tell what that flow file still names.
+
 ### `binkp.flowRefWarnRepeatMs`
 
 A BSO flow file stores an **absolute path** to each file queued for a node. If that file is later deleted or moved, the entry can never be sent — the node simply never receives it. ENiGMA½ warns about this, naming the node and the file.
@@ -367,7 +384,7 @@ Systems upgraded from before 0.5.1-beta may still have mail queued under the pre
 1. `ftn_bso` scans message areas → writes `.pkt` files and flow file references into the outbound spool
 2. `ftn_bso` emits a `NewOutboundBSO` event with the destination address
 3. The BinkP module receives the event, debounces briefly (`crashmailDebounceMs`), then dials the destination
-4. After a successful send, the flow file entry is rewritten as `~`-prefixed and the packet file is deleted (see [`flowDispositionRoots`](#binkpflowdispositionroots) for where that applies); once every line in a flow file is `~`-prefixed the flow file itself is removed
+4. After a successful send, the flow file entry is rewritten as `~`-prefixed and the packet file is deleted (see [`flowDispositionRoots`](#binkpflowdispositionroots) for where that applies); once nothing in a flow file is left to send the flow file itself is removed (see [Flow file lines](#flow-file-lines))
 5. Independently, the pull-cycle timer dials every configured peer on `pullSchedule` so quiet hubs get periodic touches even when we have nothing for them (the `binkpPullNow` task runs the same cycle on demand)
 
 **Inbound flow:**

@@ -28,6 +28,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** if you see `KEPT` entries that should be removed after sending, add their directory to the new `scannerTossers.ftn_bso.binkp.flowDispositionRoots` list. See [`flowDispositionRoots`](website/src/content/docs/messageareas/binkp.md#binkpflowdispositionroots).
 
+* **Flow file lines are read the way other mailers read them.** This changes nothing for lines ENiGMA½ writes itself.
+
+  **What changes by itself:** if other software shares your outbound, a `!` line is now skipped as already processed, like `~`, rather than taken as a path, a `@` line is sent and kept, a relative path is looked for beside its flow file rather than in ENiGMA½'s working directory, and a line starting with other punctuation or holding a control character is left alone and not sent (`oputil bso list` shows it as `UNKNOWN` or `INVALID`, and the flow file stays while it is there). Flow files are now rewritten by writing a copy (`.enigma-flow-*.tmp`) in the same directory and renaming it into place, so ENiGMA½ needs write access to the outbound directories themselves, as it already does to create flow files; where it cannot create the copy, or the flow file belongs to another user, it changes the flow file in place as before.
+
+  **Action:** none. Run `oputil bso status` once after upgrading if other software shares your outbound, to see whether it reports any `UNKNOWN` or `INVALID` lines.
+
 * **ATASCII (Atari) callers (new, optional).** ENiGMA½ can now talk to Atari 8-bit style terminals: SyncTERM and IcyTerm in their Atari modes, and, through a dedicated Telnet port, terminal programs that announce nothing (real Atari hardware has not been tested). See [ATASCII (Atari) Callers](website/src/content/docs/servers/loginservers/atascii.md).
 
   **What changes by itself:** a caller whose terminal announces the Telnet terminal type `ATASCII` is now sent ATASCII. Before, such a caller was sent ANSI, which an ATASCII terminal prints as a screen of escape codes. They see your existing menus and art translated, in one colour and wrapped at 40 columns: readable, not pretty, and in most stock menus the item in focus looks the same as the others, because the stock theme marks focus with brightness, which one colour cannot show. Nothing changes for ANSI or PETSCII callers, and nothing in your configuration, menus or themes is touched.
