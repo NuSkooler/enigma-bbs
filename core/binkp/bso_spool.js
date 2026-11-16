@@ -1649,6 +1649,69 @@ function nodeLabel(flowPath, addr) {
 }
 
 //
+//  How long settle() waits for flow file bookkeeping before giving up. A
+//  rewrite is normally a few milliseconds of local I/O; this only bounds a
+//  write that is stuck (a hung network filesystem), so that it cannot keep a
+//  node's .bsy held -- and the node unreachable -- until the lock goes stale.
+//
+const DEFAULT_SETTLE_TIMEOUT_MS = 30 * 1000;
+
+//
+//  The map attachSpoolToSession() returns: 'name\0size\0timestamp' -> the
+//  flow file bookkeeping to run when that file has been sent.
+//
+//  That bookkeeping runs on the session's 'file-sent' event, which nothing
+//  awaits, so it can still be rewriting a flow file when the session ends.
+//  The .bsy is what keeps every other writer out of that flow file, so it
+//  must not be released until the rewrite has landed: settle() first.
+//
+class SpoolDisposeMap extends Map {
+    constructor() {
+        super();
+        this._pending = new Set();
+    }
+
+    //  Bookkeeping still running.
+    get pending() {
+        return this._pending.size;
+    }
+
+    _track(work) {
+        this._pending.add(work);
+        work.finally(() => this._pending.delete(work)).catch(() => {});
+        return work;
+    }
+
+    //
+    //  Resolves true once every rewrite started so far has finished (including
+    //  any that start while waiting), or false if |timeoutMs| ran out first;
+    //  that is logged. Never rejects.
+    //
+    async settle(timeoutMs = DEFAULT_SETTLE_TIMEOUT_MS) {
+        const deadline = Date.now() + timeoutMs;
+        while (this._pending.size > 0) {
+            const remaining = deadline - Date.now();
+            let timer;
+            const timedOut = await Promise.race([
+                Promise.allSettled(Array.from(this._pending)).then(() => false),
+                new Promise(resolve => {
+                    timer = setTimeout(() => resolve(true), Math.max(0, remaining));
+                }),
+            ]);
+            clearTimeout(timer);
+            if (timedOut) {
+                Log.warn(
+                    { pending: this._pending.size, timeoutMs },
+                    '[BinkP/BSO] Flow file bookkeeping still running at session end; releasing the lock anyway'
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+//
 //  Wire a BsoSpool to a BinkpSession for the standard inbound/outbound case.
 //
 //  For the originating (outbound) side:
@@ -1660,10 +1723,11 @@ function nodeLabel(flowPath, addr) {
 //    event, holds M_EOB until the async spool read completes, then queues
 //    whatever is pending for the addresses the session authenticated.
 //
-//  Returns the disposeMap so callers can add extra entries if needed.
+//  Returns the disposeMap so callers can add extra entries if needed. It
+//  also carries settle(): see SpoolDisposeMap.
 //
 async function attachSpoolToSession(session, spool, remoteAddrs) {
-    const disposeMap = new Map();
+    const disposeMap = new SpoolDisposeMap();
 
     //  Direct-attach files don't have a flow-file annotation step, so their
     //  disposeFn is null and we skip the disposeMap entry entirely. Only flow
@@ -1783,11 +1847,17 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         const fn = disposeMap.get(key);
         if (typeof fn === 'function') {
             disposeMap.delete(key);
-            await fn().catch(err =>
-                Log.warn(
-                    { name, error: err.message },
-                    '[BinkP/BSO] Error applying file disposition'
-                )
+            //  Tracked (synchronously, before the first await) so that whoever
+            //  holds the .bsy can settle it before releasing the lock.
+            await disposeMap._track(
+                Promise.resolve()
+                    .then(() => fn())
+                    .catch(err =>
+                        Log.warn(
+                            { name, error: err.message },
+                            '[BinkP/BSO] Error applying file disposition'
+                        )
+                    )
             );
         } else if (fn !== undefined) {
             disposeMap.delete(key);
@@ -1799,6 +1869,8 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
 }
 
 module.exports = {
+    DEFAULT_SETTLE_TIMEOUT_MS,
+    SpoolDisposeMap,
     sameAddress,
     BsoSpool,
     attachSpoolToSession,

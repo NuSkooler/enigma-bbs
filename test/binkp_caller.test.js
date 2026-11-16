@@ -275,6 +275,61 @@ describe('BinkP caller', function () {
             }
         });
 
+        it('keeps the lock until marking what was sent has finished', async () => {
+            const refFile = path.join(tmpDir, 'settle_outbound.pkt');
+            await fsp.writeFile(refFile, 'PKT_CONTENT');
+            const flowPath = path.join(outboundDir, '00010002.flo'); //  1:1/2
+            const bsyPath = path.join(outboundDir, '00010002.bsy');
+            await fsp.writeFile(flowPath, `^${refFile}\n`);
+
+            let serverEnded;
+            const serverEnd = new Promise(r => (serverEnded = r));
+            const { port, stop } = await startAnsweringServer({
+                addresses: ['1:1/2@testnet'],
+                spool: makeSpool(),
+                onSession: sess => sess.on('session-end', serverEnded),
+            });
+
+            //  Pause the flow file rewrite that marks the line sent.
+            const spool = makeSpool();
+            let release;
+            const gate = new Promise(r => (release = r));
+            let rewriteStarted;
+            const inFlight = new Promise(r => (rewriteStarted = r));
+            const applyFlowDisposition = spool._applyFlowDisposition.bind(spool);
+            spool._applyFlowDisposition = async (...args) => {
+                rewriteStarted();
+                await gate;
+                return applyFlowDisposition(...args);
+            };
+
+            try {
+                let returned = false;
+                const call = callNode(
+                    new Address({ zone: 1, net: 1, node: 2 }),
+                    { host: '127.0.0.1', port },
+                    spool
+                ).then(() => (returned = true));
+
+                await inFlight;
+                await serverEnd;
+                await new Promise(r => setTimeout(r, 100));
+
+                assert.equal(returned, false, 'callNode waits for the rewrite');
+                await fsp.access(bsyPath); //  still locked
+
+                release();
+                await call;
+
+                await assert.rejects(fsp.access(bsyPath), { code: 'ENOENT' });
+                //  Nothing left to send, so the rewrite removed the flow file.
+                await assert.rejects(fsp.access(flowPath), { code: 'ENOENT' });
+            } finally {
+                release();
+                await stop();
+            }
+        });
+
         it('emits NewInboundBSO when callNode receives files from the remote', async () => {
             // Use a separate spool dir for the server so its outbound is independent of the caller's.
             const srvDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'enigma_srv_recv_'));

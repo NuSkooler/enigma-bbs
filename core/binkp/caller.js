@@ -54,6 +54,9 @@ async function callNode(addr, nodeConf, spool) {
         return;
     }
 
+    //  Set once the spool is attached; settled before the lock goes.
+    let disposeMap = null;
+
     try {
         const socket = await _connect(host, port, tlsOpts);
 
@@ -100,7 +103,7 @@ async function callNode(addr, nodeConf, spool) {
         //  → handled asynchronously" pair for every aborted-on-connect peer.
         sessionResult.catch(() => {});
 
-        await attachSpoolToSession(session, spool, [addr]);
+        disposeMap = await attachSpoolToSession(session, spool, [addr]);
         session.start();
 
         await sessionResult;
@@ -111,6 +114,11 @@ async function callNode(addr, nodeConf, spool) {
 
         Log.info({ addr: addrStr, host, port }, '[BinkP/Caller] Session complete');
     } finally {
+        //  Marking what was sent can still be rewriting a flow file; it was
+        //  started under this lock and has to finish under it.
+        if (disposeMap) {
+            await disposeMap.settle();
+        }
         await spool.releaseLock(addr).catch(() => {});
     }
 }

@@ -2944,6 +2944,75 @@ describe('attachSpoolToSession — the same file listed twice', () => {
     });
 });
 
+describe('attachSpoolToSession — settle() before the lock is released', () => {
+    const EventEmitter = require('events');
+
+    async function attached(disposeFn) {
+        const session = new EventEmitter();
+        session.queueFile = () => {};
+        const fakeSpool = {
+            getOutboundFilesForNode: async () => [
+                {
+                    path: '/ob/x.pkt',
+                    name: 'x.pkt',
+                    size: 3,
+                    timestamp: 1000,
+                    disposition: 'delete',
+                    disposeFn,
+                },
+            ],
+            receiveFile: async () => {},
+        };
+        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR]);
+        return { session, disposeMap };
+    }
+
+    it('resolves at once when nothing is in flight', async () => {
+        const { disposeMap } = await attached(async () => {});
+        assert.equal(disposeMap.pending, 0);
+        assert.equal(await disposeMap.settle(), true);
+    });
+
+    it('waits for a flow file rewrite still running when the session ends', async () => {
+        let release;
+        const gate = new Promise(r => (release = r));
+        let finished = false;
+        const { session, disposeMap } = await attached(async () => {
+            await gate;
+            finished = true;
+        });
+
+        session.emit('file-sent', 'x.pkt', 3, 1000);
+        assert.equal(disposeMap.pending, 1, 'tracked as soon as the file is sent');
+
+        let settled = null;
+        const settling = disposeMap.settle().then(v => (settled = v));
+        await new Promise(r => setTimeout(r, 50));
+        assert.equal(settled, null, 'still waiting for the rewrite');
+
+        release();
+        assert.equal(await settling, true);
+        assert.ok(finished, 'the rewrite finished before settle() resolved');
+        assert.equal(disposeMap.pending, 0);
+    });
+
+    it('does not reject when the rewrite fails', async () => {
+        const { session, disposeMap } = await attached(async () => {
+            throw new Error('disk full');
+        });
+        session.emit('file-sent', 'x.pkt', 3, 1000);
+        assert.equal(await disposeMap.settle(), true);
+    });
+
+    it('gives up after the timeout so a stuck write cannot hold the lock forever', async () => {
+        const { session, disposeMap } = await attached(() => new Promise(() => {}));
+        session.emit('file-sent', 'x.pkt', 3, 1000);
+        const started = Date.now();
+        assert.equal(await disposeMap.settle(50), false);
+        assert.ok(Date.now() - started < 1000);
+    });
+});
+
 describe('BsoSpool — a real session marks lines and keeps the rest byte for byte', () => {
     beforeEach(cleanOutbound);
 

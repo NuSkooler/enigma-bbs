@@ -545,6 +545,75 @@ describe('BinkP server', function () {
         });
     });
 
+    describe('BinkpModule — flow file locks', () => {
+        const outDir = () => path.join(tmpDir, 'outbound');
+        const exists = p =>
+            fsp.access(p).then(
+                () => true,
+                () => false
+            );
+
+        async function waitFor(cond, ms = 2000) {
+            const deadline = Date.now() + ms;
+            while (!(await cond())) {
+                if (Date.now() > deadline) return false;
+                await new Promise(r => setTimeout(r, 20));
+            }
+            return true;
+        }
+
+        it('keeps the lock until marking what was sent has finished', async () => {
+            await fsp.mkdir(outDir(), { recursive: true });
+            const pkt = path.join(outDir(), 'settle.pkt');
+            const flowPath = path.join(outDir(), '00da02bd.flo'); //  1:218/701
+            const bsyPath = path.join(outDir(), '00da02bd.bsy');
+            await fsp.writeFile(pkt, 'SETTLE');
+            await fsp.writeFile(flowPath, `^${pkt}\n`);
+
+            //  Pause the rewrite that marks the line sent. The module builds
+            //  its own spool per connection, so this goes on the prototype.
+            let release;
+            const gate = new Promise(r => (release = r));
+            let rewriteStarted = false;
+            const original = BsoSpool.prototype._applyFlowDisposition;
+            BsoSpool.prototype._applyFlowDisposition = async function (...args) {
+                rewriteStarted = true;
+                await gate;
+                return original.apply(this, args);
+            };
+
+            const { port, stop } = await startModule();
+            try {
+                const { session } = connectClient(port);
+                const received = [];
+                session.on('file-received', name => received.push(name));
+                const ended = new Promise((resolve, reject) => {
+                    session.on('session-end', resolve);
+                    session.on('error', reject);
+                });
+                session.start();
+                await ended;
+
+                assert.deepEqual(received, ['settle.pkt']);
+                assert.ok(await waitFor(async () => rewriteStarted));
+                await new Promise(r => setTimeout(r, 100));
+                assert.ok(await exists(bsyPath), 'lock held while the rewrite runs');
+
+                release();
+                assert.ok(
+                    await waitFor(async () => !(await exists(bsyPath))),
+                    'lock released once the rewrite has landed'
+                );
+                assert.equal(await exists(flowPath), false, 'nothing left; removed');
+            } finally {
+                release();
+                BsoSpool.prototype._applyFlowDisposition = original;
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+    });
+
     // ── Pull cycle (periodic outbound polling of all configured peers) ────────────
     //
     //  The pull cycle is what keeps echo-mail flowing in from quiet hubs that

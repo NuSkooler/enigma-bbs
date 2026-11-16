@@ -607,11 +607,19 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         //  end before that settles -- the lock must not outlive it.
         let ended = false;
 
+        //  Set once the spool is attached, below.
+        let disposeMap = null;
+
         const releaseLock = async () => {
             ended = true;
             if (lockAddr) {
                 const addr = lockAddr;
                 lockAddr = null;
+                //  Settle before release: marking what was sent can still be
+                //  rewriting a flow file, and it was started under this lock.
+                if (disposeMap) {
+                    await disposeMap.settle();
+                }
                 await spool.releaseLock(addr).catch(() => {});
             }
         };
@@ -665,7 +673,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             await releaseLock();
         });
 
-        await attachSpoolToSession(session, spool, null);
+        disposeMap = await attachSpoolToSession(session, spool, null);
         session.start();
     }
 
