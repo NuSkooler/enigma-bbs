@@ -627,7 +627,7 @@ class TickerView extends View {
                 'left',
                 this.getSGR(),
                 this.getSGR(),
-                true //  use render len
+                { dialect: 'ansi' } //  already rendered: ANSI only
             ),
             false
         );

@@ -4,7 +4,11 @@ const { MenuView } = require('./menu_view.js');
 const strUtil = require('./string_util.js');
 const formatString = require('./string_format');
 const { pipeToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
 const { goto } = require('./ansi_term.js');
+
+//  Items are drawn already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
 
 const assert = require('assert');
 const _ = require('lodash');
@@ -41,12 +45,11 @@ class HorizontalMenuView extends MenuView {
                     //  Measure the visual (rendered) width of the format string so
                     //  extra characters added by the format (e.g. brackets, pipe codes)
                     //  are accounted for and items don't overlap.
-                    const rendered = pipeToAnsi(
+                    itemWidth = PipeCodes.renderWithWidth(
                         formatString(this.itemFormat, this.items[i])
-                    );
-                    itemWidth = strUtil.renderStringLength(rendered);
+                    ).width;
                 } else {
-                    itemWidth = this.items[i].text.length;
+                    itemWidth = strUtil.renderStringLength(this.items[i].text, ANSI_ONLY);
                 }
 
                 col += spacer.length + itemWidth + spacer.length;
@@ -92,14 +95,18 @@ class HorizontalMenuView extends MenuView {
             sgr = index === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR();
         }
 
-        const drawWidth = strUtil.renderStringLength(text) + this.getSpacer().length * 2;
+        const textWidth = strUtil.renderStringLength(text, ANSI_ONLY);
+        const drawWidth = textWidth + this.getSpacer().length * 2;
 
         this.client.term.write(
             `${goto(this.position.row, item.col)}${sgr}${strUtil.pad(
                 text,
                 drawWidth,
                 this.fillChar,
-                'center'
+                'center',
+                '',
+                '',
+                textWidth
             )}`
         );
     }

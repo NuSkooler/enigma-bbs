@@ -4,6 +4,9 @@ const { MenuView } = require('./menu_view.js');
 const ansi = require('./ansi_term.js');
 const strUtil = require('./string_util.js');
 const { pipeToAnsi } = require('./color_codes.js');
+
+//  Items are drawn already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
 const formatString = require('./string_format');
 
 const assert = require('assert');
@@ -67,7 +70,10 @@ class SpinnerMenuView extends MenuView {
             text,
             this.dimens.width,
             this.fillChar,
-            this.justify
+            this.justify,
+            '',
+            '',
+            ANSI_ONLY
         )}`;
         this.client.term.write(
             `${ansi.goto(this.position.row, this.position.col)}${text}`

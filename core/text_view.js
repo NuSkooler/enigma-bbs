@@ -13,6 +13,7 @@ const {
     stripAllLineFeeds,
 } = require('./string_util.js');
 const { pipeToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 const stringFormat = require('./string_format');
 
@@ -60,8 +61,9 @@ class TextView extends View {
         //          ^-- this.dimens.width
         //
         let textToDraw;
+        let renderLength;
         if (this.itemFormat) {
-            textToDraw = pipeToAnsi(
+            ({ text: textToDraw, width: renderLength } = PipeCodes.renderWithWidth(
                 stringFormat(
                     this.hasFocus && this.focusItemFormat
                         ? this.focusItemFormat
@@ -73,14 +75,16 @@ class TextView extends View {
                         ),
                     }
                 )
-            );
+            ));
         } else {
             textToDraw = _.isString(this.textMaskChar)
                 ? new Array(renderStringLength(s, ANSI_ONLY) + 1).join(this.textMaskChar)
                 : stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+            renderLength = renderStringLength(textToDraw, ANSI_ONLY);
         }
 
-        const renderLength = renderStringLength(textToDraw);
+        //  the width of textToDraw, until it is cut
+        let drawnLength = renderLength;
 
         if (renderLength >= this.dimens.width) {
             if (this.hasFocus) {
@@ -91,18 +95,22 @@ class TextView extends View {
                         renderLength,
                         ANSI_ONLY
                     );
+                    drawnLength = ANSI_ONLY;
                 }
             } else {
+                const overflowLength = this.textOverflow
+                    ? renderStringLength(this.textOverflow, ANSI_ONLY)
+                    : 0;
                 if (
                     this.textOverflow &&
-                    this.dimens.width > this.textOverflow.length &&
-                    renderLength - this.textOverflow.length >= this.textOverflow.length
+                    this.dimens.width > overflowLength &&
+                    renderLength - overflowLength >= overflowLength
                 ) {
                     textToDraw =
                         renderSubstr(
                             textToDraw,
                             0,
-                            this.dimens.width - this.textOverflow.length,
+                            this.dimens.width - overflowLength,
                             ANSI_ONLY
                         ) + this.textOverflow;
                 } else {
@@ -113,6 +121,7 @@ class TextView extends View {
                         ANSI_ONLY
                     );
                 }
+                drawnLength = ANSI_ONLY;
             }
         }
 
@@ -126,14 +135,17 @@ class TextView extends View {
                 this.justify,
                 this.hasFocus ? this.getFocusSGR() : this.getSGR(),
                 this.getStyleSGR(1) || this.getSGR(),
-                true //  use render len
+                drawnLength //  a known width, or measure it ANSI only
             ),
             false //  no converting CRLF needed
         );
     }
 
     getEndOfTextColumn() {
-        const offset = Math.min(this.text.length, this.dimens.width);
+        const offset = Math.min(
+            renderStringLength(this.text, ANSI_ONLY),
+            this.dimens.width
+        );
         return this.position.col + offset;
     }
 
@@ -208,7 +220,7 @@ class TextView extends View {
 
     clearText() {
         if (this.text) {
-            this.setText(this.fillChar.repeat(this.text.length));
+            this.setText(this.fillChar.repeat(renderStringLength(this.text, ANSI_ONLY)));
         }
 
         this.setText('');

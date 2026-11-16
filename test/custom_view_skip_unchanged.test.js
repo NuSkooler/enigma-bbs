@@ -35,9 +35,11 @@ const CLASSES = {
     MultiLineEditTextView,
 };
 
-//  measured on origin/master 27e47fc9
-const MASTER_NO_OPTION_LENGTH = 1600;
-const MASTER_NO_OPTION_MD5 = 'a937d36f1dc04bcbf240c3f0c6396e25';
+//  measured on origin/master 27e47fc9 (1600 bytes), less the 3 columns of
+//  padding the EditTextView drew past its width: it shows "|04Bob" as typed,
+//  and views now pad what they draw, so "|04" is 3 columns, not 0 (#1022)
+const MASTER_NO_OPTION_LENGTH = 1594;
+const MASTER_NO_OPTION_MD5 = '4a30957ce9afe60e3a055187d49b7ef2';
 
 const md5 = s => crypto.createHash('md5').update(s).digest('hex');
 

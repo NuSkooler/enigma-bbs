@@ -11,6 +11,8 @@ const {
     renderSplitPos,
 } = require('./string_util.js');
 
+const ANSI_ONLY = { dialect: 'ansi' };
+
 //  deps
 const _ = require('lodash');
 
@@ -133,14 +135,15 @@ class View extends events.EventEmitter {
     //
     //  |text| cut off at the terminal's right edge when drawn from |col|.
     //  Past the edge the terminal wraps it onto the next row, over whatever
-    //  is drawn there; on a narrow terminal that garbles a whole list.
+    //  is drawn there; on a narrow terminal that garbles a whole list. |text|
+    //  is already rendered: only ANSI escapes are codes.
     //
     clipToTerminalWidth(text, col = this.position.col) {
         const available = this.client.term.termWidth - col + 1;
-        if (!(available > 0) || renderStringLength(text) <= available) {
+        if (!(available > 0) || renderStringLength(text, ANSI_ONLY) <= available) {
             return text;
         }
-        return text.slice(0, renderSplitPos(text, available)) + this.getSGR();
+        return text.slice(0, renderSplitPos(text, available, false)) + this.getSGR();
     }
 
     setPosition(pos) {
