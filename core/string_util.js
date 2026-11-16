@@ -4,6 +4,7 @@
 //  ENiGMA½
 const ANSI = require('./ansi_term.js');
 const { charDisplayWidth, strDisplayWidth } = require('./display_width.js');
+const PipeCodes = require('./pipe_codes.js');
 
 //  deps
 const iconv = require('iconv-lite');
@@ -539,20 +540,14 @@ function stripAnsiControlCodes(input, options) {
 }
 
 //
-//  Renegade/ENiGMA pipe & MCI codes, e.g. "|07" or "|UN".
+//  Renegade/ENiGMA pipe & MCI codes, e.g. "|07" or "|UN", as message bodies
+//  read them: the grammar controlCodesToAnsi() renders with (core/fse.js), so
+//  the cleaned text matches what the user saw. Codes it consumes go; what it
+//  shows literally stays -- an unknown |XY, and "||" (the body grammar has no
+//  pipe escape, so both pipes show). Only pipe codes: the PCBoard/WWIV/CNET
+//  families are left alone here.
 //
-//  This mirrors the |XX form that controlCodesToAnsi() recognizes in
-//  color_codes.js -- that is the renderer message bodies actually pass
-//  through (core/fse.js), so stripping exactly this much is what makes the
-//  cleaned text match what the user saw. Note in particular that "||" is NOT
-//  collapsed to a single "|": controlCodesToAnsi() leaves both pipes standing,
-//  and collapsing here would make external output disagree with the terminal.
-//
-//  Inlined rather than imported from color_codes.js on purpose: string_util
-//  cannot require color_codes, as color_codes -> predefined_mci ->
-//  string_util would close a require cycle.
-//
-const REGEXP_PIPE_MCI_CODES = /\|[A-Z\d]{2}/g;
+const EXPORT_PIPE_STRIP = { dialect: 'bodyLegacy', legacy: false };
 
 //  Stripping is iterated to a fixed point; this only bounds pathological input.
 const MAX_CONTROL_CODE_STRIP_PASSES = 8;
@@ -564,7 +559,8 @@ const MAX_CONTROL_CODE_STRIP_PASSES = 8;
 //
 //  options:
 //    ansi           (default true)  strip ANSI escape sequences
-//    pipe           (default true)  strip Renegade/ENiGMA |XX pipe & MCI codes
+//    pipe           (default true)  strip Renegade/ENiGMA pipe & MCI codes
+//                                   (|07, known |UN; |CF05 -> spaces)
 //    allowAnsiClean (default false) keep ANSI_OPCODES_ALLOWED_CLEAN sequences.
 //                                   Terminal-side only; no external consumer
 //                                   wants colour escapes left behind.
@@ -597,7 +593,7 @@ function stripAllControlCodes(input, options) {
         }
 
         if (wantPipe) {
-            result = result.replace(REGEXP_PIPE_MCI_CODES, '');
+            result = PipeCodes.strip(result, EXPORT_PIPE_STRIP);
         }
 
         if (result === previous) {

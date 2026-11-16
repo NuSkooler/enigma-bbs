@@ -14,8 +14,7 @@ const { sendMail } = require('../email');
 const User = require('../user');
 const Config = require('../config').get;
 const Log = require('../logger').log;
-const { stripAnsiControlCodes } = require('../string_util');
-const { stripMciColorCodes } = require('../color_codes');
+const { stripAllControlCodes } = require('../string_util');
 
 //  deps
 const { ImapFlow } = require('imapflow');
@@ -127,9 +126,7 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
             return;
         }
 
-        const bodyText = stripMciColorCodes(
-            stripAnsiControlCodes(message.message || '', { all: true })
-        );
+        const bodyText = stripAllControlCodes(message.message || '');
 
         const mailOptions = {
             to: toAddress,

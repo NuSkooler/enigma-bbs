@@ -28,7 +28,7 @@ const { WellKnownAreaTags } = require('../../message_const');
 const ACS = require('../../acs');
 const Config = require('../../config').get;
 const User = require('../../user');
-const { stripAnsiControlCodes } = require('../../string_util');
+const { stripAllControlCodes } = require('../../string_util');
 
 const BLOCKED_AREA_TAGS = new Set([
     WellKnownAreaTags.Private,
@@ -183,7 +183,7 @@ function _shouldStripAnsi(req) {
 }
 
 function _maybeStrip(s, strip) {
-    return s && strip ? stripAnsiControlCodes(s, { all: true }) : s;
+    return s && strip ? stripAllControlCodes(s) : s;
 }
 
 function _serializeConference(confTag, conf, strip = true) {
@@ -568,3 +568,4 @@ function _deleteMessageHandler(req, resp, log) {
         });
     });
 }
+exports._maybeStrip = _maybeStrip;

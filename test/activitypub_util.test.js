@@ -116,10 +116,10 @@ describe('messageToHtml()', function () {
     });
 
     it('strips ENiGMA pipe color codes (|XX) before encoding', () => {
-        //  Pipe codes like |07 (white), |CE (cyan bold) must not appear in AP content.
-        const result = messageToHtml(makeMessage('|07Hello |CE world|16'));
+        //  Pipe codes like |07 (white), |11 (cyan bold) must not appear in AP content.
+        const result = messageToHtml(makeMessage('|07Hello |11 world|16'));
         assert.ok(!result.includes('|07'), '|07 pipe code should be stripped');
-        assert.ok(!result.includes('|CE'), '|CE pipe code should be stripped');
+        assert.ok(!result.includes('|11'), '|11 pipe code should be stripped');
         assert.ok(!result.includes('|16'), '|16 pipe code should be stripped');
         assert.ok(result.includes('Hello'), 'text content should be preserved');
         assert.ok(result.includes('world'), 'text content should be preserved');
@@ -128,7 +128,7 @@ describe('messageToHtml()', function () {
     it('strips pipe codes from auto-signature content when appended', () => {
         //  Auto-sigs appended by fse.js may contain pipe codes; the combined
         //  message+sig string is what messageToHtml receives.
-        const body = 'Post body\r\n-- \r\n|07Sysop Name|16\r\n|BRBoard Name';
+        const body = 'Post body\r\n-- \r\n|07Sysop Name|16\r\n|BN|15Board Name';
         const result = messageToHtml(makeMessage(body));
         assert.ok(!/\|[A-Z\d]{2}/.test(result), 'no pipe codes should survive into HTML');
         assert.ok(result.includes('Sysop Name'), 'plain text of sig should be preserved');

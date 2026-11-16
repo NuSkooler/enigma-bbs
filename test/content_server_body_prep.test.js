@@ -31,7 +31,7 @@ const ANSI_BODY_WITH_PIPE_SIG =
     `${ESC}[0m${ESC}[1;36mCOOL ${ESC}[1;35mPOST${ESC}[0m\r\n` +
     'some text here\r\n' +
     '--- \r\n' +
-    '|07SysOp|16 of |BRThe Board|00\r\n';
+    '|07SysOp|16 of |BN|15The Board|00\r\n';
 
 const PLAIN_BODY_WITH_PIPE = 'hello |07there|00 friend';
 

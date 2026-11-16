@@ -12,8 +12,13 @@ const User = require('./user.js');
 const StatLog = require('./stat_log.js');
 const stringFormat = require('./string_format.js');
 const { MessageAreaConfTempSwitcher } = require('./mod_mixins.js');
-const { isAnsi, stripAnsiControlCodes, insert } = require('./string_util.js');
-const { stripMciColorCodes, controlCodesToAnsi } = require('./color_codes.js');
+const {
+    isAnsi,
+    stripAnsiControlCodes,
+    stripAllControlCodes,
+    insert,
+} = require('./string_util.js');
+const { controlCodesToAnsi } = require('./color_codes.js');
 const Config = require('./config.js').get;
 const {
     getAddressedToInfo,
@@ -1552,9 +1557,7 @@ exports.FullScreenEditorModule =
 `;
                         const body = this._bodyView.getData({ forceLineTerms: true });
 
-                        const cleanBody = stripMciColorCodes(
-                            stripAnsiControlCodes(body, { all: true })
-                        );
+                        const cleanBody = stripAllControlCodes(body);
 
                         const exportedMessage = `${header}\r\n${cleanBody}`;
 

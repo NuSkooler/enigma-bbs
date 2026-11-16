@@ -911,20 +911,23 @@ function splitPos(s, cols, opts) {
 //  Remove every code render() would consume and keep what it shows
 //  literally: '||' becomes '|' (ui), |CF05 becomes five spaces, and an |AA
 //  code is dropped only when it is a known MCI code (opts.knownMci, else the
-//  set predefined_mci.js registered) -- an unknown one stays as typed.
-//  opts.ansi === true also drops ANSI escapes.
+//  set predefined_mci.js registered) -- an unknown one stays as typed. With
+//  no set at all every |AA code is dropped, so nothing leaks.
+//  opts.ansi === true also drops ANSI escapes; opts.legacy === false keeps
+//  the body dialect's @X## / ^C# / CNET codes (pipe codes only).
 //
 function strip(s, opts) {
     if (!s) {
         return '';
     }
-    const name = opts && opts.dialect;
     const ansi = !!(opts && true === opts.ansi);
-    const isBody = !!(name && 98 === name.charCodeAt(0)); //  'body*'
-    if (!ansi && !isBody && -1 === s.indexOf('|')) {
+    let f = flagsOf(opts) & ~F_ANSIONLY;
+    if (opts && false === opts.legacy) {
+        f &= ~F_LEGACY;
+    }
+    if (!ansi && !(f & F_LEGACY) && -1 === s.indexOf('|')) {
         return s;
     }
-    let f = flagsOf(opts) & ~F_ANSIONLY;
     if (ansi) {
         f |= F_ESC;
     }
@@ -957,7 +960,7 @@ function strip(s, opts) {
         const type = tType;
         let rep = '';
         if (T.MCI === type) {
-            if (!(known && known.has(s.slice(i + 1, i + 3)))) {
+            if (known && !known.has(s.slice(i + 1, i + 3))) {
                 i = e - 1; //  stays literal
                 continue;
             }
@@ -1000,7 +1003,7 @@ function stripUi(s, known) {
             continue;
         }
         const type = tType;
-        if (T.MCI === type && !(known && known.has(s.slice(i + 1, i + 3)))) {
+        if (T.MCI === type && known && !known.has(s.slice(i + 1, i + 3))) {
             i = s.indexOf('|', e); //  stays literal
             continue;
         }
