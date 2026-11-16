@@ -12,6 +12,7 @@ const {
     nodeBaseName,
 } = require('../core/binkp/bso_spool');
 const { BinkpSession } = require('../core/binkp/session');
+const { FlowLockSet } = require('../core/bso_lock');
 
 // ── test fixtures ─────────────────────────────────────────────────────────────
 
@@ -2938,9 +2939,171 @@ describe('attachSpoolToSession — the same file listed twice', () => {
             receiveFile: async () => {},
         };
 
-        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR]);
+        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR], {
+            lock: new FlowLockSet(),
+        });
         await disposeMap.get('x.pkt\u00003\u00001000')();
         assert.deepEqual(calls, [1, 2]);
+    });
+});
+
+describe('BsoSpool — the session locks every directory holding the node', () => {
+    //  With makeConfig, testnet is the default network, so its pre-0.5.1-beta
+    //  directory "testnet/" is a legacy directory the spool still drains.
+    const legacyDir = () => path.join(tmpDir, 'testnet');
+    const canonicalBsy = () => path.join(outboundDir(tmpDir), '00680001.bsy');
+    const legacyBsy = () => path.join(legacyDir(), '00680001.bsy');
+    const legacyFlow = () => path.join(legacyDir(), '00680001.flo');
+    const exists = p =>
+        fsp.access(p).then(
+            () => true,
+            () => false
+        );
+
+    beforeEach(cleanOutbound);
+    afterEach(() => fsp.rm(legacyDir(), { recursive: true, force: true }));
+
+    it('covers each directory that exists, creating none', async () => {
+        assert.deepEqual(await spool.lockPathsForNode(TEST_ADDR), [canonicalBsy()]);
+        await fsp.mkdir(legacyDir());
+        assert.deepEqual(await spool.lockPathsForNode(TEST_ADDR), [
+            canonicalBsy(),
+            legacyBsy(),
+        ]);
+        assert.equal(await exists(legacyBsy()), false, 'listing creates nothing');
+    });
+
+    it('marks a legacy directory flow file under the lock beside it', async () => {
+        await fsp.mkdir(legacyDir());
+        const pkt = path.join(legacyDir(), 'legacy.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(legacyFlow(), `^${pkt}\n/fb/keep.zip\n`);
+
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+        try {
+            assert.ok(await exists(legacyBsy()), 'the legacy directory is locked');
+
+            //  Another writer of that flow file is kept out for the session.
+            const { withFlowFileLock, isBusyError } = require('../core/bso_lock');
+            const busy = await new Promise(resolve =>
+                withFlowFileLock(
+                    legacyFlow(),
+                    { timeoutMs: 100 },
+                    done => done(null),
+                    err => resolve(isBusyError(err))
+                )
+            );
+            assert.ok(busy, 'a writer beside the legacy flow file finds it locked');
+
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR, { lock });
+            assert.deepEqual(
+                files.map(f => f.path),
+                [pkt]
+            );
+            await files[0].disposeFn();
+            assert.equal(
+                await fsp.readFile(legacyFlow(), 'utf8'),
+                `~${pkt}\n/fb/keep.zip\n`
+            );
+        } finally {
+            await lock.releaseAll();
+        }
+        assert.equal(await exists(legacyBsy()), false);
+        assert.equal(await exists(canonicalBsy()), false);
+    });
+
+    it('does not read a flow file in a directory the lock does not cover', async () => {
+        await fsp.mkdir(legacyDir());
+        const pkt = path.join(legacyDir(), 'legacy.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(legacyFlow(), `^${pkt}\n`);
+
+        //  Only the canonical lock, as a session that started before the
+        //  legacy directory appeared would hold.
+        const lock = spool.newLockSet();
+        assert.equal(await lock.acquire([canonicalBsy()]), true);
+        try {
+            assert.deepEqual(
+                await spool.getOutboundFilesForNode(TEST_ADDR, { lock }),
+                []
+            );
+        } finally {
+            await lock.releaseAll();
+        }
+    });
+
+    it('is all or nothing: a busy legacy lock leaves the canonical one untaken', async () => {
+        await fsp.mkdir(legacyDir());
+        await fsp.writeFile(legacyBsy(), '4242'); //  held by another process
+
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), false);
+        assert.equal(lock.size, 0);
+        assert.equal(await exists(canonicalBsy()), false);
+        assert.equal(
+            await fsp.readFile(legacyBsy(), 'utf8'),
+            '4242',
+            'not ours to touch'
+        );
+    });
+
+    it('a closed lock set lists nothing, even part way through', async () => {
+        const pkt = path.join(outboundDir(tmpDir), 'closed.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.flo'), `^${pkt}\n`);
+        const lock = spool.newLockSet();
+        assert.ok(await spool.lockNode(TEST_ADDR, lock));
+        await lock.close();
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR, { lock }), []);
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), false, 'closed for good');
+        assert.equal(await exists(canonicalBsy()), false);
+    });
+
+    describe('a point directory spelled in upper case', () => {
+        const POINT = { zone: 1, net: 104, node: 1, point: 45 };
+        const upperDir = () => path.join(outboundDir(tmpDir), '00680001.PNT');
+        const lowerDir = () => path.join(outboundDir(tmpDir), '00680001.pnt');
+
+        async function queuePointMail() {
+            await fsp.mkdir(upperDir());
+            const pkt = path.join(upperDir(), 'point.pkt');
+            await fsp.writeFile(pkt, 'PKT');
+            await fsp.writeFile(path.join(upperDir(), '0000002D.CLO'), `^${pkt}\n`);
+            return pkt;
+        }
+
+        for (const createDirs of [false, true]) {
+            it(`is locked and read where it is, with no second spelling made (createDirs: ${createDirs})`, async () => {
+                const pkt = await queuePointMail();
+                const lock = spool.newLockSet();
+                assert.ok(await spool.lockNode(POINT, lock, { createDirs }));
+                try {
+                    assert.deepEqual(lock.paths, [path.join(upperDir(), '0000002d.bsy')]);
+                    assert.equal(await exists(lowerDir()), false);
+                    const files = await spool.getOutboundFilesForNode(POINT, { lock });
+                    assert.deepEqual(
+                        files.map(f => f.path),
+                        [pkt]
+                    );
+                } finally {
+                    await lock.releaseAll();
+                }
+                assert.equal(await exists(lowerDir()), false);
+            });
+        }
+    });
+
+    it('is re-entrant on a lock the set already holds', async () => {
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+        try {
+            assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+            assert.equal(await spool.lockNode(TEST_ADDR, spool.newLockSet()), false);
+        } finally {
+            await lock.releaseAll();
+        }
+        assert.equal(await exists(canonicalBsy()), false);
     });
 });
 
@@ -2963,7 +3126,9 @@ describe('attachSpoolToSession — settle() before the lock is released', () => 
             ],
             receiveFile: async () => {},
         };
-        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR]);
+        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR], {
+            lock: new FlowLockSet(),
+        });
         return { session, disposeMap };
     }
 

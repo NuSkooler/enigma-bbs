@@ -562,6 +562,506 @@ describe('BinkP server', function () {
             return true;
         }
 
+        //  Two addresses for the caller, each with a packet queued:
+        //  1:218/701 -> 00da02bd, 1:218/702 -> 00da02be.
+        const TWO_AKAS = ['1:218/701@testnet', '1:218/702@testnet'];
+
+        async function queueForBoth() {
+            await fsp.mkdir(outDir(), { recursive: true });
+            const q = {};
+            for (const [key, base] of [
+                ['first', '00da02bd'],
+                ['second', '00da02be'],
+            ]) {
+                const pkt = path.join(outDir(), `${key}.pkt`);
+                const flow = path.join(outDir(), `${base}.flo`);
+                await fsp.writeFile(pkt, key.toUpperCase());
+                await fsp.writeFile(flow, `^${pkt}\n`);
+                q[key] = { pkt, flow, bsy: path.join(outDir(), `${base}.bsy`) };
+            }
+            return q;
+        }
+
+        //  Run one session from a client presenting |addresses|. Resolves
+        //  { received, busy, ended } once it is over, however it ended.
+        function runClient(port, { addresses = TWO_AKAS, getPassword } = {}) {
+            const { session } = connectClient(port, { addresses, getPassword });
+            const result = { received: [], busy: null, ended: null };
+            session.on('file-received', (name, size, ts, tmp) => {
+                result.received.push(name);
+                fsp.unlink(tmp).catch(() => {});
+            });
+            session.on('busy', reason => (result.busy = reason));
+            return new Promise(resolve => {
+                const end = how => {
+                    if (!result.ended) {
+                        result.ended = how;
+                        resolve(result);
+                    }
+                };
+                session.on('session-end', () => end('session-end'));
+                session.on('disconnect', () => end('disconnect'));
+                session.on('error', () => end('error'));
+                session.start();
+            });
+        }
+
+        //  Count spool reads, to show nothing was read for any address.
+        function countReads() {
+            const original = BsoSpool.prototype.getOutboundFilesForNode;
+            const counter = { reads: 0 };
+            BsoSpool.prototype.getOutboundFilesForNode = function (...args) {
+                ++counter.reads;
+                return original.apply(this, args);
+            };
+            counter.restore = () => {
+                BsoSpool.prototype.getOutboundFilesForNode = original;
+            };
+            return counter;
+        }
+
+        it('drops a busy address with no password and serves the others', async () => {
+            const q = await queueForBoth();
+            await fsp.writeFile(q.second.bsy, '4242'); //  another process
+            const { port, stop } = await startModule();
+            try {
+                const result = await runClient(port);
+                assert.equal(result.busy, null, 'the session goes ahead');
+                assert.deepEqual(result.received, ['first.pkt']);
+
+                //  The busy address: flow file and packet untouched, its
+                //  lock still the other process's.
+                assert.equal(
+                    await fsp.readFile(q.second.flow, 'utf8'),
+                    `^${q.second.pkt}\n`
+                );
+                assert.ok(await exists(q.second.pkt));
+                assert.equal(await fsp.readFile(q.second.bsy, 'utf8'), '4242');
+
+                //  The free one: delivered, marked, its lock released.
+                assert.ok(await waitFor(async () => !(await exists(q.first.flow))));
+                assert.ok(await waitFor(async () => !(await exists(q.first.bsy))));
+            } finally {
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        it('makes the whole session busy when a busy address has a password (as binkd does)', async () => {
+            const q = await queueForBoth();
+            await fsp.writeFile(q.second.bsy, '4242');
+            const reads = countReads();
+            const { port, stop } = await startModule({
+                nodes: { '1:218/702': { sessionPassword: 'pw' } },
+            });
+            try {
+                const result = await runClient(port, { getPassword: () => 'pw' });
+                assert.equal(result.busy, 'Secure AKA 1:218/702@testnet busy');
+                assert.deepEqual(result.received, []);
+                assert.equal(reads.reads, 0, 'nothing read for any address');
+
+                for (const key of ['first', 'second']) {
+                    assert.equal(
+                        await fsp.readFile(q[key].flow, 'utf8'),
+                        `^${q[key].pkt}\n`
+                    );
+                    assert.ok(await exists(q[key].pkt));
+                }
+                //  The first address's lock was taken and given back.
+                assert.ok(await waitFor(async () => !(await exists(q.first.bsy))));
+                assert.equal(await fsp.readFile(q.second.bsy, 'utf8'), '4242');
+            } finally {
+                reads.restore();
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        it('sends M_BSY when every presented address is busy', async () => {
+            const q = await queueForBoth();
+            await fsp.writeFile(q.first.bsy, '4242');
+            await fsp.writeFile(q.second.bsy, '4343');
+            const reads = countReads();
+            const { port, stop } = await startModule();
+            try {
+                const result = await runClient(port);
+                assert.equal(result.busy, 'All AKAs are busy');
+                assert.deepEqual(result.received, []);
+                assert.equal(reads.reads, 0);
+                assert.equal(await fsp.readFile(q.first.bsy, 'utf8'), '4242');
+                assert.equal(await fsp.readFile(q.second.bsy, 'utf8'), '4343');
+            } finally {
+                reads.restore();
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        it('releases every lock when the password is refused', async () => {
+            const q = await queueForBoth();
+            const { port, stop } = await startModule({
+                nodes: { '1:218/702': { sessionPassword: 'pw' } },
+            });
+            try {
+                const result = await runClient(port, { getPassword: () => 'wrong' });
+                assert.deepEqual(result.received, []);
+                assert.ok(await waitFor(async () => !(await exists(q.first.bsy))));
+                assert.ok(await waitFor(async () => !(await exists(q.second.bsy))));
+                assert.equal(
+                    await fsp.readFile(q.first.flow, 'utf8'),
+                    `^${q.first.pkt}\n`
+                );
+            } finally {
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        it('releases every lock when the caller drops the connection mid-handshake', async () => {
+            const q = await queueForBoth();
+            const { port, stop } = await startModule();
+            try {
+                //  M_ADR, then gone before M_PWD.
+                const { buildCommandFrame } = require('../core/binkp/frame.js');
+                const { Commands } = require('../core/binkp/commands.js');
+                const socket = net.createConnection(port, '127.0.0.1');
+                await new Promise(r => socket.once('connect', r));
+                socket.write(buildCommandFrame(Commands.M_ADR, TWO_AKAS.join(' ')));
+                assert.ok(
+                    await waitFor(async () => await exists(q.second.bsy)),
+                    'both addresses locked at M_ADR'
+                );
+                assert.ok(await exists(q.first.bsy));
+                socket.destroy();
+
+                assert.ok(await waitFor(async () => !(await exists(q.first.bsy))));
+                assert.ok(await waitFor(async () => !(await exists(q.second.bsy))));
+            } finally {
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        //  A raw caller: writes |frames| in one go and collects the server's
+        //  commands until the connection closes or |ms| passes.
+        async function rawExchange(port, frames, ms = 1500) {
+            const {
+                buildCommandFrame,
+                buildDataFrame,
+                FrameParser,
+            } = require('../core/binkp/frame.js');
+            const { CommandNames } = require('../core/binkp/commands.js');
+            const socket = net.createConnection(port, '127.0.0.1');
+            await new Promise(r => socket.once('connect', r));
+            const parser = new FrameParser();
+            const seen = [];
+            parser.on('frame', f => {
+                if ('command' === f.type) seen.push(`${CommandNames[f.cmd]} ${f.arg}`);
+            });
+            socket.on('data', c => parser.push(c));
+            socket.on('error', () => {});
+            //  A frame is [command, argument], or { data } for a data frame.
+            socket.write(
+                Buffer.concat(
+                    frames.map(f =>
+                        Array.isArray(f)
+                            ? buildCommandFrame(f[0], f[1])
+                            : buildDataFrame(f.data)
+                    )
+                )
+            );
+            await new Promise(resolve => {
+                const t = setTimeout(resolve, ms);
+                socket.once('close', () => {
+                    clearTimeout(t);
+                    resolve();
+                });
+            });
+            socket.destroy();
+            return seen;
+        }
+
+        describe('M_BSY goes before any M_OK (M_ADR and M_PWD in one write)', () => {
+            const { Commands } = require('../core/binkp/commands.js');
+            const frames = pwd => [
+                [Commands.M_ADR, TWO_AKAS.join(' ')],
+                [Commands.M_PWD, pwd],
+            ];
+            const okIndex = seen => seen.findIndex(f => f.startsWith('M_OK'));
+            const bsyIndex = seen => seen.findIndex(f => f.startsWith('M_BSY'));
+
+            afterEach(() => fsp.rm(outDir(), { recursive: true, force: true }));
+
+            it('a busy secure address: M_BSY, no M_OK', async () => {
+                const q = await queueForBoth();
+                await fsp.writeFile(q.second.bsy, '4242');
+                const { port, stop } = await startModule({
+                    nodes: { '1:218/702': { sessionPassword: 'pw' } },
+                });
+                try {
+                    const seen = await rawExchange(port, frames('pw'));
+                    assert.ok(bsyIndex(seen) >= 0, seen.join(' | '));
+                    assert.equal(okIndex(seen), -1, seen.join(' | '));
+                } finally {
+                    await stop();
+                }
+            });
+
+            it('every address busy: M_BSY, no M_OK', async () => {
+                const q = await queueForBoth();
+                await fsp.writeFile(q.first.bsy, '4242');
+                await fsp.writeFile(q.second.bsy, '4343');
+                const { port, stop } = await startModule();
+                try {
+                    const seen = await rawExchange(port, frames('-'));
+                    assert.ok(bsyIndex(seen) >= 0, seen.join(' | '));
+                    assert.equal(okIndex(seen), -1, seen.join(' | '));
+                } finally {
+                    await stop();
+                }
+            });
+
+            it('nothing busy: M_OK, no M_BSY', async () => {
+                await queueForBoth();
+                const { port, stop } = await startModule();
+                try {
+                    const seen = await rawExchange(port, frames('-'), 500);
+                    assert.ok(okIndex(seen) >= 0, seen.join(' | '));
+                    assert.equal(bsyIndex(seen), -1, seen.join(' | '));
+                } finally {
+                    await stop();
+                }
+            });
+        });
+
+        it('a caller dropping during the flow file listing: nothing read after the locks go', async () => {
+            const q = await queueForBoth();
+            const original = BsoSpool.prototype.getOutboundFilesForNode;
+            let listingStarted;
+            const started = new Promise(r => (listingStarted = r));
+            let release;
+            const gate = new Promise(r => (release = r));
+            const heldWhenRead = [];
+            BsoSpool.prototype.getOutboundFilesForNode = async function (addr, opts) {
+                listingStarted();
+                await gate;
+                heldWhenRead.push(await exists(q.first.bsy));
+                return original.call(this, addr, opts);
+            };
+            const { port, stop } = await startModule();
+            try {
+                const { session, socket } = connectClient(port, { addresses: TWO_AKAS });
+                session.on('error', () => {});
+                session.start();
+                await started;
+                socket.destroy();
+                await new Promise(r => setTimeout(r, 100));
+                assert.ok(await exists(q.first.bsy), 'not released while listing');
+                release();
+                assert.ok(await waitFor(async () => !(await exists(q.first.bsy))));
+                assert.ok(heldWhenRead.every(Boolean), 'every read under the lock');
+            } finally {
+                release();
+                BsoSpool.prototype.getOutboundFilesForNode = original;
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        describe('frames a caller sends behind M_PWD without waiting for M_OK', () => {
+            const { Commands } = require('../core/binkp/commands.js');
+            const inbound = () => path.join(tmpDir, 'ftn_in');
+            const pipelined = (pwd, name) => [
+                [Commands.M_ADR, TWO_AKAS.join(' ')],
+                [Commands.M_PWD, pwd],
+                [Commands.M_FILE, `${name} 5 1700000000 0`],
+                { data: Buffer.from('hello') },
+                [Commands.M_EOB, ''],
+            ];
+
+            afterEach(async () => {
+                await fsp.rm(outDir(), { recursive: true, force: true });
+                for (const n of await fsp.readdir(inbound())) {
+                    await fsp.rm(path.join(inbound(), n), { force: true });
+                }
+            });
+
+            it('are handled once the password is answered, in order', async () => {
+                await queueForBoth();
+                const { port, stop } = await startModule();
+                try {
+                    const seen = await rawExchange(
+                        port,
+                        pipelined('-', 'pipelined.txt'),
+                        800
+                    );
+                    assert.ok(
+                        seen.some(f => f.startsWith('M_OK')),
+                        seen.join(' | ')
+                    );
+                    assert.ok(
+                        seen.includes('M_GOT pipelined.txt 5 1700000000'),
+                        seen.join(' | ')
+                    );
+                    assert.ok(
+                        await waitFor(async () =>
+                            (await fsp.readdir(inbound())).includes('pipelined.txt')
+                        )
+                    );
+                } finally {
+                    await stop();
+                }
+            });
+
+            it('are dropped when the session is busy: nothing received, nothing sent', async () => {
+                const q = await queueForBoth();
+                await fsp.writeFile(q.second.bsy, '4242');
+                const { port, stop } = await startModule({
+                    nodes: { '1:218/702': { sessionPassword: 'pw' } },
+                });
+                try {
+                    const seen = await rawExchange(port, pipelined('pw', 'dropped.txt'));
+                    assert.ok(
+                        seen.some(f => f.startsWith('M_BSY')),
+                        seen.join(' | ')
+                    );
+                    assert.ok(
+                        !seen.some(f => /^M_(OK|GOT|FILE)/.test(f)),
+                        seen.join(' | ')
+                    );
+                    await new Promise(r => setTimeout(r, 100));
+                    assert.deepEqual(await fsp.readdir(inbound()), []);
+                    assert.equal(
+                        await fsp.readFile(q.first.flow, 'utf8'),
+                        `^${q.first.pkt}\n`
+                    );
+                } finally {
+                    await stop();
+                }
+            });
+        });
+
+        it('a second M_ADR cannot bring in an address that is busy and has a password', async () => {
+            //  The first M_ADR presents 1:218/701 (no password); the second
+            //  1:218/702, which has one and whose .bsy is held elsewhere. With
+            //  702's password the session must not become a secure one for
+            //  702: the addresses are those of the first M_ADR.
+            const { Commands } = require('../core/binkp/commands.js');
+            const q = await queueForBoth();
+            await fsp.writeFile(q.second.bsy, '4242');
+            const { port, stop } = await startModule({
+                nodes: { '1:218/702': { sessionPassword: 'pw' } },
+            });
+            try {
+                const seen = await rawExchange(
+                    port,
+                    [
+                        [Commands.M_ADR, TWO_AKAS[0]],
+                        [Commands.M_ADR, TWO_AKAS[1]],
+                        [Commands.M_PWD, 'pw'],
+                    ],
+                    800
+                );
+                assert.ok(!seen.includes('M_OK secure'), seen.join(' | '));
+                assert.ok(
+                    !seen.some(f => f.startsWith('M_FILE second.pkt')),
+                    seen.join(' | ')
+                );
+                assert.equal(
+                    await fsp.readFile(q.second.flow, 'utf8'),
+                    `^${q.second.pkt}\n`
+                );
+                assert.equal(await fsp.readFile(q.second.bsy, 'utf8'), '4242');
+            } finally {
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        it('a second M_ADR adds no locks, and dropping the line leaves none behind', async function () {
+            this.timeout(20000);
+            const { Commands } = require('../core/binkp/commands.js');
+            await fsp.mkdir(outDir(), { recursive: true });
+            const { port, stop } = await startModule();
+            try {
+                for (let i = 0; i < 8; i++) {
+                    const many = Array.from(
+                        { length: 40 },
+                        (_, k) => `1:218/${1000 + k}@testnet`
+                    );
+                    const socket = net.createConnection(port, '127.0.0.1');
+                    socket.on('error', () => {});
+                    await new Promise(r => socket.once('connect', r));
+                    socket.write(
+                        Buffer.concat([
+                            require('../core/binkp/frame.js').buildCommandFrame(
+                                Commands.M_ADR,
+                                many.join(' ')
+                            ),
+                            require('../core/binkp/frame.js').buildCommandFrame(
+                                Commands.M_ADR,
+                                '1:218/2000@testnet'
+                            ),
+                        ])
+                    );
+                    await new Promise(r => setTimeout(r, i % 5));
+                    socket.destroy();
+
+                    const bsy = async () =>
+                        (await fsp.readdir(outDir())).filter(n => /\.bsy$/i.test(n));
+                    assert.ok(
+                        await waitFor(async () => 0 === (await bsy()).length, 3000),
+                        `iteration ${i}: left ${(await bsy()).join(' ')}`
+                    );
+                }
+            } finally {
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
+        it('creates no directories for presented addresses, and locks at most MAX_PRESENTED_ADDRESSES', async function () {
+            this.timeout(20000);
+            const { MAX_PRESENTED_ADDRESSES } = require('../core/binkp/bso_spool.js');
+            const { Commands } = require('../core/binkp/commands.js');
+            await fsp.mkdir(outDir(), { recursive: true });
+            const before = (await fsp.readdir(tmpDir)).sort();
+            //  Zone 1 lands in the existing outbound/; every other zone would
+            //  need an outbound.NNN that does not exist.
+            const many = Array.from(
+                { length: 1500 },
+                (_, k) => `${1 + (k % 30)}:${k}/${k}${k % 7 ? `.${k % 7}` : ''}`
+            );
+            const { port, stop } = await startModule();
+            try {
+                const socket = net.createConnection(port, '127.0.0.1');
+                socket.on('error', () => {});
+                await new Promise(r => socket.once('connect', r));
+                socket.write(
+                    require('../core/binkp/frame.js').buildCommandFrame(
+                        Commands.M_ADR,
+                        many.join(' ').slice(0, 32000)
+                    )
+                );
+                await new Promise(r => setTimeout(r, 1000));
+                assert.deepEqual((await fsp.readdir(tmpDir)).sort(), before);
+                const entries = await fsp.readdir(outDir());
+                assert.equal(
+                    entries.filter(n => !/\.bsy$/i.test(n)).length,
+                    0,
+                    'no point directories made'
+                );
+                assert.ok(entries.length <= MAX_PRESENTED_ADDRESSES, `${entries.length}`);
+                socket.destroy();
+                assert.ok(
+                    await waitFor(async () => 0 === (await fsp.readdir(outDir())).length)
+                );
+            } finally {
+                await stop();
+                await fsp.rm(outDir(), { recursive: true, force: true });
+            }
+        });
+
         it('keeps the lock until marking what was sent has finished', async () => {
             await fsp.mkdir(outDir(), { recursive: true });
             const pkt = path.join(outDir(), 'settle.pkt');

@@ -600,80 +600,33 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             });
         }
 
-        let lockAddr = null;
         let filesReceived = 0;
-        //  Set once the session has ended, however it ended. The lock is
-        //  taken asynchronously on M_ADR, and a session refused at M_PWD can
-        //  end before that settles -- the lock must not outlive it.
-        let ended = false;
-
-        //  Set once the spool is attached, below.
-        let disposeMap = null;
-
-        const releaseLock = async () => {
-            ended = true;
-            if (lockAddr) {
-                const addr = lockAddr;
-                lockAddr = null;
-                //  Settle before release: marking what was sent can still be
-                //  rewriting a flow file, and it was started under this lock.
-                if (disposeMap) {
-                    await disposeMap.settle();
-                }
-                await spool.releaseLock(addr).catch(() => {});
-            }
-        };
 
         session.on('file-received', () => {
             filesReceived++;
         });
 
-        session.on('addresses', async addrStrings => {
-            for (const addrStr of addrStrings) {
-                const addr = Address.fromString(addrStr);
-                if (!addr || !addr.isValid()) continue;
-                const locked = await spool.acquireLock(addr).catch(() => false);
-                if (!locked) {
-                    Log.info(
-                        { addr: addrStr },
-                        '[BinkP] Node already in session, sending M_BSY'
-                    );
-                    session.sendBusy(addrStr);
-                    return;
-                }
-                lockAddr = addr;
-                if (ended) {
-                    await releaseLock();
-                }
-                return;
-            }
-        });
+        //  The .bsy locks for the presented addresses (FTS-5005.003 §5.1) are
+        //  taken, checked for busy, and released by attachSpoolToSession().
 
-        session.on('session-end', async () => {
-            await releaseLock();
+        session.on('session-end', () => {
             Log.info({ remote }, '[BinkP] Session complete');
             if (filesReceived > 0) {
                 Events.emit(Events.getSystemEvents().NewInboundBSO);
             }
         });
 
-        session.on('disconnect', async () => {
-            await releaseLock();
-        });
-
-        session.on('error', async err => {
-            await releaseLock();
+        session.on('error', err => {
             Log.warn({ remote, error: err.message }, '[BinkP] Session error');
         });
 
-        socket.on('error', async err => {
+        socket.on('error', err => {
             if (err.code !== 'ECONNRESET') {
                 Log.warn({ remote, error: err.message }, '[BinkP] Socket error');
             }
-            await releaseLock();
         });
 
-        disposeMap = await attachSpoolToSession(session, spool, null);
+        await attachSpoolToSession(session, spool, null);
         session.start();
     }
 

@@ -64,6 +64,9 @@ const ACQUIRE_RETRY_MS = 100;
 //  can log it as a deferral rather than as corruption.
 const ReasonCodes = {
     Busy: 'BSO_LOCK_BUSY',
+    //  A flow file edit was attempted without holding its .bsy. A bug in the
+    //  caller, not a condition to retry: see assertFlowFileLockHeld().
+    NotHeld: 'BSO_LOCK_NOT_HELD',
 };
 
 //
@@ -157,11 +160,16 @@ async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
 //
 //  Hence 'wx' -- exclusive create -- and never a plain write.
 //
+//  With |options.createDir| false the lock's directory is not created, and a
+//  missing one rejects with ENOENT.
+//
 async function acquire(bsyPath, options = {}) {
     const staleMaxAgeMs = _staleMaxAgeMs(options);
     const log = options.log;
 
-    await fsp.mkdir(paths.dirname(bsyPath), { recursive: true });
+    if (false !== options.createDir) {
+        await fsp.mkdir(paths.dirname(bsyPath), { recursive: true });
+    }
 
     const tryCreate = async () => {
         const fh = await fsp.open(bsyPath, 'wx');
@@ -232,10 +240,192 @@ async function acquireWithRetry(bsyPath, options = {}) {
 }
 
 //
+//  The identity of a lock for comparison: its directory, resolved, plus its
+//  name in lower case. FTS-5005.003 §2 lets the same lock be spelled in
+//  either case (see resolveExisting()), so 00680001.BSY and 00680001.bsy are
+//  one lock. Directory names are compared as given (after resolving): a
+//  point directory is found by the scan under the spelling it has on disk.
+//
+function lockKey(bsyPath) {
+    return paths.join(
+        paths.resolve(paths.dirname(bsyPath)),
+        paths.basename(bsyPath).toLowerCase()
+    );
+}
+
+//  Lock sets created by this module. Only these count as proof that a lock
+//  is held: an object that merely looks like one does not.
+const issuedLockSets = new WeakSet();
+
+//
+//  A set of .bsy locks held together -- for a session, every lock covering
+//  the flow files it reads and rewrites; for a one-off edit, the one beside
+//  the flow file. It is also the token rewriteFlowFile() checks: an edit is
+//  only made while the set holds the lock beside that flow file.
+//
+//  acquire() is all or nothing, and re-entrant: a lock the set already holds
+//  is not taken again (so the same lock reached two ways -- two spellings of
+//  one address, say -- cannot make a session busy against itself).
+//
+class FlowLockSet {
+    constructor(options = {}) {
+        this._options = options;
+        this._held = new Map(); //  lockKey -> path as created
+        //  acquire() calls on one set run one at a time, so two of them
+        //  reaching the same lock do not race each other for it.
+        this._acquiring = Promise.resolve();
+        this._closed = false;
+        issuedLockSets.add(this);
+    }
+
+    holds(bsyPath) {
+        return this._held.has(lockKey(bsyPath));
+    }
+
+    holdsFlowFile(flowFilePath) {
+        return this.holds(bsyPathForFlowFile(flowFilePath));
+    }
+
+    get paths() {
+        return Array.from(this._held.values());
+    }
+
+    get size() {
+        return this._held.size;
+    }
+
+    get closed() {
+        return this._closed;
+    }
+
+    //
+    //  Take every lock in |bsyPaths| not already held. Resolves true when the
+    //  set then holds them all. Resolves false when one is held elsewhere, or
+    //  the set is (or gets) closed; any taken by this call are released
+    //  again, so the set is as it was. Rejects on unexpected filesystem
+    //  errors, likewise leaving the set as it was.
+    //
+    //  With |options.createDir| false no directory is created, and a lock
+    //  whose directory does not exist is skipped: not held, and not a
+    //  failure. A directory that does not exist holds no flow file to
+    //  protect.
+    //
+    acquire(bsyPaths, options = {}) {
+        const run = this._acquiring.then(() => this._acquire(bsyPaths, options));
+        this._acquiring = run.catch(() => {});
+        return run;
+    }
+
+    async _acquire(bsyPaths, options) {
+        const opts = { ...this._options, ...options };
+        const taken = [];
+        //  Only what is still ours: close() may have released some of these
+        //  already, and another process may have taken them since.
+        const undo = () =>
+            Promise.all(taken.filter(p => this.holds(p)).map(p => this._drop(p)));
+
+        for (const bsyPath of bsyPaths) {
+            if (this._closed) {
+                await undo();
+                return false;
+            }
+            if (this.holds(bsyPath)) {
+                continue;
+            }
+            let got;
+            try {
+                got = await acquire(bsyPath, opts);
+            } catch (err) {
+                if ('ENOENT' === err.code && false === opts.createDir) {
+                    continue;
+                }
+                await undo();
+                throw err;
+            }
+            if (!got) {
+                await undo();
+                return false;
+            }
+            if (this._closed) {
+                //  Closed while this one was being taken: give it back.
+                await release(bsyPath);
+                await undo();
+                return false;
+            }
+            this._held.set(lockKey(bsyPath), bsyPath);
+            taken.push(bsyPath);
+        }
+        return true;
+    }
+
+    //  As acquire(), retrying until |options.timeoutMs| (default
+    //  DEFAULT_ACQUIRE_TIMEOUT_MS) runs out.
+    async acquireWithRetry(bsyPaths) {
+        const timeoutMs = _finite(this._options.timeoutMs, DEFAULT_ACQUIRE_TIMEOUT_MS);
+        const deadline = Date.now() + timeoutMs;
+
+        for (;;) {
+            if (await this.acquire(bsyPaths)) {
+                return true;
+            }
+            if (Date.now() >= deadline || this._closed) {
+                return false;
+            }
+            await new Promise(r => setTimeout(r, ACQUIRE_RETRY_MS));
+        }
+    }
+
+    //  Release those of |bsyPaths| the set holds. Never throws.
+    async release(bsyPaths) {
+        await Promise.all(
+            bsyPaths
+                .filter(p => this.holds(p))
+                .map(p => this._drop(this._held.get(lockKey(p))))
+        );
+    }
+
+    //  Release every lock the set holds. Never throws.
+    async releaseAll() {
+        await Promise.all(this.paths.map(p => this._drop(p)));
+    }
+
+    //  Release every lock the set holds and end the set: nothing can be
+    //  acquired into it afterwards, including by an acquire() already
+    //  running, which gives back what it took. Never throws.
+    async close() {
+        this._closed = true;
+        await this.releaseAll();
+    }
+
+    async _drop(bsyPath) {
+        this._held.delete(lockKey(bsyPath));
+        await release(bsyPath);
+    }
+}
+
+//
+//  Throws (Errors.General, ReasonCodes.NotHeld) unless |lock| is a
+//  FlowLockSet from this module that holds the .bsy beside |flowFilePath|
+//  -- the lock every other writer of that flow file takes.
+//
+function assertFlowFileLockHeld(lock, flowFilePath) {
+    if (lock && issuedLockSets.has(lock) && lock.holdsFlowFile(flowFilePath)) {
+        return;
+    }
+    throw Errors.General(
+        `Lock not held: ${paths.basename(
+            bsyPathForFlowFile(flowFilePath)
+        )} must be held to change ${flowFilePath}`,
+        ReasonCodes.NotHeld
+    );
+}
+
+//
 //  Callback-style "do this while holding the flow file's lock", for ftn_bso.
 //
-//  |work| is called as work(done). The lock is released on every path,
-//  including a throw out of |work|.
+//  |work| is called as work(done, lock). |lock| is the FlowLockSet holding
+//  the flow file's .bsy, to hand to rewriteFlowFile(). The lock is released
+//  on every path, including a throw out of |work|.
 //
 //  Calls back Errors.General(..., ReasonCodes.Busy) when the lock could not be
 //  taken in time. That is a deferral, not corruption: the caller's refs were
@@ -249,8 +439,9 @@ function withFlowFileLock(flowFilePath, options, work, cb) {
     }
 
     const bsyPath = bsyPathForFlowFile(flowFilePath);
+    const lock = new FlowLockSet(options);
 
-    acquireWithRetry(bsyPath, options).then(
+    lock.acquireWithRetry([bsyPath]).then(
         got => {
             if (!got) {
                 return cb(
@@ -267,11 +458,11 @@ function withFlowFileLock(flowFilePath, options, work, cb) {
                     return; //  |work| called back twice; ignore the second
                 }
                 finished = true;
-                release(bsyPath).then(() => cb(err));
+                lock.releaseAll().then(() => cb(err));
             };
 
             try {
-                work(done);
+                work(done, lock);
             } catch (err) {
                 done(err);
             }
@@ -282,6 +473,10 @@ function withFlowFileLock(flowFilePath, options, work, cb) {
 
 function isBusyError(err) {
     return !!err && ReasonCodes.Busy === err.reasonCode;
+}
+
+function isNotHeldError(err) {
+    return !!err && ReasonCodes.NotHeld === err.reasonCode;
 }
 
 function _finite(value, fallback) {
@@ -302,6 +497,10 @@ module.exports = {
     acquire,
     acquireWithRetry,
     release,
+    lockKey,
+    FlowLockSet,
+    assertFlowFileLockHeld,
     withFlowFileLock,
     isBusyError,
+    isNotHeldError,
 };

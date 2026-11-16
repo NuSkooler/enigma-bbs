@@ -208,6 +208,8 @@ class BinkpSession extends EventEmitter {
         this._batchEndPending = false;
         this._waitingForClose = false;
         this._eobHold = 0; // >0 means an async handler (e.g. FREQ) needs more time before M_EOB
+        this._authHold = null; // see holdAuth()
+        this._heldFrames = null; // frames received while an M_PWD answer is held
 
         // Pause the socket so no data is consumed until start() is called.
         // This prevents frame processing before the application has finished
@@ -367,6 +369,13 @@ class BinkpSession extends EventEmitter {
         return { password: raw || null, inconsistent: false };
     }
 
+    //  Whether a session password is configured for |addr|, one of the
+    //  addresses the remote presented.
+    hasPasswordFor(addr) {
+        const { password, inconsistent } = this._expectedPassword([addr]);
+        return Boolean(password) || inconsistent;
+    }
+
     //
     //  The remote addresses this session may carry mail for, once it has
     //  authenticated. A secure session covers every address presented -- the
@@ -412,6 +421,13 @@ class BinkpSession extends EventEmitter {
 
     _onFrame(frame) {
         this._resetTimeout();
+
+        //  Arrived behind an M_PWD whose answer is held (holdAuth()): kept,
+        //  in order, for after it is answered.
+        if (this._heldFrames) {
+            this._heldFrames.push(frame);
+            return;
+        }
 
         if (frame.type === 'data') {
             return this._onDataFrame(frame.data);
@@ -511,6 +527,17 @@ class BinkpSession extends EventEmitter {
     }
 
     _onAdr(arg) {
+        //  The addresses are those of the first M_ADR. The password check,
+        //  the addresses the session covers, and the .bsy locks taken for
+        //  them (core/binkp/bso_spool.js) all go by that list; a later M_ADR
+        //  changing it would leave them disagreeing.
+        if (this._gotRemoteADR) {
+            Log.info(
+                { presented: this._remoteAddresses, ignored: arg },
+                '[BinkP] Remote sent M_ADR again; keeping the addresses it presented first'
+            );
+            return;
+        }
         this._remoteAddresses = arg.split(/\s+/).filter(Boolean);
         this._gotRemoteADR = true;
         this.emit('addresses', this._remoteAddresses);
@@ -526,6 +553,47 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
+        //  See holdAuth(). Answered once the hold settles, unless the
+        //  session was ended meanwhile (M_BSY). Frames the caller sent after
+        //  M_PWD without waiting for M_OK are held meanwhile and handled
+        //  afterwards, in order, as they would have been without the hold;
+        //  on a session ended meanwhile they are dropped.
+        if (this._authHold) {
+            if (this._heldFrames) {
+                return; //  a second M_PWD while the first is held
+            }
+            this._heldFrames = [];
+            this._authHold.then(() => {
+                const held = this._heldFrames;
+                this._heldFrames = null;
+                if (this._socket.destroyed || 'handshake' !== this._state) {
+                    return;
+                }
+                this._answerPwd(arg);
+                for (const frame of held) {
+                    if (this._socket.destroyed) break;
+                    this._onFrame(frame);
+                }
+            });
+            return;
+        }
+        this._answerPwd(arg);
+    }
+
+    //
+    //  Answering side: do not answer M_PWD -- no M_OK, no 'authenticated',
+    //  nothing queued or received -- until |promise| settles. Used while the
+    //  presented addresses' .bsy locks are taken, so a busy session's M_BSY
+    //  always goes out before any M_OK.
+    //
+    holdAuth(promise) {
+        this._authHold = Promise.resolve(promise).then(
+            () => {},
+            () => {}
+        );
+    }
+
+    _answerPwd(arg) {
         const { password, inconsistent } = this._expectedPassword();
         if (inconsistent) {
             return this._refuseAuth('presented addresses have different passwords');
