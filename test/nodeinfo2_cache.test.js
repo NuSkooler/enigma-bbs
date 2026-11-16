@@ -3,13 +3,14 @@
 const { strict: assert } = require('assert');
 
 describe('NodeInfo usage cache', function () {
-    let NodeInfo2, NodeInfoCacheTtlMs;
+    let NodeInfo2, NodeInfoCacheTtlMs, NodeInfoFailureTtlMs;
     let realNow;
 
     before(() => {
         ({
             getModule: NodeInfo2,
             NodeInfoCacheTtlMs,
+            NodeInfoFailureTtlMs,
         } = require('../core/servers/content/web_handlers/nodeinfo2.js'));
         realNow = Date.now;
     });
@@ -69,15 +70,24 @@ describe('NodeInfo usage cache', function () {
         assert.deepEqual(served, { localPosts: 2 });
     });
 
-    it('serves but does not cache counts from a run in which a query failed', () => {
+    it('serves counts from a failed run for a minute, not the full TTL', () => {
         const { handler, runs } = handlerWithRuns();
+        let now = 1_000_000;
+        Date.now = () => now;
+
         let served;
         handler._getUsage(u => (served = u));
-        runs[0]({ activeMonth: 4 }, false);
-        assert.deepEqual(served, { activeMonth: 4 });
+        runs[0]({ localPosts: 4 }, false);
+        assert.deepEqual(served, { localPosts: 4 });
 
-        handler._getUsage(u => (served = u));
-        assert.equal(runs.length, 2, 'computed again rather than served from cache');
+        now += NodeInfoFailureTtlMs - 1;
+        handler._getUsage(() => {});
+        assert.equal(runs.length, 1, 'a poll within the minute does not query again');
+
+        now += 2;
+        handler._getUsage(() => {});
+        assert.equal(runs.length, 2, 'queried again once the minute has passed');
+        assert.ok(NodeInfoFailureTtlMs < NodeInfoCacheTtlMs);
     });
 
     it('answers every waiter, and recovers, when the computation throws', () => {
@@ -90,10 +100,15 @@ describe('NodeInfo usage cache', function () {
             throw new Error('stat log unavailable');
         };
 
+        let now = 1_000_000;
+        Date.now = () => now;
         const got = [];
         handler._getUsage(u => got.push(u));
         assert.deepEqual(got, [{}]);
 
+        handler._getUsage(() => {});
+        assert.equal(calls, 1, 'the failure is kept for a minute');
+        now += NodeInfoFailureTtlMs + 1;
         handler._getUsage(u => got.push(u));
         assert.equal(calls, 2, 'a later request computes again');
         assert.deepEqual(got, [{}, {}]);

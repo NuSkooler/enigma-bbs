@@ -3,15 +3,12 @@ const { Errors } = require('../../../enig_error');
 const EngiAssert = require('../../../enigma_assert');
 const Config = require('../../../config').get;
 const packageJson = require('../../../../package.json');
-const StatLog = require('../../../stat_log');
-const SysProps = require('../../../system_property');
-const SysLogKeys = require('../../../system_log');
+const { countActiveUsers } = require('../../../active_users');
 const { getBaseUrl, getWebDomain } = require('../../../web_util');
 const Collection = require('../../../activitypub/collection');
 
 // deps
-const { get: _get } = require('lodash');
-const moment = require('moment');
+const { get: _get, pick: _pick } = require('lodash');
 const async = require('async');
 
 function _buildProtocols(config) {
@@ -54,6 +51,11 @@ const NodeInfoSchemaBase = 'http://nodeinfo.diaspora.software/ns/schema';
 //  cached copy in between.
 const NodeInfoCacheTtlMs = 10 * 60 * 1000;
 exports.NodeInfoCacheTtlMs = NodeInfoCacheTtlMs;
+
+//  Counts from a run in which a query failed are kept this long, so a broken
+//  database is queried (and logged) once a minute rather than on every poll.
+const NodeInfoFailureTtlMs = 60 * 1000;
+exports.NodeInfoFailureTtlMs = NodeInfoFailureTtlMs;
 
 exports.moduleInfo = {
     name: 'NodeInfo2',
@@ -132,7 +134,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         this.log.info({ version }, 'Serving standard NodeInfo request');
 
         this._getNodeInfo(nodeInfo2Data => {
-            const config = Config();
+            const config = this._config();
             const apEnabled = _get(
                 config,
                 'contentServers.web.handlers.activityPub.enabled',
@@ -156,11 +158,13 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
                 services: { inbound: [], outbound: [] },
                 openRegistrations: nodeInfo2Data.openRegistrations,
                 usage: {
-                    users: {
-                        total: nodeInfo2Data.usage.users.total,
-                        activeHalfyear: nodeInfo2Data.usage.activeHalfyear || 0,
-                        activeMonth: nodeInfo2Data.usage.activeMonth || 0,
-                    },
+                    //  NodeInfo 2.x has no activeWeek, and total is only
+                    //  present when it is known.
+                    users: _pick(nodeInfo2Data.usage.users, [
+                        'total',
+                        'activeHalfyear',
+                        'activeMonth',
+                    ]),
                     localPosts: nodeInfo2Data.usage.localPosts,
                 },
                 metadata: {
@@ -203,18 +207,26 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
     _getNodeInfo(cb) {
         return this._getUsage(usage => {
             const nodeInfo = this._baseNodeInfo();
-            Object.assign(nodeInfo.usage, usage);
+            //  usage.users is the live total and the active counts, or empty
+            //  when they could not be read: total is optional in every
+            //  NodeInfo schema, and a made-up one would be read as real.
+            const { users, ...rest } = usage;
+            Object.assign(nodeInfo.usage, rest);
+            nodeInfo.usage.users = users || {};
             return cb(nodeInfo);
         });
     }
 
-    _baseNodeInfo() {
+    _config() {
+        return Config();
+    }
+
+    _baseNodeInfo(config = this._config()) {
         //  https://github.com/jaywink/nodeinfo2/tree/master/schemas/1.0
-        const config = Config();
         return {
             version: '1.0',
             server: {
-                baseUrl: getBaseUrl(),
+                baseUrl: getBaseUrl(config),
                 name: config.general.boardName,
                 software: 'ENiGMA½ Bulletin Board Software',
                 version: packageJson.version,
@@ -225,9 +237,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
             services: { inbound: [], outbound: [] },
             openRegistrations: !config.general.closedSystem,
             usage: {
-                users: {
-                    total: StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1,
-                },
+                users: {}, //  total and active counts: see _getUsage()
                 localPosts: 0,
             },
         };
@@ -236,12 +246,12 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
     //
     //  cb(usage): the cached counts while they are fresh; otherwise computed
     //  once, however many requests are waiting for them. Counts from a run in
-    //  which a query failed are served but not cached, and a failure in the
+    //  which a query failed are kept only NodeInfoFailureTtlMs, and a failure in the
     //  computation itself still answers every waiter.
     //
     _getUsage(cb) {
         const cache = this._usageCache || (this._usageCache = { waiters: [] });
-        if (cache.usage && Date.now() - cache.builtAt < NodeInfoCacheTtlMs) {
+        if (cache.usage && Date.now() - cache.builtAt < cache.ttl) {
             return cb(cache.usage);
         }
 
@@ -251,10 +261,9 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         }
 
         const done = (usage, complete) => {
-            if (complete) {
-                cache.usage = usage;
-                cache.builtAt = Date.now();
-            }
+            cache.usage = usage;
+            cache.builtAt = Date.now();
+            cache.ttl = complete ? NodeInfoCacheTtlMs : NodeInfoFailureTtlMs;
             const waiters = cache.waiters;
             cache.waiters = [];
             waiters.forEach(waiter => {
@@ -279,33 +288,19 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         const usage = {};
         let complete = true;
 
-        const setActive = (since, name, next) => {
-            const filter = {
-                logName: SysLogKeys.UserLoginHistory,
-                resultType: 'count',
-                dateNewer: moment().subtract(moment.duration(since, 'days')),
-            };
-            StatLog.findSystemLogEntries(filter, (err, count) => {
-                if (err) {
-                    complete = false;
-                } else {
-                    usage[name] = count;
-                }
-                return next(null);
-            });
+        const setActive = callback => {
+            try {
+                usage.users = countActiveUsers(require('../../../database').dbs.user);
+            } catch (e) {
+                complete = false;
+                this.log.warn({ error: e.message }, 'Failed to count active users');
+            }
+            return callback(null);
         };
 
         async.series(
             [
-                callback => {
-                    return setActive(180, 'activeHalfyear', callback);
-                },
-                callback => {
-                    return setActive(30, 'activeMonth', callback);
-                },
-                callback => {
-                    return setActive(7, 'activeWeek', callback);
-                },
+                setActive,
                 callback => {
                     Collection.countLocalPosts((err, count) => {
                         if (err) {
