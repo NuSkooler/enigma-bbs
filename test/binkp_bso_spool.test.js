@@ -866,8 +866,17 @@ function sendThroughSession(sendingSpool, addr) {
                 server.close();
                 return reject(e);
             }
-            clientSess.on('session-end', () => {
+            //  The flow file bookkeeping for each sent file joins
+            //  BsoSpool._flowWrites when the file is marked sent, and nothing
+            //  awaits it before 'session-end' (the session does not track it
+            //  yet). Drain it, or a rewrite still in flight -- which unlinks
+            //  the flow file once its last line is marked -- lands on the
+            //  next test's flow file of the same name.
+            clientSess.on('session-end', async () => {
                 server.close();
+                while (BsoSpool._flowWrites.size > 0) {
+                    await Promise.allSettled(Array.from(BsoSpool._flowWrites.values()));
+                }
                 resolve(received);
             });
             clientSess.on('error', err => {
