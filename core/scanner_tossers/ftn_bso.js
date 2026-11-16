@@ -3520,7 +3520,10 @@ function FTNMessageScanTossModule() {
         //  by another user is changed in place (see rewriteFlowFile() in
         //  core/bso_flow.js), and other mailers rewrite theirs in place too.
         //  A read that lands mid-rewrite and comes back empty is reported as
-        //  unreadable by readFlowFile(), and ends up here.
+        //  unreadable by readFlowFile(), and ends up here. So does a flow file
+        //  that is a link into a protected directory: it is not read, so what
+        //  it names is unknown, and a transit payload it names must not look
+        //  unwanted. The mailer warns about such a link hourly by name.
         //
         const unreadable = [];
 
@@ -3530,7 +3533,10 @@ function FTNMessageScanTossModule() {
                 if (unreadable.length > 0) {
                     return cb(
                         Errors.General(
-                            `${unreadable.length} flow file(s) could not be read; the outbound picture is incomplete`
+                            `${unreadable.length} flow file(s) could not be read, or are links ` +
+                                `into a protected directory and not read (${unreadable.join(
+                                    ', '
+                                )}); the outbound picture is incomplete`
                         )
                     );
                 }

@@ -26,9 +26,8 @@ const {
     isControlFileName,
 } = require('../bso_flow_paths');
 const {
-    readFlowFile,
     rewriteFlowFile,
-    flowLinkRefused,
+    readFlowFileChecked,
     withFlowFileWrite,
     isFlowTempFileName,
     printablePath,
@@ -449,16 +448,30 @@ class BsoSpool {
                 return;
             }
 
-            //  A flow file linked into a protected directory is not read; it is
-            //  listed as refused itself. Quiet: this is a report.
-            const linkRefused = await flowLinkRefused(filePath, policy, { quiet: true });
-            if (linkRefused) {
+            //  A zero length read of a flow file whose size says otherwise is
+            //  a read that raced someone else's in-place rewrite, and counts
+            //  as unreadable (see readFlowFile()). Quiet: this is a report.
+            const checked = await readFlowFileChecked(filePath, policy, {
+                quiet: true,
+            }).catch(() => null);
+            if (null === checked) {
+                if (options.onUnreadable) {
+                    options.onUnreadable(filePath);
+                }
+                return;
+            }
+
+            if (checked.refused) {
+                //  A flow file linked into a protected directory is not read;
+                //  it is listed as refused itself. To a caller deciding what
+                //  is unreferenced (the transit sweep) it is also no answer:
+                //  whatever it names is unknown, not unwanted.
                 add(addr, {
                     kind: 'flow',
                     status: 'refused',
                     path: filePath,
-                    linkTarget: linkRefused.realPath,
-                    protectedDir: linkRefused.protectedDir,
+                    linkTarget: checked.refused.realPath,
+                    protectedDir: checked.refused.protectedDir,
                     size: null,
                     timestamp: null,
                     disposition: null,
@@ -466,20 +479,13 @@ class BsoSpool {
                     lineIdx: null,
                     line: null,
                 });
-                return;
-            }
-
-            //  A zero length read of a flow file whose size says otherwise is
-            //  a read that raced someone else's in-place rewrite, and counts
-            //  as unreadable (see readFlowFile()).
-            const read = await readFlowFile(filePath).catch(() => null);
-            if (null === read) {
                 if (options.onUnreadable) {
                     options.onUnreadable(filePath);
                 }
                 return;
             }
 
+            const read = checked.read;
             const lines = read.lines;
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -979,10 +985,11 @@ class BsoSpool {
             policy = await this._flowPathPolicy();
         }
         //  A flow file linked into a protected directory is not read at all.
-        if (await flowLinkRefused(flowPath, policy)) {
+        const checked = await readFlowFileChecked(flowPath, policy);
+        if (checked.refused) {
             return [];
         }
-        const { lines } = await readFlowFile(flowPath);
+        const { lines } = checked.read;
         const results = [];
 
         //  The same line twice queues its file once, and sending it marks
@@ -1295,13 +1302,11 @@ function uniquePacketName(filePath) {
 //  "Session complete".
 //
 async function flowHasPending(flowPath, addr, repeatMs, policy) {
-    if (await flowLinkRefused(flowPath, policy)) {
+    const checked = await readFlowFileChecked(flowPath, policy).catch(() => null);
+    if (!checked || checked.refused) {
         return false;
     }
-    const read = await readFlowFile(flowPath).catch(() => null);
-    if (!read) {
-        return false;
-    }
+    const read = checked.read;
     for (const line of read.lines) {
         //  Lines not understood, and paths ENiGMA cannot send under a name,
         //  give no reason to dial; _parseFlowFile() says so when it runs.

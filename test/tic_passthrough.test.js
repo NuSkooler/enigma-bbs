@@ -495,6 +495,34 @@ describe('TIC passthrough end to end', function () {
             );
         });
 
+        it('sweeps nothing while a flow file is a link the mailer does not read', async () => {
+            //  A flow file linked into a protected directory is not read, so
+            //  what it names is unknown -- the same as unreadable, and for
+            //  the same reason: a payload it still owes must not look unwanted.
+            deliver();
+            await importOnce();
+            assert.deepEqual(transitFiles(), ['COOLAPP.ZIP']);
+
+            const protDir = paths.join(tmpDir, 'cfg');
+            fs.mkdirSync(protDir);
+            configModule.get().paths = { config: protDir };
+
+            const { dir, flowName } = await spoolState();
+            const flowPath = paths.join(dir, flowName);
+            const target = paths.join(protDir, flowName);
+            fs.renameSync(flowPath, target);
+            fs.symlinkSync(target, flowPath);
+
+            await importOnce();
+            assert.deepEqual(
+                transitFiles(),
+                ['COOLAPP.ZIP'],
+                'a file we cannot prove is unwanted must be kept'
+            );
+            assert.ok(fs.lstatSync(flowPath).isSymbolicLink(), 'the link is left alone');
+            assert.ok(fs.readFileSync(target, 'utf8').includes('COOLAPP.ZIP'));
+        });
+
         it('leaves another echo’s transit files alone', async () => {
             deliver();
             await importOnce();

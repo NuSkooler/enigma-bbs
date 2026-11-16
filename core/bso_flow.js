@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const fsp = require('fs/promises');
 const paths = require('path');
 const crypto = require('crypto');
@@ -316,8 +317,16 @@ function unreadableError(flowPath) {
 //  and is reported as unreadable rather than as a flow file with nothing in
 //  it -- the second answer lets a caller conclude nothing is owed.
 //
-async function readFlowFile(flowPath) {
-    const fh = await fsp.open(flowPath, 'r');
+//
+//  With |noFollow|, a final component that is a symlink is refused (ELOOP)
+//  rather than followed, where the platform can say so.
+//
+async function readFlowFile(flowPath, { noFollow = false } = {}) {
+    const flags =
+        noFollow && fs.constants.O_NOFOLLOW
+            ? fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
+            : 'r';
+    const fh = await fsp.open(flowPath, flags);
     try {
         const st = await fh.stat();
         const buf = await fh.readFile();
@@ -561,32 +570,32 @@ function warnLinkRefused(flowPath, realPath, protectedDir) {
 }
 
 //
-//  When |flowPath| is a symlink whose target |policy| refuses (a protected
-//  directory), { realPath, protectedDir }; otherwise null. Such a flow file is
-//  neither read nor changed. Warns, once an hour per link, unless |quiet|.
+//  Read |flowPath| for a reader that has the spool's |policy|:
+//  { read } as readFlowFile() gives it, or { refused: { realPath,
+//  protectedDir } } when the flow file is a symlink whose target |policy|
+//  refuses (a protected directory). Such a flow file is not read. Warns,
+//  once an hour per link, unless |quiet|. Throws as readFlowFile() does.
 //
-async function flowLinkRefused(flowPath, policy, { quiet = false } = {}) {
+//  The file actually read is the one that was checked: a link is resolved
+//  once and its target opened without following a link, so a link swapped
+//  in between cannot be read through.
+//
+async function readFlowFileChecked(flowPath, policy, { quiet = false } = {}) {
     if (!policy) {
-        return null;
+        return { read: await readFlowFile(flowPath) };
     }
-    let realPath;
-    try {
-        if (!(await fsp.lstat(flowPath)).isSymbolicLink()) {
-            return null;
-        }
-        realPath = await fsp.realpath(flowPath);
-    } catch {
-        //  Gone, or a link to nothing: there is nothing to read either way.
-        return null;
+    if (!(await fsp.lstat(flowPath)).isSymbolicLink()) {
+        return { read: await readFlowFile(flowPath, { noFollow: true }) };
     }
+    const realPath = await fsp.realpath(flowPath);
     const classified = policy.classifyRealPath(realPath);
-    if (!classified.refused) {
-        return null;
+    if (classified.refused) {
+        if (!quiet) {
+            warnLinkRefused(flowPath, realPath, classified.protectedDir);
+        }
+        return { refused: { realPath, protectedDir: classified.protectedDir } };
     }
-    if (!quiet) {
-        warnLinkRefused(flowPath, realPath, classified.protectedDir);
-    }
-    return { realPath, protectedDir: classified.protectedDir };
+    return { read: await readFlowFile(realPath, { noFollow: true }) };
 }
 
 async function rewriteLocked(flowPath, edit, { policy } = {}) {
@@ -596,9 +605,11 @@ async function rewriteLocked(flowPath, edit, { policy } = {}) {
     //  delete it, though -- only the link, which is what is in our outbound.
     let realPath;
     let isLink;
+    let linkStat;
     let read;
     try {
-        isLink = (await fsp.lstat(flowPath)).isSymbolicLink();
+        linkStat = await fsp.lstat(flowPath);
+        isLink = linkStat.isSymbolicLink();
         realPath = isLink ? await fsp.realpath(flowPath) : flowPath;
         if (isLink && policy) {
             const classified = policy.classifyRealPath(realPath);
@@ -607,7 +618,7 @@ async function rewriteLocked(flowPath, edit, { policy } = {}) {
                 return { changed: false, refused: true, marked: [], removed: [] };
             }
         }
-        read = await readFlowFile(realPath);
+        read = await readFlowFile(realPath, { noFollow: true });
     } catch (err) {
         if ('ENOENT' === err.code) {
             return { changed: false, missing: true, marked: [], removed: [] };
@@ -644,6 +655,30 @@ async function rewriteLocked(flowPath, edit, { policy } = {}) {
         //  Mark the file the link leads to, so anything else reading it does
         //  not send it again, and remove only the link.
         const how = await writeEdited(realPath, read, out, marked, removed);
+
+        //  Remove the link we resolved, not whatever has taken its name since
+        //  (another writer replacing it with a flow file of its own).
+        const now = await fsp.lstat(flowPath).catch(() => null);
+        if (
+            now &&
+            (!now.isSymbolicLink() ||
+                now.ino !== linkStat.ino ||
+                now.dev !== linkStat.dev)
+        ) {
+            log().warn(
+                { path: flowPath, target: realPath },
+                'Flow file link was replaced while its file was being marked; leaving the new one alone'
+            );
+            return {
+                changed: true,
+                deleted: false,
+                how,
+                marked,
+                removed,
+                lines: read.lines,
+            };
+        }
+
         try {
             await fsp.unlink(flowPath);
         } catch (err) {
@@ -772,7 +807,7 @@ module.exports = {
     flowHasLive,
     readFlowFile,
     rewriteFlowFile,
-    flowLinkRefused,
+    readFlowFileChecked,
     withFlowFileWrite,
     isFlowTempFileName,
     printablePath,

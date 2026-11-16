@@ -13,6 +13,7 @@ const {
     markedLine,
     flowHasLive,
     readFlowFile,
+    readFlowFileChecked,
     rewriteFlowFile,
     withFlowFileWrite,
     isFlowTempFileName,
@@ -842,6 +843,94 @@ describe('bso_flow — review follow-ups', () => {
                 await fsp.readFile(realPath, 'latin1'),
                 '~/ob/a.pkt\n^/ob/b.pkt\n'
             );
+        });
+    });
+
+    describe('reading a link only where it was checked', () => {
+        let realDir;
+        let realPath;
+        let otherPath;
+        let policy;
+
+        beforeEach(async () => {
+            realDir = paths.join(tmpDir, 'real');
+            await fsp.mkdir(realDir);
+            realPath = paths.join(realDir, 'shared.flo');
+            otherPath = paths.join(realDir, 'other.flo');
+            await fsp.writeFile(realPath, '^/ob/a.pkt\n');
+            await fsp.writeFile(otherPath, '^/ob/OTHER.pkt\n');
+            await fsp.symlink(realPath, flowPath);
+            const { FlowPathPolicy } = require('../core/bso_flow_paths.js');
+            policy = await FlowPathPolicy.build({ settings: {}, spoolDirs: [tmpDir] });
+        });
+
+        it('does not follow a link when told not to', async () => {
+            await assert.rejects(readFlowFile(flowPath, { noFollow: true }), {
+                code: 'ELOOP',
+            });
+        });
+
+        it('reads the target it resolved, even if the link changes after', async () => {
+            const realRealpath = fsp.realpath;
+            fsp.realpath = async (...args) => {
+                const resolved = await realRealpath(...args);
+                if (args[0] === flowPath) {
+                    await fsp.unlink(flowPath);
+                    await fsp.symlink(otherPath, flowPath);
+                }
+                return resolved;
+            };
+            let checked;
+            try {
+                checked = await readFlowFileChecked(flowPath, policy);
+            } finally {
+                fsp.realpath = realRealpath;
+            }
+            assert.equal(checked.read.lines[0].path, '/ob/a.pkt');
+        });
+
+        it('will not read through a link that appears after the check', async () => {
+            //  Checked as a plain file, then swapped for a link.
+            await fsp.unlink(flowPath);
+            await fsp.writeFile(flowPath, '^/ob/plain.pkt\n');
+            const realLstat = fsp.lstat;
+            fsp.lstat = async (...args) => {
+                const st = await realLstat(...args);
+                if (args[0] === flowPath) {
+                    await fsp.unlink(flowPath);
+                    await fsp.symlink(otherPath, flowPath);
+                }
+                return st;
+            };
+            try {
+                await assert.rejects(readFlowFileChecked(flowPath, policy), {
+                    code: 'ELOOP',
+                });
+            } finally {
+                fsp.lstat = realLstat;
+            }
+        });
+
+        it('leaves a flow file that replaced the link alone when finished', async () => {
+            //  Another writer swaps in a flow file of its own while ours is
+            //  being marked; it must not be the thing removed.
+            const realRename = fsp.rename;
+            fsp.rename = async (from, to) => {
+                await realRename(from, to);
+                if (to === realPath) {
+                    await fsp.unlink(flowPath);
+                    await fsp.writeFile(flowPath, '^/ob/theirs.pkt\n');
+                }
+            };
+            let result;
+            try {
+                result = await rewriteFlowFile(flowPath, markText('^/ob/a.pkt'));
+            } finally {
+                fsp.rename = realRename;
+            }
+            assert.equal(result.deleted, false);
+            assert.equal(await fsp.readFile(flowPath, 'latin1'), '^/ob/theirs.pkt\n');
+            assert.equal(await fsp.readFile(realPath, 'latin1'), '~/ob/a.pkt\n');
         });
     });
 
