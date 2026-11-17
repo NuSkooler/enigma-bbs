@@ -246,21 +246,26 @@ describe('Pipe code output pins', function () {
             assert.equal(rainbow(['hi', 'there']), '|01hi|00 |08there|00 ');
         });
 
-        //  changes in the F6 commit: the cut backs off to the code's start
-        it('/rainbow cuts at 140 characters, inside a code', function () {
+        //  F6: a cut that would split a colour code backs off to the code's
+        //  start (it used to send half a code, which receivers show as text)
+        it('/rainbow cuts at 140 characters, never inside a code', function () {
             const prefix =
                 '|01abcd|00 |08efgh|00 |15ijkl|00 |22mnop|00 |29qrst|00 |05uvwx|00 ' +
                 '|12yzab|00 |19cdef|00 |26ghij|00 |02klmn|00 |09opqr|00 |16stuv|00 ';
 
             let line = rainbow([...FOUR, 'wxyz']);
-            assert.equal(line, `${prefix}|23wxyz|`);
-            assert.equal(line.length, 140);
+            assert.equal(line, `${prefix}|23wxyz`);
 
             line = rainbow(['abc', ...FOUR.slice(1), 'wxyz']);
-            assert.equal(line, `${prefix.replace('abcd', 'abc')}|23wxyz|0`);
+            assert.equal(line, `${prefix.replace('abcd', 'abc')}|23wxyz`);
 
             line = rainbow([...FOUR.slice(0, 11), 'abcdefghij', 'wxyz']);
-            assert.ok(line.endsWith('|16abcdefghij|00 |2'), line);
+            assert.ok(line.endsWith('|16abcdefghij|00 '), line);
+            assert.equal(line.length, 138);
+
+            //  a cut inside a word stays at 140
+            line = rainbow([...FOUR, 'wxyzabcdefgh']);
+            assert.equal(line, `${prefix}|23wxyza`);
             assert.equal(line.length, 140);
         });
 
@@ -285,11 +290,12 @@ describe('Pipe code output pins', function () {
             );
         });
 
-        //  changes in the F6 commit: the sanitisers repeat until nothing changes
-        it('one pass can join a new code', function () {
+        //  the sanitisers repeat until nothing changes: one pass used to join
+        //  a new code ('X|0|077' -> 'X|07')
+        it('a removal that joins a new code removes that one too', function () {
             assert.equal(
                 sent('X|0|077', 'X|0|077', 'S|A|BCD', 'r|a|bcd'),
-                'me~BBS~X|07~X|07~S|AD~r|ad~hi~'
+                'me~BBS~X~X~S~r~hi~'
             );
         });
     });
