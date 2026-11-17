@@ -190,8 +190,8 @@ function main() {
 //  How long an orderly shutdown may take in all before the process exits
 //  anyway, with a non-zero code. Every step below either bounds itself
 //  (the listening servers get about 1 s to stop, running Amiga doors about
-//  3 s to sync their images) or is quick, so this only fires when one of
-//  them hangs. A service manager must allow at least this long before it
+//  3 s to sync their images, v86 doors about 5 s to write theirs) or is
+//  quick, so this only fires when one of them hangs. A service manager must allow at least this long before it
 //  kills ENiGMA½: see "Stopping" in
 //  website/src/content/docs/installation/production.md.
 //
@@ -205,8 +205,8 @@ const ShutdownSignals = ['SIGINT', 'SIGTERM'];
 //  What an orderly shutdown stops, in this order. The listening servers stop
 //  accepting connections first, so that nobody new can call in, or start an
 //  Amiga door, while the rest stops; connected callers are then told and
-//  disconnected, and running Amiga doors get to sync their disk images. Each
-//  step calls back without an error.
+//  disconnected, running Amiga doors get to sync their disk images, and v86
+//  doors write theirs back to disk. Each step calls back without an error.
 //
 const shutdownSteps = [
     {
@@ -243,6 +243,12 @@ const shutdownSteps = [
         //  Best effort, about 3 s at most: running Amiga doors sync their
         //  disk images before the process exits
         run: cb => require('./amiga_door/amiga_door.js').shutdown(() => cb(null)),
+    },
+    {
+        name: 'stopV86Doors',
+        //  Best effort, about 5 s at most: v86 doors write their disk images
+        //  back to disk before the process exits
+        run: cb => require('./v86_door/v86_door.js').shutdown(() => cb(null)),
     },
     {
         name: 'stopEventScheduler',
