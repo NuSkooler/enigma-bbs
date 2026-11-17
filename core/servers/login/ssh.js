@@ -321,6 +321,16 @@ function SSHClient(clientConn, connInfo) {
         }
     };
 
+    //
+    //  Until the shell is open there is no terminal to apply pty or
+    //  window-change info to, so it is kept for then. Merged, not replaced: a
+    //  window-change carries only the size, and must not throw away the
+    //  terminal type an earlier pty request brought (#1017).
+    //
+    this.cacheTermInfo = function (info) {
+        self.cachedTermInfo = Object.assign({}, self.cachedTermInfo, info);
+    };
+
     clientConn.once('ready', function clientReady() {
         self.log.info('SSH authentication success');
 
@@ -338,7 +348,7 @@ function SSHClient(clientConn, connInfo) {
                     //  do we have I/O?
                     self.updateTermInfo(info);
                 } else {
-                    self.cachedTermInfo = info;
+                    self.cacheTermInfo(info);
                 }
             });
 
@@ -377,7 +387,7 @@ function SSHClient(clientConn, connInfo) {
                 if (self.input) {
                     self.updateTermInfo(info);
                 } else {
-                    self.cachedTermInfo = info;
+                    self.cacheTermInfo(info);
                 }
             });
         });
