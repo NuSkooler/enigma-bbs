@@ -112,8 +112,8 @@ remember that, edit the file in place (`sed -i`, `nano` with `set backupcopy yes
 ENiGMA½ shuts down in order on `SIGINT` (Ctrl+C, and what PM2 sends) and on `SIGTERM` (what
 systemd, Docker and `kill` send): it stops accepting new connections, tells every connected caller
 the server is going down and disconnects them, gives running [Amiga doors](../doors/amiga.md) up
-to about 3 seconds to sync their disk images, stops the event scheduler and the message networks,
-and exits with status 0. That normally takes well under 5 seconds. If a step hangs, ENiGMA½ gives
+to about 3 seconds to sync their disk images and [v86 doors](../doors/v86.md) up to 5 seconds to
+write theirs back, stops the event scheduler and the message networks, and exits with status 0. That normally takes well under 5 seconds. If a step hangs, ENiGMA½ gives
 up on it after 15 seconds, logs which step it was, and exits with status 1. A second signal while
 it is shutting down is ignored. A signal in the first moments after launch (about 100 ms, before
 the log's `ENiGMA½ Bulletin Board System Starting Up!` line) still ends the process at once,

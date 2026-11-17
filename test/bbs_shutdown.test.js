@@ -486,7 +486,7 @@ describe('bbs.js shutdown', function () {
     });
 
     describe('the real steps', () => {
-        it('stops listening first, then callers, then Amiga doors, and the rest after', () => {
+        it('stops listening first, then callers, then Amiga and v86 doors, and the rest after', () => {
             const { shutdownSteps } = require('../core/bbs.js');
             assert.deepEqual(
                 shutdownSteps.map(s => s.name),
@@ -494,6 +494,7 @@ describe('bbs.js shutdown', function () {
                     'stopListeningServers',
                     'closeConnections',
                     'stopAmigaDoors',
+                    'stopV86Doors',
                     'stopEventScheduler',
                     'stopFileAreaWeb',
                     'stopMsgNetwork',
