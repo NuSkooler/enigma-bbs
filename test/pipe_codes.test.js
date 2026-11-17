@@ -450,6 +450,92 @@ describe('pipe_codes', () => {
         it('drops ANSI escapes on request', () => {
             assert.equal(P.strip(`|07a${ESC}[1mb`, { ansi: true }), 'ab');
         });
+
+        it('ansi: drops ANSI escapes only; every pipe is text', () => {
+            assert.equal(P.strip('a|07b', ANSI_ONLY), 'a|07b');
+            assert.equal(P.strip('a||b|UN', ANSI_ONLY), 'a||b|UN');
+            assert.equal(P.strip(`a${ESC}[1mb`, ANSI_ONLY), 'ab');
+            assert.equal(P.strip(`|07${ESC}[1;32mx${ESC}[0m`, ANSI_ONLY), '|07x');
+            assert.equal(P.strip(`${ESC}[?25la${ESC}[5Cb`, ANSI_ONLY), 'ab');
+            assert.equal(P.strip(`a${ESC}b`, ANSI_ONLY), `a${ESC}b`); //  not a sequence
+            assert.equal(P.strip('plain', ANSI_ONLY), 'plain');
+            assert.equal(P.strip('', ANSI_ONLY), '');
+        });
+
+        it('ansi: what is left is what render() of the text shows', () => {
+            //  rendered text, stripped ANSI only, is the source text again
+            for (const s of ['a|07b', 'x||y', '|UN', '|CF05', 'plain']) {
+                const rendered = P.render(P.escape(s));
+                assert.equal(P.strip(rendered, ANSI_ONLY), s);
+            }
+        });
+    });
+
+    describe('indexOfColorCode()', () => {
+        it('finds the next complete |## code', () => {
+            assert.equal(P.indexOfColorCode('ab|07cd'), 2);
+            assert.equal(P.indexOfColorCode('ab|07cd', 2), 2);
+            assert.equal(P.indexOfColorCode('ab|07cd', 3), -1);
+            assert.equal(P.indexOfColorCode('||07'), 1);
+            assert.equal(P.indexOfColorCode('|0|07'), 2);
+            assert.equal(P.indexOfColorCode('|1A|UN|CF05'), -1);
+            assert.equal(P.indexOfColorCode('x|0'), -1);
+            assert.equal(P.indexOfColorCode('x|'), -1);
+            assert.equal(P.indexOfColorCode('plain'), -1);
+            assert.equal(P.indexOfColorCode(''), -1);
+        });
+
+        it('agrees with /\\|[0-9]{2}/g and colorCodeAt()', () => {
+            const rnd = prng(1055);
+            const CS = ['|', '|', '0', '7', '9', 'a', 'U', 'N', ' ', '日'];
+            for (let k = 0; k < 5000; ++k) {
+                let s = '';
+                for (let j = rnd(10); j > 0; --j) {
+                    s += CS[rnd(CS.length)];
+                }
+                const re = /\|[0-9]{2}/g;
+                let m;
+                let from = 0;
+                while (null !== (m = re.exec(s))) {
+                    assert.equal(P.indexOfColorCode(s, from), m.index, JSON.stringify(s));
+                    assert.ok(P.colorCodeAt(s, m.index) >= 0);
+                    from = re.lastIndex;
+                }
+                assert.equal(P.indexOfColorCode(s, from), -1, JSON.stringify(s));
+            }
+        });
+    });
+
+    describe('escape()', () => {
+        it('writes every pipe twice', () => {
+            assert.equal(P.escape('a|b'), 'a||b');
+            assert.equal(P.escape('||07'), '||||07');
+            assert.equal(P.escape('plain'), 'plain');
+            assert.equal(P.escape(''), '');
+        });
+
+        it('a UI render of escaped text gives the text back', () => {
+            for (const s of [
+                'a|07b',
+                '|',
+                'x||y|',
+                '|UN|CF05',
+                '|1A',
+                'a|0',
+                '日|07本',
+            ]) {
+                assert.equal(P.render(P.escape(s)), s);
+                assert.equal(P.render(P.escape(s), CLIENT), s);
+                assert.equal(P.width(P.escape(s)), P.width(s, ANSI_ONLY));
+            }
+        });
+
+        it("matches the WFC's escapePipes()", () => {
+            const wfcEscape = v => String(v).replace(/\|/g, '||');
+            for (const s of ['a|b', '||', '|07|UN', 'none']) {
+                assert.equal(P.escape(s), wfcEscape(s));
+            }
+        });
     });
 
     describe('properties (seeded)', () => {

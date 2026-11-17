@@ -246,6 +246,13 @@ module.exports = function ansiPrep(input, options, cb) {
 
                     const part = fullLine.slice(0, splitAt);
                     fullLine = fullLine.slice(splitAt);
+                    //  Measured in the UI dialect on purpose. What counts is
+                    //  what the receiving system draws, and receivers differ:
+                    //  Renegade-family ones draw |07 as colour (0 columns, as
+                    //  here) but have no '||' escape, so a line holding '||'
+                    //  continues a column early per pair there. It is export
+                    //  only and the receivers vary, so it stays as it is
+                    //  (pinned in pipe_codes_output_pins.test.js).
                     renderStart += renderStringLength(part);
                     exportOutput += `${part}\r\n`;
 

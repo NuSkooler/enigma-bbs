@@ -62,6 +62,11 @@ function wordWrapText(text, options) {
     //  ESC sequences and (with pipeCodeSupport) pipe codes are kept whole when
     //  a word is broken.
     //
+    //  Its own ANSI grammar on purpose, not the pipe code tokenizer's: the
+    //  shared ANSI regex accepts a digit as the final byte, so ESC[2S would
+    //  scan as ESC[2 and the text 'S', and a word could break between them.
+    //  Until that regex is fixed, this one keeps such escapes whole.
+    //
     //  :TODO: Need to create ansi.getMatchRegex or something - this is used all over
     const REGEXP_CODE = /(\x1b\[[?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu])/; //  eslint-disable-line no-control-regex
 

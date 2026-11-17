@@ -22,7 +22,7 @@ The ticker starts automatically when the screen loads and runs until the screen 
 
 | Property | Description |
 |----------|-------------|
-| `text` | The text to display. Supports pipe color codes and predefined MCI format codes (e.g. `{BN}`, `{CT}`). |
+| `text` | The text to display. Supports pipe color codes and predefined MCI format codes (e.g. `{BN}`, `{CT}`). A cursor-forward code (`\|CF05`) becomes that many spaces; the other cursor codes are left out. |
 | `width` | Width of the visible ticker window in columns. |
 | `motion` | How the text moves. See **Motion Styles** below. Default: `left`. |
 | `effect` | Visual effect applied to the text each tick. See **Effects** below. Default: `normal`. |

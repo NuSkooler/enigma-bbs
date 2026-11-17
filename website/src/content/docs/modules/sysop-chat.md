@@ -109,7 +109,7 @@ Messages from either party appear in the **sender's panel** on both screens.
 
 ### `prefixFormat` (per-view in `theme.hjson`)
 
-Set `prefixFormat` on `ET2` or `ET4` in the `sysopChat` MCI theme block to display a role-specific label before the input line. Pipe codes are supported and render live as the user types.
+Set `prefixFormat` on `ET2` or `ET4` in the `sysopChat` MCI theme block to display a role-specific label before the input line. Pipe codes are supported in the prefix, and the input line takes the width the rendered prefix draws (a `||` counts as the one pipe it shows). Colour codes typed into the input line (`|00` to `|99`) render live as the user types; see [In Edit Fields](../art/colour-codes.md#in-edit-fields).
 
 ```hjson
 sysopChat: {

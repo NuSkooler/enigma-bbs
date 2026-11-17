@@ -371,21 +371,36 @@ exports.getModule = class MrcModule extends ServerModule {
     }
 };
 
+//
+//  The MRC protocol allows no MCI in names: these remove every '|' and two
+//  code characters, known code or not, which is more than the pipe code
+//  tokenizer would (it keeps an unknown |XY and |1A as text), so they stay
+//  protocol filters rather than PipeCodes.strip().
+//
+//  Repeated until nothing changes: removing one code can join the
+//  characters around it into another ('X|0|077' -> 'X|07').
+//
+function removeUntilStable(str, re) {
+    let prev;
+    do {
+        prev = str;
+        str = str.replace(re, '');
+    } while (str !== prev);
+    return str;
+}
+
 /**
  * User / site name must be ASCII 33-125, no MCI, 30 chars max, underscores
  */
 function sanitiseName(str) {
-    return str
-        .replace(/\s/g, '_')
-        .replace(
-            /[^\x21-\x7D]|(\|[0-9A-Z]{2})/g,
-            '' // Non-printable & MCI
-        )
-        .substr(0, 30);
+    return removeUntilStable(
+        str.replace(/\s/g, '_'),
+        /[^\x21-\x7D]|(\|[0-9A-Z]{2})/g // Non-printable & MCI
+    ).substr(0, 30);
 }
 
 function sanitiseRoomName(message) {
-    return message.replace(/[^\x21-\x7D]|(\|\w\w)/g, '').substr(0, 30);
+    return removeUntilStable(message, /[^\x21-\x7D]|(\|\w\w)/g).substr(0, 30);
 }
 
 function sanitiseMessage(message) {

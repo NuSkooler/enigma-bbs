@@ -405,6 +405,117 @@ describe('MultiLineEditTextView — live pipe codes', () => {
     });
 });
 
+//  What the live preview draws today, pinned so the helpers can move without
+//  a visible change (pipe codes PR B, #1022). ESC is shown as ^[.
+describe('MultiLineEditTextView — live pipe code pins', () => {
+    const ESC = String.fromCharCode(27);
+    const show = s => s.split(ESC).join('^[');
+
+    it('renders collapsed: only complete |## codes become SGR', () => {
+        const v = makeMltev();
+        const got = [
+            'ab|07cd',
+            '||07',
+            '|0|077',
+            '|0707',
+            '|1A|UN|CF05',
+            'x|',
+            '|99|00',
+            'plain',
+        ].map(s => show(v._renderLineForDisplay(s)));
+        assert.deepEqual(got, [
+            'ab^[[22;37mcd',
+            '|^[[22;37m',
+            '|0^[[22;37m7',
+            '^[[22;37m07',
+            '|1A|UN|CF05',
+            'x|',
+            '^[[22m^[[22;30m',
+            'plain',
+        ]);
+    });
+
+    it('renders expanded: the near code shows; a trailing partial gets the base SGR only at the near index', () => {
+        const v = makeMltev();
+        const got = [
+            ['ab|07cd', 2],
+            ['ab|07cd|04e', 7],
+            ['|07|0', 3], //  partial right after the last code
+            ['|0', 0], //  partial at 0
+            ['x|0', 1], //  partial elsewhere: no base SGR
+            ['|07x|', 4],
+        ].map(([s, near]) => {
+            v._pipeCodeNearIndex = near;
+            return show(v._renderLineExpanded(s));
+        });
+        assert.deepEqual(got, [
+            'ab^[[22;37m|07cd',
+            'ab^[[22;37mcd^[[22;31m|04e',
+            '^[[22;37m^[[0;39;49m|0',
+            '^[[0;39;49m|0',
+            'x|0',
+            '^[[22;37mx|',
+        ]);
+    });
+
+    it('strips codes for find; the ANSI step keeps its own regex', () => {
+        const v = makeMltev();
+        assert.deepEqual(
+            ['ab|07cd', '||07', '|0|077', '|1A|UN', 'x|'].map(s => v._stripPipeCodes(s)),
+            ['abcd', '|', '|07', '|1A|UN', 'x|']
+        );
+        assert.deepEqual(
+            [
+                `a|07b${ESC}[2Sc`,
+                `a${ESC}[5Xb`,
+                `a${ESC}[?7hb`,
+                `|04x\ty${ESC}[1;31mz`,
+            ].map(s => show(v._toDisplayText(s))),
+            ['abc', 'ab', 'a^[[?7hb', 'x yz']
+        );
+    });
+
+    it('tells complete codes from partial ones', () => {
+        const v = makeMltev();
+        assert.deepEqual(
+            ['|07', 'ab|', 'ab|0', 'ab|0x', '|AA', ''].map(s => [
+                v._hasPipeCodes(s),
+                v._hasPipeCodesOrPartial(s),
+            ]),
+            [
+                [true, true],
+                [false, true],
+                [false, true],
+                [false, false],
+                [false, false],
+                [false, false],
+            ]
+        );
+    });
+
+    it('builds the row text collapsed and expanded, and maps columns', () => {
+        const v = makeMltev({ width: 12, height: 3 });
+        load(v, 'ab|07cd|1');
+        v.hasFocus = true;
+        const collapsed = show(v.getRenderText(0));
+        v._pipeCodeExpanded = true;
+        v._pipeCodeNearIndex = 2;
+        const expanded = show(v.getRenderText(0));
+        const cols = [0, 2, 3, 4, 5, 6, 9].map(c => v._bufferToDisplayCol(0, c));
+        v._pipeCodeNearIndex = 7;
+        const nearPartial = show(v.getRenderText(0));
+        v._pipeCodeExpanded = false;
+        v._pipeCodeNearIndex = -1;
+        const toBuffer = [0, 1, 2, 3, 4, 5, 9].map(c => v._displayToBufferCol(0, c));
+
+        assert.equal(collapsed, 'ab^[[22;37mcd|1^[[0;39;49m      ');
+        assert.equal(expanded, 'ab^[[22;37m|07cd|1^[[0;39;49m   ');
+        assert.deepEqual(cols, [0, 2, 3, 4, 5, 6, 9]);
+        assert.equal(nearPartial, 'ab^[[22;37mcd|1^[[0;39;49m      ');
+        assert.deepEqual(toBuffer, [0, 1, 2, 6, 7, 8, 9]);
+    });
+});
+
 // ─── Find system ──────────────────────────────────────────────────────────────
 
 describe('MultiLineEditTextView — _buildFindMatches', () => {
