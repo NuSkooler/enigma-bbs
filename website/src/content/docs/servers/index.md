@@ -23,6 +23,32 @@ Features that require a secure connection — 2FA/OTP enrolment, uploading an SS
 public key — are available over SSH and secure WebSocket, and deliberately
 blocked over plain Telnet.
 
+### Limiting Connections
+
+`general.maxConnections` caps how many callers can be on at once, across every
+login server (`0`, the default, means no limit). A caller who connects while
+the board is full is not given a node, and is turned away with
+*All nodes are busy. Try again later...*:
+
+- **Telnet:** the message, then the connection is closed.
+- **SSH:** there is no terminal before login, so the message is shown at the
+  login stage (keyboard-interactive, with no prompt), then the connection is
+  closed. A client that does not offer keyboard-interactive, or has no terminal
+  to show it on (OpenSSH in batch mode), is disconnected without it. A refused
+  connection is closed after 10 seconds whatever it is doing.
+- **WebSocket:** the message, then the WebSocket is closed with code 1013
+  (*Try Again Later*).
+
+Each refusal is logged at `info` level ("All nodes are busy; refusing
+connection"). An SSH caller takes a node as soon as it connects, before it has
+logged in.
+
+```hjson
+general: {
+    maxConnections: 10
+}
+```
+
 :::tip
 On \*nix, ports below 1024 are privileged. Most boards keep ENiGMA½ on the high
 defaults and forward 23/22/443 to them, rather than running as root.
