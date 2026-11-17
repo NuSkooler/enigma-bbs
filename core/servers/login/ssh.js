@@ -85,6 +85,28 @@ function SSHClient(clientConn, connInfo) {
             return clientConn.end();
         };
 
+        //
+        //  A caller refused at connect time (see refuseConnection()) is shown
+        //  why during authentication, the only point before a shell where an
+        //  SSH server can put text in front of the user: keyboard-interactive
+        //  with no prompts, the message as its instruction, then a disconnect.
+        //  Other methods are steered to keyboard-interactive once, then ended.
+        //  Checked before anything else, so a refused new user is not
+        //  accepted either.
+        //
+        if (self.refusalMessage) {
+            if ('keyboard-interactive' === ctx.method) {
+                return ctx.prompt([], '', self.refusalMessage, () => clientConn.end());
+            }
+
+            if (!self.refusalSteered) {
+                self.refusalSteered = true;
+                return safeContextReject(['keyboard-interactive']);
+            }
+
+            return terminateConnection();
+        }
+
         //  slow version to thwart brute force attacks
         const slowTerminateConnection = () => {
             setTimeout(() => {
@@ -406,18 +428,44 @@ function SSHClient(clientConn, connInfo) {
     clientConn.on('close', emitEnd); //  fired on abrupt disconnects where 'end' is not emitted
 
     clientConn.on('error', err => {
-        self.log.warn({ error: err.message, code: err.code }, 'SSH connection error');
+        (self.log || Log).warn(
+            { error: err.message, code: err.code },
+            'SSH connection error'
+        );
         emitEnd();
     });
 
     this.disconnect = function () {
         return clientConn.end();
     };
+
+    //
+    //  Called instead of tracking the client when every node is busy. There
+    //  is no terminal yet (that comes with the shell), so the message waits
+    //  for the authentication request; see the 'authentication' handler. The
+    //  timer ends the connection whatever state it is in, so a refused
+    //  caller cannot hold a socket open.
+    //
+    this.refuseConnection = function (message) {
+        self.refusalMessage = message;
+
+        const refusalTimer = setTimeout(() => {
+            self.log.debug('Refused SSH connection still open; ending it');
+            clientConn.end();
+        }, SSHClient.RefusalTimeoutMs);
+
+        clientConn.once('close', () => clearTimeout(refusalTimer));
+    };
 }
 
 util.inherits(SSHClient, baseClient.Client);
 
 SSHClient.ValidAuthMethods = ['password', 'keyboard-interactive', 'publickey'];
+
+//  How long a refused connection may stay open to be shown why
+SSHClient.RefusalTimeoutMs = 10000;
+
+exports.SSHClient = SSHClient; //  for tests
 
 exports.getModule = class SSHServerModule extends LoginServerModule {
     constructor() {

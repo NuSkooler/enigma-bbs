@@ -201,7 +201,19 @@ class WebSocketClient extends TelnetClient {
     get isSecure() {
         return 'secure' === this.serverType || true === this.forwardedSecure;
     }
+
+    //
+    //  As for telnet, plus a close code that says why: 1013 is "Try Again
+    //  Later" in the WebSocket close code registry.
+    //
+    refuseConnection(message) {
+        this.socket.rawSocket.closeCode = 1013;
+        this.socket.rawSocket.closeReason = 'All nodes are busy';
+        return super.refuseConnection(message);
+    }
 }
+
+exports.WebSocketClient = WebSocketClient; //  for tests
 
 const WSS_SERVER_TYPES = ['insecure', 'secure'];
 
