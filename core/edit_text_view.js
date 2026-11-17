@@ -178,7 +178,8 @@ class EditTextView extends TextView {
         }
 
         const fullLine = resolvedPrefix + renderedText;
-        const visLen = prefixW + strUtil.renderStringLength(renderedText, EDITOR_TEXT);
+        //  renderedText is already rendered: a code shown as typed is text
+        const visLen = prefixW + strUtil.renderStringLength(renderedText, AS_TYPED);
         const fillCount = Math.max(0, this.dimens.width - visLen);
         const fill = fillCount > 0 ? this.getFocusSGR() + ' '.repeat(fillCount) : '';
 
@@ -210,8 +211,11 @@ class EditTextView extends TextView {
         }
     }
 
+    //  The scroll offset is worked out again whenever the expand/collapse
+    //  state changes: a code shown as typed takes three columns.
     _collapsePipeCodes() {
         this._ensureCollapsed();
+        this._scrollOffset = this._computeScrollOffset();
         this._atomicLineWrite();
     }
 
@@ -225,6 +229,7 @@ class EditTextView extends TextView {
             clearTimeout(this._pipeTimer);
             this._pipeTimer = null;
         }
+        this._scrollOffset = this._computeScrollOffset();
         this._atomicLineWrite();
     }
 
@@ -249,7 +254,6 @@ class EditTextView extends TextView {
     //  expanded form; otherwise falls back to a normal redraw.
     _redrawAfterEdit() {
         this._syncFromBuffer();
-        this._scrollOffset = this._computeScrollOffset();
 
         if (this.itemFormat && this._hasPipeCodes(this.lineBuffer.lines[0].chars)) {
             if (
@@ -258,13 +262,15 @@ class EditTextView extends TextView {
                     this.cursorPos.col
                 )
             ) {
-                this._expandNear();
+                this._expandNear(); //  works the scroll offset out
             } else {
                 this._ensureCollapsed();
+                this._scrollOffset = this._computeScrollOffset();
                 this._atomicLineWrite();
             }
         } else {
             this._ensureCollapsed();
+            this._scrollOffset = this._computeScrollOffset();
             this.redraw();
             this._repositionCursor();
         }
@@ -282,11 +288,29 @@ class EditTextView extends TextView {
         return this.itemFormat ? EDITOR_TEXT : AS_TYPED;
     }
 
+    //  The text as the live preview lays it out. In expanded mode the code
+    //  shown as typed takes three columns: its '|' is swapped for a character
+    //  that starts no code, so it measures as text and every index still
+    //  points at the same character.
+    _previewChars(chars) {
+        const near = this._pipeNearIndex;
+        if (
+            this.itemFormat &&
+            this._pipeExpanded &&
+            near >= 0 &&
+            colorCodeAt(chars, near) >= 0
+        ) {
+            return chars.slice(0, near) + '#' + chars.slice(near + 1);
+        }
+        return chars;
+    }
+
     //  Maps a buffer column (string index into the text) to the terminal display
     //  column, skipping collapsed pipe codes (0 display width) and accumulating
     //  display widths for wide Unicode characters (CJK, Hangul, fullwidth forms).
+    //  In expanded mode the code shown as typed counts its three columns.
     _bufferToDisplayCol(bufferCol) {
-        const chars = this.lineBuffer.lines[0]?.chars ?? '';
+        const chars = this._previewChars(this.lineBuffer.lines[0]?.chars ?? '');
         let dispCol = 0;
         let i = 0;
         while (i < bufferCol && i < chars.length) {
@@ -307,7 +331,15 @@ class EditTextView extends TextView {
     //  All boundary comparisons are in display columns; the return value is a
     //  buffer index so buffer operations (insertChar, deleteChar) remain correct.
     _computeScrollOffset() {
-        const chars = this.lineBuffer.lines[0].chars;
+        const raw = this.lineBuffer.lines[0].chars;
+        const chars = this._previewChars(raw);
+        const off = this._scrollOffsetIn(chars);
+        //  The window never starts inside the code shown as typed
+        const near = this._pipeNearIndex;
+        return chars !== raw && off > near && off < near + 3 ? near + 3 : off;
+    }
+
+    _scrollOffsetIn(chars) {
         const textDisplayLen = strUtil.renderStringLength(chars, this._measure());
         if (textDisplayLen <= this.dimens.width) return 0;
 
@@ -327,14 +359,32 @@ class EditTextView extends TextView {
                 this._measure()
             );
         }
-        //  Cursor still visible — clamp offset to valid buffer index
+        //  Cursor still visible — clamp offset to valid buffer index. The
+        //  window starts no earlier than maxOffDisplay, so the end of the text
+        //  (and a cursor there) stays in view; with a wide character on that
+        //  column, after it. Where both branches land on a wide character they
+        //  then agree, so a redraw draws what the last write drew.
         const maxOffDisplay = textDisplayLen - this.dimens.width;
-        const maxOffBuffer = strUtil.renderSplitPos(
-            chars,
-            maxOffDisplay,
-            this._measure()
-        );
-        return Math.min(cur, maxOffBuffer);
+        return Math.min(cur, this._bufferIndexFrom(chars, maxOffDisplay));
+    }
+
+    //  The buffer index where display column |col| starts. When a wide
+    //  character straddles |col| it is the index after that character (not
+    //  before it, as splitPos() gives), so a window starting there keeps every
+    //  column from |col| on in view.
+    _bufferIndexFrom(chars, col) {
+        const i = strUtil.renderSplitPos(chars, col, this._measure());
+        if (i >= chars.length) {
+            return i;
+        }
+        const ch = String.fromCodePoint(chars.codePointAt(i));
+        if (
+            strUtil.charDisplayWidth(ch) < 2 ||
+            strUtil.renderStringLength(chars.slice(0, i), this._measure()) >= col
+        ) {
+            return i;
+        }
+        return i + ch.length;
     }
 
     //  Move the terminal cursor to match cursorPos.col within the scroll window
@@ -354,6 +404,14 @@ class EditTextView extends TextView {
     //  Override drawText to apply our managed scroll offset instead of
     //  TextView's default "always show last N chars" horizScroll behaviour.
     drawText(s) {
+        //  A redraw renders through the itemFormat, which draws every code as
+        //  its colour: a code shown as typed collapses first, so the scroll
+        //  offset, the cells drawn and the cursor agree with what the live
+        //  write draws collapsed. (A just-typed code stays shown until the
+        //  next key; a redraw, such as sysop chat's, ends that early.)
+        if (this._pipeExpanded) {
+            this._ensureCollapsed();
+        }
         if (
             this.hasFocus &&
             this.lineBuffer &&
