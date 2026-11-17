@@ -680,6 +680,65 @@ describe('v86_door', () => {
             m.worker.release();
         });
 
+        it('after a worker is given up on, the next session gets a new buffer', async () => {
+            Timeouts.terminateMs = 20;
+            const a = await startRunning({ name, image: img }, { holdTerminate: true });
+            const oldSab = a.worker.workerData.imageSab;
+            a.worker.guestWrite(9, 0x19);
+            hangUp(a.client);
+            await settled(a);
+            const entry = imageRegistry.get(img);
+            assert.equal(entry.unsafeSab, true);
+            assert.equal(fs.readFileSync(img)[9], 0x19, 'still written');
+
+            //  the file is unchanged, but the old buffer may still be written
+            const b = await startRunning({ name, image: img });
+            const newSab = b.worker.workerData.imageSab;
+            assert.notEqual(newSab, oldSab);
+            assert.equal(new Uint8Array(newSab)[9], 0x19);
+            assert.equal(entry.unsafeSab, false);
+            hangUp(b.client);
+            await settled(b);
+            a.worker.release();
+
+            //  and the one after that reuses it again
+            const c = await startRunning({ name, image: img });
+            assert.equal(c.worker.workerData.imageSab, newSab);
+            hangUp(c.client);
+            await settled(c);
+        });
+
+        it('a dirty image whose worker was given up on keeps its contents in a new buffer', async () => {
+            Timeouts.terminateMs = 20;
+            const a = await startRunning({ name, image: img }, { holdTerminate: true });
+            const oldSab = a.worker.workerData.imageSab;
+            a.worker.guestWrite(13, 0x1d);
+            const realOpen = fs.promises.open;
+            fs.promises.open = async (p, flags) => {
+                if ('r+' === flags) {
+                    throw new Error('disk full');
+                }
+                return realOpen(p, flags);
+            };
+            try {
+                hangUp(a.client);
+                await settled(a);
+            } finally {
+                fs.promises.open = realOpen;
+            }
+            const entry = imageRegistry.get(img);
+            assert.ok(entry.dirty && entry.unsafeSab);
+            const b = await startRunning({ name, image: img });
+            const newSab = b.worker.workerData.imageSab;
+            assert.notEqual(newSab, oldSab);
+            assert.equal(new Uint8Array(newSab)[13], 0x1d, "the guest's write is kept");
+            hangUp(b.client);
+            await settled(b);
+            assert.equal(entry.dirty, false);
+            assert.equal(fs.readFileSync(img)[13], 0x1d);
+            a.worker.release();
+        });
+
         it('a normal stop flushes, goes back to the menu, and leaves no listeners', async () => {
             const client = fakeClient();
             const before = listenerSnapshot({ client });

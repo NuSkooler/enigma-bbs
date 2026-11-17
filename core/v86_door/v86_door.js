@@ -87,6 +87,7 @@ const ImageChunkBytes = 16 * 1024 * 1024;
 //   path, sab: SharedArrayBuffer, refs, ready: Promise<SharedArrayBuffer>,
 //   mtimeMs, size: the file as last read or written,
 //   dirty: the last flush failed, so the SAB holds writes the file does not,
+//   unsafeSab: a worker that was given up on may still be writing to the SAB,
 //   idleTimer, flushQueue: Promise (never rejects), flushPending: Promise | null
 // }
 //
@@ -184,6 +185,19 @@ function setLoaded(entry, { sab, mtimeMs, size }) {
 //  writes the file does not (dirty), which win.
 //
 async function refreshImage(entry, log) {
+    if (entry.unsafeSab) {
+        //  never read into a buffer a stray thread may still write to: the
+        //  next session gets a new one, whatever the file looks like
+        if (entry.dirty) {
+            const sab = new SharedArrayBuffer(entry.sab.byteLength);
+            new Uint8Array(sab).set(new Uint8Array(entry.sab));
+            entry.sab = sab;
+        } else {
+            setLoaded(entry, await readImage(entry.path));
+        }
+        entry.unsafeSab = false;
+        return entry.sab;
+    }
     const { mtimeMs, size } = await fsp.stat(entry.path);
     if (mtimeMs === entry.mtimeMs && size === entry.size) {
         return entry.sab;
@@ -223,6 +237,7 @@ function acquireImage(imagePath, log) {
             mtimeMs: null,
             size: null,
             dirty: false,
+            unsafeSab: false,
             idleTimer: null,
             flushQueue: Promise.resolve(),
             flushPending: null,
@@ -330,7 +345,8 @@ let shuttingDown = false;
 //  terminate() and wait for the thread to go, at most |ms|, or at most
 //  Timeouts.shutdownTerminateMs once the server is shutting down (from then
 //  on, for a wait already under way), so that the flush that follows fits
-//  in the shutdown's budget.
+//  in the shutdown's budget. Resolves true once the thread is gone, false
+//  if it was given up on.
 //
 function terminateWorker(worker, ms) {
     return new Promise(resolve => {
@@ -338,15 +354,16 @@ function terminateWorker(worker, ms) {
         const pending = {
             hurry: () => {
                 clearTimeout(timer);
-                timer = setTimeout(done, Timeouts.shutdownTerminateMs);
+                timer = setTimeout(giveUp, Timeouts.shutdownTerminateMs);
             },
         };
-        const done = () => {
+        const done = gone => {
             clearTimeout(timer);
             pendingTerminates.delete(pending);
-            resolve();
+            resolve(gone);
         };
-        timer = setTimeout(done, shuttingDown ? Timeouts.shutdownTerminateMs : ms);
+        const giveUp = () => done(false);
+        timer = setTimeout(giveUp, shuttingDown ? Timeouts.shutdownTerminateMs : ms);
         pendingTerminates.add(pending);
         let stopping;
         try {
@@ -354,7 +371,7 @@ function terminateWorker(worker, ms) {
         } catch (e) {
             stopping = Promise.resolve();
         }
-        stopping.catch(() => {}).then(done);
+        stopping.catch(() => {}).then(() => done(true));
     });
 }
 
@@ -863,7 +880,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
             run.inputSource.removeListener('data', run.onClientData);
         }
 
-        let stopped = Promise.resolve();
+        let stopped = Promise.resolve(true);
         if (run.worker) {
             const worker = run.worker;
             worker.removeListener('message', run.onWorkerMessage);
@@ -896,9 +913,12 @@ exports.getModule = class V86DoorModule extends MenuModule {
         const log = this.client.log;
         const image = run.image;
         stopped
-            .then(() => {
+            .then(gone => {
                 if (!image) {
                     return;
+                }
+                if (!gone) {
+                    image.unsafeSab = true;
                 }
                 if (!run.worker) {
                     //  no guest ran for this session: nothing to write
