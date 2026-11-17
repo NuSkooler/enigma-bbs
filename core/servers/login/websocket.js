@@ -119,6 +119,19 @@ class WebSocketClient extends TelnetClient {
                 //  dummy
             }
 
+            //
+            //  end() is how a session is ended from this side (logoff, idle
+            //  timeout, a kick; see TelnetClient.disconnect()). Close the
+            //  WebSocket once everything written before it has gone out, so
+            //  the caller sees the last screen and then the close. Without
+            //  this the browser's connection stayed open with nothing behind
+            //  it (#1017).
+            //
+            _final(cb) {
+                this.ws.close(this.closeCode || 1000, this.closeReason);
+                return cb();
+            }
+
             _data(data) {
                 this.push(data);
             }
