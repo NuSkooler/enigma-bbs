@@ -8,6 +8,10 @@ const stringFormat = require('./string_format.js');
 const ansi = require('./ansi_term.js');
 const { renderStringLength } = require('./string_util.js');
 const { TextView } = require('./text_view.js');
+const PipeCodes = require('./pipe_codes.js');
+
+//  The input line previews |## colour codes only (EditTextView's live colour)
+const EDITOR_TEXT = { dialect: 'color' };
 
 //  deps
 const _ = require('lodash');
@@ -434,43 +438,25 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  ── Helpers ──────────────────────────────────────────────────────────
 
-        //  Visible (non-pipe-code) char count of s up to rawIndex.
-        const visLen = (s, rawIndex) => {
-            const sub = rawIndex === undefined ? s : s.slice(0, rawIndex);
-            return sub.replace(/\|[0-9]{2}/g, '').length;
-        };
+        //  Display columns of s up to rawIndex, as the live preview draws it
+        //  (|## codes take none).
+        const visLen = (s, rawIndex) =>
+            PipeCodes.width(
+                rawIndex === undefined ? s : s.slice(0, rawIndex),
+                EDITOR_TEXT
+            );
 
-        //  Slice s to visCount visible chars starting at visible offset visOff,
-        //  preserving pipe codes so they reach TextView.drawText intact.
-        const visSlice = (s, visOff, visCount) => {
-            let i = 0,
-                vis = 0;
-            while (i < s.length && vis < visOff) {
-                if (s[i] === '|' && /[0-9]{2}/.test(s.slice(i + 1, i + 3))) {
-                    i += 3;
-                } else {
-                    i++;
-                    vis++;
-                }
-            }
-            let result = '',
-                seen = 0;
-            while (i < s.length && seen < visCount) {
-                if (s[i] === '|' && /[0-9]{2}/.test(s.slice(i + 1, i + 3))) {
-                    result += s.slice(i, i + 3);
-                    i += 3;
-                } else {
-                    result += s[i];
-                    i++;
-                    seen++;
-                }
-            }
-            return result;
+        //  A column that is not inside a wide character: one inside moves to
+        //  the column after it, so the window never starts mid-character.
+        const charStart = (s, col) => {
+            const end = PipeCodes.splitPos(s, col, EDITOR_TEXT);
+            const w = PipeCodes.width(s.slice(0, end), EDITOR_TEXT);
+            return w < col ? visLen(s, PipeCodes.splitPos(s, col + 1, EDITOR_TEXT)) : col;
         };
 
         const effectiveWidth = () => inputView.dimens.width - prefixW;
 
-        //  ── Patch scroll offset (now in visible-char units) ──────────────────
+        //  ── Patch scroll offset (now in display columns) ─────────────────────
         inputView._computeScrollOffset = () => {
             const raw = inputView.lineBuffer ? inputView.lineBuffer.lines[0].chars : '';
             const visCur = visLen(raw, inputView.cursorPos.col);
@@ -483,16 +469,16 @@ exports.getModule = class SysopChatModule extends MenuModule {
                 return visCur;
             }
             if (visCur >= cur + ew) {
-                return Math.min(visCur - ew + 1, maxOff);
+                return charStart(raw, Math.min(visCur - ew + 1, maxOff));
             }
-            return Math.min(cur, maxOff);
+            return charStart(raw, Math.min(cur, maxOff));
         };
 
         //  ── Patch drawText (use effective width for slice, skip to TextView) ─
         inputView.drawText = s => {
             if (inputView.hasFocus && inputView.lineBuffer) {
                 inputView._scrollOffset = inputView._computeScrollOffset();
-                s = visSlice(s, inputView._scrollOffset, effectiveWidth());
+                s = inputView._visSliceRaw(s, inputView._scrollOffset, effectiveWidth());
             }
             TextView.prototype.drawText.call(inputView, s);
         };

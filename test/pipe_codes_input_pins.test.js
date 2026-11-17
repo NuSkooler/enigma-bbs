@@ -277,11 +277,49 @@ describe('Pipe code input pins', function () {
             ]);
             const idx = [0, 1, 2, 3, 4, 6, 7, 20].map(off => v._visToBufferIdx(s, off));
             assert.deepEqual(idx, [0, 1, 2, 6, 7, 12, 13, 15]);
-            //  today: one unit per UTF-16 code unit, not per column
+            //  columns: an offset inside a wide character does not split it
             assert.deepEqual(
                 [v._visSliceRaw('日本|07語x', 1, 2), v._visToBufferIdx('日本|07語x', 2)],
-                ['本|07語', 2]
+                ['日', 1]
             );
+        });
+
+        it('ASCII: slices as the visible-unit loop it replaced did (seeded)', function () {
+            const { v } = makeEtv({ itemFormat: '{text}' });
+            const isCode = (s, i) =>
+                '|' === s[i] && /^[0-9]{2}$/.test(s.slice(i + 1, i + 3));
+            const oldSlice = (s, off, count) => {
+                let i = 0;
+                for (let vis = 0; i < s.length && vis < off;) {
+                    i += isCode(s, i) ? 3 : (++vis, 1);
+                }
+                const start = i;
+                for (let seen = 0; i < s.length && seen < count;) {
+                    i += isCode(s, i) ? 3 : (++seen, 1);
+                }
+                return [start, s.slice(start, i)];
+            };
+            let seed = 1055;
+            const rnd = n => {
+                seed = (seed + 0x6d2b79f5) >>> 0;
+                let t = seed;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * n);
+            };
+            const CS = ['|', '|', '0', '4', '7', 'a', 'b', ' ', 'x'];
+            for (let k = 0; k < 20000; ++k) {
+                let s = '';
+                for (let j = rnd(16); j > 0; --j) {
+                    s += CS[rnd(CS.length)];
+                }
+                const off = rnd(8);
+                const count = rnd(10);
+                const [start, slice] = oldSlice(s, off, count);
+                const why = JSON.stringify([s, off, count]);
+                assert.equal(v._visToBufferIdx(s, off), start, why);
+                assert.equal(v._visSliceRaw(s, off, count), slice, why);
+            }
         });
 
         it('maps buffer columns to display columns', function () {
@@ -615,8 +653,7 @@ describe('Pipe code input pins', function () {
             assert.deepEqual([v._scrollOffset, v._prefixW], [3, 0]);
         });
 
-        it('wide characters (today: counted in UTF-16 units)', function () {
-            //  changes when sysop chat input is measured in display columns
+        it('wide characters are measured in columns', function () {
             const { v, client } = makeChatInput({ width: 14, prefixFormat: '|11> ' });
             const steps = [
                 '<focus>',
@@ -628,23 +665,23 @@ describe('Pipe code input pins', function () {
             ];
             assertSteps(steps, run(v, client, timers, steps), [
                 '^[[?25h^[[3;5H^[[0;39;49m^[[0;39;49m^[[1;36m> ^[[0;39;49m            ^[[3;7H^[[0;39;49m^[[0;39;49m',
-                '^[[?25l^[[3;5H^[[1;36m> 日^[[0;39;49m          ^[[3;8H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[0;39;49m        ^[[3;9H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本|^[[0;39;49m       ^[[3;10H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本|0^[[0;39;49m      ^[[3;11H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07^[[0;39;49m     ^[[3;9H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語^[[0;39;49m   ^[[3;10H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語x^[[0;39;49m  ^[[3;11H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語xy^[[0;39;49m ^[[3;12H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語xyz^[[3;13H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語xyz日^[[3;14H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語xyz日本^[[3;15H^[[0;39;49m^[[?25h',
-                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m語xyz日本^[[3;15H^[[0;39;49m^[[?25h',
-                '^[[3;5H^[[0;39;49m^[[0;39;49m^[[1;36m 日本^[[22;37m語xyz日本^[[0;39;49m^[[3;7H^[[0;39;49m',
-                '^[[3;5H^[[0;39;49m^[[0;39;49m^[[1;36m 日本^[[22;37m語xyz日本^[[0;39;49m^[[3;15H^[[0;39;49m',
-                '^[[3;5H^[[0;39;49m^[[0;39;49m^[[1;36m 日本^[[22;37m語xyz日本^[[0;39;49m',
+                '^[[?25l^[[3;5H^[[1;36m> 日^[[0;39;49m          ^[[3;9H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本^[[0;39;49m        ^[[3;11H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本|^[[0;39;49m       ^[[3;12H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本|0^[[0;39;49m      ^[[3;13H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07^[[0;39;49m     ^[[3;11H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語^[[0;39;49m   ^[[3;13H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語x^[[0;39;49m  ^[[3;14H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語xy^[[0;39;49m ^[[3;15H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語xyz^[[3;16H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 日本^[[22;37m|07語xyz日^[[3;18H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 本^[[22;37m|07語xyz日本^[[3;18H^[[0;39;49m^[[?25h',
+                '^[[?25l^[[3;5H^[[1;36m> 本^[[22;37m語xyz日本^[[0;39;49m ^[[3;18H^[[0;39;49m^[[?25h',
+                '^[[3;5H^[[0;39;49m^[[0;39;49m^[[1;36m> 日本^[[22;37m語xyz日^[[0;39;49m ^[[3;7H^[[0;39;49m',
+                '^[[3;5H^[[0;39;49m^[[0;39;49m^[[1;36m> 本^[[22;37m語xyz日本^[[0;39;49m ^[[3;18H^[[0;39;49m',
+                '^[[3;5H^[[0;39;49m^[[0;39;49m^[[1;36m> 本^[[22;37m語xyz日本^[[0;39;49m ',
             ]);
-            assert.deepEqual([v._scrollOffset, v._computeScrollOffset()], [0, 0]);
+            assert.deepEqual([v._scrollOffset, v._computeScrollOffset()], [2, 2]);
         });
     });
 

@@ -93,49 +93,20 @@ class EditTextView extends TextView {
         return ColorPreview.renderExpanded(s, nearIdx, this.getFocusSGR());
     }
 
-    //  Walk chars counting visible (non-pipe-code) characters until visOff is reached;
-    //  return the corresponding buffer index.  Used to remap _pipeNearIndex (a buffer
-    //  index into the full raw string) to an index within the visible slice.
-    _visToBufferIdx(chars, visOff) {
-        let i = 0;
-        let vis = 0;
-        while (i < chars.length && vis < visOff) {
-            if (colorCodeAt(chars, i) >= 0) {
-                i += 3;
-            } else {
-                i++;
-                vis++;
-            }
-        }
-        return i;
+    //  The buffer index |cols| display columns into chars (|## codes take
+    //  none; a wide character straddling the column is not included).  Used to
+    //  remap _pipeNearIndex (a buffer index into the full raw string) to an
+    //  index within the visible slice.
+    _visToBufferIdx(chars, cols) {
+        return PipeCodes.splitPos(chars, cols, EDITOR_TEXT);
     }
 
-    //  Visible-char-aware slice: skip visOff visible chars, then collect up to
-    //  visCount visible chars (pipe codes preserved, not counted).
-    _visSliceRaw(chars, visOff, visCount) {
-        let i = 0;
-        let vis = 0;
-        while (i < chars.length && vis < visOff) {
-            if (colorCodeAt(chars, i) >= 0) {
-                i += 3;
-            } else {
-                i++;
-                vis++;
-            }
-        }
-        let result = '';
-        let seen = 0;
-        while (i < chars.length && seen < visCount) {
-            if (colorCodeAt(chars, i) >= 0) {
-                result += chars.slice(i, i + 3);
-                i += 3;
-            } else {
-                result += chars[i];
-                i++;
-                seen++;
-            }
-        }
-        return result;
+    //  The part of chars that is |count| display columns wide, starting |off|
+    //  columns in, with the |## codes inside it kept.
+    _visSliceRaw(chars, off, count) {
+        const a = PipeCodes.splitPos(chars, off, EDITOR_TEXT);
+        const rest = chars.slice(a);
+        return rest.slice(0, PipeCodes.splitPos(rest, count, EDITOR_TEXT));
     }
 
     //  Atomic single-line write: renders the visible portion of the current text
@@ -153,7 +124,7 @@ class EditTextView extends TextView {
         const ew = this.dimens.width - prefixW;
 
         //  Slice the visible portion of the raw text.  When a prefix is present
-        //  the scroll offset is in visible-char units (set by the monkey-patched
+        //  the scroll offset is in display columns (set by the monkey-patched
         //  _computeScrollOffset in sysop_chat); otherwise it's a raw buffer offset.
         let visibleRaw;
         if (prefixW > 0) {
