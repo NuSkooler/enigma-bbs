@@ -1855,6 +1855,10 @@
 
 			// Sysop chat (break-into-chat) — adjust width/height to match SYSOPCHAT.ANS art
 			sysopChat: {
+				config: {
+					chatInfoFormat10: "|11{partnerName}"
+					chatInfoFormat11: "|11{duration}"
+				}
 				0: {
 					mci: {
 						MT1: {
@@ -1875,11 +1879,9 @@
 						}
 						TL10: {
 							width: 35
-							itemFormat: "|11{partnerName}"
 						}
-						TL10: {
+						TL11: {
 							width: 25
-							itemFormat: "|11{duration}"
 						}
 					}
 				}
