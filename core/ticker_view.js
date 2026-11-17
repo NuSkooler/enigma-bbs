@@ -128,19 +128,19 @@ class TickerView extends View {
 
     //  |ansiText| split into its visible characters (plain) and the SGR that
     //  applies to each of them (colors[i] for plain[i]; '' before the first
-    //  SGR). colors is empty when no character comes before the last SGR.
+    //  SGR). colors is empty when there is no SGR at all.
     //  An escape that is not an SGR is kept as characters.
     _parseRendered(ansiText) {
         let plain = '';
         const colors = [];
         let currentColor = '';
-        let colored = false;
+        let colored = false; //  an SGR was seen
 
         PipeCodes.walk(ansiText, ANSI_ONLY, (type, start, end, value) => {
             const raw = ansiText.slice(start, end);
             if (PipeCodes.T.ANSI === type && 'm' === value.cmd && SGR_RE.test(raw)) {
                 currentColor = raw;
-                colored = colored || plain.length > 0;
+                colored = true;
                 return;
             }
             plain += raw;
@@ -451,10 +451,22 @@ class TickerView extends View {
                 const source = plain + gap;
                 const srcLen = source.length;
                 const off = ((this._scrollOffset % srcLen) + srcLen) % srcLen;
-                return {
-                    plain: (source + source).slice(off, off + width).padEnd(width, fill),
-                    offset: off < len ? off : 0,
-                };
+                const visible = (source + source)
+                    .slice(off, off + width)
+                    .padEnd(width, fill);
+                if (0 === this._charColors.length) {
+                    return { plain: visible, offset: off < len ? off : 0 };
+                }
+                //  The window can show the gap and the wrapped copy, so each
+                //  column's colour comes from its own source index: the text's
+                //  index modulo text plus gap, -1 in the gap and the padding.
+                const colorIndices = new Array(width);
+                for (let i = 0; i < width; ++i) {
+                    const p = off + i;
+                    const k = p % srcLen;
+                    colorIndices[i] = p < 2 * srcLen && k < len ? k : -1;
+                }
+                return { plain: visible, offset: 0, colorIndices };
             }
         }
     }
@@ -485,7 +497,8 @@ class TickerView extends View {
 
     //  Emit each visible character with its original pipe-derived color,
     //  collapsing consecutive same-color runs to minimise escape output.
-    //  colorIndices, when provided (fall motions), maps display position → source index.
+    //  colorIndices, when provided (fall motions, left/right scroll), maps
+    //  display position → source index.
     _coloredEffect(plain, visibleOffset, colorIndices = null) {
         const colors = this._charColors;
         let out = '';

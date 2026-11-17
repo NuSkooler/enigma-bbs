@@ -94,6 +94,41 @@ describe('Pipe code output pins', function () {
             );
         });
 
+        //  Left/right scroll: the gap and the wrapped copy take their colours
+        //  from their own source index (the wrapped copy used to fall back to
+        //  the view colour, and in the gap the colours were read from the
+        //  start of the text)
+        it('a scrolled window keeps each colour as the text wraps', function () {
+            const { view, client } = makeTicker('|04Hello');
+            const V = '^[[0;39;49m';
+            const R = '^[[22;31m';
+            const frames = [];
+            for (let n = 1; n <= 15; n++) {
+                client.writes.length = 0;
+                view._advanceMotion(); //  what each tick does
+                view.redraw();
+                if (n >= 4) {
+                    frames.push(
+                        show(client.writes.join('')).replace(`^[[2;3H${V}${V}`, '')
+                    );
+                }
+            }
+            assert.deepEqual(frames, [
+                `${R}o${V}          ${R}H${V}${V}`,
+                `${V}          ${R}He${V}${V}`,
+                `${V}         ${R}Hel${V}${V}`,
+                `${V}        ${R}Hell${V}${V}`,
+                `${V}       ${R}Hello${V}${V}`,
+                `${V}      ${R}Hello${V} ${V}${V}`,
+                `${V}     ${R}Hello${V}  ${V}${V}`,
+                `${V}    ${R}Hello${V}   ${V}${V}`,
+                `${V}   ${R}Hello${V}    ${V}${V}`,
+                `${V}  ${R}Hello${V}     ${V}${V}`,
+                `${V} ${R}Hello${V}      ${V}${V}`,
+                `${R}Hello${V}       ${V}${V}`,
+            ]);
+        });
+
         it('text before the first colour takes the view colour', function () {
             assert.deepEqual(parsed('ab|12cd'), {
                 plain: 'abcd',
@@ -101,13 +136,18 @@ describe('Pipe code output pins', function () {
             });
         });
 
-        //  changes in the F5 commit: the colour map is built whenever a colour
-        //  was seen
+        //  F5: the colour map is built whenever a colour was seen (the text
+        //  used to scroll in the view colour)
         it('a colour that only leads the text', function () {
-            assert.deepEqual(parsed('|04Hello'), { plain: 'Hello', colors: [] });
+            const RED = '^[[22;31m';
+            assert.deepEqual(parsed('|04Hello'), {
+                plain: 'Hello',
+                colors: [RED, RED, RED, RED, RED],
+            });
             assert.equal(
                 frame('|04Hello'),
-                '^[[2;3H^[[0;39;49m^[[0;39;49m^[[0;39;49mHello       ^[[0;39;49m'
+                '^[[2;3H^[[0;39;49m^[[0;39;49m^[[22;31mHello^[[0;39;49m       ' +
+                    '^[[0;39;49m^[[0;39;49m'
             );
         });
 
@@ -128,8 +168,10 @@ describe('Pipe code output pins', function () {
                 ],
             });
             assert.deepEqual(parsed('AB|CF03CD'), { plain: 'AB^[[3CCD', colors: [] });
-            //  leading colour only: no map until the F5 commit
-            assert.deepEqual(parsed('|12AB|CB02CD'), { plain: 'AB^[[2DCD', colors: [] });
+            assert.deepEqual(parsed('|12AB|CB02CD'), {
+                plain: 'AB^[[2DCD',
+                colors: Array(8).fill('^[[1;31m'),
+            });
         });
 
         it('an ESC that is not a colour stays as text', function () {
