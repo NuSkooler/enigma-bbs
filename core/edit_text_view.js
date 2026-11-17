@@ -58,6 +58,9 @@ class EditTextView extends TextView {
         //  redraw path (which would collapse the near code via pipeToAnsi).
         this._resolvedPrefix = '';
         this._prefixW = 0;
+        //  True when _scrollOffset is in display columns, not a buffer index
+        //  (sysop chat's input line sets it).
+        this._scrollInCells = false;
     }
 
     // ── Pipe-code helpers (shared with MLTEV: color_preview.js) ─────────────
@@ -123,21 +126,27 @@ class EditTextView extends TextView {
         const resolvedPrefix = this._resolvedPrefix || '';
         const ew = this.dimens.width - prefixW;
 
-        //  Slice the visible portion of the raw text.  When a prefix is present
-        //  the scroll offset is in display columns (set by the monkey-patched
-        //  _computeScrollOffset in sysop_chat); otherwise it's a raw buffer offset.
+        //  Slice the visible portion of the raw text, ew display columns wide.
+        //  The scroll offset is in display columns when _scrollInCells is set
+        //  (by the monkey-patched _computeScrollOffset in sysop_chat);
+        //  otherwise it's a raw buffer offset, as drawText() takes it.
         let visibleRaw;
-        if (prefixW > 0) {
+        let bufStart;
+        if (this._scrollInCells) {
+            bufStart = this._visToBufferIdx(raw, scrollOff);
             visibleRaw = this._visSliceRaw(raw, scrollOff, ew);
         } else {
-            visibleRaw = raw.slice(scrollOff, scrollOff + ew);
+            bufStart = scrollOff;
+            const tail = this._previewChars(raw).slice(scrollOff);
+            visibleRaw = raw.slice(
+                scrollOff,
+                scrollOff + PipeCodes.splitPos(tail, ew, this._measure())
+            );
         }
 
         let renderedText;
         if (this._pipeExpanded && this._pipeNearIndex >= 0 && this._hasPipeCodes(raw)) {
             //  Remap near index to its position within the visible slice
-            const bufStart =
-                prefixW > 0 ? this._visToBufferIdx(raw, scrollOff) : scrollOff;
             const nearIdxInSlice = this._pipeNearIndex - bufStart;
 
             renderedText =

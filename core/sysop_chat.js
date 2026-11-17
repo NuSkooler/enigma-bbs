@@ -6,7 +6,6 @@ const { MenuModule } = require('./menu_module.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const stringFormat = require('./string_format.js');
 const ansi = require('./ansi_term.js');
-const { renderStringLength } = require('./string_util.js');
 const { TextView } = require('./text_view.js');
 const PipeCodes = require('./pipe_codes.js');
 
@@ -417,17 +416,18 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  ── Resolve prefix ───────────────────────────────────────────────────
         const prefixFmt = inputView.prefixFormat || this.config.prefixFormat || '';
-        const resolvedPrefix = prefixFmt
-            ? pipeToAnsi(
+        //  The width is that of the rendered prefix: a pipe left after
+        //  rendering ('||' drawn as '|') is text and takes its column
+        const { text: resolvedPrefix, width: prefixW } = prefixFmt
+            ? PipeCodes.renderWithWidth(
                   stringFormat(
                       prefixFmt,
                       { userName: this.client.user.username },
                       { client }
                   ),
-                  client
+                  { client }
               )
-            : '';
-        const prefixW = renderStringLength(resolvedPrefix); // visible terminal columns
+            : { text: '', width: 0 };
 
         //  Wire itemFormat so TextView.drawText applies pipeToAnsi on every redraw.
         //  Also store on the view instance so EditTextView._atomicLineWrite can use them
@@ -435,6 +435,8 @@ exports.getModule = class SysopChatModule extends MenuModule {
         inputView.itemFormat = resolvedPrefix + '{text}';
         inputView._resolvedPrefix = resolvedPrefix;
         inputView._prefixW = prefixW;
+        //  the scroll offset below is in display columns, prefix or not
+        inputView._scrollInCells = true;
 
         //  ── Helpers ──────────────────────────────────────────────────────────
 

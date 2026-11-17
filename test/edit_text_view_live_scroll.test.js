@@ -216,7 +216,7 @@ describe('EditTextView live colour: scroll and redraw', function () {
         }
         assert.deepEqual(
             [v.lineBuffer.lines[0].chars, client.shown(3, 5, 8), client.cursor.col],
-            ['中||002|0|22', '||002|0|', 12]
+            ['中||002|0|22', '||002|0 ', 12]
         );
     });
 });
