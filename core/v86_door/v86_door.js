@@ -158,6 +158,9 @@ async function writeImage(imagePath, sab) {
         while (offset < view.byteLength) {
             const length = Math.min(ImageChunkBytes, view.byteLength - offset);
             const { bytesWritten } = await fh.write(view, offset, length, offset);
+            if (0 === bytesWritten) {
+                throw new Error(`short write at ${offset} of ${view.byteLength} bytes`);
+            }
             offset += bytesWritten;
         }
         await fh.sync();
