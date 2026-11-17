@@ -7,7 +7,8 @@ const miscUtil = require('./misc_util.js');
 const strUtil = require('./string_util.js');
 const ansi = require('./ansi_term.js');
 const { VIEW_SPECIAL_KEY_MAP_DEFAULT } = require('./view');
-const { pipeColorToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
+const ColorPreview = require('./color_preview.js');
 
 //  deps
 const _ = require('lodash');
@@ -22,17 +23,7 @@ const EDIT_TEXT_VIEW_KEY_MAP = Object.assign({}, VIEW_SPECIAL_KEY_MAP_DEFAULT, {
 const EDITOR_TEXT = { dialect: 'color' };
 const AS_TYPED = { dialect: 'ansi' };
 
-//  Returns true when chars[i..i+2] is a complete |## pipe color code.
-function isPipeCode(chars, i) {
-    return (
-        chars[i] === '|' &&
-        i + 2 < chars.length &&
-        chars[i + 1] >= '0' &&
-        chars[i + 1] <= '9' &&
-        chars[i + 2] >= '0' &&
-        chars[i + 2] <= '9'
-    );
-}
+const { colorCodeAt } = PipeCodes;
 
 class EditTextView extends TextView {
     constructor(options) {
@@ -69,29 +60,21 @@ class EditTextView extends TextView {
         this._prefixW = 0;
     }
 
-    // ── Pipe-code helpers (ported from MLTEV) ────────────────────────────────
+    // ── Pipe-code helpers (shared with MLTEV: color_preview.js) ─────────────
 
+    //  A complete |## code, or one being typed at the end
     _hasPipeCodes(chars) {
-        return /\|[0-9]{2}/.test(chars) || /\|[0-9]?$/.test(chars);
+        return ColorPreview.hasColorCodeOrPartial(chars);
     }
 
     //  Returns the buffer index where the pipe-code sequence adjacent to the
     //  cursor starts, or -1 if the cursor is not near any code.
     _codeStartNearCursor(chars, col) {
-        if (col >= 3 && isPipeCode(chars, col - 3)) return col - 3;
-        if (
-            col >= 2 &&
-            chars[col - 2] === '|' &&
-            chars[col - 1] >= '0' &&
-            chars[col - 1] <= '9'
-        )
-            return col - 2;
-        if (col >= 1 && chars[col - 1] === '|') return col - 1;
-        return -1;
+        return ColorPreview.codeStartNearCursor(chars, col);
     }
 
     _cursorNearCompleteCode(chars, col) {
-        return col >= 3 && isPipeCode(chars, col - 3);
+        return ColorPreview.cursorNearCompleteCode(chars, col);
     }
 
     _cursorNearPipeCode(chars, col) {
@@ -100,42 +83,14 @@ class EditTextView extends TextView {
 
     //  Convert all complete |## codes in s to ANSI SGR; non-numeric |XX literals pass through.
     _renderLineCollapsed(s) {
-        return s.replace(/\|([0-9]{2})/g, (_, code) =>
-            pipeColorToAnsi(parseInt(code, 10))
-        );
+        return PipeCodes.render(s, EDITOR_TEXT);
     }
 
     //  Expanded-mode render: the code at nearIdx shows as literal |## chars in its
     //  own color; all other complete codes are ANSI SGR only (0 display width).
+    //  A trailing partial at the near position shows in the base view color.
     _renderLineExpanded(s, nearIdx) {
-        const PIPE_RE = /\|([0-9]{2})/g;
-        let m;
-        let rendered = '';
-        let lastIndex = 0;
-
-        while ((m = PIPE_RE.exec(s)) !== null) {
-            rendered += s.slice(lastIndex, m.index);
-            if (m.index === nearIdx) {
-                //  Near code — show literal |## in its own color
-                rendered += pipeColorToAnsi(parseInt(m[1], 10)) + m[0];
-            } else {
-                //  Other codes — ANSI SGR, 0 display width
-                rendered += pipeColorToAnsi(parseInt(m[1], 10));
-            }
-            lastIndex = PIPE_RE.lastIndex;
-        }
-
-        const tail = s.slice(lastIndex);
-        if (tail) {
-            //  Trailing partial at the near position — show in base view color
-            if (tail[0] === '|' && lastIndex === nearIdx) {
-                rendered += this.getFocusSGR() + tail;
-            } else {
-                rendered += tail;
-            }
-        }
-
-        return rendered;
+        return ColorPreview.renderExpanded(s, nearIdx, this.getFocusSGR());
     }
 
     //  Walk chars counting visible (non-pipe-code) characters until visOff is reached;
@@ -145,7 +100,7 @@ class EditTextView extends TextView {
         let i = 0;
         let vis = 0;
         while (i < chars.length && vis < visOff) {
-            if (isPipeCode(chars, i)) {
+            if (colorCodeAt(chars, i) >= 0) {
                 i += 3;
             } else {
                 i++;
@@ -161,7 +116,7 @@ class EditTextView extends TextView {
         let i = 0;
         let vis = 0;
         while (i < chars.length && vis < visOff) {
-            if (isPipeCode(chars, i)) {
+            if (colorCodeAt(chars, i) >= 0) {
                 i += 3;
             } else {
                 i++;
@@ -171,7 +126,7 @@ class EditTextView extends TextView {
         let result = '';
         let seen = 0;
         while (i < chars.length && seen < visCount) {
-            if (isPipeCode(chars, i)) {
+            if (colorCodeAt(chars, i) >= 0) {
                 result += chars.slice(i, i + 3);
                 i += 3;
             } else {
@@ -335,7 +290,7 @@ class EditTextView extends TextView {
         let dispCol = 0;
         let i = 0;
         while (i < bufferCol && i < chars.length) {
-            if (this.itemFormat && isPipeCode(chars, i)) {
+            if (this.itemFormat && colorCodeAt(chars, i) >= 0) {
                 i += 3; //  pipe codes: 0 display width in collapsed mode
             } else {
                 const cp = chars.codePointAt(i);

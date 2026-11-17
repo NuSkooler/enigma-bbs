@@ -5,7 +5,9 @@ const { LineBuffer } = require('./line_buffer.js');
 const strUtil = require('./string_util.js');
 const ansi = require('./ansi_term.js');
 const ansiPrep = require('./ansi_prep.js');
-const { pipeColorToAnsi, pipeToAnsi } = require('./color_codes.js');
+const { pipeToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
+const ColorPreview = require('./color_preview.js');
 const { wordWrapText } = require('./word_wrap.js');
 
 const assert = require('assert');
@@ -129,17 +131,7 @@ const HANDLED_SPECIAL_KEYS = [
 
 const PREVIEW_MODE_KEYS = ['up', 'down', 'page up', 'page down'];
 
-//  Returns true when chars[i..i+2] is a complete |## pipe color code.
-function isPipeCode(chars, i) {
-    return (
-        chars[i] === '|' &&
-        i + 2 < chars.length &&
-        chars[i + 1] >= '0' &&
-        chars[i + 1] <= '9' &&
-        chars[i + 2] >= '0' &&
-        chars[i + 2] <= '9'
-    );
-}
+const { colorCodeAt } = PipeCodes;
 
 class MultiLineEditTextView extends View {
     constructor(options) {
@@ -210,18 +202,18 @@ class MultiLineEditTextView extends View {
 
     //  Returns true if chars contains at least one complete |## pipe color code.
     _hasPipeCodes(chars) {
-        return /\|[0-9]{2}/.test(chars);
+        return -1 !== PipeCodes.indexOfColorCode(chars, 0);
     }
 
     //  Strip |## pipe color codes to yield the plain display text used for find matching.
     _stripPipeCodes(chars) {
-        return chars.replace(/\|[0-9]{2}/g, '');
+        return PipeCodes.strip(chars, EDITOR_TEXT);
     }
 
     //  Returns true if chars contains a complete |## code OR a trailing partial
     //  sequence (bare | or |d).  Used to decide whether to enter expanded mode.
     _hasPipeCodesOrPartial(chars) {
-        return /\|[0-9]{2}/.test(chars) || /\|[0-9]?$/.test(chars);
+        return ColorPreview.hasColorCodeOrPartial(chars);
     }
 
     //  Wraps detected URLs in |rawText| with OSC 8 hyperlink sequences (zero display-width).
@@ -282,16 +274,7 @@ class MultiLineEditTextView extends View {
     //  Renders |## numeric pipe color codes in chars to ANSI SGR sequences for
     //  live display in edit mode.  Non-numeric |XX sequences pass through literally.
     _renderLineForDisplay(chars) {
-        const PIPE_RE = /\|([0-9]{2})/g;
-        let m;
-        let rendered = '';
-        let lastIndex = 0;
-        while ((m = PIPE_RE.exec(chars)) !== null) {
-            rendered += chars.slice(lastIndex, m.index);
-            rendered += pipeColorToAnsi(parseInt(m[1], 10));
-            lastIndex = PIPE_RE.lastIndex;
-        }
-        return rendered + chars.slice(lastIndex);
+        return PipeCodes.render(chars, EDITOR_TEXT);
     }
 
     //  Maps a buffer column (index into line.chars) to the corresponding terminal
@@ -328,7 +311,7 @@ class MultiLineEditTextView extends View {
         let dispCol = 0;
         let i = 0;
         while (i < chars.length && i < bufferCol) {
-            if (isPipeCode(chars, i)) {
+            if (colorCodeAt(chars, i) >= 0) {
                 if (i === nearIndex) {
                     //  Near code in expanded mode: '|', digit, digit — all narrow (width 1 each)
                     const advance = Math.min(3, bufferCol - i);
@@ -350,37 +333,14 @@ class MultiLineEditTextView extends View {
 
     //  Expanded-mode render: only the code at this._pipeCodeNearIndex is shown as
     //  literal chars in its own color.  All other complete codes remain as ANSI SGR
-    //  only (0 display width), so the line width stays bounded.
+    //  only (0 display width), so the line width stays bounded.  A trailing
+    //  partial at the near position shows in the base view color.
     _renderLineExpanded(chars) {
-        const nearIndex = this._pipeCodeNearIndex;
-        const PIPE_RE = /\|([0-9]{2})/g;
-        let m;
-        let rendered = '';
-        let lastIndex = 0;
-
-        while ((m = PIPE_RE.exec(chars)) !== null) {
-            rendered += chars.slice(lastIndex, m.index);
-            if (m.index === nearIndex) {
-                //  Near code — visible |## chars in their own color
-                rendered += pipeColorToAnsi(parseInt(m[1], 10)) + m[0];
-            } else {
-                //  Other codes — emit ANSI SGR but no visible chars
-                rendered += pipeColorToAnsi(parseInt(m[1], 10));
-            }
-            lastIndex = PIPE_RE.lastIndex;
-        }
-
-        const tail = chars.slice(lastIndex);
-        if (tail) {
-            //  Trailing partial at the near position — show in base view color
-            if (tail[0] === '|' && lastIndex === nearIndex) {
-                rendered += this.getTextSgrPrefix() + tail;
-            } else {
-                rendered += tail;
-            }
-        }
-
-        return rendered;
+        return ColorPreview.renderExpanded(
+            chars,
+            this._pipeCodeNearIndex,
+            this.getTextSgrPrefix()
+        );
     }
 
     //  Shared atomic row write.  Rendering + cursor position are driven by the
@@ -446,16 +406,7 @@ class MultiLineEditTextView extends View {
     //  cursor starts, or -1 if the cursor is not near any code.  Checks from
     //  most-complete to least-complete so a full |## match wins over a partial.
     _codeStartNearCursor(chars, col) {
-        if (col >= 3 && isPipeCode(chars, col - 3)) return col - 3;
-        if (
-            col >= 2 &&
-            chars[col - 2] === '|' &&
-            chars[col - 1] >= '0' &&
-            chars[col - 1] <= '9'
-        )
-            return col - 2;
-        if (col >= 1 && chars[col - 1] === '|') return col - 1;
-        return -1;
+        return ColorPreview.codeStartNearCursor(chars, col);
     }
 
     //  Convenience wrapper — true if cursor is adjacent to ANY code (including partials).
@@ -467,7 +418,7 @@ class MultiLineEditTextView extends View {
     //  True only when cursor is immediately after a COMPLETE |## code.
     //  Used in the INSERT path — partials stay invisible while being typed.
     _cursorNearCompleteCode(chars, col) {
-        return col >= 3 && isPipeCode(chars, col - 3);
+        return ColorPreview.cursorNearCompleteCode(chars, col);
     }
 
     //  Cancel any pending debounce timer and leave expanded mode.
@@ -551,7 +502,7 @@ class MultiLineEditTextView extends View {
         let bufCol = 0;
         let dispCol = 0;
         while (bufCol < chars.length && dispCol < displayCol) {
-            if (isPipeCode(chars, bufCol)) {
+            if (colorCodeAt(chars, bufCol) >= 0) {
                 bufCol += 3; //  0 display width — skip without counting
             } else {
                 const cp = chars.codePointAt(bufCol);
@@ -800,7 +751,7 @@ class MultiLineEditTextView extends View {
                 //  Only the near code is visible (adds 3 display chars); all other
                 //  complete codes are 0-width.  strUtil.renderStringLength strips ALL
                 //  complete codes, so add 3 back if the near one is complete.
-                const nearIsComplete = isPipeCode(rawText, this._pipeCodeNearIndex);
+                const nearIsComplete = colorCodeAt(rawText, this._pipeCodeNearIndex) >= 0;
                 const displayLen =
                     strUtil.renderStringLength(rawText, EDITOR_TEXT) +
                     (nearIsComplete ? 3 : 0);
@@ -1302,7 +1253,7 @@ class MultiLineEditTextView extends View {
                 this.isEditMode() &&
                 !this._pipeCodeExpanded &&
                 col >= 3 &&
-                isPipeCode(chars, col - 3)
+                colorCodeAt(chars, col - 3) >= 0
             ) {
                 this.cursorPos.col -= 3;
             } else {
@@ -1331,7 +1282,11 @@ class MultiLineEditTextView extends View {
 
             //  In collapsed edit mode, skip forward over a complete pipe code (it has
             //  zero display width, so no visible cursor movement).
-            if (this.isEditMode() && !this._pipeCodeExpanded && isPipeCode(chars, col)) {
+            if (
+                this.isEditMode() &&
+                !this._pipeCodeExpanded &&
+                colorCodeAt(chars, col) >= 0
+            ) {
                 this.cursorPos.col += 3;
             } else {
                 const prevCharIsTab = this.isTab();
