@@ -1235,6 +1235,12 @@ module.exports = class Message {
                                 l.length - 1
                             )}`
                         );
+                        //  The last SGR of the line, so the next quoted line
+                        //  starts in its colour. A regex rather than the pipe
+                        //  code tokenizer: the two agree on every well-formed
+                        //  SGR (they differ only on malformed ones, such as a
+                        //  parameter longer than four digits), so a walk
+                        //  would add nothing.
                         lastSgr =
                             (l.match(
                                 /(?:\x1b\x5b)[?=;0-9]*m(?!.*(?:\x1b\x5b)[?=;0-9]*m)/

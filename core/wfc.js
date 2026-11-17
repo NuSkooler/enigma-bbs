@@ -21,6 +21,7 @@ const Log = require('./logger');
 const Config = require('./config.js').get;
 const { Errors } = require('./enig_error');
 const { pipeToAnsi } = require('./color_codes');
+const PipeCodes = require('./pipe_codes');
 const MultiLineEditTextView =
     require('./multi_line_edit_text_view').MultiLineEditTextView;
 const WfcInbox = require('./wfc_inbox');
@@ -243,10 +244,7 @@ function formatTaskDuration(ms) {
 //  '||' is a literal '|' to pipeToAnsi(), so text from outside (an error,
 //  a script's output) cannot turn into colour codes
 function escapePipes(value) {
-    return String(null === value || undefined === value ? '' : value).replace(
-        /\|/g,
-        '||'
-    );
+    return PipeCodes.escape(String(null === value || undefined === value ? '' : value));
 }
 
 exports.getModule = class WaitingForCallerModule extends MenuModule {
