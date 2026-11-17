@@ -3,6 +3,7 @@
 //  ENiGMA½
 const { View } = require('./view.js');
 const { pipeToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
 const { pad: padStr, stylizeString, stripAllLineFeeds } = require('./string_util.js');
 const stringFormat = require('./string_format');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
@@ -43,9 +44,10 @@ const TEXT_STYLE_EFFECTS = new Set([
 
 //  ── Helpers ──────────────────────────────────────────────────────────────────
 
-function stripAnsiCodes(s) {
-    return s.replace(/\x1b\[[0-9;]*m/g, '');
-}
+//  Text the ticker draws has already been rendered: only ESC sequences are
+//  codes, and an SGR is ESC [ digits and ';' m.
+const ANSI_ONLY = { dialect: 'ansi' };
+const SGR_RE = /^\x1b\[[0-9;]*m$/; //  eslint-disable-line no-control-regex
 
 function randomNoise() {
     return NOISE_CHARS[Math.floor(Math.random() * NOISE_CHARS.length)];
@@ -105,54 +107,49 @@ class TickerView extends View {
 
         this._rawText = text;
 
-        const ansi = pipeToAnsi(stripAllLineFeeds(text), this.client);
-
-        //  Build a per-character color map so pipe codes survive scrolling.
-        //  Only populated when the text actually contains color sequences;
-        //  empty array means "use view SGR" (no change to existing behavior).
-        this._charColors = this._buildCharColorMap(ansi);
-
-        //  Strip all ANSI / pipe markup to get raw visible characters, then
-        //  apply any stylizeString text-style effect (l33t, upper, mixed, …).
-        //  Dynamic effects (rainbow, scramble, glitch) operate on this plain
-        //  text every tick rather than pre-processing it here.
-        const stripped = stripAnsiCodes(ansi);
+        //  One pass over the rendered text gives the raw visible characters
+        //  and, so pipe codes survive scrolling, the SGR that applies to each.
+        //  An empty colour map means "use the view SGR". Any text-style effect
+        //  (l33t, upper, mixed, …) is then applied to the plain text; dynamic
+        //  effects (rainbow, scramble, glitch) operate on it every tick
+        //  instead.
+        const { plain, colors } = this._parseRendered(this._renderText(text));
+        this._charColors = colors;
         this._plainText = TEXT_STYLE_EFFECTS.has(this.effect)
-            ? stylizeString(stripped, this.effect)
-            : stripped;
+            ? stylizeString(plain, this.effect)
+            : plain;
 
         this._resetMotion();
     }
 
-    //  Parse ANSI escape sequences in |ansiText| and return an array whose
-    //  i-th element is the SGR string that applies to the i-th visible character.
-    //  Returns an empty array when no color codes are present (fast path).
-    _buildCharColorMap(ansiText) {
-        const sgrRe = /\x1b\[([0-9;]*)m/g; //  eslint-disable-line no-control-regex
+    _renderText(text) {
+        return pipeToAnsi(stripAllLineFeeds(text), this.client);
+    }
+
+    //  |ansiText| split into its visible characters (plain) and the SGR that
+    //  applies to each of them (colors[i] for plain[i]; '' before the first
+    //  SGR). colors is empty when no character comes before the last SGR.
+    //  An escape that is not an SGR is kept as characters.
+    _parseRendered(ansiText) {
+        let plain = '';
         const colors = [];
         let currentColor = '';
-        let lastEnd = 0;
-        let match;
+        let colored = false;
 
-        while ((match = sgrRe.exec(ansiText)) !== null) {
-            //  Visible characters between the previous escape and this one.
-            for (let i = lastEnd; i < match.index; i++) {
+        PipeCodes.walk(ansiText, ANSI_ONLY, (type, start, end, value) => {
+            const raw = ansiText.slice(start, end);
+            if (PipeCodes.T.ANSI === type && 'm' === value.cmd && SGR_RE.test(raw)) {
+                currentColor = raw;
+                colored = colored || plain.length > 0;
+                return;
+            }
+            plain += raw;
+            for (let i = start; i < end; ++i) {
                 colors.push(currentColor);
             }
-            currentColor = match[0]; //  full ESC[…m sequence
-            lastEnd = match.index + match[0].length;
-        }
+        });
 
-        if (colors.length === 0) {
-            return []; //  no escapes found — fast path, plain text
-        }
-
-        //  Remaining visible characters after the last escape.
-        for (let i = lastEnd; i < ansiText.length; i++) {
-            colors.push(currentColor);
-        }
-
-        return colors;
+        return { plain, colors: colored ? colors : [] };
     }
 
     //  ── Motion state ─────────────────────────────────────────────────────────
@@ -660,10 +657,10 @@ class TickerView extends View {
                 this.effect = value;
                 //  Re-bake plain text if switching to a stylizeString style
                 if (TEXT_STYLE_EFFECTS.has(value) && this._rawText) {
-                    const stripped = stripAnsiCodes(
-                        pipeToAnsi(stripAllLineFeeds(this._rawText), this.client)
+                    const { plain } = this._parseRendered(
+                        this._renderText(this._rawText)
                     );
-                    this._plainText = stylizeString(stripped, value);
+                    this._plainText = stylizeString(plain, value);
                 }
                 break;
             case 'tickInterval':
