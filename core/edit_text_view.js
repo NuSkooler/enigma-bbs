@@ -300,8 +300,12 @@ class EditTextView extends TextView {
         let dispCol = 0;
         let i = 0;
         while (i < bufferCol && i < chars.length) {
-            if (this.itemFormat && colorCodeAt(chars, i) >= 0) {
+            const c = chars.charCodeAt(i);
+            if (124 === c && this.itemFormat && colorCodeAt(chars, i) >= 0) {
                 i += 3; //  pipe codes: 0 display width in collapsed mode
+            } else if (c >= 0x20 && c < 0x7f) {
+                dispCol += 1; //  printable ASCII: one column, no allocation
+                i += 1;
             } else {
                 const cp = chars.codePointAt(i);
                 const ch = String.fromCodePoint(cp);

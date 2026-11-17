@@ -480,8 +480,9 @@ exports.getModule = class SysopChatModule extends MenuModule {
         inputView._computeScrollOffset = () => {
             const raw = inputView.lineBuffer ? inputView.lineBuffer.lines[0].chars : '';
             const text = inputView._previewChars(raw);
-            const visCur = visLen(text, inputView.cursorPos.col);
             const visTotal = visLen(text);
+            const col = inputView.cursorPos.col;
+            const visCur = col >= text.length ? visTotal : visLen(text, col);
             const ew = effectiveWidth();
             const cur = inputView._scrollOffset || 0;
             const maxOff = Math.max(0, visTotal - ew);
