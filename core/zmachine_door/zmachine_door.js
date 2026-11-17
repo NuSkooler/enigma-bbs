@@ -33,7 +33,9 @@
 
 const { MenuModule } = require('../menu_module.js');
 const { Errors } = require('../enig_error.js');
-const { trackDoorRunBegin, trackDoorRunEnd } = require('../door_util.js');
+//  through the module object, not destructured, so that tests can stand in
+const DoorUtil = require('../door_util.js');
+const Events = require('../events.js');
 const theme = require('../theme.js');
 const ansi = require('../ansi_term.js');
 //  zmachine_db.js is intentionally not required yet — it will be wired up
@@ -69,7 +71,6 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
 
     initSequence() {
         const self = this;
-        let clientTerminated = false;
 
         async.series(
             [
@@ -150,12 +151,15 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
                             );
                         }
                     } else {
-                        self._incrementInstances();
+                        self._beginRun();
                         return callback(null);
                     }
                 },
 
                 function runDoor(callback) {
+                    if (self._run.hungUp) {
+                        return callback(null);
+                    }
                     //  Persistence deferred to Phase 2 — spawn with a null
                     //  autosave, game starts fresh. The signature reported
                     //  back by the worker is still logged for diagnostics.
@@ -163,27 +167,139 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
                     self._spawnWorker(null, callback);
                 },
             ],
-            err => {
-                if (err) {
-                    self.client.log.warn({ error: err.message }, 'zmachine_door error');
-                }
-
-                if (!clientTerminated) {
-                    self.prevMenu();
-                }
-            }
+            err => self._finishRun(err)
         );
+    }
 
-        //  Track disconnect so the outer callback can skip prevMenu()
-        this._onClientEndHandler = () => {
-            clientTerminated = true;
+    //  seam for tests: the thread the VM runs in
+    _newWorker(workerData) {
+        return new Worker(WORKER_PATH, { workerData });
+    }
+
+    //
+    //  The slot is taken: from here every way out goes through _finishRun().
+    //  The hangup watcher is set now, so a caller who is gone before the
+    //  worker would start never gets one.
+    //
+    _beginRun() {
+        this._incrementInstances();
+
+        const run = {
+            finished: false,
+            hungUp: false,
+            worker: null,
+            done: null,
+            spinner: null,
+            inputSource: null,
+            onClientData: null,
+            doorTracking: null,
         };
-        this.client.once('end', this._onClientEndHandler);
+        this._run = run;
+
+        run.onDisconnect = evt => {
+            if (
+                _.get(evt, 'client.session.uniqueId') ===
+                _.get(this.client, 'session.uniqueId')
+            ) {
+                this._stopRun();
+            }
+        };
+        Events.on(Events.getSystemEvents().ClientDisconnected, run.onDisconnect);
+    }
+
+    _stopRun() {
+        const run = this._run;
+        if (!run || run.finished || run.hungUp) {
+            return;
+        }
+        run.hungUp = true;
+        if (run.done) {
+            run.done(null);
+        }
+    }
+
+    //
+    //  The single way out once the slot is taken (the series' final callback),
+    //  whatever ended the run: the worker is stopped and the slot freed.
+    //
+    _finishRun(err) {
+        const run = this._run;
+
+        if (!run) {
+            //  ended before a slot was taken (bad config, too many callers)
+            if (err) {
+                this.client.log.warn({ error: err.message }, 'zmachine_door error');
+            }
+            return this.prevMenu();
+        }
+
+        if (run.finished) {
+            return;
+        }
+        run.finished = true;
+
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            run.onDisconnect
+        );
+        clearInterval(run.spinner);
+        if (run.inputSource) {
+            run.inputSource.removeListener('data', run.onClientData);
+        }
+
+        if (run.worker) {
+            const worker = run.worker;
+            worker.removeListener('message', run.onWorkerMessage);
+            worker.removeListener('error', run.onWorkerError);
+            worker.removeListener('exit', run.onWorkerExit);
+            //  a late 'error' from a worker we no longer listen to must not
+            //  become an unhandled one
+            worker.on('error', () => {});
+            //  Ended at once, on a hangup too: the VM keeps no state yet, so
+            //  there is nothing a 'stop' would save. When Phase 2 autosave
+            //  lands, a hangup here becomes: post 'stop', wait (with a
+            //  timeout) for its 'save' / 'stopped', then terminate().
+            try {
+                Promise.resolve(worker.terminate()).catch(() => {});
+            } catch (e) {
+                //  already gone
+            }
+        }
+
+        if (run.doorTracking) {
+            DoorUtil.trackDoorRunEnd(run.doorTracking);
+            run.doorTracking = null;
+        }
+        this._decrementInstances();
+
+        if (err) {
+            this.client.log.warn({ error: err.message }, 'zmachine_door error');
+        } else if (run.hungUp) {
+            this.client.log.info(
+                { name: this.config.name },
+                'Client disconnected — terminating zmachine worker'
+            );
+        }
+
+        if (!run.hungUp) {
+            this.prevMenu();
+        }
     }
 
     _spawnWorker(preloadedAutosave, callback) {
         const self = this;
-        const doorTracking = trackDoorRunBegin(self.client, self.config.name);
+        const run = self._run;
+
+        let called = false;
+        run.done = err => {
+            if (called) {
+                return;
+            }
+            called = true;
+            return callback(err);
+        };
+
+        run.doorTracking = DoorUtil.trackDoorRunBegin(self.client, self.config.name);
 
         const workerData = {
             gamePath: self.config.game_path,
@@ -194,12 +310,11 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
 
         let worker;
         try {
-            worker = new Worker(WORKER_PATH, { workerData });
+            worker = self._newWorker(workerData);
         } catch (err) {
-            trackDoorRunEnd(doorTracking);
-            self._decrementInstances();
-            return callback(err);
+            return run.done(err);
         }
+        run.worker = worker;
 
         //  Loading spinner — shown until the first game byte arrives.
         //
@@ -216,7 +331,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         self.client.term.write(ansi.resetScreen());
         self.client.term.write(`  Loading ${doorName}... ${SPINNER_FRAMES[0]}`);
 
-        const spinnerInterval = setInterval(() => {
+        run.spinner = setInterval(() => {
             spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
             self.client.term.rawWrite(
                 Buffer.from(`\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`)
@@ -226,7 +341,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         const stopSpinner = () => {
             if (!firstOutput) return;
             firstOutput = false;
-            clearInterval(spinnerInterval);
+            clearInterval(run.spinner);
             //  Erase the spinner line and return cursor to col 0. Leave
             //  the rest of the screen alone — the game will populate it
             //  as it emits output. A full resetScreen() here visibly
@@ -358,7 +473,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
             }
         };
 
-        const onClientData = data => {
+        run.onClientData = data => {
             //  If we're paused waiting for MORE, any keystroke releases.
             //  Consume the keystroke entirely — don't forward it to the game.
             if (_paused) {
@@ -431,55 +546,15 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         };
 
         //  Attach input listener only if term.output exists (it may not if
-        //  the client has already disconnected during menu transition).
-        if (self.client.term.output) {
-            self.client.term.output.on('data', onClientData);
+        //  the client has already disconnected during menu transition). The
+        //  stream is kept: client.end() clears term.output before
+        //  ClientDisconnected reaches us.
+        run.inputSource = self.client.term.output;
+        if (run.inputSource) {
+            run.inputSource.on('data', run.onClientData);
         }
 
-        //  Helper: detach from client.term.output safely, accounting for the
-        //  possibility that term.output is already null at the time we call.
-        const detachInputListener = () => {
-            if (
-                self.client &&
-                self.client.term &&
-                self.client.term.output &&
-                typeof self.client.term.output.removeListener === 'function'
-            ) {
-                self.client.term.output.removeListener('data', onClientData);
-            }
-        };
-
-        //  Client disconnected mid-game
-        const onClientEnd = () => {
-            clearInterval(spinnerInterval);
-            self.client.log.info(
-                { name: self.config.name },
-                'Client disconnected — terminating zmachine worker'
-            );
-            try {
-                worker.postMessage({ type: 'stop' });
-            } catch (e) {
-                //  worker may already be gone
-            }
-            try {
-                worker.terminate();
-            } catch (e) {
-                //  ignore
-            }
-            detachInputListener();
-        };
-        self.client.once('end', onClientEnd);
-
-        //  Cleanup helper shared between success/error/exit paths
-        const cleanup = () => {
-            clearInterval(spinnerInterval);
-            detachInputListener();
-            self.client.removeListener('end', onClientEnd);
-            trackDoorRunEnd(doorTracking);
-            self._decrementInstances();
-        };
-
-        worker.on('message', msg => {
+        run.onWorkerMessage = msg => {
             switch (msg.type) {
                 case 'ready':
                     self.client.log.info(
@@ -531,8 +606,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
                         { name: self.config.name, elapsed: secs },
                         'Z-Machine VM stopped'
                     );
-                    cleanup();
-                    return callback(null);
+                    return run.done(null);
                 }
 
                 case 'error':
@@ -540,31 +614,35 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
                         { name: self.config.name, error: msg.message },
                         'zmachine worker error'
                     );
-                    cleanup();
-                    return callback(new Error(msg.message));
+                    return run.done(new Error(msg.message));
 
                 default:
                     break;
             }
-        });
+        };
 
-        worker.on('error', err => {
+        run.onWorkerError = err => {
             self.client.log.warn(
                 { name: self.config.name, error: err.message },
                 'zmachine worker thread error'
             );
-            cleanup();
-            return callback(err);
-        });
+            return run.done(err);
+        };
 
-        worker.on('exit', code => {
-            if (code !== 0) {
-                self.client.log.warn(
-                    { name: self.config.name, code },
-                    'zmachine worker exited with non-zero code'
-                );
+        //  A worker that goes without saying so first ends the run too. After
+        //  'stopped' or 'error' this does nothing: messages arrive before 'exit'.
+        run.onWorkerExit = code => {
+            if (0 === code) {
+                return run.done(null);
             }
-        });
+            return run.done(
+                new Error(`zmachine worker exited unexpectedly (code ${code})`)
+            );
+        };
+
+        worker.on('message', run.onWorkerMessage);
+        worker.on('error', run.onWorkerError);
+        worker.on('exit', run.onWorkerExit);
     }
 
     _incrementInstances() {
@@ -580,4 +658,9 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
             this._instanceIncremented = false;
         }
     }
+};
+
+//  Exported for unit tests only — not part of the public API
+exports._test = {
+    activeDoorInstances,
 };
