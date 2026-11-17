@@ -4,6 +4,7 @@
 const { TextView } = require('./text_view.js');
 const ansi = require('./ansi_term.js');
 const { pipeToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
 const {
     pad: padStr,
     stylizeString,
@@ -15,6 +16,9 @@ const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 const stringFormat = require('./string_format');
 
 const _ = require('lodash');
+
+//  Panel values are already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
 
 //
 //  StatusBarView (%SB) — a text view with two modes:
@@ -113,7 +117,7 @@ class StatusBarView extends TextView {
         const formatObj = getPredefinedMCIFormatObject(this.client, text);
         let result = text;
         if (formatObj) {
-            result = stringFormat(text, formatObj);
+            result = stringFormat(text, formatObj, { client: this.client });
         }
         return pipeToAnsi(stripAllLineFeeds(result), this.client);
     }
@@ -204,8 +208,9 @@ class StatusBarView extends TextView {
             'right' === this._anchor ? [...this._panels].reverse() : this._panels;
 
         //  Compute the width of the fill panel (if any).
-        const sepRendered = pipeToAnsi(this._separator);
-        const sepLen = renderStringLength(sepRendered);
+        const { text: sepRendered, width: sepLen } = PipeCodes.renderWithWidth(
+            this._separator
+        );
         const totalSepLen = panels.length > 1 ? sepLen * (panels.length - 1) : 0;
         const fixedWidth = panels.reduce(
             (sum, p) => ('fill' !== p.width ? sum + p.width : sum),
@@ -219,24 +224,32 @@ class StatusBarView extends TextView {
             const sgr = panel.styleSGR1 || this.getSGR();
 
             let val = panel.value;
-            const vLen = renderStringLength(val);
+            const vLen = renderStringLength(val, ANSI_ONLY);
             if (vLen > w) {
                 val =
                     'clip-left' === panel.overflow
-                        ? renderSubstr(val, vLen - w, w)
-                        : renderSubstr(val, 0, w);
+                        ? renderSubstr(val, vLen - w, w, ANSI_ONLY)
+                        : renderSubstr(val, 0, w, ANSI_ONLY);
             }
 
             //  pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen)
             //  padSGR = sgr so padding matches value color; fillChar may contain
             //  its own pipe-code SGR which overrides padSGR for each pad char.
-            return padStr(val, w, panel._fillChar, panel.justify, sgr, sgr, true);
+            return padStr(
+                val,
+                w,
+                panel._fillChar,
+                panel.justify,
+                sgr,
+                sgr,
+                vLen > w ? ANSI_ONLY : vLen
+            );
         });
 
         //  Join panels.  Each panel's own styleSGR1 self-declares its color, so
         //  no explicit SGR restore is needed after the separator (option 3).
         const content = parts.join(sepRendered);
-        const contentLen = renderStringLength(content);
+        const contentLen = renderStringLength(content, ANSI_ONLY);
         const padLen = Math.max(0, this.dimens.width - contentLen);
         const baseSGR = this.getSGR();
 

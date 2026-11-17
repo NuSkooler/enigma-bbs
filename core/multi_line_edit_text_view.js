@@ -11,6 +11,9 @@ const { wordWrapText } = require('./word_wrap.js');
 const assert = require('assert');
 const _ = require('lodash');
 
+//  Editor text is drawn with the |##-only live preview: measure it that way
+const EDITOR_TEXT = { dialect: 'color' };
+
 //  :TODO: Determine CTRL-* keys for various things
 //  See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
 //  http://wiki.synchro.net/howto:editor:slyedit#edit_mode
@@ -799,7 +802,8 @@ class MultiLineEditTextView extends View {
                 //  complete codes, so add 3 back if the near one is complete.
                 const nearIsComplete = isPipeCode(rawText, this._pipeCodeNearIndex);
                 const displayLen =
-                    strUtil.renderStringLength(rawText) + (nearIsComplete ? 3 : 0);
+                    strUtil.renderStringLength(rawText, EDITOR_TEXT) +
+                    (nearIsComplete ? 3 : 0);
                 const rendered = this._renderLineExpanded(rawText);
                 const remain = this.dimens.width - displayLen;
                 return remain > 0
@@ -810,7 +814,7 @@ class MultiLineEditTextView extends View {
             if (this._hasPipeCodes(rawText)) {
                 //  Collapsed mode: codes invisible, cursor slides to display pos.
                 //  strUtil.renderStringLength strips pipe codes when measuring.
-                const displayLen = strUtil.renderStringLength(rawText);
+                const displayLen = strUtil.renderStringLength(rawText, EDITOR_TEXT);
                 const rendered = this._renderLineForDisplay(rawText);
                 const remain = this.dimens.width - displayLen;
                 return remain > 0
@@ -820,7 +824,8 @@ class MultiLineEditTextView extends View {
         }
 
         //  Default path — plain text or ANSI-baked preview mode.
-        const remain = this.dimens.width - strUtil.renderStringLength(rawText);
+        const remain =
+            this.dimens.width - strUtil.renderStringLength(rawText, EDITOR_TEXT);
         const text =
             this.hyperlinks && !_.isUndefined(index)
                 ? this._wrapUrlsInLine(rawText, index)
@@ -954,7 +959,10 @@ class MultiLineEditTextView extends View {
         }
         this.cursorPos.col += c.length;
 
-        if (strUtil.renderStringLength(this.getVisibleText(index)) > this.buffer.width) {
+        if (
+            strUtil.renderStringLength(this.getVisibleText(index), EDITOR_TEXT) >
+            this.buffer.width
+        ) {
             //  Track cursor position in paragraph coordinates before rewrap
             const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
             const { start } = this.buffer.rewrapParagraph(index);
@@ -1197,7 +1205,8 @@ class MultiLineEditTextView extends View {
             this.cursorPos.col++;
 
             if (
-                strUtil.renderStringLength(this.getVisibleText(index)) > this.buffer.width
+                strUtil.renderStringLength(this.getVisibleText(index), EDITOR_TEXT) >
+                this.buffer.width
             ) {
                 //  Typed past EOL in OVR mode — the append made the line too long.
                 //  Rewrap and advance the cursor to the next line, exactly as
@@ -1930,7 +1939,11 @@ class MultiLineEditTextView extends View {
             .split(/\r?\n/)
             .map(line =>
                 (
-                    wordWrapText(line, { width, pipeCodeSupport: true }).wrapped || ['']
+                    wordWrapText(line, {
+                        width,
+                        pipeCodeSupport: true,
+                        client: this.client, //  rendered with it below
+                    }).wrapped || ['']
                 ).join('\n')
             )
             .join('\n');

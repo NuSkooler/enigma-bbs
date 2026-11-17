@@ -16,6 +16,12 @@ const EDIT_TEXT_VIEW_KEY_MAP = Object.assign({}, VIEW_SPECIAL_KEY_MAP_DEFAULT, {
     delete: ['delete', 'ctrl + d'], //  https://www.tecmint.com/linux-command-line-bash-shortcut-keys/
 });
 
+//  With an itemFormat the field draws |## codes as colour (the live preview)
+//  and is measured that way; without one TextView draws the text as typed,
+//  so a |07 takes three columns.
+const EDITOR_TEXT = { dialect: 'color' };
+const AS_TYPED = { dialect: 'ansi' };
+
 //  Returns true when chars[i..i+2] is a complete |## pipe color code.
 function isPipeCode(chars, i) {
     return (
@@ -217,7 +223,7 @@ class EditTextView extends TextView {
         }
 
         const fullLine = resolvedPrefix + renderedText;
-        const visLen = prefixW + strUtil.renderStringLength(renderedText);
+        const visLen = prefixW + strUtil.renderStringLength(renderedText, EDITOR_TEXT);
         const fillCount = Math.max(0, this.dimens.width - visLen);
         const fill = fillCount > 0 ? this.getFocusSGR() + ' '.repeat(fillCount) : '';
 
@@ -315,6 +321,12 @@ class EditTextView extends TextView {
         this.text = this.lineBuffer.lines[0].chars;
     }
 
+    //  How the text is measured: as the live preview draws it (itemFormat),
+    //  or as typed.
+    _measure() {
+        return this.itemFormat ? EDITOR_TEXT : AS_TYPED;
+    }
+
     //  Maps a buffer column (string index into the text) to the terminal display
     //  column, skipping collapsed pipe codes (0 display width) and accumulating
     //  display widths for wide Unicode characters (CJK, Hangul, fullwidth forms).
@@ -323,7 +335,7 @@ class EditTextView extends TextView {
         let dispCol = 0;
         let i = 0;
         while (i < bufferCol && i < chars.length) {
-            if (isPipeCode(chars, i)) {
+            if (this.itemFormat && isPipeCode(chars, i)) {
                 i += 3; //  pipe codes: 0 display width in collapsed mode
             } else {
                 const cp = chars.codePointAt(i);
@@ -341,7 +353,7 @@ class EditTextView extends TextView {
     //  buffer index so buffer operations (insertChar, deleteChar) remain correct.
     _computeScrollOffset() {
         const chars = this.lineBuffer.lines[0].chars;
-        const textDisplayLen = strUtil.renderStringLength(chars);
+        const textDisplayLen = strUtil.renderStringLength(chars, this._measure());
         if (textDisplayLen <= this.dimens.width) return 0;
 
         const cur = this._scrollOffset;
@@ -356,12 +368,17 @@ class EditTextView extends TextView {
             //  Cursor moved past right edge — find buffer index at left-edge display col
             return strUtil.renderSplitPos(
                 chars,
-                cursorDisplayCol - this.dimens.width + 1
+                cursorDisplayCol - this.dimens.width + 1,
+                this._measure()
             );
         }
         //  Cursor still visible — clamp offset to valid buffer index
         const maxOffDisplay = textDisplayLen - this.dimens.width;
-        const maxOffBuffer = strUtil.renderSplitPos(chars, maxOffDisplay);
+        const maxOffBuffer = strUtil.renderSplitPos(
+            chars,
+            maxOffDisplay,
+            this._measure()
+        );
         return Math.min(cur, maxOffBuffer);
     }
 
@@ -385,11 +402,14 @@ class EditTextView extends TextView {
         if (
             this.hasFocus &&
             this.lineBuffer &&
-            strUtil.renderStringLength(s) > this.dimens.width
+            strUtil.renderStringLength(s, this._measure()) > this.dimens.width
         ) {
             this._scrollOffset = this._computeScrollOffset();
             const tail = s.slice(this._scrollOffset);
-            s = tail.slice(0, strUtil.renderSplitPos(tail, this.dimens.width));
+            s = tail.slice(
+                0,
+                strUtil.renderSplitPos(tail, this.dimens.width, this._measure())
+            );
         }
         super.drawText(s);
     }

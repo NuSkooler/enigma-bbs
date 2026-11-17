@@ -10,6 +10,7 @@ const StatLog = require('./stat_log.js');
 const FileBaseFilters = require('./file_base_filter.js');
 const { formatByteSize } = require('./string_util.js');
 const ANSI = require('./ansi_term.js');
+const PipeCodes = require('./pipe_codes.js');
 const UserProps = require('./user_property.js');
 const UserTime = require('./user_time.js');
 const SysProps = require('./system_property.js');
@@ -568,6 +569,13 @@ const PREDEFINED_MCI_GENERATORS = {
         return ANSI.down(n);
     },
 };
+
+//  Pipe-coded MCI (|UN, |CF05, ...) resolves through here; pipe_codes.js does
+//  not require this module, so it is told instead.
+PipeCodes.setMciResolver(
+    getPredefinedMCIValue,
+    new Set(Object.keys(PREDEFINED_MCI_GENERATORS))
+);
 
 function getPredefinedMCIValue(client, code, extra) {
     if (!client || !code) {

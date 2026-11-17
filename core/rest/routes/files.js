@@ -28,7 +28,7 @@ const UserProps = require('../../user_property');
 const SysProps = require('../../system_property');
 
 const { readBody, closeAfterResponse, ErrorCodes } = require('../../http_body');
-const { stripAnsiControlCodes } = require('../../string_util');
+const { stripAllControlCodes } = require('../../string_util');
 const fs = require('graceful-fs');
 const paths = require('path');
 const mimeTypes = require('mime-types');
@@ -156,7 +156,7 @@ function _shouldStripAnsi(req) {
 }
 
 function _maybeStrip(s, strip) {
-    return s && strip ? stripAnsiControlCodes(s, { all: true }) : s;
+    return s && strip ? stripAllControlCodes(s) : s;
 }
 
 function _serializeArea(area, strip = true) {
@@ -642,6 +642,7 @@ function _parseMultipartBuffer(buf, boundaryStr) {
 
 exports._parseMultipartBuffer = _parseMultipartBuffer;
 exports._parseMultipartUpload = _parseMultipartUpload;
+exports._maybeStrip = _maybeStrip;
 
 //  multipart/form-data upload: the body is read in memory once (bounded by
 //  MAX_UPLOAD_BYTES), parsed in place, and written to a temp file.

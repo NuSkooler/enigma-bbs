@@ -1,0 +1,3944 @@
+{
+    "_about": [
+        "Frozen render output of renegadeToAnsi() (ui) and controlCodesToAnsi() (body)",
+        "as of 78b63c87, before the pipe code tokenizer. Rows: [source, noClient, client];",
+        "noClient null = same as source; client 0 = same as noClient.",
+        "Client rows resolve MCI codes with test/helpers/pipe_mci_stub.js.",
+        "body rows follow the message body grammar since the b1/b2 change: |1A shows literally,",
+        "and |C[FBUD]## moves the cursor when a client resolves it."
+    ],
+    "ui": [
+        ["|", null, 0],
+        ["x|", null, 0],
+        ["|y", null, 0],
+        ["x|y", null, 0],
+        ["|07|", "\u001b[22;37m|", 0],
+        ["||07", "|07", 0],
+        ["|1", null, 0],
+        ["x|1", null, 0],
+        ["|1y", null, 0],
+        ["x|1y", null, 0],
+        ["|07|1", "\u001b[22;37m|1", 0],
+        ["|1|07", "|1\u001b[22;37m", 0],
+        ["|Z9", null, 0],
+        ["x|Z9", null, 0],
+        ["|Z9y", null, 0],
+        ["x|Z9y", null, 0],
+        ["|07|Z9", "\u001b[22;37m|Z9", 0],
+        ["|Z9|07", "|Z9\u001b[22;37m", 0],
+        ["|C", null, 0],
+        ["x|C", null, 0],
+        ["|Cy", null, 0],
+        ["x|Cy", null, 0],
+        ["|07|C", "\u001b[22;37m|C", 0],
+        ["|C|07", "|C\u001b[22;37m", 0],
+        ["|CF", null, "\u001b[1C"],
+        ["x|CF", null, "x\u001b[1C"],
+        ["|CFy", null, "\u001b[1Cy"],
+        ["x|CFy", null, "x\u001b[1Cy"],
+        ["|07|CF", "\u001b[22;37m|CF", "\u001b[22;37m\u001b[1C"],
+        ["|CF|07", "|CF\u001b[22;37m", "\u001b[1C\u001b[22;37m"],
+        ["|CF1", null, "\u001b[1C"],
+        ["x|CF1", null, "x\u001b[1C"],
+        ["|CF1y", null, "\u001b[1Cy"],
+        ["x|CF1y", null, "x\u001b[1Cy"],
+        ["|07|CF1", "\u001b[22;37m|CF1", "\u001b[22;37m\u001b[1C"],
+        ["|CF1|07", "|CF1\u001b[22;37m", "\u001b[1C\u001b[22;37m"],
+        ["|CF12", null, "\u001b[12C"],
+        ["x|CF12", null, "x\u001b[12C"],
+        ["|CF12y", null, "\u001b[12Cy"],
+        ["x|CF12y", null, "x\u001b[12Cy"],
+        ["|07|CF12", "\u001b[22;37m|CF12", "\u001b[22;37m\u001b[12C"],
+        ["|CF12|07", "|CF12\u001b[22;37m", "\u001b[12C\u001b[22;37m"],
+        ["|CF123", null, "\u001b[12C3"],
+        ["x|CF123", null, "x\u001b[12C3"],
+        ["|CF123y", null, "\u001b[12C3y"],
+        ["x|CF123y", null, "x\u001b[12C3y"],
+        ["|07|CF123", "\u001b[22;37m|CF123", "\u001b[22;37m\u001b[12C3"],
+        ["|CF123|07", "|CF123\u001b[22;37m", "\u001b[12C3\u001b[22;37m"],
+        ["|CF05", null, "\u001b[5C"],
+        ["x|CF05", null, "x\u001b[5C"],
+        ["|CF05y", null, "\u001b[5Cy"],
+        ["x|CF05y", null, "x\u001b[5Cy"],
+        ["|07|CF05", "\u001b[22;37m|CF05", "\u001b[22;37m\u001b[5C"],
+        ["|CF05|07", "|CF05\u001b[22;37m", "\u001b[5C\u001b[22;37m"],
+        ["|CF00", null, "\u001b[0C"],
+        ["x|CF00", null, "x\u001b[0C"],
+        ["|CF00y", null, "\u001b[0Cy"],
+        ["x|CF00y", null, "x\u001b[0Cy"],
+        ["|07|CF00", "\u001b[22;37m|CF00", "\u001b[22;37m\u001b[0C"],
+        ["|CF00|07", "|CF00\u001b[22;37m", "\u001b[0C\u001b[22;37m"],
+        ["|CB3", null, "\u001b[3D"],
+        ["x|CB3", null, "x\u001b[3D"],
+        ["|CB3y", null, "\u001b[3Dy"],
+        ["x|CB3y", null, "x\u001b[3Dy"],
+        ["|07|CB3", "\u001b[22;37m|CB3", "\u001b[22;37m\u001b[3D"],
+        ["|CB3|07", "|CB3\u001b[22;37m", "\u001b[3D\u001b[22;37m"],
+        ["|CU1", null, "\u001b[1A"],
+        ["x|CU1", null, "x\u001b[1A"],
+        ["|CU1y", null, "\u001b[1Ay"],
+        ["x|CU1y", null, "x\u001b[1Ay"],
+        ["|07|CU1", "\u001b[22;37m|CU1", "\u001b[22;37m\u001b[1A"],
+        ["|CU1|07", "|CU1\u001b[22;37m", "\u001b[1A\u001b[22;37m"],
+        ["|CD02", null, "\u001b[2B"],
+        ["x|CD02", null, "x\u001b[2B"],
+        ["|CD02y", null, "\u001b[2By"],
+        ["x|CD02y", null, "x\u001b[2By"],
+        ["|07|CD02", "\u001b[22;37m|CD02", "\u001b[22;37m\u001b[2B"],
+        ["|CD02|07", "|CD02\u001b[22;37m", "\u001b[2B\u001b[22;37m"],
+        ["|CUU1", null, "\u001b[1AU1"],
+        ["x|CUU1", null, "x\u001b[1AU1"],
+        ["|CUU1y", null, "\u001b[1AU1y"],
+        ["x|CUU1y", null, "x\u001b[1AU1y"],
+        ["|07|CUU1", "\u001b[22;37m|CUU1", "\u001b[22;37m\u001b[1AU1"],
+        ["|CUU1|07", "|CUU1\u001b[22;37m", "\u001b[1AU1\u001b[22;37m"],
+        ["|CU1x5", null, "\u001b[1Ax5"],
+        ["x|CU1x5", null, "x\u001b[1Ax5"],
+        ["|CU1x5y", null, "\u001b[1Ax5y"],
+        ["x|CU1x5y", null, "x\u001b[1Ax5y"],
+        ["|07|CU1x5", "\u001b[22;37m|CU1x5", "\u001b[22;37m\u001b[1Ax5"],
+        ["|CU1x5|07", "|CU1x5\u001b[22;37m", "\u001b[1Ax5\u001b[22;37m"],
+        ["|0|01", "|0\u001b[22;34m", 0],
+        ["x|0|01", "x|0\u001b[22;34m", 0],
+        ["|0|01y", "|0\u001b[22;34my", 0],
+        ["x|0|01y", "x|0\u001b[22;34my", 0],
+        ["|07|0|01", "\u001b[22;37m|0\u001b[22;34m", 0],
+        ["|0|01|07", "|0\u001b[22;34m\u001b[22;37m", 0],
+        ["|C|C|FN", null, "|C|CFNFNFN"],
+        ["x|C|C|FN", null, "x|C|CFNFNFN"],
+        ["|C|C|FNy", null, "|C|CFNFNFNy"],
+        ["x|C|C|FNy", null, "x|C|CFNFNFNy"],
+        ["|07|C|C|FN", "\u001b[22;37m|C|C|FN", "\u001b[22;37m|C|CFNFNFN"],
+        ["|C|C|FN|07", "|C|C|FN\u001b[22;37m", "|C|CFNFNFN\u001b[22;37m"],
+        ["||", "|", 0],
+        ["x||", "x|", 0],
+        ["||y", "|y", 0],
+        ["x||y", "x|y", 0],
+        ["|07||", "\u001b[22;37m|", 0],
+        ["|||07", "|\u001b[22;37m", 0],
+        ["|||", "||", 0],
+        ["x|||", "x||", 0],
+        ["|||y", "||y", 0],
+        ["x|||y", "x||y", 0],
+        ["|07|||", "\u001b[22;37m||", 0],
+        ["||||07", "||07", 0],
+        ["x|||07", "x|\u001b[22;37m", 0],
+        ["|||07y", "|\u001b[22;37my", 0],
+        ["x|||07y", "x|\u001b[22;37my", 0],
+        ["|07|||07", "\u001b[22;37m|\u001b[22;37m", 0],
+        ["|||07|07", "|\u001b[22;37m\u001b[22;37m", 0],
+        ["x||07", "x|07", 0],
+        ["||07y", "|07y", 0],
+        ["x||07y", "x|07y", 0],
+        ["|07||07", "\u001b[22;37m|07", 0],
+        ["||07|07", "|07\u001b[22;37m", 0],
+        ["x||||07", "x||07", 0],
+        ["||||07y", "||07y", 0],
+        ["x||||07y", "x||07y", 0],
+        ["|07||||07", "\u001b[22;37m||07", 0],
+        ["||||07|07", "||07\u001b[22;37m", 0],
+        ["|24", "\u001b[5;40m", 0],
+        ["x|24", "x\u001b[5;40m", 0],
+        ["|24y", "\u001b[5;40my", 0],
+        ["x|24y", "x\u001b[5;40my", 0],
+        ["|07|24", "\u001b[22;37m\u001b[5;40m", 0],
+        ["|24|07", "\u001b[5;40m\u001b[22;37m", 0],
+        ["|25", "\u001b[5;44m", 0],
+        ["x|25", "x\u001b[5;44m", 0],
+        ["|25y", "\u001b[5;44my", 0],
+        ["x|25y", "x\u001b[5;44my", 0],
+        ["|07|25", "\u001b[22;37m\u001b[5;44m", 0],
+        ["|25|07", "\u001b[5;44m\u001b[22;37m", 0],
+        ["|26", "\u001b[5;42m", 0],
+        ["x|26", "x\u001b[5;42m", 0],
+        ["|26y", "\u001b[5;42my", 0],
+        ["x|26y", "x\u001b[5;42my", 0],
+        ["|07|26", "\u001b[22;37m\u001b[5;42m", 0],
+        ["|26|07", "\u001b[5;42m\u001b[22;37m", 0],
+        ["|27", "\u001b[5;46m", 0],
+        ["x|27", "x\u001b[5;46m", 0],
+        ["|27y", "\u001b[5;46my", 0],
+        ["x|27y", "x\u001b[5;46my", 0],
+        ["|07|27", "\u001b[22;37m\u001b[5;46m", 0],
+        ["|27|07", "\u001b[5;46m\u001b[22;37m", 0],
+        ["|28", "\u001b[5;41m", 0],
+        ["x|28", "x\u001b[5;41m", 0],
+        ["|28y", "\u001b[5;41my", 0],
+        ["x|28y", "x\u001b[5;41my", 0],
+        ["|07|28", "\u001b[22;37m\u001b[5;41m", 0],
+        ["|28|07", "\u001b[5;41m\u001b[22;37m", 0],
+        ["|29", "\u001b[5;45m", 0],
+        ["x|29", "x\u001b[5;45m", 0],
+        ["|29y", "\u001b[5;45my", 0],
+        ["x|29y", "x\u001b[5;45my", 0],
+        ["|07|29", "\u001b[22;37m\u001b[5;45m", 0],
+        ["|29|07", "\u001b[5;45m\u001b[22;37m", 0],
+        ["|30", "\u001b[5;43m", 0],
+        ["x|30", "x\u001b[5;43m", 0],
+        ["|30y", "\u001b[5;43my", 0],
+        ["x|30y", "x\u001b[5;43my", 0],
+        ["|07|30", "\u001b[22;37m\u001b[5;43m", 0],
+        ["|30|07", "\u001b[5;43m\u001b[22;37m", 0],
+        ["|31", "\u001b[5;47m", 0],
+        ["x|31", "x\u001b[5;47m", 0],
+        ["|31y", "\u001b[5;47my", 0],
+        ["x|31y", "x\u001b[5;47my", 0],
+        ["|07|31", "\u001b[22;37m\u001b[5;47m", 0],
+        ["|31|07", "\u001b[5;47m\u001b[22;37m", 0],
+        ["|00", "\u001b[22;30m", 0],
+        ["x|00", "x\u001b[22;30m", 0],
+        ["|00y", "\u001b[22;30my", 0],
+        ["x|00y", "x\u001b[22;30my", 0],
+        ["|07|00", "\u001b[22;37m\u001b[22;30m", 0],
+        ["|00|07", "\u001b[22;30m\u001b[22;37m", 0],
+        ["|07", "\u001b[22;37m", 0],
+        ["x|07", "x\u001b[22;37m", 0],
+        ["|07y", "\u001b[22;37my", 0],
+        ["x|07y", "x\u001b[22;37my", 0],
+        ["|07|07", "\u001b[22;37m\u001b[22;37m", 0],
+        ["|08", "\u001b[1;30m", 0],
+        ["x|08", "x\u001b[1;30m", 0],
+        ["|08y", "\u001b[1;30my", 0],
+        ["x|08y", "x\u001b[1;30my", 0],
+        ["|07|08", "\u001b[22;37m\u001b[1;30m", 0],
+        ["|08|07", "\u001b[1;30m\u001b[22;37m", 0],
+        ["|15", "\u001b[1;37m", 0],
+        ["x|15", "x\u001b[1;37m", 0],
+        ["|15y", "\u001b[1;37my", 0],
+        ["x|15y", "x\u001b[1;37my", 0],
+        ["|07|15", "\u001b[22;37m\u001b[1;37m", 0],
+        ["|15|07", "\u001b[1;37m\u001b[22;37m", 0],
+        ["|16", "\u001b[40m", 0],
+        ["x|16", "x\u001b[40m", 0],
+        ["|16y", "\u001b[40my", 0],
+        ["x|16y", "x\u001b[40my", 0],
+        ["|07|16", "\u001b[22;37m\u001b[40m", 0],
+        ["|16|07", "\u001b[40m\u001b[22;37m", 0],
+        ["|23", "\u001b[47m", 0],
+        ["x|23", "x\u001b[47m", 0],
+        ["|23y", "\u001b[47my", 0],
+        ["x|23y", "x\u001b[47my", 0],
+        ["|07|23", "\u001b[22;37m\u001b[47m", 0],
+        ["|23|07", "\u001b[47m\u001b[22;37m", 0],
+        ["|32", "\u001b[22m", 0],
+        ["x|32", "x\u001b[22m", 0],
+        ["|32y", "\u001b[22my", 0],
+        ["x|32y", "x\u001b[22my", 0],
+        ["|07|32", "\u001b[22;37m\u001b[22m", 0],
+        ["|32|07", "\u001b[22m\u001b[22;37m", 0],
+        ["|50", "\u001b[22m", 0],
+        ["x|50", "x\u001b[22m", 0],
+        ["|50y", "\u001b[22my", 0],
+        ["x|50y", "x\u001b[22my", 0],
+        ["|07|50", "\u001b[22;37m\u001b[22m", 0],
+        ["|50|07", "\u001b[22m\u001b[22;37m", 0],
+        ["|99", "\u001b[22m", 0],
+        ["x|99", "x\u001b[22m", 0],
+        ["|99y", "\u001b[22my", 0],
+        ["x|99y", "x\u001b[22my", 0],
+        ["|07|99", "\u001b[22;37m\u001b[22m", 0],
+        ["|99|07", "\u001b[22m\u001b[22;37m", 0],
+        ["|1A", null, 0],
+        ["x|1A", null, 0],
+        ["|1Ay", null, 0],
+        ["x|1Ay", null, 0],
+        ["|07|1A", "\u001b[22;37m|1A", 0],
+        ["|1A|07", "|1A\u001b[22;37m", 0],
+        ["|0Z", null, 0],
+        ["x|0Z", null, 0],
+        ["|0Zy", null, 0],
+        ["x|0Zy", null, 0],
+        ["|07|0Z", "\u001b[22;37m|0Z", 0],
+        ["|0Z|07", "|0Z\u001b[22;37m", 0],
+        ["|9Z", null, 0],
+        ["x|9Z", null, 0],
+        ["|9Zy", null, 0],
+        ["x|9Zy", null, 0],
+        ["|07|9Z", "\u001b[22;37m|9Z", 0],
+        ["|9Z|07", "|9Z\u001b[22;37m", 0],
+        ["|A1", null, 0],
+        ["x|A1", null, 0],
+        ["|A1y", null, 0],
+        ["x|A1y", null, 0],
+        ["|07|A1", "\u001b[22;37m|A1", 0],
+        ["|A1|07", "|A1\u001b[22;37m", 0],
+        ["|Z0", null, 0],
+        ["x|Z0", null, 0],
+        ["|Z0y", null, 0],
+        ["x|Z0y", null, 0],
+        ["|07|Z0", "\u001b[22;37m|Z0", 0],
+        ["|Z0|07", "|Z0\u001b[22;37m", 0],
+        ["|un", null, 0],
+        ["x|un", null, 0],
+        ["|uny", null, 0],
+        ["x|uny", null, 0],
+        ["|07|un", "\u001b[22;37m|un", 0],
+        ["|un|07", "|un\u001b[22;37m", 0],
+        ["|Un", null, 0],
+        ["x|Un", null, 0],
+        ["|Uny", null, 0],
+        ["x|Uny", null, 0],
+        ["|07|Un", "\u001b[22;37m|Un", 0],
+        ["|Un|07", "|Un\u001b[22;37m", 0],
+        ["|uN", null, 0],
+        ["x|uN", null, 0],
+        ["|uNy", null, 0],
+        ["x|uNy", null, 0],
+        ["|07|uN", "\u001b[22;37m|uN", 0],
+        ["|uN|07", "|uN\u001b[22;37m", 0],
+        ["|cf05", null, 0],
+        ["x|cf05", null, 0],
+        ["|cf05y", null, 0],
+        ["x|cf05y", null, 0],
+        ["|07|cf05", "\u001b[22;37m|cf05", 0],
+        ["|cf05|07", "|cf05\u001b[22;37m", 0],
+        ["|ZZ", null, 0],
+        ["x|ZZ", null, 0],
+        ["|ZZy", null, 0],
+        ["x|ZZy", null, 0],
+        ["|07|ZZ", "\u001b[22;37m|ZZ", 0],
+        ["|ZZ|07", "|ZZ\u001b[22;37m", 0],
+        ["|UN", null, "UNUNUN"],
+        ["x|UN", null, "xUNUNUN"],
+        ["|UNy", null, "UNUNUNy"],
+        ["x|UNy", null, "xUNUNUNy"],
+        ["|07|UN", "\u001b[22;37m|UN", "\u001b[22;37mUNUNUN"],
+        ["|UN|07", "|UN\u001b[22;37m", "UNUNUN\u001b[22;37m"],
+        ["|XY", null, 0],
+        ["x|XY", null, 0],
+        ["|XYy", null, 0],
+        ["x|XYy", null, 0],
+        ["|07|XY", "\u001b[22;37m|XY", 0],
+        ["|XY|07", "|XY\u001b[22;37m", 0],
+        ["|PV", null, "a|07b"],
+        ["x|PV", null, "xa|07b"],
+        ["|PVy", null, "a|07by"],
+        ["x|PVy", null, "xa|07by"],
+        ["|07|PV", "\u001b[22;37m|PV", "\u001b[22;37ma|07b"],
+        ["|PV|07", "|PV\u001b[22;37m", "a|07b\u001b[22;37m"],
+        ["|EM", null, ""],
+        ["x|EM", null, "x"],
+        ["|EMy", null, "y"],
+        ["x|EMy", null, "xy"],
+        ["|07|EM", "\u001b[22;37m|EM", "\u001b[22;37m"],
+        ["|EM|07", "|EM\u001b[22;37m", "\u001b[22;37m"],
+        ["|QQ", null, 0],
+        ["x|QQ", null, 0],
+        ["|QQy", null, 0],
+        ["x|QQy", null, 0],
+        ["|07|QQ", "\u001b[22;37m|QQ", 0],
+        ["|QQ|07", "|QQ\u001b[22;37m", 0],
+        ["|ES", null, "\u001b[1"],
+        ["x|ES", null, "x\u001b[1"],
+        ["|ESy", null, "\u001b[1y"],
+        ["x|ESy", null, "x\u001b[1y"],
+        ["|07|ES", "\u001b[22;37m|ES", "\u001b[22;37m\u001b[1"],
+        ["|ES|07", "|ES\u001b[22;37m", "\u001b[1\u001b[22;37m"],
+        ["|LO", null, ""],
+        ["x|LO", null, "x"],
+        ["|LOy", null, "y"],
+        ["x|LOy", null, "xy"],
+        ["|07|LO", "\u001b[22;37m|LO", "\u001b[22;37m"],
+        ["|LO|07", "|LO\u001b[22;37m", "\u001b[22;37m"],
+        ["|LO rest", null, " rest"],
+        ["x|LO rest", null, "x rest"],
+        ["|LO resty", null, " resty"],
+        ["x|LO resty", null, "x resty"],
+        ["|07|LO rest", "\u001b[22;37m|LO rest", "\u001b[22;37m rest"],
+        ["|LO rest|07", "|LO rest\u001b[22;37m", " rest\u001b[22;37m"],
+        ["|LO|UR rest", null, "URURUR rest"],
+        ["x|LO|UR rest", null, "xURURUR rest"],
+        ["|LO|UR resty", null, "URURUR resty"],
+        ["x|LO|UR resty", null, "xURURUR resty"],
+        ["|07|LO|UR rest", "\u001b[22;37m|LO|UR rest", "\u001b[22;37mURURUR rest"],
+        ["|LO|UR rest|07", "|LO|UR rest\u001b[22;37m", "URURUR rest\u001b[22;37m"],
+        ["Loc: |LO", null, "Loc: "],
+        ["xLoc: |LO", null, "xLoc: "],
+        ["Loc: |LOy", null, "Loc: y"],
+        ["xLoc: |LOy", null, "xLoc: y"],
+        ["|07Loc: |LO", "\u001b[22;37mLoc: |LO", "\u001b[22;37mLoc: "],
+        ["Loc: |LO|07", "Loc: |LO\u001b[22;37m", "Loc: \u001b[22;37m"],
+        ["|LO rest |UN", null, " rest UNUNUN"],
+        ["x|LO rest |UN", null, "x rest UNUNUN"],
+        ["|LO rest |UNy", null, " rest UNUNUNy"],
+        ["x|LO rest |UNy", null, "x rest UNUNUNy"],
+        ["|07|LO rest |UN", "\u001b[22;37m|LO rest |UN", "\u001b[22;37m rest UNUNUN"],
+        ["|LO rest |UN|07", "|LO rest |UN\u001b[22;37m", " rest UNUNUN\u001b[22;37m"],
+        ["|EM|EM", null, ""],
+        ["x|EM|EM", null, "x"],
+        ["|EM|EMy", null, "y"],
+        ["x|EM|EMy", null, "xy"],
+        ["|07|EM|EM", "\u001b[22;37m|EM|EM", "\u001b[22;37m"],
+        ["|EM|EM|07", "|EM|EM\u001b[22;37m", "\u001b[22;37m"],
+        ["|EM|07x", "|EM\u001b[22;37mx", "\u001b[22;37mx"],
+        ["x|EM|07x", "x|EM\u001b[22;37mx", "x\u001b[22;37mx"],
+        ["|EM|07xy", "|EM\u001b[22;37mxy", "\u001b[22;37mxy"],
+        ["x|EM|07xy", "x|EM\u001b[22;37mxy", "x\u001b[22;37mxy"],
+        ["|07|EM|07x", "\u001b[22;37m|EM\u001b[22;37mx", "\u001b[22;37m\u001b[22;37mx"],
+        ["|EM|07x|07", "|EM\u001b[22;37mx\u001b[22;37m", "\u001b[22;37mx\u001b[22;37m"],
+        ["x|07|EM", "x\u001b[22;37m|EM", "x\u001b[22;37m"],
+        ["|07|EMy", "\u001b[22;37m|EMy", "\u001b[22;37my"],
+        ["x|07|EMy", "x\u001b[22;37m|EMy", "x\u001b[22;37my"],
+        ["|07|07|EM", "\u001b[22;37m\u001b[22;37m|EM", "\u001b[22;37m\u001b[22;37m"],
+        ["|07|EM|07", "\u001b[22;37m|EM\u001b[22;37m", "\u001b[22;37m\u001b[22;37m"],
+        ["@X1F", null, 0],
+        ["x@X1F", null, 0],
+        ["@X1Fy", null, 0],
+        ["x@X1Fy", null, 0],
+        ["|07@X1F", "\u001b[22;37m@X1F", 0],
+        ["@X1F|07", "@X1F\u001b[22;37m", 0],
+        ["@X0E", null, 0],
+        ["x@X0E", null, 0],
+        ["@X0Ey", null, 0],
+        ["x@X0Ey", null, 0],
+        ["|07@X0E", "\u001b[22;37m@X0E", 0],
+        ["@X0E|07", "@X0E\u001b[22;37m", 0],
+        ["@XGZ", null, 0],
+        ["x@XGZ", null, 0],
+        ["@XGZy", null, 0],
+        ["x@XGZy", null, 0],
+        ["|07@XGZ", "\u001b[22;37m@XGZ", 0],
+        ["@XGZ|07", "@XGZ\u001b[22;37m", 0],
+        ["@1F@", null, 0],
+        ["x@1F@", null, 0],
+        ["@1F@y", null, 0],
+        ["x@1F@y", null, 0],
+        ["|07@1F@", "\u001b[22;37m@1F@", 0],
+        ["@1F@|07", "@1F@\u001b[22;37m", 0],
+        ["@0E@", null, 0],
+        ["x@0E@", null, 0],
+        ["@0E@y", null, 0],
+        ["x@0E@y", null, 0],
+        ["|07@0E@", "\u001b[22;37m@0E@", 0],
+        ["@0E@|07", "@0E@\u001b[22;37m", 0],
+        ["@1F", null, 0],
+        ["x@1F", null, 0],
+        ["@1Fy", null, 0],
+        ["x@1Fy", null, 0],
+        ["|07@1F", "\u001b[22;37m@1F", 0],
+        ["@1F|07", "@1F\u001b[22;37m", 0],
+        ["@@", null, 0],
+        ["x@@", null, 0],
+        ["@@y", null, 0],
+        ["x@@y", null, 0],
+        ["|07@@", "\u001b[22;37m@@", 0],
+        ["@@|07", "@@\u001b[22;37m", 0],
+        ["\u00031", null, 0],
+        ["x\u00031", null, 0],
+        ["\u00031y", null, 0],
+        ["x\u00031y", null, 0],
+        ["|07\u00031", "\u001b[22;37m\u00031", 0],
+        ["\u00031|07", "\u00031\u001b[22;37m", 0],
+        ["\u00039", null, 0],
+        ["x\u00039", null, 0],
+        ["\u00039y", null, 0],
+        ["x\u00039y", null, 0],
+        ["|07\u00039", "\u001b[22;37m\u00039", 0],
+        ["\u00039|07", "\u00039\u001b[22;37m", 0],
+        ["\u0003", null, 0],
+        ["x\u0003", null, 0],
+        ["\u0003y", null, 0],
+        ["x\u0003y", null, 0],
+        ["|07\u0003", "\u001b[22;37m\u0003", 0],
+        ["\u0003|07", "\u0003\u001b[22;37m", 0],
+        ["\u0003x", null, 0],
+        ["x\u0003x", null, 0],
+        ["\u0003xy", null, 0],
+        ["x\u0003xy", null, 0],
+        ["|07\u0003x", "\u001b[22;37m\u0003x", 0],
+        ["\u0003x|07", "\u0003x\u001b[22;37m", 0],
+        ["\u0019c1", null, 0],
+        ["x\u0019c1", null, 0],
+        ["\u0019c1y", null, 0],
+        ["x\u0019c1y", null, 0],
+        ["|07\u0019c1", "\u001b[22;37m\u0019c1", 0],
+        ["\u0019c1|07", "\u0019c1\u001b[22;37m", 0],
+        ["\u0019ca", null, 0],
+        ["x\u0019ca", null, 0],
+        ["\u0019cay", null, 0],
+        ["x\u0019cay", null, 0],
+        ["|07\u0019ca", "\u001b[22;37m\u0019ca", 0],
+        ["\u0019ca|07", "\u0019ca\u001b[22;37m", 0],
+        ["\u0019z7", null, 0],
+        ["x\u0019z7", null, 0],
+        ["\u0019z7y", null, 0],
+        ["x\u0019z7y", null, 0],
+        ["|07\u0019z7", "\u001b[22;37m\u0019z7", 0],
+        ["\u0019z7|07", "\u0019z7\u001b[22;37m", 0],
+        ["\u0019z8", null, 0],
+        ["x\u0019z8", null, 0],
+        ["\u0019z8y", null, 0],
+        ["x\u0019z8y", null, 0],
+        ["|07\u0019z8", "\u001b[22;37m\u0019z8", 0],
+        ["\u0019z8|07", "\u0019z8\u001b[22;37m", 0],
+        ["\u0019n1", null, 0],
+        ["x\u0019n1", null, 0],
+        ["\u0019n1y", null, 0],
+        ["x\u0019n1y", null, 0],
+        ["|07\u0019n1", "\u001b[22;37m\u0019n1", 0],
+        ["\u0019n1|07", "\u0019n1\u001b[22;37m", 0],
+        ["\u0019f1", null, 0],
+        ["x\u0019f1", null, 0],
+        ["\u0019f1y", null, 0],
+        ["x\u0019f1y", null, 0],
+        ["|07\u0019f1", "\u001b[22;37m\u0019f1", 0],
+        ["\u0019f1|07", "\u0019f1\u001b[22;37m", 0],
+        ["\u0019q1", null, 0],
+        ["x\u0019q1", null, 0],
+        ["\u0019q1y", null, 0],
+        ["x\u0019q1y", null, 0],
+        ["|07\u0019q1", "\u001b[22;37m\u0019q1", 0],
+        ["\u0019q1|07", "\u0019q1\u001b[22;37m", 0],
+        ["\u0019", null, 0],
+        ["x\u0019", null, 0],
+        ["\u0019y", null, 0],
+        ["x\u0019y", null, 0],
+        ["|07\u0019", "\u001b[22;37m\u0019", 0],
+        ["\u0019|07", "\u0019\u001b[22;37m", 0],
+        ["\u0019cg", null, 0],
+        ["x\u0019cg", null, 0],
+        ["\u0019cgy", null, 0],
+        ["x\u0019cgy", null, 0],
+        ["|07\u0019cg", "\u001b[22;37m\u0019cg", 0],
+        ["\u0019cg|07", "\u0019cg\u001b[22;37m", 0],
+        ["\u0011c1}", null, 0],
+        ["x\u0011c1}", null, 0],
+        ["\u0011c1}y", null, 0],
+        ["x\u0011c1}y", null, 0],
+        ["|07\u0011c1}", "\u001b[22;37m\u0011c1}", 0],
+        ["\u0011c1}|07", "\u0011c1}\u001b[22;37m", 0],
+        ["\u0011c1", null, 0],
+        ["x\u0011c1", null, 0],
+        ["\u0011c1y", null, 0],
+        ["x\u0011c1y", null, 0],
+        ["|07\u0011c1", "\u001b[22;37m\u0011c1", 0],
+        ["\u0011c1|07", "\u0011c1\u001b[22;37m", 0],
+        ["\u0011n1}", null, 0],
+        ["x\u0011n1}", null, 0],
+        ["\u0011n1}y", null, 0],
+        ["x\u0011n1}y", null, 0],
+        ["|07\u0011n1}", "\u001b[22;37m\u0011n1}", 0],
+        ["\u0011n1}|07", "\u0011n1}\u001b[22;37m", 0],
+        ["\u0011f1}", null, 0],
+        ["x\u0011f1}", null, 0],
+        ["\u0011f1}y", null, 0],
+        ["x\u0011f1}y", null, 0],
+        ["|07\u0011f1}", "\u001b[22;37m\u0011f1}", 0],
+        ["\u0011f1}|07", "\u0011f1}\u001b[22;37m", 0],
+        ["\u0011", null, 0],
+        ["x\u0011", null, 0],
+        ["\u0011y", null, 0],
+        ["x\u0011y", null, 0],
+        ["|07\u0011", "\u001b[22;37m\u0011", 0],
+        ["\u0011|07", "\u0011\u001b[22;37m", 0],
+        ["\u0011z0}", null, 0],
+        ["x\u0011z0}", null, 0],
+        ["\u0011z0}y", null, 0],
+        ["x\u0011z0}y", null, 0],
+        ["|07\u0011z0}", "\u001b[22;37m\u0011z0}", 0],
+        ["\u0011z0}|07", "\u0011z0}\u001b[22;37m", 0],
+        ["\u001b[0m|07a", "\u001b[0m\u001b[22;37ma", 0],
+        ["x\u001b[0m|07a", "x\u001b[0m\u001b[22;37ma", 0],
+        ["\u001b[0m|07ay", "\u001b[0m\u001b[22;37may", 0],
+        ["x\u001b[0m|07ay", "x\u001b[0m\u001b[22;37may", 0],
+        ["|07\u001b[0m|07a", "\u001b[22;37m\u001b[0m\u001b[22;37ma", 0],
+        ["\u001b[0m|07a|07", "\u001b[0m\u001b[22;37ma\u001b[22;37m", 0],
+        ["\u001b[1|07m", "\u001b[1\u001b[22;37mm", 0],
+        ["x\u001b[1|07m", "x\u001b[1\u001b[22;37mm", 0],
+        ["\u001b[1|07my", "\u001b[1\u001b[22;37mmy", 0],
+        ["x\u001b[1|07my", "x\u001b[1\u001b[22;37mmy", 0],
+        ["|07\u001b[1|07m", "\u001b[22;37m\u001b[1\u001b[22;37mm", 0],
+        ["\u001b[1|07m|07", "\u001b[1\u001b[22;37mm\u001b[22;37m", 0],
+        ["|0\u001b[0m7", null, 0],
+        ["x|0\u001b[0m7", null, 0],
+        ["|0\u001b[0m7y", null, 0],
+        ["x|0\u001b[0m7y", null, 0],
+        ["|07|0\u001b[0m7", "\u001b[22;37m|0\u001b[0m7", 0],
+        ["|0\u001b[0m7|07", "|0\u001b[0m7\u001b[22;37m", 0],
+        ["a\u001b[5Cb", null, 0],
+        ["xa\u001b[5Cb", null, 0],
+        ["a\u001b[5Cby", null, 0],
+        ["xa\u001b[5Cby", null, 0],
+        ["|07a\u001b[5Cb", "\u001b[22;37ma\u001b[5Cb", 0],
+        ["a\u001b[5Cb|07", "a\u001b[5Cb\u001b[22;37m", 0],
+        ["a\u001b[Cb", null, 0],
+        ["xa\u001b[Cb", null, 0],
+        ["a\u001b[Cby", null, 0],
+        ["xa\u001b[Cby", null, 0],
+        ["|07a\u001b[Cb", "\u001b[22;37ma\u001b[Cb", 0],
+        ["a\u001b[Cb|07", "a\u001b[Cb\u001b[22;37m", 0],
+        ["\u001b[0C", null, 0],
+        ["x\u001b[0C", null, 0],
+        ["\u001b[0Cy", null, 0],
+        ["x\u001b[0Cy", null, 0],
+        ["|07\u001b[0C", "\u001b[22;37m\u001b[0C", 0],
+        ["\u001b[0C|07", "\u001b[0C\u001b[22;37m", 0],
+        ["日本語|07x", "日本語\u001b[22;37mx", 0],
+        ["x日本語|07x", "x日本語\u001b[22;37mx", 0],
+        ["日本語|07xy", "日本語\u001b[22;37mxy", 0],
+        ["x日本語|07xy", "x日本語\u001b[22;37mxy", 0],
+        ["|07日本語|07x", "\u001b[22;37m日本語\u001b[22;37mx", 0],
+        ["日本語|07x|07", "日本語\u001b[22;37mx\u001b[22;37m", 0],
+        ["|08[|15日本語|08]", "\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]", 0],
+        ["x|08[|15日本語|08]", "x\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]", 0],
+        ["|08[|15日本語|08]y", "\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]y", 0],
+        ["x|08[|15日本語|08]y", "x\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]y", 0],
+        [
+            "|07|08[|15日本語|08]",
+            "\u001b[22;37m\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]",
+            0
+        ],
+        [
+            "|08[|15日本語|08]|07",
+            "\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]\u001b[22;37m",
+            0
+        ],
+        ["é|07é", "é\u001b[22;37mé", 0],
+        ["xé|07é", "xé\u001b[22;37mé", 0],
+        ["é|07éy", "é\u001b[22;37méy", 0],
+        ["xé|07éy", "xé\u001b[22;37méy", 0],
+        ["|07é|07é", "\u001b[22;37mé\u001b[22;37mé", 0],
+        ["é|07é|07", "é\u001b[22;37mé\u001b[22;37m", 0],
+        ["😀|15x", "😀\u001b[1;37mx", 0],
+        ["x😀|15x", "x😀\u001b[1;37mx", 0],
+        ["😀|15xy", "😀\u001b[1;37mxy", 0],
+        ["x😀|15xy", "x😀\u001b[1;37mxy", 0],
+        ["|07😀|15x", "\u001b[22;37m😀\u001b[1;37mx", 0],
+        ["😀|15x|07", "😀\u001b[1;37mx\u001b[22;37m", 0],
+        ["if (a || b) {", "if (a | b) {", 0],
+        ["xif (a || b) {", "xif (a | b) {", 0],
+        ["if (a || b) {y", "if (a | b) {y", 0],
+        ["xif (a || b) {y", "xif (a | b) {y", 0],
+        ["|07if (a || b) {", "\u001b[22;37mif (a | b) {", 0],
+        ["if (a || b) {|07", "if (a | b) {\u001b[22;37m", 0],
+        ["a || b", "a | b", 0],
+        ["xa || b", "xa | b", 0],
+        ["a || by", "a | by", 0],
+        ["xa || by", "xa | by", 0],
+        ["|07a || b", "\u001b[22;37ma | b", 0],
+        ["a || b|07", "a | b\u001b[22;37m", 0],
+        ["|15a||b||c|07", "\u001b[1;37ma|b|c\u001b[22;37m", 0],
+        ["x|15a||b||c|07", "x\u001b[1;37ma|b|c\u001b[22;37m", 0],
+        ["|15a||b||c|07y", "\u001b[1;37ma|b|c\u001b[22;37my", 0],
+        ["x|15a||b||c|07y", "x\u001b[1;37ma|b|c\u001b[22;37my", 0],
+        ["|07|15a||b||c|07", "\u001b[22;37m\u001b[1;37ma|b|c\u001b[22;37m", 0],
+        ["|15a||b||c|07|07", "\u001b[1;37ma|b|c\u001b[22;37m\u001b[22;37m", 0],
+        ["trailing|", null, 0],
+        ["xtrailing|", null, 0],
+        ["trailing|y", null, 0],
+        ["xtrailing|y", null, 0],
+        ["|07trailing|", "\u001b[22;37mtrailing|", 0],
+        ["trailing||07", "trailing|07", 0],
+        ["xx|", null, 0],
+        ["xx|y", null, 0],
+        ["|07x|", "\u001b[22;37mx|", 0],
+        ["|03{text}", "\u001b[22;36m{text}", 0],
+        ["|11{text!styleFirstLower}", "\u001b[1;36m{text!styleFirstLower}", 0],
+        [
+            "|00|11{userName:<12}|08: |03{oneliner:<59.59}",
+            "\u001b[22;30m\u001b[1;36m{userName:<12}\u001b[1;30m: \u001b[22;36m{oneliner:<59.59}",
+            0
+        ],
+        [
+            "|00|07\"|11{title}|07\"",
+            "\u001b[22;30m\u001b[22;37m\"\u001b[1;36m{title}\u001b[22;37m\"",
+            0
+        ],
+        ["|00|03{text}", "\u001b[22;30m\u001b[22;36m{text}", 0],
+        [
+            "|00|15{ts} |07- |03{title:<47.46} |15{points:,}|07 pts",
+            "\u001b[22;30m\u001b[1;37m{ts} \u001b[22;37m- \u001b[22;36m{title:<47.46} \u001b[1;37m{points:,}\u001b[22;37m pts",
+            0
+        ],
+        [
+            "|00|19|15{ts} - {title:<47.46} {points:,} pts",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{ts} - {title:<47.46} {points:,} pts",
+            0
+        ],
+        [
+            "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}",
+            "\u001b[22;30m\u001b[1;36m{userName:<17.16} \u001b[22;36m{location:<20.19} \u001b[1;36m{affils:<18.17} \u001b[22;36m{ts:<15}",
+            0
+        ],
+        [
+            "|00|11{userName:<17.17}|03{affils:<21.21}|11{location:<19.19}|03{lastLoginTs}",
+            "\u001b[22;30m\u001b[1;36m{userName:<17.17}\u001b[22;36m{affils:<21.21}\u001b[1;36m{location:<19.19}\u001b[22;36m{lastLoginTs}",
+            0
+        ],
+        [
+            "|00|19|15{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}",
+            0
+        ],
+        [
+            "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}",
+            "\u001b[22;30m\u001b[22;36m{node:<6.6}\u001b[1;36m{userName:<17.17}\u001b[22;36m{affils:<19.19}\u001b[1;36m{action:<20.20}\u001b[22;36m{timeOn:<8}",
+            0
+        ],
+        [
+            "|00  |15{node:<3.2} {pageIndicator}|11{userName:<12} |07{action:<14.13} |15{serverName}",
+            "\u001b[22;30m  \u001b[1;37m{node:<3.2} {pageIndicator}\u001b[1;36m{userName:<12} \u001b[22;37m{action:<14.13} \u001b[1;37m{serverName}",
+            0
+        ],
+        [
+            "|00|10> |15{node:<3.2} {pageIndicator}|11{userName:<12} |07{action:<14.13} |15{serverName}",
+            "\u001b[22;30m\u001b[1;32m> \u001b[1;37m{node:<3.2} {pageIndicator}\u001b[1;36m{userName:<12} \u001b[22;37m{action:<14.13} \u001b[1;37m{serverName}",
+            0
+        ],
+        [
+            "|00|07{nodeId} {levelIndicator} |02{timestamp} {message:<51.50}",
+            "\u001b[22;30m\u001b[22;37m{nodeId} {levelIndicator} \u001b[22;32m{timestamp} {message:<51.50}",
+            0
+        ],
+        [
+            "|00|07  {nodeId} {levelIndicator} |02{timestamp} {message}",
+            "\u001b[22;30m\u001b[22;37m  {nodeId} {levelIndicator} \u001b[22;32m{timestamp} {message}",
+            0
+        ],
+        [
+            "|00|10> |07{nodeId} {levelIndicator} |15{timestamp} |15{message}",
+            "\u001b[22;30m\u001b[1;32m> \u001b[22;37m{nodeId} {levelIndicator} \u001b[1;37m{timestamp} \u001b[1;37m{message}",
+            0
+        ],
+        [
+            "|00|14{unreadIndicator:<1} |02{userName:<12.12} |08{nodeId:>2} |02{timestamp} |07{text}",
+            "\u001b[22;30m\u001b[1;33m{unreadIndicator:<1} \u001b[22;32m{userName:<12.12} \u001b[1;30m{nodeId:>2} \u001b[22;32m{timestamp} \u001b[22;37m{text}",
+            0
+        ],
+        [
+            "|00|14{unreadIndicator:<1}|10>|15{userName:<12.12} |08{nodeId:>2} |15{timestamp} |15{text}",
+            "\u001b[22;30m\u001b[1;33m{unreadIndicator:<1}\u001b[1;32m>\u001b[1;37m{userName:<12.12} \u001b[1;30m{nodeId:>2} \u001b[1;37m{timestamp} \u001b[1;37m{text}",
+            0
+        ],
+        [
+            "|01|03MM|08/|03DD hh:mm:ssa",
+            "\u001b[22;34m\u001b[22;36mMM\u001b[1;30m/\u001b[22;36mDD hh:mm:ssa",
+            0
+        ],
+        [
+            "|00|10ddd MMM Do|08, |10h|08:|10mm|02a",
+            "\u001b[22;30m\u001b[1;32mddd MMM Do\u001b[1;30m, \u001b[1;32mh\u001b[1;30m:\u001b[1;32mmm\u001b[22;32ma",
+            0
+        ],
+        [
+            "|00|10ddd hh|08:|10mm|02a",
+            "\u001b[22;30m\u001b[1;32mddd hh\u001b[1;30m:\u001b[1;32mmm\u001b[22;32ma",
+            0
+        ],
+        ["|00|10{currentUserName}", "\u001b[22;30m\u001b[1;32m{currentUserName}", 0],
+        [
+            "|00|02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo}",
+            "\u001b[22;30m\u001b[22;32mPrv\u001b[1;30m:\u001b[1;32m{newPrivateMail} \u001b[22;32mAddr\u001b[1;30m:\u001b[1;32m{newMessagesAddrTo}",
+            0
+        ],
+        [
+            "|00|02Avl|08:|10{availIndicator} |02Vis|08:|10{visIndicator}",
+            "\u001b[22;30m\u001b[22;32mAvl\u001b[1;30m:\u001b[1;32m{availIndicator} \u001b[22;32mVis\u001b[1;30m:\u001b[1;32m{visIndicator}",
+            0
+        ],
+        [
+            "|00|02Msg|08:|02{count}",
+            "\u001b[22;30m\u001b[22;32mMsg\u001b[1;30m:\u001b[22;32m{count}",
+            0
+        ],
+        [
+            "|00|14Msg|08:|15{count}",
+            "\u001b[22;30m\u001b[1;33mMsg\u001b[1;30m:\u001b[1;37m{count}",
+            0
+        ],
+        [
+            "|00|02Page|08:|02{count}",
+            "\u001b[22;30m\u001b[22;32mPage\u001b[1;30m:\u001b[22;32m{count}",
+            0
+        ],
+        [
+            "|00|13Page|08:|15{count}",
+            "\u001b[22;30m\u001b[1;35mPage\u001b[1;30m:\u001b[1;37m{count}",
+            0
+        ],
+        [
+            "|00|10{boardName} |08- |10{totalCalls} |02calls total|08, |10{callsToday} |02today",
+            "\u001b[22;30m\u001b[1;32m{boardName} \u001b[1;30m- \u001b[1;32m{totalCalls} \u001b[22;32mcalls total\u001b[1;30m, \u001b[1;32m{callsToday} \u001b[22;32mtoday",
+            0
+        ],
+        [
+            "|00|10{userName} |02logged in on node |10{nodeId}",
+            "\u001b[22;30m\u001b[1;32m{userName} \u001b[22;32mlogged in on node \u001b[1;32m{nodeId}",
+            0
+        ],
+        [
+            "|00|10{userName} |02earned |14{title} |08(|10+{points}|08)",
+            "\u001b[22;30m\u001b[1;32m{userName} \u001b[22;32mearned \u001b[1;33m{title} \u001b[1;30m(\u001b[1;32m+{points}\u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|10{userName} |02uploaded |10{fileCount} |02file(s)",
+            "\u001b[22;30m\u001b[1;32m{userName} \u001b[22;32muploaded \u001b[1;32m{fileCount} \u001b[22;32mfile(s)",
+            0
+        ],
+        [
+            "|00|02From|08: |10{userName} |08(|02node |10{nodeId}|08) |02at |10{timestamp}\n\n|07{text}",
+            "\u001b[22;30m\u001b[22;32mFrom\u001b[1;30m: \u001b[1;32m{userName} \u001b[1;30m(\u001b[22;32mnode \u001b[1;32m{nodeId}\u001b[1;30m) \u001b[22;32mat \u001b[1;32m{timestamp}\n\n\u001b[22;37m{text}",
+            0
+        ],
+        [
+            "|00|02No messages|08.",
+            "\u001b[22;30m\u001b[22;32mNo messages\u001b[1;30m.",
+            0
+        ],
+        [
+            "|00  {statusIndicator} |02{desc:<26.26} |03{schedule:<16.16} |02{nextRun:<13.13} |07{lastResult:<6.6}",
+            "\u001b[22;30m  {statusIndicator} \u001b[22;32m{desc:<26.26} \u001b[22;36m{schedule:<16.16} \u001b[22;32m{nextRun:<13.13} \u001b[22;37m{lastResult:<6.6}",
+            0
+        ],
+        [
+            "|00|10> {statusIndicator} |15{desc:<26.26} |11{schedule:<16.16} |15{nextRun:<13.13} |15{lastResult:<6.6}",
+            "\u001b[22;30m\u001b[1;32m> {statusIndicator} \u001b[1;37m{desc:<26.26} \u001b[1;36m{schedule:<16.16} \u001b[1;37m{nextRun:<13.13} \u001b[1;37m{lastResult:<6.6}",
+            0
+        ],
+        ["|11*", "\u001b[1;36m*", 0],
+        ["|14!", "\u001b[1;33m!", 0],
+        ["|12X", "\u001b[1;31mX", 0],
+        ["|10+", "\u001b[1;32m+", 0],
+        ["|08-", "\u001b[1;30m-", 0],
+        [
+            "|03{name}|08{sep}|11{value}",
+            "\u001b[22;36m{name}\u001b[1;30m{sep}\u001b[1;36m{value}",
+            0
+        ],
+        ["|00|02No tasks|08.", "\u001b[22;30m\u001b[22;32mNo tasks\u001b[1;30m.", 0],
+        [
+            "|00|07Run |15{desc}|07?",
+            "\u001b[22;30m\u001b[22;37mRun \u001b[1;37m{desc}\u001b[22;37m?",
+            0
+        ],
+        [
+            "|00|07{stopVerb} |15{desc}|07?",
+            "\u001b[22;30m\u001b[22;37m{stopVerb} \u001b[1;37m{desc}\u001b[22;37m?",
+            0
+        ],
+        [
+            "|00|15{runningTaskCount} |02running|08, |15{taskCount} |02tasks",
+            "\u001b[22;30m\u001b[1;37m{runningTaskCount} \u001b[22;32mrunning\u001b[1;30m, \u001b[1;37m{taskCount} \u001b[22;32mtasks",
+            0
+        ],
+        ["|00|15{callsToday:>5}", "\u001b[22;30m\u001b[1;37m{callsToday:>5}", 0],
+        ["|00|15{postsToday:>5}", "\u001b[22;30m\u001b[1;37m{postsToday:>5}", 0],
+        ["|00|15{newUsersToday:>5}", "\u001b[22;30m\u001b[1;37m{newUsersToday:>5}", 0],
+        ["|00|15{uploadsToday:<4}", "\u001b[22;30m\u001b[1;37m{uploadsToday:<4}", 0],
+        ["|00|15{downloadsToday:<4}", "\u001b[22;30m\u001b[1;37m{downloadsToday:<4}", 0],
+        [
+            "|00|15{uploadBytesToday!sizeWithoutAbbr:<5} |07{uploadBytesToday!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{uploadBytesToday!sizeWithoutAbbr:<5} \u001b[22;37m{uploadBytesToday!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|15{downloadBytesToday!sizeWithoutAbbr:<5} |07{downloadBytesToday!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{downloadBytesToday!sizeWithoutAbbr:<5} \u001b[22;37m{downloadBytesToday!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|15{lastLoginUserName:<26} |07{lastLogin}",
+            "\u001b[22;30m\u001b[1;37m{lastLoginUserName:<26} \u001b[22;37m{lastLogin}",
+            0
+        ],
+        [
+            "|00|15{freeMemoryBytes!sizeWithoutAbbr} |07{freeMemoryBytes!sizeAbbr} free |08/ |15{totalMemoryBytes!sizeWithoutAbbr} |07{totalMemoryBytes!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{freeMemoryBytes!sizeWithoutAbbr} \u001b[22;37m{freeMemoryBytes!sizeAbbr} free \u001b[1;30m/ \u001b[1;37m{totalMemoryBytes!sizeWithoutAbbr} \u001b[22;37m{totalMemoryBytes!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|15{systemCurrentLoad} |07% |08/ |15{systemAvgLoad} |07load avg|08.",
+            "\u001b[22;30m\u001b[1;37m{systemCurrentLoad} \u001b[22;37m% \u001b[1;30m/ \u001b[1;37m{systemAvgLoad} \u001b[22;37mload avg\u001b[1;30m.",
+            0
+        ],
+        [
+            "|00|15{processUptimeSeconds!durationSeconds} |08/ |15{processBytesIngress!sizeWithoutAbbr:>4} |07{processBytesIngress!sizeAbbr}|08/|15{processBytesEgress!sizeWithoutAbbr:>4} |07{processBytesEgress!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{processUptimeSeconds!durationSeconds} \u001b[1;30m/ \u001b[1;37m{processBytesIngress!sizeWithoutAbbr:>4} \u001b[22;37m{processBytesIngress!sizeAbbr}\u001b[1;30m/\u001b[1;37m{processBytesEgress!sizeWithoutAbbr:>4} \u001b[22;37m{processBytesEgress!sizeAbbr}",
+            0
+        ],
+        ["|00|15{totalCalls:>5}", "\u001b[22;30m\u001b[1;37m{totalCalls:>5}", 0],
+        ["|00|15{totalPosts:>7}", "\u001b[22;30m\u001b[1;37m{totalPosts:>7}", 0],
+        ["|00|15{totalUsers:>5}", "\u001b[22;30m\u001b[1;37m{totalUsers:>5}", 0],
+        [
+            "|00|15{totalFiles:>4} |08/ |15{totalFileBytes!sizeWithoutAbbr:>4} |07{totalFileBytes!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{totalFiles:>4} \u001b[1;30m/ \u001b[1;37m{totalFileBytes!sizeWithoutAbbr:>4} \u001b[22;37m{totalFileBytes!sizeAbbr}",
+            0
+        ],
+        ["|00|02T", "\u001b[22;30m\u001b[22;32mT", 0],
+        ["|00|03D", "\u001b[22;30m\u001b[22;36mD", 0],
+        ["|00|15I", "\u001b[22;30m\u001b[1;37mI", 0],
+        ["|00|14W", "\u001b[22;30m\u001b[1;33mW", 0],
+        ["|00|12E", "\u001b[22;30m\u001b[1;31mE", 0],
+        ["|00|28F", "\u001b[22;30m\u001b[5;41mF", 0],
+        ["|00|02", "\u001b[22;30m\u001b[22;32m", 0],
+        ["|00|03", "\u001b[22;30m\u001b[22;36m", 0],
+        ["|00|14", "\u001b[22;30m\u001b[1;33m", 0],
+        ["|00|12", "\u001b[22;30m\u001b[1;31m", 0],
+        ["|00|28", "\u001b[22;30m\u001b[5;41m", 0],
+        [
+            "|03{name}|08{sep} |11{value}",
+            "\u001b[22;36m{name}\u001b[1;30m{sep} \u001b[1;36m{value}",
+            0
+        ],
+        [
+            "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}\n{pageIndicator}",
+            "\u001b[22;30m\u001b[22;37m{realName:<12}\n\u001b[1;30m- \u001b[22;37m{serverName:<10}\n\u001b[1;30m- \u001b[22;37m{remoteAddress:<10}\n{pageIndicator}",
+            0
+        ],
+        ["|13!", "\u001b[1;35m!", 0],
+        [
+            "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}",
+            "\u001b[22;30m\u001b[1;37m{msgNumSelected:>4.4} \u001b[1;30m/ \u001b[1;37m{msgNumTotal:<4.4}",
+            0
+        ],
+        [
+            "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}",
+            "\u001b[22;30m\u001b[1;37m{msgNum:>4}  \u001b[22;36m{subject:<28.27} \u001b[1;36m{fromUserName:<20.20} \u001b[22;36m{ts:<15.16} \u001b[1;37m{newIndicator}",
+            0
+        ],
+        [
+            "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}",
+            0
+        ],
+        [
+            "|00|15{index} |07- |03{name}",
+            "\u001b[22;30m\u001b[1;37m{index} \u001b[22;37m- \u001b[22;36m{name}",
+            0
+        ],
+        [
+            "|00|19|15{index} - {name}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{index} - {name}",
+            0
+        ],
+        [
+            "|00|15{index:.2} |07- |03{name}",
+            "\u001b[22;30m\u001b[1;37m{index:.2} \u001b[22;37m- \u001b[22;36m{name}",
+            0
+        ],
+        [
+            "|00|09|15{index:.2} - {name}",
+            "\u001b[22;30m\u001b[1;34m\u001b[1;37m{index:.2} - {name}",
+            0
+        ],
+        [
+            "|00|07{conf.name} |08- |07{area.name}",
+            "\u001b[22;30m\u001b[22;37m{conf.name} \u001b[1;30m- \u001b[22;37m{area.name}",
+            0
+        ],
+        [
+            "|00|15{conf.name} |07- |15{area.name}",
+            "\u001b[22;30m\u001b[1;37m{conf.name} \u001b[22;37m- \u001b[1;37m{area.name}",
+            0
+        ],
+        [
+            "|00|15{selectedIndicator:<5.5}|03{confName:<25.25} |11{areaName}",
+            "\u001b[22;30m\u001b[1;37m{selectedIndicator:<5.5}\u001b[22;36m{confName:<25.25} \u001b[1;36m{areaName}",
+            0
+        ],
+        [
+            "|00|19{selectedIndicator:<5.5}{confName:<25.25} {areaName}",
+            "\u001b[22;30m\u001b[46m{selectedIndicator:<5.5}{confName:<25.25} {areaName}",
+            0
+        ],
+        [
+            "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}",
+            "\u001b[22;30m\u001b[1;37m{msgNum:>4}  \u001b[22;36m{subject:<28.27} \u001b[1;36m{fromUserName:<20.20} \u001b[22;36m{ts} \u001b[1;37m{newIndicator}",
+            0
+        ],
+        [
+            "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}",
+            0
+        ],
+        ["|00|11  {rumor}", "\u001b[22;30m\u001b[1;36m  {rumor}", 0],
+        ["|00|15> |14{rumor}", "\u001b[22;30m\u001b[1;37m> \u001b[1;33m{rumor}", 0],
+        ["|00|07{bbsName}", "\u001b[22;30m\u001b[22;37m{bbsName}", 0],
+        [
+            "|00|19|15{bbsName!styleFirstLower}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{bbsName!styleFirstLower}",
+            0
+        ],
+        ["|00|08", "\u001b[22;30m\u001b[1;30m", 0],
+        ["|10√", "\u001b[1;32m√", 0],
+        [
+            "|00|03node |07{text} |08(|07{userName}|08)",
+            "\u001b[22;30m\u001b[22;36mnode \u001b[22;37m{text} \u001b[1;30m(\u001b[22;37m{userName}\u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|11node |15{text} |07(|15{userName}|07)",
+            "\u001b[22;30m\u001b[1;36mnode \u001b[1;37m{text} \u001b[22;37m(\u001b[1;37m{userName}\u001b[22;37m)",
+            0
+        ],
+        [
+            "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}",
+            "\u001b[22;30m\u001b[1;30m :: \u001b[22;36mmessage from \u001b[1;36m{fromUserName} \u001b[1;30m/ \u001b[22;36mnode \u001b[1;36m{fromNodeId}\u001b[1;30m @ \u001b[1;36m{timestamp} \u001b[1;30m::\r\n\u001b[22;37m    {message}",
+            0
+        ],
+        [
+            "|00|15  {msgNum:<4.4} |03{subject:<27.26} |07{toUserName:<13.12} {fromUserName:<13.12} |03{ts:<12.12}",
+            "\u001b[22;30m\u001b[1;37m  {msgNum:<4.4} \u001b[22;36m{subject:<27.26} \u001b[22;37m{toUserName:<13.12} {fromUserName:<13.12} \u001b[22;36m{ts:<12.12}",
+            0
+        ],
+        [
+            "|00|19> |15{msgNum:<4.4} {subject:<27.26} {toUserName:<13.12} {fromUserName:<13.12} {ts:<12.12}",
+            "\u001b[22;30m\u001b[46m> \u001b[1;37m{msgNum:<4.4} {subject:<27.26} {toUserName:<13.12} {fromUserName:<13.12} {ts:<12.12}",
+            0
+        ],
+        [
+            "|00|15  {msgNum:<4.4} |03{subject:<34.33} {fromUserName:<19.18} |03{ts:<12.12}",
+            "\u001b[22;30m\u001b[1;37m  {msgNum:<4.4} \u001b[22;36m{subject:<34.33} {fromUserName:<19.18} \u001b[22;36m{ts:<12.12}",
+            0
+        ],
+        [
+            "|00|19> |15{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}",
+            "\u001b[22;30m\u001b[46m> \u001b[1;37m{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}",
+            0
+        ],
+        ["|00|11", "\u001b[22;30m\u001b[1;36m", 0],
+        ["|00|06", "\u001b[22;30m\u001b[22;33m", 0],
+        [
+            "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}",
+            "\u001b[22;30m\u001b[1;37m  {msgNum:<5.5}\u001b[22;36m{subject:<28.27} \u001b[1;37m{fromUserName:<20.20} {ts}",
+            0
+        ],
+        [
+            "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}",
+            "\u001b[22;30m\u001b[46m> \u001b[1;37m{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}",
+            0
+        ],
+        [
+            "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[22;36m{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} \u001b[1;36m{byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            0
+        ],
+        ["|08, |07", "\u001b[1;30m, \u001b[22;37m", 0],
+        [
+            "|00|10{fileName:<.44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}",
+            "\u001b[22;30m\u001b[1;32m{fileName:<.44} \u001b[1;30m- \u001b[22;36m{byteSize!sizeWithoutAbbr} \u001b[1;36m{byteSize!sizeAbbr} \u001b[1;30m- \u001b[22;36muploaded \u001b[1;36m{uploadTimestamp}",
+            0
+        ],
+        ["|00|15{areaName}", "\u001b[22;30m\u001b[1;37m{areaName}", 0],
+        ["|00|07{hashTags}", "\u001b[22;30m\u001b[22;37m{hashTags}", 0],
+        ["|00|07{estReleaseYear}", "\u001b[22;30m\u001b[22;37m{estReleaseYear}", 0],
+        ["|00|07{dlCount}", "\u001b[22;30m\u001b[22;37m{dlCount}", 0],
+        [
+            " [|08- |07exp] ddd, MMM Do @ h:mm a",
+            " [\u001b[1;30m- \u001b[22;37mexp] ddd, MMM Do @ h:mm a",
+            0
+        ],
+        [
+            "|08(|07press |10W |07to generate link|08)",
+            "\u001b[1;30m(\u001b[22;37mpress \u001b[1;32mW \u001b[22;37mto generate link\u001b[1;30m)",
+            0
+        ],
+        ["|00|10YES", "\u001b[22;30m\u001b[1;32mYES", 0],
+        ["|00|07no", "\u001b[22;30m\u001b[22;37mno", 0],
+        ["|00|08n/a", "\u001b[22;30m\u001b[1;30mn/a", 0],
+        ["|00|15*", "\u001b[22;30m\u001b[1;37m*", 0],
+        ["|00|07-", "\u001b[22;30m\u001b[22;37m-", 0],
+        [
+            "|00|07{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08(|03{byteSize:,} |11B|08)",
+            "\u001b[22;30m\u001b[22;37m{byteSize!sizeWithoutAbbr} \u001b[1;36m{byteSize!sizeAbbr} \u001b[1;30m(\u001b[22;36m{byteSize:,} \u001b[1;36mB\u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|08( |07{fileName} is not an archive |08)",
+            "\u001b[22;30m\u001b[1;30m( \u001b[22;37m{fileName} is not an archive \u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|10{fileName:<44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}",
+            "\u001b[22;30m\u001b[1;32m{fileName:<44} \u001b[1;30m- \u001b[22;36m{byteSize!sizeWithoutAbbr} \u001b[1;36m{byteSize!sizeAbbr} \u001b[1;30m- \u001b[22;36muploaded \u001b[1;36m{uploadTimestamp}",
+            0
+        ],
+        ["|00|03{name}", "\u001b[22;30m\u001b[22;36m{name}", 0],
+        ["|00|19|15{name}", "\u001b[22;30m\u001b[46m\u001b[1;37m{name}", 0],
+        ["|15▒", "\u001b[1;37m▒", 0],
+        [
+            "|07{currentFile} |08/ |07{totalFileCount} |08(|07{progress} %|08)",
+            "\u001b[22;37m{currentFile} \u001b[1;30m/ \u001b[22;37m{totalFileCount} \u001b[1;30m(\u001b[22;37m{progress} %\u001b[1;30m)",
+            0
+        ],
+        ["|06░", "\u001b[22;33m░", 0],
+        [
+            "|00|03{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[22;36m{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} \u001b[1;36m{byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|19|15{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|03{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[22;36m{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} \u001b[1;36m{byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|19|15{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|03batch|08: |03{webBatchDlLink}",
+            "\u001b[22;36mbatch\u001b[1;30m: \u001b[22;36m{webBatchDlLink}",
+            0
+        ],
+        [
+            "|03exp  |08: |03{webBatchDlExpire}",
+            "\u001b[22;36mexp  \u001b[1;30m: \u001b[22;36m{webBatchDlExpire}",
+            0
+        ],
+        [
+            "|00|15{fileName} |08- |11{currentFileNum} |08/ |11{totalFileNum}",
+            "\u001b[22;30m\u001b[1;37m{fileName} \u001b[1;30m- \u001b[1;36m{currentFileNum} \u001b[1;30m/ \u001b[1;36m{totalFileNum}",
+            0
+        ],
+        ["{fileName} |02■", "{fileName} \u001b[22;32m■", 0],
+        [
+            "|00|11{fileName:<53.52}|03{areaName}",
+            "\u001b[22;30m\u001b[1;36m{fileName:<53.52}\u001b[22;36m{areaName}",
+            0
+        ],
+        [
+            "|00|08[ |03{text} |08]",
+            "\u001b[22;30m\u001b[1;30m[ \u001b[22;36m{text} \u001b[1;30m]",
+            0
+        ],
+        [
+            "|00|15[ |19|15{text}|16 |15]",
+            "\u001b[22;30m\u001b[1;37m[ \u001b[46m\u001b[1;37m{text}\u001b[40m \u001b[1;37m]",
+            0
+        ],
+        [
+            "|00|08{statusIndicator} |00|03{subject}",
+            "\u001b[22;30m\u001b[1;30m{statusIndicator} \u001b[22;30m\u001b[22;36m{subject}",
+            0
+        ],
+        [
+            "|00|08{statusIndicator} |00|19|15{subject}",
+            "\u001b[22;30m\u001b[1;30m{statusIndicator} \u001b[22;30m\u001b[46m\u001b[1;37m{subject}",
+            0
+        ],
+        ["|08[|03{text}|08]", "\u001b[1;30m[\u001b[22;36m{text}\u001b[1;30m]", 0],
+        [
+            "|08[|11{text!styleFirstLower}|08]",
+            "\u001b[1;30m[\u001b[1;36m{text!styleFirstLower}\u001b[1;30m]",
+            0
+        ],
+        [
+            "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}",
+            "\u001b[22;30m\u001b[1;37m{preferredUsername} \u001b[1;30m(\u001b[22;32m{name}\u001b[1;30m)\n\u001b[22;37mfollowing\u001b[1;30m: {statusIndicator}\n\n\u001b[22;33m{plainTextSummary}",
+            0
+        ],
+        ["|00|10√", "\u001b[22;30m\u001b[1;32m√", 0],
+        ["|00|12X", "\u001b[22;30m\u001b[1;31mX", 0],
+        [
+            "|00|10SPC |08: |02Toggle Following",
+            "\u001b[22;30m\u001b[1;32mSPC \u001b[1;30m: \u001b[22;32mToggle Following",
+            0
+        ],
+        [
+            "|00|10DEL |08: |02Remove Follower",
+            "\u001b[22;30m\u001b[1;32mDEL \u001b[1;30m: \u001b[22;32mRemove Follower",
+            0
+        ],
+        [
+            "|00|10SPC |08: |02Accept\r\n|10DEL |08: |02Deny",
+            "\u001b[22;30m\u001b[1;32mSPC \u001b[1;30m: \u001b[22;32mAccept\r\n\u001b[1;32mDEL \u001b[1;30m: \u001b[22;32mDeny",
+            0
+        ],
+        ["|00|14YES", "\u001b[22;30m\u001b[1;33mYES", 0],
+        ["|00|12NO", "\u001b[22;30m\u001b[1;31mNO", 0],
+        ["|11{statusText}", "\u001b[1;36m{statusText}", 0],
+        [
+            "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}",
+            "\u001b[22;30m\u001b[22;36m{from:<20.20} {subject:<29.29} {date:<12.12} \u001b[1;31m{likes:>2} \u001b[1;32m{boosts:>2} \u001b[1;35m{att}",
+            0
+        ],
+        [
+            "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{from:<20.20} {subject:<29.29} {date:<12.12} \u001b[1;31m{likes:>2} \u001b[1;32m{boosts:>2} \u001b[1;35m{att}",
+            0
+        ],
+        ["|03", "\u001b[22;36m", 0],
+        ["|11", "\u001b[1;36m", 0],
+        [
+            "|12{likeIndicator} {likes} |10{boostIndicator} {boosts} |13{att}",
+            "\u001b[1;31m{likeIndicator} {likes} \u001b[1;32m{boostIndicator} {boosts} \u001b[1;35m{att}",
+            0
+        ],
+        [
+            "|00|10<|02{fromUserName}|10>|00 |03{message}|00",
+            "\u001b[22;30m\u001b[1;32m<\u001b[22;32m{fromUserName}\u001b[1;32m>\u001b[22;30m \u001b[22;36m{message}\u001b[22;30m",
+            0
+        ],
+        [
+            "|00|10<|02{fromUserName}|15->{toUserName}|10>|00 |03{message}|00",
+            "\u001b[22;30m\u001b[1;32m<\u001b[22;32m{fromUserName}\u001b[1;37m->{toUserName}\u001b[1;32m>\u001b[22;30m \u001b[22;36m{message}\u001b[22;30m",
+            0
+        ],
+        ["|11{userName} |14> ", "\u001b[1;36m{userName} \u001b[1;33m> ", 0],
+        ["|11{duration}", "\u001b[1;36m{duration}", 0],
+        [
+            "|11Page |03from |11{userName} |08(node |07{nodeId}|08):|03\r\n|03{message}\r\n\r\n|08Visit WFC and press |03B|08 on the node to respond.|07",
+            "\u001b[1;36mPage \u001b[22;36mfrom \u001b[1;36m{userName} \u001b[1;30m(node \u001b[22;37m{nodeId}\u001b[1;30m):\u001b[22;36m\r\n\u001b[22;36m{message}\r\n\r\n\u001b[1;30mVisit WFC and press \u001b[22;36mB\u001b[1;30m on the node to respond.\u001b[22;37m",
+            0
+        ],
+        [
+            "|00|15|MD|08: |03|MC|08>>|11|MA",
+            "\u001b[22;30m\u001b[1;37m|MD\u001b[1;30m: \u001b[22;36m|MC\u001b[1;30m>>\u001b[1;36m|MA",
+            "\u001b[22;30m\u001b[1;37mMDMDMD\u001b[1;30m: \u001b[22;36mMCMCMC\u001b[1;30m>>\u001b[1;36mMAMAMA"
+        ],
+        [
+            "|00|15|MD|08 >> |03active filter|08: |10|FN",
+            "\u001b[22;30m\u001b[1;37m|MD\u001b[1;30m >> \u001b[22;36mactive filter\u001b[1;30m: \u001b[1;32m|FN",
+            "\u001b[22;30m\u001b[1;37mMDMDMD\u001b[1;30m >> \u001b[22;36mactive filter\u001b[1;30m: \u001b[1;32mFNFNFN"
+        ],
+        [
+            "|00|08(|11|AS|08)",
+            "\u001b[22;30m\u001b[1;30m(\u001b[1;36m|AS\u001b[1;30m)",
+            "\u001b[22;30m\u001b[1;30m(\u001b[1;36mASASAS\u001b[1;30m)"
+        ],
+        [
+            "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n   {message}",
+            "\u001b[1;30m > \u001b[1;32m{title} \u001b[1;30m(\u001b[1;36m{points} \u001b[22;36mpoints\u001b[1;30m)\r\n\r\n   {message}",
+            0
+        ],
+        [
+            "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n  {message}",
+            "\u001b[1;30m > \u001b[1;32m{title} \u001b[1;30m(\u001b[1;36m{points} \u001b[22;36mpoints\u001b[1;30m)\r\n\r\n  {message}",
+            0
+        ],
+        ["|10", "\u001b[1;32m", 0],
+        ["|12", "\u001b[1;31m", 0],
+        [
+            "${\n                                    headerArt || ''\n                                }\r\n${contents}\r\n${footerArt || ''}",
+            "${\n                                    headerArt | ''\n                                }\r\n${contents}\r\n${footerArt | ''}",
+            0
+        ],
+        [
+            "${a.name}: ${htmlToMessageBody(a.value || '')}",
+            "${a.name}: ${htmlToMessageBody(a.value | '')}",
+            0
+        ],
+        [
+            "enigma-vamiga ${version || '(unknown version)'} is installed; Amiga doors need ",
+            "enigma-vamiga ${version | '(unknown version)'} is installed; Amiga doors need ",
+            0
+        ],
+        ["${sgr}${col.char || ' '}", "${sgr}${col.char | ' '}", 0],
+        ["|07System starting up...", "\u001b[22;37mSystem starting up...", 0],
+        ["|10System started!", "\u001b[1;32mSystem started!", 0],
+        [
+            "${addr.zone || 0}:${addr.net}/${addr.node}",
+            "${addr.zone | 0}:${addr.net}/${addr.node}",
+            0
+        ],
+        [
+            "|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS",
+            "\u001b[1;30mA\u001b[22;37mnother \u001b[22;37mF\u001b[1;30mine \u001b[22;37mE\u001b[1;30mNiGMA\u001b[22;37m½ B\u001b[1;30mBS",
+            0
+        ],
+        [
+            "|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00",
+            "\u001b[1;31mTime warning: \u001b[1;37m{minutes} minute{plural}\u001b[1;31m remaining today.\u001b[22;30m",
+            0
+        ],
+        [
+            "\n|06Connected to |02EN|10i|02GMA|10½ |06BBS version |12|VN\n|06Copyright (c) 2014-2026 Bryan Ashby |14- |12http://l33t.codes/\n|06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/\n|00",
+            "\n\u001b[22;33mConnected to \u001b[22;32mEN\u001b[1;32mi\u001b[22;32mGMA\u001b[1;32m½ \u001b[22;33mBBS version \u001b[1;31m|VN\n\u001b[22;33mCopyright (c) 2014-2026 Bryan Ashby \u001b[1;33m- \u001b[1;31mhttp://l33t.codes/\n\u001b[22;33mUpdates & source \u001b[1;33m- \u001b[1;31mhttps://github.com/NuSkooler/enigma-bbs/\n\u001b[22;30m",
+            "\n\u001b[22;33mConnected to \u001b[22;32mEN\u001b[1;32mi\u001b[22;32mGMA\u001b[1;32m½ \u001b[22;33mBBS version \u001b[1;31mVNVNVN\n\u001b[22;33mCopyright (c) 2014-2026 Bryan Ashby \u001b[1;33m- \u001b[1;31mhttp://l33t.codes/\n\u001b[22;33mUpdates & source \u001b[1;33m- \u001b[1;31mhttps://github.com/NuSkooler/enigma-bbs/\n\u001b[22;30m"
+        ],
+        [
+            "UPDATE \"${table}\" SET \"${column}\" = CAST(CAST(\"${column}\" AS INTEGER) AS TEXT)\n            WHERE \"${column}\" LIKE '%.0'\n              AND CAST(CAST(\"${column}\" AS INTEGER) AS TEXT) || '.0' = \"${column}\";",
+            "UPDATE \"${table}\" SET \"${column}\" = CAST(CAST(\"${column}\" AS INTEGER) AS TEXT)\n            WHERE \"${column}\" LIKE '%.0'\n              AND CAST(CAST(\"${column}\" AS INTEGER) AS TEXT) | '.0' = \"${column}\";",
+            0
+        ],
+        ["f.${sortColumn || 'file_id'}", "f.${sortColumn | 'file_id'}", 0],
+        ["${sign || '+'}${hours}:${minutes}", "${sign | '+'}${hours}:${minutes}", 0],
+        [
+            "gOLD mINE rlogin client error: ${err.message || err}",
+            "gOLD mINE rlogin client error: ${err.message | err}",
+            0
+        ],
+        ["|07Starting servers...", "\u001b[22;37mStarting servers...", 0],
+        [
+            ", CASE WHEN LENGTH(m.subject) > 0 THEN\n                        m.subject\n                    ELSE\n                        REPLACE(REPLACE(SUBSTR(m.message,1,32),CHAR(10),''),CHAR(13),'') || '...'\n                    END gen_subject",
+            ", CASE WHEN LENGTH(m.subject) > 0 THEN\n                        m.subject\n                    ELSE\n                        REPLACE(REPLACE(SUBSTR(m.message,1,32),CHAR(10),''),CHAR(13),'') | '...'\n                    END gen_subject",
+            0
+        ],
+        [" ${op || filter.operator} ", " ${op | filter.operator} ", 0],
+        ["|01", "\u001b[22;34m", 0],
+        ["|02", "\u001b[22;32m", 0],
+        ["|04", "\u001b[22;31m", 0],
+        ["|05", "\u001b[22;35m", 0],
+        ["|06", "\u001b[22;33m", 0],
+        ["|09", "\u001b[1;34m", 0],
+        ["|13", "\u001b[1;35m", 0],
+        ["|14", "\u001b[1;33m", 0],
+        ["|00 ", "\u001b[22;30m ", 0],
+        ["|24|14» |00", "\u001b[5;40m\u001b[1;33m» \u001b[22;30m", 0],
+        [
+            "|00${lt}${nc}{fromUserName}${rt}|00 ${mc}{message}",
+            "\u001b[22;30m${lt}${nc}{fromUserName}${rt}\u001b[22;30m ${mc}{message}",
+            0
+        ],
+        [
+            "|15* |08(|15{fromUserName}|08->|14DirectMsg|00 ${mc}{message}",
+            "\u001b[1;37m* \u001b[1;30m(\u001b[1;37m{fromUserName}\u001b[1;30m->\u001b[1;33mDirectMsg\u001b[22;30m ${mc}{message}",
+            0
+        ],
+        [
+            "|15* |13${this.state.alias} ${action.replace(\n                        /~/g,\n                        ' '\n                    )}",
+            "\u001b[1;37m* \u001b[1;35m${this.state.alias} ${action.replace(\n                        /~/g,\n                        ' '\n                    )}",
+            0
+        ],
+        [
+            "|15* |08(|15${\n                        this.state.alias\n                    }|08/|14Broadcast|08) |07${text.replace(/~/g, ' ')}",
+            "\u001b[1;37m* \u001b[1;30m(\u001b[1;37m${\n                        this.state.alias\n                    }\u001b[1;30m/\u001b[1;33mBroadcast\u001b[1;30m) \u001b[22;37m${text.replace(/~/g, ' ')}",
+            0
+        ],
+        [
+            "|08No recent DM to reply to.|00",
+            "\u001b[1;30mNo recent DM to reply to.\u001b[22;30m",
+            0
+        ],
+        ["|${cc}${c}|00 ", "|${cc}${c}\u001b[22;30m ", 0],
+        [
+            "|08Enter room password:|00",
+            "\u001b[1;30mEnter room password:\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Enter password to register:|00",
+            "\u001b[1;30mEnter password to register:\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Enter your password:|00",
+            "\u001b[1;30mEnter your password:\u001b[22;30m",
+            0
+        ],
+        ["|08Enter new password:|00", "\u001b[1;30mEnter new password:\u001b[22;30m", 0],
+        ["|08No nicks matching \"", "\u001b[1;30mNo nicks matching \"", 0],
+        ["\"|00", "\"\u001b[22;30m", 0],
+        ["|10<", "\u001b[1;32m<", 0],
+        ["|10>", "\u001b[1;32m>", 0],
+        [
+            "|08Unknown option: |07${key}|08. Type |03/set help|08 for options.|00",
+            "\u001b[1;30mUnknown option: \u001b[22;37m${key}\u001b[1;30m. Type \u001b[22;36m/set help\u001b[1;30m for options.\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Set |03${key}|08 \\u2192 |07${val || '(default)'}|00",
+            "\u001b[1;30mSet \u001b[22;36m${key}\u001b[1;30m \\u2192 \u001b[22;37m${val | '(default)'}\u001b[22;30m",
+            0
+        ],
+        ["|15/set options|08:", "\u001b[1;37m/set options\u001b[1;30m:", 0],
+        [
+            "|03/|11set NICKCOLOR |03<pipe-code>    |08- |07Nick colour (e.g. |0202|07 for green)",
+            "\u001b[22;36m/\u001b[1;36mset NICKCOLOR \u001b[22;36m<pipe-code>    \u001b[1;30m- \u001b[22;37mNick colour (e.g. \u001b[22;32m02\u001b[22;37m for green)",
+            0
+        ],
+        [
+            "|03/|11set MESSAGECOLOR |03<pipe-code> |08- |07Message colour (|11left|08/|11right|08 to cycle)",
+            "\u001b[22;36m/\u001b[1;36mset MESSAGECOLOR \u001b[22;36m<pipe-code> \u001b[1;30m- \u001b[22;37mMessage colour (\u001b[1;36mleft\u001b[1;30m/\u001b[1;36mright\u001b[1;30m to cycle)",
+            0
+        ],
+        [
+            "|03/|11set LTBRACKET |03<str>          |08- |07Left bracket around nick (e.g. |10<|07)",
+            "\u001b[22;36m/\u001b[1;36mset LTBRACKET \u001b[22;36m<str>          \u001b[1;30m- \u001b[22;37mLeft bracket around nick (e.g. \u001b[1;32m<\u001b[22;37m)",
+            0
+        ],
+        [
+            "|03/|11set RTBRACKET |03<str>          |08- |07Right bracket around nick (e.g. |10>|07)",
+            "\u001b[22;36m/\u001b[1;36mset RTBRACKET \u001b[22;36m<str>          \u001b[1;30m- \u001b[22;37mRight bracket around nick (e.g. \u001b[1;32m>\u001b[22;37m)",
+            0
+        ],
+        [
+            "|03/|11set DEFAULTROOM |03<room>       |08- |07Room to join on connect",
+            "\u001b[22;36m/\u001b[1;36mset DEFAULTROOM \u001b[22;36m<room>       \u001b[1;30m- \u001b[22;37mRoom to join on connect",
+            0
+        ],
+        [
+            "|03/|11set USECLOCK on|08/|03off          |08- |07Show timestamp on messages",
+            "\u001b[22;36m/\u001b[1;36mset USECLOCK on\u001b[1;30m/\u001b[22;36moff          \u001b[1;30m- \u001b[22;37mShow timestamp on messages",
+            0
+        ],
+        [
+            "|03/|11set CLOCKFORMAT |03<fmt>        |08- |14hh:mm |0712hr|08/|14HH:mm |0724hr (|03default|07 to reset)",
+            "\u001b[22;36m/\u001b[1;36mset CLOCKFORMAT \u001b[22;36m<fmt>        \u001b[1;30m- \u001b[1;33mhh:mm \u001b[22;37m12hr\u001b[1;30m/\u001b[1;33mHH:mm \u001b[22;37m24hr (\u001b[22;36mdefault\u001b[22;37m to reset)",
+            0
+        ],
+        [
+            "|03/|11set SHIELD on|08/|03off            |08- |07Suppress broadcast messages",
+            "\u001b[22;36m/\u001b[1;36mset SHIELD on\u001b[1;30m/\u001b[22;36moff            \u001b[1;30m- \u001b[22;37mSuppress broadcast messages",
+            0
+        ],
+        [
+            "|03/|11set HIDECTCPREQ on|08/|03off       |08- |07Hide CTCP request messages",
+            "\u001b[22;36m/\u001b[1;36mset HIDECTCPREQ on\u001b[1;30m/\u001b[22;36moff       \u001b[1;30m- \u001b[22;37mHide CTCP request messages",
+            0
+        ],
+        [
+            "|03/|11set SHOWSMILIES on|08/|03off       |08- |07Convert :) :D =) to smiley characters",
+            "\u001b[22;36m/\u001b[1;36mset SHOWSMILIES on\u001b[1;30m/\u001b[22;36moff       \u001b[1;30m- \u001b[22;37mConvert :) :D =) to smiley characters",
+            0
+        ],
+        [
+            "|03/|11set TWITFILTER on|08/|03off        |08- |07Enable your twit filter (see |03/twit|07)",
+            "\u001b[22;36m/\u001b[1;36mset TWITFILTER on\u001b[1;30m/\u001b[22;36moff        \u001b[1;30m- \u001b[22;37mEnable your twit filter (see \u001b[22;36m/twit\u001b[22;37m)",
+            0
+        ],
+        [
+            "|03/|11set JOINMSG |03<message>        |08- |07Message sent on room join (|03%1|08 = nick)",
+            "\u001b[22;36m/\u001b[1;36mset JOINMSG \u001b[22;36m<message>        \u001b[1;30m- \u001b[22;37mMessage sent on room join (\u001b[22;36m%1\u001b[1;30m = nick)",
+            0
+        ],
+        [
+            "|03/|11set LEAVEMSG |03<message>       |08- |07Message sent on room leave (|03%1|08 = nick)",
+            "\u001b[22;36m/\u001b[1;36mset LEAVEMSG \u001b[22;36m<message>       \u001b[1;30m- \u001b[22;37mMessage sent on room leave (\u001b[22;36m%1\u001b[1;30m = nick)",
+            0
+        ],
+        [
+            "|03/|11set list                     |08- |07Show current settings",
+            "\u001b[22;36m/\u001b[1;36mset list                     \u001b[1;30m- \u001b[22;37mShow current settings",
+            0
+        ],
+        ["|15Current /set values|08:", "\u001b[1;37mCurrent /set values\u001b[1;30m:", 0],
+        [
+            "|14NICKCOLOR         ${p.nickColor}${this.state.alias}|00",
+            "\u001b[1;33mNICKCOLOR         ${p.nickColor}${this.state.alias}\u001b[22;30m",
+            0
+        ],
+        [
+            "|14MESSAGECOLOR      ${p.messageColor}example text|00",
+            "\u001b[1;33mMESSAGECOLOR      ${p.messageColor}example text\u001b[22;30m",
+            0
+        ],
+        [
+            "|14LTBRACKET         |07${p.ltBracket}|16|07",
+            "\u001b[1;33mLTBRACKET         \u001b[22;37m${p.ltBracket}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14RTBRACKET         |07${p.rtBracket}|16|07",
+            "\u001b[1;33mRTBRACKET         \u001b[22;37m${p.rtBracket}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14DEFAULTROOM       |07${p.defaultRoom}|16|07",
+            "\u001b[1;33mDEFAULTROOM       \u001b[22;37m${p.defaultRoom}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14USECLOCK          |07${p.useClock ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mUSECLOCK          \u001b[22;37m${p.useClock ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14CLOCKFORMAT       |07${p.clockFormat || '(theme default)'}|16|07",
+            "\u001b[1;33mCLOCKFORMAT       \u001b[22;37m${p.clockFormat | '(theme default)'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14SHIELD            |07${p.shield ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mSHIELD            \u001b[22;37m${p.shield ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14HIDECTCPREQ       |07${p.hideCTCPReq ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mHIDECTCPREQ       \u001b[22;37m${p.hideCTCPReq ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14SHOWSMILIES       |07${p.showSmilies ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mSHOWSMILIES       \u001b[22;37m${p.showSmilies ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14TWITFILTER        |07${p.twitFilter ? 'on' : 'off'} |08(${\n                (p.twitList || []).length\n            } user(s))|16|07",
+            "\u001b[1;33mTWITFILTER        \u001b[22;37m${p.twitFilter ? 'on' : 'off'} \u001b[1;30m(${\n                (p.twitList | []).length\n            } user(s))\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14JOINMSG           |07${p.joinMsg || '(none)'}|16|07",
+            "\u001b[1;33mJOINMSG           \u001b[22;37m${p.joinMsg | '(none)'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14LEAVEMSG          |07${p.leaveMsg || '(none)'}|16|07",
+            "\u001b[1;33mLEAVEMSG          \u001b[22;37m${p.leaveMsg | '(none)'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        ["|15on", "\u001b[1;37mon", 0],
+        ["|08off", "\u001b[1;30moff", 0],
+        [
+            "|07- |08[|10::|08] |10Welcome to ENiGMA½ MRC Chat",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;32mWelcome to ENiGMA½ MRC Chat",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |10|15UP|10/|15DN|10 history |15LEFT|10/|15RIGHT|10 msg colour",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;32m\u001b[1;37mUP\u001b[1;32m/\u001b[1;37mDN\u001b[1;32m history \u001b[1;37mLEFT\u001b[1;32m/\u001b[1;37mRIGHT\u001b[1;32m msg colour",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |15TAB|10 nick complete |15DEL|10 mentions",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;37mTAB\u001b[1;32m nick complete \u001b[1;37mDEL\u001b[1;32m mentions",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |10Type |15/help|10 for a list of commands",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;32mType \u001b[1;37m/help\u001b[1;32m for a list of commands",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |14Broadcast Shield: ${shieldStatus}|14  Twit Filter: ${twitStatus}|14 (${twitCount} user(s))|07",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;33mBroadcast Shield: ${shieldStatus}\u001b[1;33m  Twit Filter: ${twitStatus}\u001b[1;33m (${twitCount} user(s))\u001b[22;37m",
+            0
+        ],
+        [
+            "|08Usage: |03/twit add <user>|00",
+            "\u001b[1;30mUsage: \u001b[22;36m/twit add <user>\u001b[22;30m",
+            0
+        ],
+        [
+            "|12Cannot add |15${target}|12 to twit list|00",
+            "\u001b[1;31mCannot add \u001b[1;37m${target}\u001b[1;31m to twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Added |15${target}|11 to your twit list|00",
+            "\u001b[1;36mAdded \u001b[1;37m${target}\u001b[1;36m to your twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Usage: |03/twit del <user>|00",
+            "\u001b[1;30mUsage: \u001b[22;36m/twit del <user>\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Cannot find |15${target}|11 in your twit list|00",
+            "\u001b[1;36mCannot find \u001b[1;37m${target}\u001b[1;36m in your twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Removed |15${target}|11 from your twit list|00",
+            "\u001b[1;36mRemoved \u001b[1;37m${target}\u001b[1;36m from your twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Your twit list is |15empty|00",
+            "\u001b[1;36mYour twit list is \u001b[1;37mempty\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Twit list (${list.length}): |15${list.join(', ')}",
+            "\u001b[1;36mTwit list (${list.length}): \u001b[1;37m${list.join(', ')}",
+            0
+        ],
+        [
+            "|11Twit filter is ${filterStatus}|11 — see |15/set TWITFILTER|00",
+            "\u001b[1;36mTwit filter is ${filterStatus}\u001b[1;36m — see \u001b[1;37m/set TWITFILTER\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Your twit list has been cleared|00",
+            "\u001b[1;36mYour twit list has been cleared\u001b[22;30m",
+            0
+        ],
+        ["|15/twit commands|08:", "\u001b[1;37m/twit commands\u001b[1;30m:", 0],
+        [
+            "|03/|11twit add |03<user>  |08- |07Add user to twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit add \u001b[22;36m<user>  \u001b[1;30m- \u001b[22;37mAdd user to twit list",
+            0
+        ],
+        [
+            "|03/|11twit del |03<user>  |08- |07Remove user from twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit del \u001b[22;36m<user>  \u001b[1;30m- \u001b[22;37mRemove user from twit list",
+            0
+        ],
+        [
+            "|03/|11twit list         |08- |07Show your twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit list         \u001b[1;30m- \u001b[22;37mShow your twit list",
+            0
+        ],
+        [
+            "|03/|11twit clear        |08- |07Clear your twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit clear        \u001b[1;30m- \u001b[22;37mClear your twit list",
+            0
+        ],
+        [
+            "|08Use |03/set TWITFILTER on|08/|03off |08to enable/disable filtering",
+            "\u001b[1;30mUse \u001b[22;36m/set TWITFILTER on\u001b[1;30m/\u001b[22;36moff \u001b[1;30mto enable/disable filtering",
+            0
+        ],
+        [
+            "|08No mentions this session.|00",
+            "\u001b[1;30mNo mentions this session.\u001b[22;30m",
+            0
+        ],
+        [
+            "|08-- |15Mentions |08(${this.state.mentionsLog.length}) --",
+            "\u001b[1;30m-- \u001b[1;37mMentions \u001b[1;30m(${this.state.mentionsLog.length}) --",
+            0
+        ],
+        [
+            "|08-- |15End of Mentions |08--",
+            "\u001b[1;30m-- \u001b[1;37mEnd of Mentions \u001b[1;30m--",
+            0
+        ],
+        ["|15CTCP commands|08:", "\u001b[1;37mCTCP commands\u001b[1;30m:", 0],
+        [
+            "|03/|11ctcp |03<target> <command>",
+            "\u001b[22;36m/\u001b[1;36mctcp \u001b[22;36m<target> <command>",
+            0
+        ],
+        ["|10[target] |07can be:", "\u001b[1;32m[target] \u001b[22;37mcan be:", 0],
+        [
+            "  |15*          |07All users",
+            "  \u001b[1;37m*          \u001b[22;37mAll users",
+            0
+        ],
+        [
+            "  |15#room      |07All users in a room",
+            "  \u001b[1;37m#room      \u001b[22;37mAll users in a room",
+            0
+        ],
+        [
+            "  |15user       |07A specific user",
+            "  \u001b[1;37muser       \u001b[22;37mA specific user",
+            0
+        ],
+        ["|10[command] |07can be:", "\u001b[1;32m[command] \u001b[22;37mcan be:", 0],
+        [
+            "  |15VERSION    |07Request client version",
+            "  \u001b[1;37mVERSION    \u001b[22;37mRequest client version",
+            0
+        ],
+        [
+            "  |15TIME       |07Request local time",
+            "  \u001b[1;37mTIME       \u001b[22;37mRequest local time",
+            0
+        ],
+        [
+            "  |15PING       |07Latency check",
+            "  \u001b[1;37mPING       \u001b[22;37mLatency check",
+            0
+        ],
+        [
+            "  |15CLIENTINFO |07Request supported commands",
+            "  \u001b[1;37mCLIENTINFO \u001b[22;37mRequest supported commands",
+            0
+        ],
+        [
+            "* |14[CTCP-REQUEST] |15${cmd} |07on |15${target} |07from |10${message.from_user}|00",
+            "* \u001b[1;33m[CTCP-REQUEST] \u001b[1;37m${cmd} \u001b[22;37mon \u001b[1;37m${target} \u001b[22;37mfrom \u001b[1;32m${message.from_user}\u001b[22;30m",
+            0
+        ],
+        [
+            "* |14[CTCP-REPLY] |10${responder} |15${rest}|00",
+            "* \u001b[1;33m[CTCP-REPLY] \u001b[1;32m${responder} \u001b[1;37m${rest}\u001b[22;30m",
+            0
+        ],
+        ["NEWROOM:${oldRoom || room}:${room}", "NEWROOM:${oldRoom | room}:${room}", 0],
+        [
+            "\n|00Cannot change area: ${err.message}\n",
+            "\n\u001b[22;30mCannot change area: ${err.message}\n",
+            0
+        ],
+        [
+            "\n|00Cannot change conference: ${err.message}\n",
+            "\n\u001b[22;30mCannot change conference: ${err.message}\n",
+            0
+        ],
+        [
+            "${headerArt || ''}\r\n${pipeToAnsi(\n                            item.text\n                        )}\r\n${footerArt || ''}",
+            "${headerArt | ''}\r\n${pipeToAnsi(\n                            item.text\n                        )}\r\n${footerArt | ''}",
+            0
+        ],
+        [
+            ");\n        if ('ok' !== res.status || (res.disk && res.disk.error)) {\n            process.exitCode = ExitCodes.ERROR;\n        }\n    } catch (e) {\n        if (e instanceof ConsoleError) {\n            process.stderr.write('\\x1b[0m\r\n');\n            console.error(",
+            ");\n        if ('ok' !== res.status | (res.disk && res.disk.error)) {\n            process.exitCode = ExitCodes.ERROR;\n        }\n    } catch (e) {\n        if (e instanceof ConsoleError) {\n            process.stderr.write('\\x1b[0m\r\n');\n            console.error(",
+            0
+        ],
+        [
+            "${padRight(node.address.toString(), 22)}${padLeft(\n                    live.length,\n                    8\n                )}${padLeft(missing.length || '', 9)}${padLeft(\n                    friendlyAge(oldestTimestamp(live)),\n                    8\n                )}",
+            "${padRight(node.address.toString(), 22)}${padLeft(\n                    live.length,\n                    8\n                )}${padLeft(missing.length | '', 9)}${padLeft(\n                    friendlyAge(oldestTimestamp(live)),\n                    8\n                )}",
+            0
+        ],
+        ["Label: ${label || '(none)'}", "Label: ${label | '(none)'}", 0],
+        [
+            "${String(row.id).padEnd(6)}${row.user_name.padEnd(20)}${(row.label || '').padEnd(20)}${row.scope.padEnd(14)}${row.created_at.padEnd(22)}${lastUsed.padEnd(22)}${status}",
+            "${String(row.id).padEnd(6)}${row.user_name.padEnd(20)}${(row.label | '').padEnd(20)}${row.scope.padEnd(14)}${row.created_at.padEnd(22)}${lastUsed.padEnd(22)}${status}",
+            0
+        ],
+        [
+            "Real name: ${user.properties[UserProps.RealName] || 'N/A'}",
+            "Real name: ${user.properties[UserProps.RealName] | 'N/A'}",
+            0
+        ],
+        [
+            "\nOTP secret   : ${\n            user.getProperty(UserProps.AuthFactor2OTPSecret) || 'N/A'\n        }\nOTP Backup   : ${backupCodesOrNa()}",
+            "\nOTP secret   : ${\n            user.getProperty(UserProps.AuthFactor2OTPSecret) | 'N/A'\n        }\nOTP Backup   : ${backupCodesOrNa()}",
+            0
+        ],
+        [
+            "|08You may only page the sysop once every |15${remainingMinutes}|08 minute(s). Please try again later.|07",
+            "\u001b[1;30mYou may only page the sysop once every \u001b[1;37m${remainingMinutes}\u001b[1;30m minute(s). Please try again later.\u001b[22;37m",
+            0
+        ],
+        [
+            "|10Page |07from |15{userName} |08(node {nodeId})|07\r\n",
+            "\u001b[1;32mPage \u001b[22;37mfrom \u001b[1;37m{userName} \u001b[1;30m(node {nodeId})\u001b[22;37m\r\n",
+            0
+        ],
+        ["|07{message}\r\n", "\u001b[22;37m{message}\r\n", 0],
+        [
+            "|08Visit WFC and press |07B|08 on the node to respond.|07",
+            "\u001b[1;30mVisit WFC and press \u001b[22;37mB\u001b[1;30m on the node to respond.\u001b[22;37m",
+            0
+        ],
+        [
+            "Reason: ${\n                                                        err.reason || err.message\n                                                    }\r\n\r\n",
+            "Reason: ${\n                                                        err.reason | err.message\n                                                    }\r\n\r\n",
+            0
+        ],
+        ["${address || '*'}:${port}", "${address | '*'}:${port}", 0],
+        [
+            "  |10${nameColumn(name)}|07listening on |15${target}",
+            "  \u001b[1;32m${nameColumn(name)}\u001b[22;37mlistening on \u001b[1;37m${target}",
+            0
+        ],
+        [
+            "  |12${nameColumn(name)}FAILED: |15${bindErr.reason}",
+            "  \u001b[1;31m${nameColumn(name)}FAILED: \u001b[1;37m${bindErr.reason}",
+            0
+        ],
+        ["|08XXXXX", "\u001b[1;30mXXXXX", 0],
+        ["|08 ", "\u001b[1;30m ", 0],
+        ["\\x1b[1|07m", "\\x1b[1\u001b[22;37mm", 0],
+        [
+            "|15{userName}|07: {message}",
+            "\u001b[1;37m{userName}\u001b[22;37m: {message}",
+            0
+        ],
+        [
+            "|08[ Chat session ended ]|07",
+            "\u001b[1;30m[ Chat session ended ]\u001b[22;37m",
+            0
+        ],
+        ["\r\n!|1K\r\n", null, 0],
+        [
+            "${zone}:${addr.net}/${addr.node}.${addr.point || 0}",
+            "${zone}:${addr.net}/${addr.node}.${addr.point | 0}",
+            0
+        ],
+        [
+            "|00|07Duplicate upload(s) found:\n",
+            "\u001b[22;30m\u001b[22;37mDuplicate upload(s) found:\n",
+            0
+        ],
+        [
+            "|15{userName}|07 logged in on node |15{nodeId}|07",
+            "\u001b[1;37m{userName}\u001b[22;37m logged in on node \u001b[1;37m{nodeId}\u001b[22;37m",
+            0
+        ],
+        [
+            "|15{userName}|07 earned |14{title}|07 (+{points})",
+            "\u001b[1;37m{userName}\u001b[22;37m earned \u001b[1;33m{title}\u001b[22;37m (+{points})",
+            0
+        ],
+        [
+            "|15{userName}|07 uploaded |15{fileCount}|07 file(s)",
+            "\u001b[1;37m{userName}\u001b[22;37m uploaded \u001b[1;37m{fileCount}\u001b[22;37m file(s)",
+            0
+        ],
+        [
+            "|12Task |15{taskDesc}|12 failed|07: {error}",
+            "\u001b[1;31mTask \u001b[1;37m{taskDesc}\u001b[1;31m failed\u001b[22;37m: {error}",
+            0
+        ],
+        [
+            "|14Task |15{taskDesc}|14 is overdue|07",
+            "\u001b[1;33mTask \u001b[1;37m{taskDesc}\u001b[1;33m is overdue\u001b[22;37m",
+            0
+        ],
+        [
+            "|07  {statusIndicator}|07 {desc:<26.26} |08{schedule:<16.16} |07{nextRun:<14.14} {lastResult}",
+            "\u001b[22;37m  {statusIndicator}\u001b[22;37m {desc:<26.26} \u001b[1;30m{schedule:<16.16} \u001b[22;37m{nextRun:<14.14} {lastResult}",
+            0
+        ],
+        [
+            "|15> {statusIndicator}|15 {desc:<26.26} |07{schedule:<16.16} |15{nextRun:<14.14} {lastResult}",
+            "\u001b[1;37m> {statusIndicator}\u001b[1;37m {desc:<26.26} \u001b[22;37m{schedule:<16.16} \u001b[1;37m{nextRun:<14.14} {lastResult}",
+            0
+        ],
+        [
+            "|10Started |15{desc}|07",
+            "\u001b[1;32mStarted \u001b[1;37m{desc}\u001b[22;37m",
+            0
+        ],
+        [
+            "|14{desc} is already running|07",
+            "\u001b[1;33m{desc} is already running\u001b[22;37m",
+            0
+        ],
+        [
+            "|12{desc} cannot be run by hand|07",
+            "\u001b[1;31m{desc} cannot be run by hand\u001b[22;37m",
+            0
+        ],
+        [
+            "|12No such task: {name}|07",
+            "\u001b[1;31mNo such task: {name}\u001b[22;37m",
+            0
+        ],
+        [
+            "|14Stopping |15{desc}|14: its process was told to quit|07",
+            "\u001b[1;33mStopping \u001b[1;37m{desc}\u001b[1;33m: its process was told to quit\u001b[22;37m",
+            0
+        ],
+        [
+            "|14Abandoned |15{desc}|14; it may still be running|07",
+            "\u001b[1;33mAbandoned \u001b[1;37m{desc}\u001b[1;33m; it may still be running\u001b[22;37m",
+            0
+        ],
+        ["|07{desc} is not running", "\u001b[22;37m{desc} is not running", 0],
+        [
+            "|14{desc} finished and started again; not stopped|07",
+            "\u001b[1;33m{desc} finished and started again; not stopped\u001b[22;37m",
+            0
+        ],
+        [
+            "|12The event scheduler is not running|07",
+            "\u001b[1;31mThe event scheduler is not running\u001b[22;37m",
+            0
+        ],
+        [
+            "|08[|07{index}|08] |15{userName}|08/|07{nodeId} |08- |07{timestamp}\r\n    |07{text}",
+            "\u001b[1;30m[\u001b[22;37m{index}\u001b[1;30m] \u001b[1;37m{userName}\u001b[1;30m/\u001b[22;37m{nodeId} \u001b[1;30m- \u001b[22;37m{timestamp}\r\n    \u001b[22;37m{text}",
+            0
+        ],
+        ["|08No messages.|07", "\u001b[1;30mNo messages.\u001b[22;37m", 0],
+        ["|08No tasks.|07", "\u001b[1;30mNo tasks.\u001b[22;37m", 0],
+        ["|08{name}|07{sep}{value}", "\u001b[1;30m{name}\u001b[22;37m{sep}{value}", 0],
+        [
+            "|15${escapePipes(obj.desc)} |08(${escapePipes(row.name)})|07",
+            "\u001b[1;37m${escapePipes(obj.desc)} \u001b[1;30m(${escapePipes(row.name)})\u001b[22;37m",
+            0
+        ],
+        [
+            "|15${escapePipes(obj.desc)}|07",
+            "\u001b[1;37m${escapePipes(obj.desc)}\u001b[22;37m",
+            0
+        ],
+        ["failed: ${lastRun.error || 'error'}", "failed: ${lastRun.error | 'error'}", 0],
+        [
+            "|07${escapePipes(lastRun.outputTail)}",
+            "\u001b[22;37m${escapePipes(lastRun.outputTail)}",
+            0
+        ],
+        [
+            " |08[|15y|08/|15N|08]|07 ",
+            " \u001b[1;30m[\u001b[1;37my\u001b[1;30m/\u001b[1;37mN\u001b[1;30m]\u001b[22;37m ",
+            0
+        ],
+        ["|07${question}${suffix}", "\u001b[22;37m${question}${suffix}", 0],
+        [
+            "|15Tasks|08: |07up|08/|07down select, |15R|07un, |15X|07 stop, |15F|07 refresh, |15Q|07uit",
+            "\u001b[1;37mTasks\u001b[1;30m: \u001b[22;37mup\u001b[1;30m/\u001b[22;37mdown select, \u001b[1;37mR\u001b[22;37mun, \u001b[1;37mX\u001b[22;37m stop, \u001b[1;37mF\u001b[22;37m refresh, \u001b[1;37mQ\u001b[22;37muit",
+            0
+        ],
+        ["${screen}|07", "${screen}\u001b[22;37m", 0],
+        [
+            "${prefixes[levelName] || ''}${rec.msg || ''}",
+            "${prefixes[levelName] | ''}${rec.msg | ''}",
+            0
+        ],
+        [
+            "|08[|07${ts}|08] ${levelIndicator} ${levelName.toUpperCase()}|08",
+            "\u001b[1;30m[\u001b[22;37m${ts}\u001b[1;30m] ${levelIndicator} ${levelName.toUpperCase()}\u001b[1;30m",
+            0
+        ],
+        [
+            "  node:|07${rec.nodeId}|08",
+            "  node:\u001b[22;37m${rec.nodeId}\u001b[1;30m",
+            0
+        ],
+        [
+            "  session:|07${rec.sessionId}|08",
+            "  session:\u001b[22;37m${rec.sessionId}\u001b[1;30m",
+            0
+        ],
+        [
+            "${levelPrefix}${rec.msg || '(no message)'}|00",
+            "${levelPrefix}${rec.msg | '(no message)'}\u001b[22;30m",
+            0
+        ],
+        [
+            "|08{name}|07{sep}|07{value}",
+            "\u001b[1;30m{name}\u001b[22;37m{sep}\u001b[22;37m{value}",
+            0
+        ],
+        ["|08${rec.err.stack}|00", "\u001b[1;30m${rec.err.stack}\u001b[22;30m", 0],
+        [
+            "|08No log entries available|00",
+            "\u001b[1;30mNo log entries available\u001b[22;30m",
+            0
+        ],
+        ["|16|07{text}", "\u001b[40m\u001b[22;37m{text}", 0],
+        ["|00|23{text}", "\u001b[22;30m\u001b[47m{text}", 0],
+        [
+            "|16|07{userName:<15.14}{location:<10.9}{ts:<13.13}",
+            "\u001b[40m\u001b[22;37m{userName:<15.14}{location:<10.9}{ts:<13.13}",
+            0
+        ],
+        [
+            "|16|07{node:<5.4}{userName:<16.15}{action:<17.17}",
+            "\u001b[40m\u001b[22;37m{node:<5.4}{userName:<16.15}{action:<17.17}",
+            0
+        ],
+        [
+            "|16|07{index:>2} {name:<33.32}",
+            "\u001b[40m\u001b[22;37m{index:>2} {name:<33.32}",
+            0
+        ],
+        [
+            "|00|23{index:>2} {name:<33.32}",
+            "\u001b[22;30m\u001b[47m{index:>2} {name:<33.32}",
+            0
+        ],
+        [
+            "|16|07{msgNumSelected}/{msgNumTotal} {fromUserName:<16.15} {ts}",
+            "\u001b[40m\u001b[22;37m{msgNumSelected}/{msgNumTotal} {fromUserName:<16.15} {ts}",
+            0
+        ],
+        [
+            "|16|07{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            "\u001b[40m\u001b[22;37m{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            0
+        ],
+        [
+            "|00|23{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            "\u001b[22;30m\u001b[47m{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            0
+        ],
+        ["|00|23", "\u001b[22;30m\u001b[47m", 0],
+        ["|03mode|08:", "\u001b[22;36mmode\u001b[1;30m:", 0],
+        [" |03pos|08:", " \u001b[22;36mpos\u001b[1;30m:", 0],
+        [
+            "|08Chatting with |15{partnerName}|08 · {duration} · |07ESC|08 to end|07",
+            "\u001b[1;30mChatting with \u001b[1;37m{partnerName}\u001b[1;30m · {duration} · \u001b[22;37mESC\u001b[1;30m to end\u001b[22;37m",
+            0
+        ],
+        [
+            "|03smash a key to continue |08[|11C|08] |03continuous  |08[|11Q|08] |03quit",
+            "\u001b[22;36msmash a key to continue \u001b[1;30m[\u001b[1;36mC\u001b[1;30m] \u001b[22;36mcontinuous  \u001b[1;30m[\u001b[1;36mQ\u001b[1;30m] \u001b[22;36mquit",
+            0
+        ],
+        [
+            "|11s|03mash |11y|03our |11k|03eyboard|08!",
+            "\u001b[1;36ms\u001b[22;36mmash \u001b[1;36my\u001b[22;36mour \u001b[1;36mk\u001b[22;36meyboard\u001b[1;30m!",
+            0
+        ],
+        ["|11{text}", "\u001b[1;36m{text}", 0],
+        [
+            "|15{userName:<15.14}|07{location:<10.9}|11{ts:<13.13}",
+            "\u001b[1;37m{userName:<15.14}\u001b[22;37m{location:<10.9}\u001b[1;36m{ts:<13.13}",
+            0
+        ],
+        [
+            "|07{node:<5.4}|15{userName:<16.15}|11{action:<17.17}",
+            "\u001b[22;37m{node:<5.4}\u001b[1;37m{userName:<16.15}\u001b[1;36m{action:<17.17}",
+            0
+        ],
+        [
+            "|15{index:>2} |03{name:<33.32}",
+            "\u001b[1;37m{index:>2} \u001b[22;36m{name:<33.32}",
+            0
+        ],
+        [
+            "|07{msgNumSelected}/{msgNumTotal} |15{fromUserName:<16.15} |11{ts}",
+            "\u001b[22;37m{msgNumSelected}/{msgNumTotal} \u001b[1;37m{fromUserName:<16.15} \u001b[1;36m{ts}",
+            0
+        ],
+        [
+            "|15{msgNum:>3} |03{subject:<20.19}|11{fromUserName:<13.12}|15{newIndicator}",
+            "\u001b[1;37m{msgNum:>3} \u001b[22;36m{subject:<20.19}\u001b[1;36m{fromUserName:<13.12}\u001b[1;37m{newIndicator}",
+            0
+        ],
+        ["|16|11", "\u001b[40m\u001b[1;36m", 0],
+        [
+            "${metadata.artist || 'Unknown Artist'} - ${\n        metadata.title || 'Unknown'\n    } (",
+            "${metadata.artist | 'Unknown Artist'} - ${\n        metadata.title | 'Unknown'\n    } (",
+            0
+        ]
+    ],
+    "body": [
+        ["|", null, 0],
+        ["x|", null, 0],
+        ["|y", null, 0],
+        ["x|y", null, 0],
+        ["|07|", "\u001b[22;37m|", 0],
+        ["||07", "|\u001b[22;37m", 0],
+        ["|1", null, 0],
+        ["x|1", null, 0],
+        ["|1y", null, 0],
+        ["x|1y", null, 0],
+        ["|07|1", "\u001b[22;37m|1", 0],
+        ["|1|07", "|1\u001b[22;37m", 0],
+        ["|Z9", null, 0],
+        ["x|Z9", null, 0],
+        ["|Z9y", null, 0],
+        ["x|Z9y", null, 0],
+        ["|07|Z9", "\u001b[22;37m|Z9", 0],
+        ["|Z9|07", "|Z9\u001b[22;37m", 0],
+        ["|C", null, 0],
+        ["x|C", null, 0],
+        ["|Cy", null, 0],
+        ["x|Cy", null, 0],
+        ["|07|C", "\u001b[22;37m|C", 0],
+        ["|C|07", "|C\u001b[22;37m", 0],
+        ["|CF", null, "\u001b[1C"],
+        ["x|CF", null, "x\u001b[1C"],
+        ["|CFy", null, "\u001b[1Cy"],
+        ["x|CFy", null, "x\u001b[1Cy"],
+        ["|07|CF", "\u001b[22;37m|CF", "\u001b[22;37m\u001b[1C"],
+        ["|CF|07", "|CF\u001b[22;37m", "\u001b[1C\u001b[22;37m"],
+        ["|CF1", null, "\u001b[1C"],
+        ["x|CF1", null, "x\u001b[1C"],
+        ["|CF1y", null, "\u001b[1Cy"],
+        ["x|CF1y", null, "x\u001b[1Cy"],
+        ["|07|CF1", "\u001b[22;37m|CF1", "\u001b[22;37m\u001b[1C"],
+        ["|CF1|07", "|CF1\u001b[22;37m", "\u001b[1C\u001b[22;37m"],
+        ["|CF12", null, "\u001b[12C"],
+        ["x|CF12", null, "x\u001b[12C"],
+        ["|CF12y", null, "\u001b[12Cy"],
+        ["x|CF12y", null, "x\u001b[12Cy"],
+        ["|07|CF12", "\u001b[22;37m|CF12", "\u001b[22;37m\u001b[12C"],
+        ["|CF12|07", "|CF12\u001b[22;37m", "\u001b[12C\u001b[22;37m"],
+        ["|CF123", null, "\u001b[12C3"],
+        ["x|CF123", null, "x\u001b[12C3"],
+        ["|CF123y", null, "\u001b[12C3y"],
+        ["x|CF123y", null, "x\u001b[12C3y"],
+        ["|07|CF123", "\u001b[22;37m|CF123", "\u001b[22;37m\u001b[12C3"],
+        ["|CF123|07", "|CF123\u001b[22;37m", "\u001b[12C3\u001b[22;37m"],
+        ["|CF05", null, "\u001b[5C"],
+        ["x|CF05", null, "x\u001b[5C"],
+        ["|CF05y", null, "\u001b[5Cy"],
+        ["x|CF05y", null, "x\u001b[5Cy"],
+        ["|07|CF05", "\u001b[22;37m|CF05", "\u001b[22;37m\u001b[5C"],
+        ["|CF05|07", "|CF05\u001b[22;37m", "\u001b[5C\u001b[22;37m"],
+        ["|CF00", null, "\u001b[0C"],
+        ["x|CF00", null, "x\u001b[0C"],
+        ["|CF00y", null, "\u001b[0Cy"],
+        ["x|CF00y", null, "x\u001b[0Cy"],
+        ["|07|CF00", "\u001b[22;37m|CF00", "\u001b[22;37m\u001b[0C"],
+        ["|CF00|07", "|CF00\u001b[22;37m", "\u001b[0C\u001b[22;37m"],
+        ["|CB3", null, "\u001b[3D"],
+        ["x|CB3", null, "x\u001b[3D"],
+        ["|CB3y", null, "\u001b[3Dy"],
+        ["x|CB3y", null, "x\u001b[3Dy"],
+        ["|07|CB3", "\u001b[22;37m|CB3", "\u001b[22;37m\u001b[3D"],
+        ["|CB3|07", "|CB3\u001b[22;37m", "\u001b[3D\u001b[22;37m"],
+        ["|CU1", null, "\u001b[1A"],
+        ["x|CU1", null, "x\u001b[1A"],
+        ["|CU1y", null, "\u001b[1Ay"],
+        ["x|CU1y", null, "x\u001b[1Ay"],
+        ["|07|CU1", "\u001b[22;37m|CU1", "\u001b[22;37m\u001b[1A"],
+        ["|CU1|07", "|CU1\u001b[22;37m", "\u001b[1A\u001b[22;37m"],
+        ["|CD02", null, "\u001b[2B"],
+        ["x|CD02", null, "x\u001b[2B"],
+        ["|CD02y", null, "\u001b[2By"],
+        ["x|CD02y", null, "x\u001b[2By"],
+        ["|07|CD02", "\u001b[22;37m|CD02", "\u001b[22;37m\u001b[2B"],
+        ["|CD02|07", "|CD02\u001b[22;37m", "\u001b[2B\u001b[22;37m"],
+        ["|CUU1", null, "\u001b[1AU1"],
+        ["x|CUU1", null, "x\u001b[1AU1"],
+        ["|CUU1y", null, "\u001b[1AU1y"],
+        ["x|CUU1y", null, "x\u001b[1AU1y"],
+        ["|07|CUU1", "\u001b[22;37m|CUU1", "\u001b[22;37m\u001b[1AU1"],
+        ["|CUU1|07", "|CUU1\u001b[22;37m", "\u001b[1AU1\u001b[22;37m"],
+        ["|CU1x5", null, "\u001b[1Ax5"],
+        ["x|CU1x5", null, "x\u001b[1Ax5"],
+        ["|CU1x5y", null, "\u001b[1Ax5y"],
+        ["x|CU1x5y", null, "x\u001b[1Ax5y"],
+        ["|07|CU1x5", "\u001b[22;37m|CU1x5", "\u001b[22;37m\u001b[1Ax5"],
+        ["|CU1x5|07", "|CU1x5\u001b[22;37m", "\u001b[1Ax5\u001b[22;37m"],
+        ["|0|01", "|0\u001b[22;34m", 0],
+        ["x|0|01", "x|0\u001b[22;34m", 0],
+        ["|0|01y", "|0\u001b[22;34my", 0],
+        ["x|0|01y", "x|0\u001b[22;34my", 0],
+        ["|07|0|01", "\u001b[22;37m|0\u001b[22;34m", 0],
+        ["|0|01|07", "|0\u001b[22;34m\u001b[22;37m", 0],
+        ["|C|C|FN", null, "|C|CFNFNFN"],
+        ["x|C|C|FN", null, "x|C|CFNFNFN"],
+        ["|C|C|FNy", null, "|C|CFNFNFNy"],
+        ["x|C|C|FNy", null, "x|C|CFNFNFNy"],
+        ["|07|C|C|FN", "\u001b[22;37m|C|C|FN", "\u001b[22;37m|C|CFNFNFN"],
+        ["|C|C|FN|07", "|C|C|FN\u001b[22;37m", "|C|CFNFNFN\u001b[22;37m"],
+        ["||", null, 0],
+        ["x||", null, 0],
+        ["||y", null, 0],
+        ["x||y", null, 0],
+        ["|07||", "\u001b[22;37m||", 0],
+        ["|||07", "||\u001b[22;37m", 0],
+        ["|||", null, 0],
+        ["x|||", null, 0],
+        ["|||y", null, 0],
+        ["x|||y", null, 0],
+        ["|07|||", "\u001b[22;37m|||", 0],
+        ["||||07", "|||\u001b[22;37m", 0],
+        ["x|||07", "x||\u001b[22;37m", 0],
+        ["|||07y", "||\u001b[22;37my", 0],
+        ["x|||07y", "x||\u001b[22;37my", 0],
+        ["|07|||07", "\u001b[22;37m||\u001b[22;37m", 0],
+        ["|||07|07", "||\u001b[22;37m\u001b[22;37m", 0],
+        ["x||07", "x|\u001b[22;37m", 0],
+        ["||07y", "|\u001b[22;37my", 0],
+        ["x||07y", "x|\u001b[22;37my", 0],
+        ["|07||07", "\u001b[22;37m|\u001b[22;37m", 0],
+        ["||07|07", "|\u001b[22;37m\u001b[22;37m", 0],
+        ["x||||07", "x|||\u001b[22;37m", 0],
+        ["||||07y", "|||\u001b[22;37my", 0],
+        ["x||||07y", "x|||\u001b[22;37my", 0],
+        ["|07||||07", "\u001b[22;37m|||\u001b[22;37m", 0],
+        ["||||07|07", "|||\u001b[22;37m\u001b[22;37m", 0],
+        ["|24", "\u001b[5;40m", 0],
+        ["x|24", "x\u001b[5;40m", 0],
+        ["|24y", "\u001b[5;40my", 0],
+        ["x|24y", "x\u001b[5;40my", 0],
+        ["|07|24", "\u001b[22;37m\u001b[5;40m", 0],
+        ["|24|07", "\u001b[5;40m\u001b[22;37m", 0],
+        ["|25", "\u001b[5;44m", 0],
+        ["x|25", "x\u001b[5;44m", 0],
+        ["|25y", "\u001b[5;44my", 0],
+        ["x|25y", "x\u001b[5;44my", 0],
+        ["|07|25", "\u001b[22;37m\u001b[5;44m", 0],
+        ["|25|07", "\u001b[5;44m\u001b[22;37m", 0],
+        ["|26", "\u001b[5;42m", 0],
+        ["x|26", "x\u001b[5;42m", 0],
+        ["|26y", "\u001b[5;42my", 0],
+        ["x|26y", "x\u001b[5;42my", 0],
+        ["|07|26", "\u001b[22;37m\u001b[5;42m", 0],
+        ["|26|07", "\u001b[5;42m\u001b[22;37m", 0],
+        ["|27", "\u001b[5;46m", 0],
+        ["x|27", "x\u001b[5;46m", 0],
+        ["|27y", "\u001b[5;46my", 0],
+        ["x|27y", "x\u001b[5;46my", 0],
+        ["|07|27", "\u001b[22;37m\u001b[5;46m", 0],
+        ["|27|07", "\u001b[5;46m\u001b[22;37m", 0],
+        ["|28", "\u001b[5;41m", 0],
+        ["x|28", "x\u001b[5;41m", 0],
+        ["|28y", "\u001b[5;41my", 0],
+        ["x|28y", "x\u001b[5;41my", 0],
+        ["|07|28", "\u001b[22;37m\u001b[5;41m", 0],
+        ["|28|07", "\u001b[5;41m\u001b[22;37m", 0],
+        ["|29", "\u001b[5;45m", 0],
+        ["x|29", "x\u001b[5;45m", 0],
+        ["|29y", "\u001b[5;45my", 0],
+        ["x|29y", "x\u001b[5;45my", 0],
+        ["|07|29", "\u001b[22;37m\u001b[5;45m", 0],
+        ["|29|07", "\u001b[5;45m\u001b[22;37m", 0],
+        ["|30", "\u001b[5;43m", 0],
+        ["x|30", "x\u001b[5;43m", 0],
+        ["|30y", "\u001b[5;43my", 0],
+        ["x|30y", "x\u001b[5;43my", 0],
+        ["|07|30", "\u001b[22;37m\u001b[5;43m", 0],
+        ["|30|07", "\u001b[5;43m\u001b[22;37m", 0],
+        ["|31", "\u001b[5;47m", 0],
+        ["x|31", "x\u001b[5;47m", 0],
+        ["|31y", "\u001b[5;47my", 0],
+        ["x|31y", "x\u001b[5;47my", 0],
+        ["|07|31", "\u001b[22;37m\u001b[5;47m", 0],
+        ["|31|07", "\u001b[5;47m\u001b[22;37m", 0],
+        ["|00", "\u001b[22;30m", 0],
+        ["x|00", "x\u001b[22;30m", 0],
+        ["|00y", "\u001b[22;30my", 0],
+        ["x|00y", "x\u001b[22;30my", 0],
+        ["|07|00", "\u001b[22;37m\u001b[22;30m", 0],
+        ["|00|07", "\u001b[22;30m\u001b[22;37m", 0],
+        ["|07", "\u001b[22;37m", 0],
+        ["x|07", "x\u001b[22;37m", 0],
+        ["|07y", "\u001b[22;37my", 0],
+        ["x|07y", "x\u001b[22;37my", 0],
+        ["|07|07", "\u001b[22;37m\u001b[22;37m", 0],
+        ["|08", "\u001b[1;30m", 0],
+        ["x|08", "x\u001b[1;30m", 0],
+        ["|08y", "\u001b[1;30my", 0],
+        ["x|08y", "x\u001b[1;30my", 0],
+        ["|07|08", "\u001b[22;37m\u001b[1;30m", 0],
+        ["|08|07", "\u001b[1;30m\u001b[22;37m", 0],
+        ["|15", "\u001b[1;37m", 0],
+        ["x|15", "x\u001b[1;37m", 0],
+        ["|15y", "\u001b[1;37my", 0],
+        ["x|15y", "x\u001b[1;37my", 0],
+        ["|07|15", "\u001b[22;37m\u001b[1;37m", 0],
+        ["|15|07", "\u001b[1;37m\u001b[22;37m", 0],
+        ["|16", "\u001b[40m", 0],
+        ["x|16", "x\u001b[40m", 0],
+        ["|16y", "\u001b[40my", 0],
+        ["x|16y", "x\u001b[40my", 0],
+        ["|07|16", "\u001b[22;37m\u001b[40m", 0],
+        ["|16|07", "\u001b[40m\u001b[22;37m", 0],
+        ["|23", "\u001b[47m", 0],
+        ["x|23", "x\u001b[47m", 0],
+        ["|23y", "\u001b[47my", 0],
+        ["x|23y", "x\u001b[47my", 0],
+        ["|07|23", "\u001b[22;37m\u001b[47m", 0],
+        ["|23|07", "\u001b[47m\u001b[22;37m", 0],
+        ["|32", "\u001b[22m", 0],
+        ["x|32", "x\u001b[22m", 0],
+        ["|32y", "\u001b[22my", 0],
+        ["x|32y", "x\u001b[22my", 0],
+        ["|07|32", "\u001b[22;37m\u001b[22m", 0],
+        ["|32|07", "\u001b[22m\u001b[22;37m", 0],
+        ["|50", "\u001b[22m", 0],
+        ["x|50", "x\u001b[22m", 0],
+        ["|50y", "\u001b[22my", 0],
+        ["x|50y", "x\u001b[22my", 0],
+        ["|07|50", "\u001b[22;37m\u001b[22m", 0],
+        ["|50|07", "\u001b[22m\u001b[22;37m", 0],
+        ["|99", "\u001b[22m", 0],
+        ["x|99", "x\u001b[22m", 0],
+        ["|99y", "\u001b[22my", 0],
+        ["x|99y", "x\u001b[22my", 0],
+        ["|07|99", "\u001b[22;37m\u001b[22m", 0],
+        ["|99|07", "\u001b[22m\u001b[22;37m", 0],
+        ["|1A", null, 0],
+        ["x|1A", null, 0],
+        ["|1Ay", null, 0],
+        ["x|1Ay", null, 0],
+        ["|07|1A", "\u001b[22;37m|1A", 0],
+        ["|1A|07", "|1A\u001b[22;37m", 0],
+        ["|0Z", null, 0],
+        ["x|0Z", null, 0],
+        ["|0Zy", null, 0],
+        ["x|0Zy", null, 0],
+        ["|07|0Z", "\u001b[22;37m|0Z", 0],
+        ["|0Z|07", "|0Z\u001b[22;37m", 0],
+        ["|9Z", null, 0],
+        ["x|9Z", null, 0],
+        ["|9Zy", null, 0],
+        ["x|9Zy", null, 0],
+        ["|07|9Z", "\u001b[22;37m|9Z", 0],
+        ["|9Z|07", "|9Z\u001b[22;37m", 0],
+        ["|A1", null, 0],
+        ["x|A1", null, 0],
+        ["|A1y", null, 0],
+        ["x|A1y", null, 0],
+        ["|07|A1", "\u001b[22;37m|A1", 0],
+        ["|A1|07", "|A1\u001b[22;37m", 0],
+        ["|Z0", null, 0],
+        ["x|Z0", null, 0],
+        ["|Z0y", null, 0],
+        ["x|Z0y", null, 0],
+        ["|07|Z0", "\u001b[22;37m|Z0", 0],
+        ["|Z0|07", "|Z0\u001b[22;37m", 0],
+        ["|un", null, 0],
+        ["x|un", null, 0],
+        ["|uny", null, 0],
+        ["x|uny", null, 0],
+        ["|07|un", "\u001b[22;37m|un", 0],
+        ["|un|07", "|un\u001b[22;37m", 0],
+        ["|Un", null, 0],
+        ["x|Un", null, 0],
+        ["|Uny", null, 0],
+        ["x|Uny", null, 0],
+        ["|07|Un", "\u001b[22;37m|Un", 0],
+        ["|Un|07", "|Un\u001b[22;37m", 0],
+        ["|uN", null, 0],
+        ["x|uN", null, 0],
+        ["|uNy", null, 0],
+        ["x|uNy", null, 0],
+        ["|07|uN", "\u001b[22;37m|uN", 0],
+        ["|uN|07", "|uN\u001b[22;37m", 0],
+        ["|cf05", null, 0],
+        ["x|cf05", null, 0],
+        ["|cf05y", null, 0],
+        ["x|cf05y", null, 0],
+        ["|07|cf05", "\u001b[22;37m|cf05", 0],
+        ["|cf05|07", "|cf05\u001b[22;37m", 0],
+        ["|ZZ", null, 0],
+        ["x|ZZ", null, 0],
+        ["|ZZy", null, 0],
+        ["x|ZZy", null, 0],
+        ["|07|ZZ", "\u001b[22;37m|ZZ", 0],
+        ["|ZZ|07", "|ZZ\u001b[22;37m", 0],
+        ["|UN", null, "UNUNUN"],
+        ["x|UN", null, "xUNUNUN"],
+        ["|UNy", null, "UNUNUNy"],
+        ["x|UNy", null, "xUNUNUNy"],
+        ["|07|UN", "\u001b[22;37m|UN", "\u001b[22;37mUNUNUN"],
+        ["|UN|07", "|UN\u001b[22;37m", "UNUNUN\u001b[22;37m"],
+        ["|XY", null, 0],
+        ["x|XY", null, 0],
+        ["|XYy", null, 0],
+        ["x|XYy", null, 0],
+        ["|07|XY", "\u001b[22;37m|XY", 0],
+        ["|XY|07", "|XY\u001b[22;37m", 0],
+        ["|PV", null, "a|07b"],
+        ["x|PV", null, "xa|07b"],
+        ["|PVy", null, "a|07by"],
+        ["x|PVy", null, "xa|07by"],
+        ["|07|PV", "\u001b[22;37m|PV", "\u001b[22;37ma|07b"],
+        ["|PV|07", "|PV\u001b[22;37m", "a|07b\u001b[22;37m"],
+        ["|EM", null, 0],
+        ["x|EM", null, 0],
+        ["|EMy", null, 0],
+        ["x|EMy", null, 0],
+        ["|07|EM", "\u001b[22;37m|EM", 0],
+        ["|EM|07", "|EM\u001b[22;37m", 0],
+        ["|QQ", null, "\u001b[22;37m"],
+        ["x|QQ", null, "x\u001b[22;37m"],
+        ["|QQy", null, "\u001b[22;37my"],
+        ["x|QQy", null, "x\u001b[22;37my"],
+        ["|07|QQ", "\u001b[22;37m|QQ", "\u001b[22;37m\u001b[22;37m"],
+        ["|QQ|07", "|QQ\u001b[22;37m", "\u001b[22;37m\u001b[22;37m"],
+        ["|ES", null, "\u001b[1"],
+        ["x|ES", null, "x\u001b[1"],
+        ["|ESy", null, "\u001b[1y"],
+        ["x|ESy", null, "x\u001b[1y"],
+        ["|07|ES", "\u001b[22;37m|ES", "\u001b[22;37m\u001b[1"],
+        ["|ES|07", "|ES\u001b[22;37m", "\u001b[1\u001b[22;37m"],
+        ["|LO", null, 0],
+        ["x|LO", null, 0],
+        ["|LOy", null, 0],
+        ["x|LOy", null, 0],
+        ["|07|LO", "\u001b[22;37m|LO", 0],
+        ["|LO|07", "|LO\u001b[22;37m", 0],
+        ["|LO rest", null, 0],
+        ["x|LO rest", null, 0],
+        ["|LO resty", null, 0],
+        ["x|LO resty", null, 0],
+        ["|07|LO rest", "\u001b[22;37m|LO rest", 0],
+        ["|LO rest|07", "|LO rest\u001b[22;37m", 0],
+        ["|LO|UR rest", null, "|LOURURUR rest"],
+        ["x|LO|UR rest", null, "x|LOURURUR rest"],
+        ["|LO|UR resty", null, "|LOURURUR resty"],
+        ["x|LO|UR resty", null, "x|LOURURUR resty"],
+        ["|07|LO|UR rest", "\u001b[22;37m|LO|UR rest", "\u001b[22;37m|LOURURUR rest"],
+        ["|LO|UR rest|07", "|LO|UR rest\u001b[22;37m", "|LOURURUR rest\u001b[22;37m"],
+        ["Loc: |LO", null, 0],
+        ["xLoc: |LO", null, 0],
+        ["Loc: |LOy", null, 0],
+        ["xLoc: |LOy", null, 0],
+        ["|07Loc: |LO", "\u001b[22;37mLoc: |LO", 0],
+        ["Loc: |LO|07", "Loc: |LO\u001b[22;37m", 0],
+        ["|LO rest |UN", null, "|LO rest UNUNUN"],
+        ["x|LO rest |UN", null, "x|LO rest UNUNUN"],
+        ["|LO rest |UNy", null, "|LO rest UNUNUNy"],
+        ["x|LO rest |UNy", null, "x|LO rest UNUNUNy"],
+        ["|07|LO rest |UN", "\u001b[22;37m|LO rest |UN", "\u001b[22;37m|LO rest UNUNUN"],
+        ["|LO rest |UN|07", "|LO rest |UN\u001b[22;37m", "|LO rest UNUNUN\u001b[22;37m"],
+        ["|EM|EM", null, 0],
+        ["x|EM|EM", null, 0],
+        ["|EM|EMy", null, 0],
+        ["x|EM|EMy", null, 0],
+        ["|07|EM|EM", "\u001b[22;37m|EM|EM", 0],
+        ["|EM|EM|07", "|EM|EM\u001b[22;37m", 0],
+        ["|EM|07x", "|EM\u001b[22;37mx", 0],
+        ["x|EM|07x", "x|EM\u001b[22;37mx", 0],
+        ["|EM|07xy", "|EM\u001b[22;37mxy", 0],
+        ["x|EM|07xy", "x|EM\u001b[22;37mxy", 0],
+        ["|07|EM|07x", "\u001b[22;37m|EM\u001b[22;37mx", 0],
+        ["|EM|07x|07", "|EM\u001b[22;37mx\u001b[22;37m", 0],
+        ["x|07|EM", "x\u001b[22;37m|EM", 0],
+        ["|07|EMy", "\u001b[22;37m|EMy", 0],
+        ["x|07|EMy", "x\u001b[22;37m|EMy", 0],
+        ["|07|07|EM", "\u001b[22;37m\u001b[22;37m|EM", 0],
+        ["|07|EM|07", "\u001b[22;37m|EM\u001b[22;37m", 0],
+        ["@X1F", "\u001b[5;37;44m", 0],
+        ["x@X1F", "x\u001b[5;37;44m", 0],
+        ["@X1Fy", "\u001b[5;37;44my", 0],
+        ["x@X1Fy", "x\u001b[5;37;44my", 0],
+        ["|07@X1F", "\u001b[22;37m\u001b[5;37;44m", 0],
+        ["@X1F|07", "\u001b[5;37;44m\u001b[22;37m", 0],
+        ["@X0E", "\u001b[5;33;40m", 0],
+        ["x@X0E", "x\u001b[5;33;40m", 0],
+        ["@X0Ey", "\u001b[5;33;40my", 0],
+        ["x@X0Ey", "x\u001b[5;33;40my", 0],
+        ["|07@X0E", "\u001b[22;37m\u001b[5;33;40m", 0],
+        ["@X0E|07", "\u001b[5;33;40m\u001b[22;37m", 0],
+        ["@XGZ", null, 0],
+        ["x@XGZ", null, 0],
+        ["@XGZy", null, 0],
+        ["x@XGZy", null, 0],
+        ["|07@XGZ", "\u001b[22;37m@XGZ", 0],
+        ["@XGZ|07", "@XGZ\u001b[22;37m", 0],
+        ["@1F@", "\u001b[5;37;44m", 0],
+        ["x@1F@", "x\u001b[5;37;44m", 0],
+        ["@1F@y", "\u001b[5;37;44my", 0],
+        ["x@1F@y", "x\u001b[5;37;44my", 0],
+        ["|07@1F@", "\u001b[22;37m\u001b[5;37;44m", 0],
+        ["@1F@|07", "\u001b[5;37;44m\u001b[22;37m", 0],
+        ["@0E@", "\u001b[5;33;40m", 0],
+        ["x@0E@", "x\u001b[5;33;40m", 0],
+        ["@0E@y", "\u001b[5;33;40my", 0],
+        ["x@0E@y", "x\u001b[5;33;40my", 0],
+        ["|07@0E@", "\u001b[22;37m\u001b[5;33;40m", 0],
+        ["@0E@|07", "\u001b[5;33;40m\u001b[22;37m", 0],
+        ["@1F", null, 0],
+        ["x@1F", null, 0],
+        ["@1Fy", null, 0],
+        ["x@1Fy", null, 0],
+        ["|07@1F", "\u001b[22;37m@1F", 0],
+        ["@1F|07", "@1F\u001b[22;37m", 0],
+        ["@@", null, 0],
+        ["x@@", null, 0],
+        ["@@y", null, 0],
+        ["x@@y", null, 0],
+        ["|07@@", "\u001b[22;37m@@", 0],
+        ["@@|07", "@@\u001b[22;37m", 0],
+        ["\u00031", "\u001b[1;36m", 0],
+        ["x\u00031", "x\u001b[1;36m", 0],
+        ["\u00031y", "\u001b[1;36my", 0],
+        ["x\u00031y", "x\u001b[1;36my", 0],
+        ["|07\u00031", "\u001b[22;37m\u001b[1;36m", 0],
+        ["\u00031|07", "\u001b[1;36m\u001b[22;37m", 0],
+        ["\u00039", "\u001b[0;36m", 0],
+        ["x\u00039", "x\u001b[0;36m", 0],
+        ["\u00039y", "\u001b[0;36my", 0],
+        ["x\u00039y", "x\u001b[0;36my", 0],
+        ["|07\u00039", "\u001b[22;37m\u001b[0;36m", 0],
+        ["\u00039|07", "\u001b[0;36m\u001b[22;37m", 0],
+        ["\u0003", null, 0],
+        ["x\u0003", null, 0],
+        ["\u0003y", null, 0],
+        ["x\u0003y", null, 0],
+        ["|07\u0003", "\u001b[22;37m\u0003", 0],
+        ["\u0003|07", "\u0003\u001b[22;37m", 0],
+        ["\u0003x", null, 0],
+        ["x\u0003x", null, 0],
+        ["\u0003xy", null, 0],
+        ["x\u0003xy", null, 0],
+        ["|07\u0003x", "\u001b[22;37m\u0003x", 0],
+        ["\u0003x|07", "\u0003x\u001b[22;37m", 0],
+        ["\u0019c1", "\u001b[22;31m", 0],
+        ["x\u0019c1", "x\u001b[22;31m", 0],
+        ["\u0019c1y", "\u001b[22;31my", 0],
+        ["x\u0019c1y", "x\u001b[22;31my", 0],
+        ["|07\u0019c1", "\u001b[22;37m\u001b[22;31m", 0],
+        ["\u0019c1|07", "\u001b[22;31m\u001b[22;37m", 0],
+        ["\u0019ca", "\u001b[1;32m", 0],
+        ["x\u0019ca", "x\u001b[1;32m", 0],
+        ["\u0019cay", "\u001b[1;32my", 0],
+        ["x\u0019cay", "x\u001b[1;32my", 0],
+        ["|07\u0019ca", "\u001b[22;37m\u001b[1;32m", 0],
+        ["\u0019ca|07", "\u001b[1;32m\u001b[22;37m", 0],
+        ["\u0019z7", "\u001b[47m", 0],
+        ["x\u0019z7", "x\u001b[47m", 0],
+        ["\u0019z7y", "\u001b[47my", 0],
+        ["x\u0019z7y", "x\u001b[47my", 0],
+        ["|07\u0019z7", "\u001b[22;37m\u001b[47m", 0],
+        ["\u0019z7|07", "\u001b[47m\u001b[22;37m", 0],
+        ["\u0019z8", null, 0],
+        ["x\u0019z8", null, 0],
+        ["\u0019z8y", null, 0],
+        ["x\u0019z8y", null, 0],
+        ["|07\u0019z8", "\u001b[22;37m\u0019z8", 0],
+        ["\u0019z8|07", "\u0019z8\u001b[22;37m", 0],
+        ["\u0019n1", "\n", 0],
+        ["x\u0019n1", "x\n", 0],
+        ["\u0019n1y", "\ny", 0],
+        ["x\u0019n1y", "x\ny", 0],
+        ["|07\u0019n1", "\u001b[22;37m\n", 0],
+        ["\u0019n1|07", "\n\u001b[22;37m", 0],
+        ["\u0019f1", "\u001b[2J", 0],
+        ["x\u0019f1", "x\u001b[2J", 0],
+        ["\u0019f1y", "\u001b[2Jy", 0],
+        ["x\u0019f1y", "x\u001b[2Jy", 0],
+        ["|07\u0019f1", "\u001b[22;37m\u001b[2J", 0],
+        ["\u0019f1|07", "\u001b[2J\u001b[22;37m", 0],
+        ["\u0019q1", "\u001b[22m", 0],
+        ["x\u0019q1", "x\u001b[22m", 0],
+        ["\u0019q1y", "\u001b[22my", 0],
+        ["x\u0019q1y", "x\u001b[22my", 0],
+        ["|07\u0019q1", "\u001b[22;37m\u001b[22m", 0],
+        ["\u0019q1|07", "\u001b[22m\u001b[22;37m", 0],
+        ["\u0019", null, 0],
+        ["x\u0019", null, 0],
+        ["\u0019y", null, 0],
+        ["x\u0019y", null, 0],
+        ["|07\u0019", "\u001b[22;37m\u0019", 0],
+        ["\u0019|07", "\u0019\u001b[22;37m", 0],
+        ["\u0019cg", null, 0],
+        ["x\u0019cg", null, 0],
+        ["\u0019cgy", null, 0],
+        ["x\u0019cgy", null, 0],
+        ["|07\u0019cg", "\u001b[22;37m\u0019cg", 0],
+        ["\u0019cg|07", "\u0019cg\u001b[22;37m", 0],
+        ["\u0011c1}", "\u001b[22;31m", 0],
+        ["x\u0011c1}", "x\u001b[22;31m", 0],
+        ["\u0011c1}y", "\u001b[22;31my", 0],
+        ["x\u0011c1}y", "x\u001b[22;31my", 0],
+        ["|07\u0011c1}", "\u001b[22;37m\u001b[22;31m", 0],
+        ["\u0011c1}|07", "\u001b[22;31m\u001b[22;37m", 0],
+        ["\u0011c1", null, 0],
+        ["x\u0011c1", null, 0],
+        ["\u0011c1y", null, 0],
+        ["x\u0011c1y", null, 0],
+        ["|07\u0011c1", "\u001b[22;37m\u0011c1", 0],
+        ["\u0011c1|07", "\u0011c1\u001b[22;37m", 0],
+        ["\u0011n1}", "\n", 0],
+        ["x\u0011n1}", "x\n", 0],
+        ["\u0011n1}y", "\ny", 0],
+        ["x\u0011n1}y", "x\ny", 0],
+        ["|07\u0011n1}", "\u001b[22;37m\n", 0],
+        ["\u0011n1}|07", "\n\u001b[22;37m", 0],
+        ["\u0011f1}", "\u001b[2J", 0],
+        ["x\u0011f1}", "x\u001b[2J", 0],
+        ["\u0011f1}y", "\u001b[2Jy", 0],
+        ["x\u0011f1}y", "x\u001b[2Jy", 0],
+        ["|07\u0011f1}", "\u001b[22;37m\u001b[2J", 0],
+        ["\u0011f1}|07", "\u001b[2J\u001b[22;37m", 0],
+        ["\u0011", null, 0],
+        ["x\u0011", null, 0],
+        ["\u0011y", null, 0],
+        ["x\u0011y", null, 0],
+        ["|07\u0011", "\u001b[22;37m\u0011", 0],
+        ["\u0011|07", "\u0011\u001b[22;37m", 0],
+        ["\u0011z0}", "\u001b[40m", 0],
+        ["x\u0011z0}", "x\u001b[40m", 0],
+        ["\u0011z0}y", "\u001b[40my", 0],
+        ["x\u0011z0}y", "x\u001b[40my", 0],
+        ["|07\u0011z0}", "\u001b[22;37m\u001b[40m", 0],
+        ["\u0011z0}|07", "\u001b[40m\u001b[22;37m", 0],
+        ["\u001b[0m|07a", "\u001b[0m\u001b[22;37ma", 0],
+        ["x\u001b[0m|07a", "x\u001b[0m\u001b[22;37ma", 0],
+        ["\u001b[0m|07ay", "\u001b[0m\u001b[22;37may", 0],
+        ["x\u001b[0m|07ay", "x\u001b[0m\u001b[22;37may", 0],
+        ["|07\u001b[0m|07a", "\u001b[22;37m\u001b[0m\u001b[22;37ma", 0],
+        ["\u001b[0m|07a|07", "\u001b[0m\u001b[22;37ma\u001b[22;37m", 0],
+        ["\u001b[1|07m", "\u001b[1\u001b[22;37mm", 0],
+        ["x\u001b[1|07m", "x\u001b[1\u001b[22;37mm", 0],
+        ["\u001b[1|07my", "\u001b[1\u001b[22;37mmy", 0],
+        ["x\u001b[1|07my", "x\u001b[1\u001b[22;37mmy", 0],
+        ["|07\u001b[1|07m", "\u001b[22;37m\u001b[1\u001b[22;37mm", 0],
+        ["\u001b[1|07m|07", "\u001b[1\u001b[22;37mm\u001b[22;37m", 0],
+        ["|0\u001b[0m7", null, 0],
+        ["x|0\u001b[0m7", null, 0],
+        ["|0\u001b[0m7y", null, 0],
+        ["x|0\u001b[0m7y", null, 0],
+        ["|07|0\u001b[0m7", "\u001b[22;37m|0\u001b[0m7", 0],
+        ["|0\u001b[0m7|07", "|0\u001b[0m7\u001b[22;37m", 0],
+        ["a\u001b[5Cb", null, 0],
+        ["xa\u001b[5Cb", null, 0],
+        ["a\u001b[5Cby", null, 0],
+        ["xa\u001b[5Cby", null, 0],
+        ["|07a\u001b[5Cb", "\u001b[22;37ma\u001b[5Cb", 0],
+        ["a\u001b[5Cb|07", "a\u001b[5Cb\u001b[22;37m", 0],
+        ["a\u001b[Cb", null, 0],
+        ["xa\u001b[Cb", null, 0],
+        ["a\u001b[Cby", null, 0],
+        ["xa\u001b[Cby", null, 0],
+        ["|07a\u001b[Cb", "\u001b[22;37ma\u001b[Cb", 0],
+        ["a\u001b[Cb|07", "a\u001b[Cb\u001b[22;37m", 0],
+        ["\u001b[0C", null, 0],
+        ["x\u001b[0C", null, 0],
+        ["\u001b[0Cy", null, 0],
+        ["x\u001b[0Cy", null, 0],
+        ["|07\u001b[0C", "\u001b[22;37m\u001b[0C", 0],
+        ["\u001b[0C|07", "\u001b[0C\u001b[22;37m", 0],
+        ["日本語|07x", "日本語\u001b[22;37mx", 0],
+        ["x日本語|07x", "x日本語\u001b[22;37mx", 0],
+        ["日本語|07xy", "日本語\u001b[22;37mxy", 0],
+        ["x日本語|07xy", "x日本語\u001b[22;37mxy", 0],
+        ["|07日本語|07x", "\u001b[22;37m日本語\u001b[22;37mx", 0],
+        ["日本語|07x|07", "日本語\u001b[22;37mx\u001b[22;37m", 0],
+        ["|08[|15日本語|08]", "\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]", 0],
+        ["x|08[|15日本語|08]", "x\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]", 0],
+        ["|08[|15日本語|08]y", "\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]y", 0],
+        ["x|08[|15日本語|08]y", "x\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]y", 0],
+        [
+            "|07|08[|15日本語|08]",
+            "\u001b[22;37m\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]",
+            0
+        ],
+        [
+            "|08[|15日本語|08]|07",
+            "\u001b[1;30m[\u001b[1;37m日本語\u001b[1;30m]\u001b[22;37m",
+            0
+        ],
+        ["é|07é", "é\u001b[22;37mé", 0],
+        ["xé|07é", "xé\u001b[22;37mé", 0],
+        ["é|07éy", "é\u001b[22;37méy", 0],
+        ["xé|07éy", "xé\u001b[22;37méy", 0],
+        ["|07é|07é", "\u001b[22;37mé\u001b[22;37mé", 0],
+        ["é|07é|07", "é\u001b[22;37mé\u001b[22;37m", 0],
+        ["😀|15x", "😀\u001b[1;37mx", 0],
+        ["x😀|15x", "x😀\u001b[1;37mx", 0],
+        ["😀|15xy", "😀\u001b[1;37mxy", 0],
+        ["x😀|15xy", "x😀\u001b[1;37mxy", 0],
+        ["|07😀|15x", "\u001b[22;37m😀\u001b[1;37mx", 0],
+        ["😀|15x|07", "😀\u001b[1;37mx\u001b[22;37m", 0],
+        ["if (a || b) {", null, 0],
+        ["xif (a || b) {", null, 0],
+        ["if (a || b) {y", null, 0],
+        ["xif (a || b) {y", null, 0],
+        ["|07if (a || b) {", "\u001b[22;37mif (a || b) {", 0],
+        ["if (a || b) {|07", "if (a || b) {\u001b[22;37m", 0],
+        ["a || b", null, 0],
+        ["xa || b", null, 0],
+        ["a || by", null, 0],
+        ["xa || by", null, 0],
+        ["|07a || b", "\u001b[22;37ma || b", 0],
+        ["a || b|07", "a || b\u001b[22;37m", 0],
+        ["|15a||b||c|07", "\u001b[1;37ma||b||c\u001b[22;37m", 0],
+        ["x|15a||b||c|07", "x\u001b[1;37ma||b||c\u001b[22;37m", 0],
+        ["|15a||b||c|07y", "\u001b[1;37ma||b||c\u001b[22;37my", 0],
+        ["x|15a||b||c|07y", "x\u001b[1;37ma||b||c\u001b[22;37my", 0],
+        ["|07|15a||b||c|07", "\u001b[22;37m\u001b[1;37ma||b||c\u001b[22;37m", 0],
+        ["|15a||b||c|07|07", "\u001b[1;37ma||b||c\u001b[22;37m\u001b[22;37m", 0],
+        ["trailing|", null, 0],
+        ["xtrailing|", null, 0],
+        ["trailing|y", null, 0],
+        ["xtrailing|y", null, 0],
+        ["|07trailing|", "\u001b[22;37mtrailing|", 0],
+        ["trailing||07", "trailing|\u001b[22;37m", 0],
+        ["xx|", null, 0],
+        ["xx|y", null, 0],
+        ["|07x|", "\u001b[22;37mx|", 0],
+        ["|03{text}", "\u001b[22;36m{text}", 0],
+        ["|11{text!styleFirstLower}", "\u001b[1;36m{text!styleFirstLower}", 0],
+        [
+            "|00|11{userName:<12}|08: |03{oneliner:<59.59}",
+            "\u001b[22;30m\u001b[1;36m{userName:<12}\u001b[1;30m: \u001b[22;36m{oneliner:<59.59}",
+            0
+        ],
+        [
+            "|00|07\"|11{title}|07\"",
+            "\u001b[22;30m\u001b[22;37m\"\u001b[1;36m{title}\u001b[22;37m\"",
+            0
+        ],
+        ["|00|03{text}", "\u001b[22;30m\u001b[22;36m{text}", 0],
+        [
+            "|00|15{ts} |07- |03{title:<47.46} |15{points:,}|07 pts",
+            "\u001b[22;30m\u001b[1;37m{ts} \u001b[22;37m- \u001b[22;36m{title:<47.46} \u001b[1;37m{points:,}\u001b[22;37m pts",
+            0
+        ],
+        [
+            "|00|19|15{ts} - {title:<47.46} {points:,} pts",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{ts} - {title:<47.46} {points:,} pts",
+            0
+        ],
+        [
+            "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}",
+            "\u001b[22;30m\u001b[1;36m{userName:<17.16} \u001b[22;36m{location:<20.19} \u001b[1;36m{affils:<18.17} \u001b[22;36m{ts:<15}",
+            0
+        ],
+        [
+            "|00|11{userName:<17.17}|03{affils:<21.21}|11{location:<19.19}|03{lastLoginTs}",
+            "\u001b[22;30m\u001b[1;36m{userName:<17.17}\u001b[22;36m{affils:<21.21}\u001b[1;36m{location:<19.19}\u001b[22;36m{lastLoginTs}",
+            0
+        ],
+        [
+            "|00|19|15{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}",
+            0
+        ],
+        [
+            "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}",
+            "\u001b[22;30m\u001b[22;36m{node:<6.6}\u001b[1;36m{userName:<17.17}\u001b[22;36m{affils:<19.19}\u001b[1;36m{action:<20.20}\u001b[22;36m{timeOn:<8}",
+            0
+        ],
+        [
+            "|00  |15{node:<3.2} {pageIndicator}|11{userName:<12} |07{action:<14.13} |15{serverName}",
+            "\u001b[22;30m  \u001b[1;37m{node:<3.2} {pageIndicator}\u001b[1;36m{userName:<12} \u001b[22;37m{action:<14.13} \u001b[1;37m{serverName}",
+            0
+        ],
+        [
+            "|00|10> |15{node:<3.2} {pageIndicator}|11{userName:<12} |07{action:<14.13} |15{serverName}",
+            "\u001b[22;30m\u001b[1;32m> \u001b[1;37m{node:<3.2} {pageIndicator}\u001b[1;36m{userName:<12} \u001b[22;37m{action:<14.13} \u001b[1;37m{serverName}",
+            0
+        ],
+        [
+            "|00|07{nodeId} {levelIndicator} |02{timestamp} {message:<51.50}",
+            "\u001b[22;30m\u001b[22;37m{nodeId} {levelIndicator} \u001b[22;32m{timestamp} {message:<51.50}",
+            0
+        ],
+        [
+            "|00|07  {nodeId} {levelIndicator} |02{timestamp} {message}",
+            "\u001b[22;30m\u001b[22;37m  {nodeId} {levelIndicator} \u001b[22;32m{timestamp} {message}",
+            0
+        ],
+        [
+            "|00|10> |07{nodeId} {levelIndicator} |15{timestamp} |15{message}",
+            "\u001b[22;30m\u001b[1;32m> \u001b[22;37m{nodeId} {levelIndicator} \u001b[1;37m{timestamp} \u001b[1;37m{message}",
+            0
+        ],
+        [
+            "|00|14{unreadIndicator:<1} |02{userName:<12.12} |08{nodeId:>2} |02{timestamp} |07{text}",
+            "\u001b[22;30m\u001b[1;33m{unreadIndicator:<1} \u001b[22;32m{userName:<12.12} \u001b[1;30m{nodeId:>2} \u001b[22;32m{timestamp} \u001b[22;37m{text}",
+            0
+        ],
+        [
+            "|00|14{unreadIndicator:<1}|10>|15{userName:<12.12} |08{nodeId:>2} |15{timestamp} |15{text}",
+            "\u001b[22;30m\u001b[1;33m{unreadIndicator:<1}\u001b[1;32m>\u001b[1;37m{userName:<12.12} \u001b[1;30m{nodeId:>2} \u001b[1;37m{timestamp} \u001b[1;37m{text}",
+            0
+        ],
+        [
+            "|01|03MM|08/|03DD hh:mm:ssa",
+            "\u001b[22;34m\u001b[22;36mMM\u001b[1;30m/\u001b[22;36mDD hh:mm:ssa",
+            0
+        ],
+        [
+            "|00|10ddd MMM Do|08, |10h|08:|10mm|02a",
+            "\u001b[22;30m\u001b[1;32mddd MMM Do\u001b[1;30m, \u001b[1;32mh\u001b[1;30m:\u001b[1;32mmm\u001b[22;32ma",
+            0
+        ],
+        [
+            "|00|10ddd hh|08:|10mm|02a",
+            "\u001b[22;30m\u001b[1;32mddd hh\u001b[1;30m:\u001b[1;32mmm\u001b[22;32ma",
+            0
+        ],
+        ["|00|10{currentUserName}", "\u001b[22;30m\u001b[1;32m{currentUserName}", 0],
+        [
+            "|00|02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo}",
+            "\u001b[22;30m\u001b[22;32mPrv\u001b[1;30m:\u001b[1;32m{newPrivateMail} \u001b[22;32mAddr\u001b[1;30m:\u001b[1;32m{newMessagesAddrTo}",
+            0
+        ],
+        [
+            "|00|02Avl|08:|10{availIndicator} |02Vis|08:|10{visIndicator}",
+            "\u001b[22;30m\u001b[22;32mAvl\u001b[1;30m:\u001b[1;32m{availIndicator} \u001b[22;32mVis\u001b[1;30m:\u001b[1;32m{visIndicator}",
+            0
+        ],
+        [
+            "|00|02Msg|08:|02{count}",
+            "\u001b[22;30m\u001b[22;32mMsg\u001b[1;30m:\u001b[22;32m{count}",
+            0
+        ],
+        [
+            "|00|14Msg|08:|15{count}",
+            "\u001b[22;30m\u001b[1;33mMsg\u001b[1;30m:\u001b[1;37m{count}",
+            0
+        ],
+        [
+            "|00|02Page|08:|02{count}",
+            "\u001b[22;30m\u001b[22;32mPage\u001b[1;30m:\u001b[22;32m{count}",
+            0
+        ],
+        [
+            "|00|13Page|08:|15{count}",
+            "\u001b[22;30m\u001b[1;35mPage\u001b[1;30m:\u001b[1;37m{count}",
+            0
+        ],
+        [
+            "|00|10{boardName} |08- |10{totalCalls} |02calls total|08, |10{callsToday} |02today",
+            "\u001b[22;30m\u001b[1;32m{boardName} \u001b[1;30m- \u001b[1;32m{totalCalls} \u001b[22;32mcalls total\u001b[1;30m, \u001b[1;32m{callsToday} \u001b[22;32mtoday",
+            0
+        ],
+        [
+            "|00|10{userName} |02logged in on node |10{nodeId}",
+            "\u001b[22;30m\u001b[1;32m{userName} \u001b[22;32mlogged in on node \u001b[1;32m{nodeId}",
+            0
+        ],
+        [
+            "|00|10{userName} |02earned |14{title} |08(|10+{points}|08)",
+            "\u001b[22;30m\u001b[1;32m{userName} \u001b[22;32mearned \u001b[1;33m{title} \u001b[1;30m(\u001b[1;32m+{points}\u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|10{userName} |02uploaded |10{fileCount} |02file(s)",
+            "\u001b[22;30m\u001b[1;32m{userName} \u001b[22;32muploaded \u001b[1;32m{fileCount} \u001b[22;32mfile(s)",
+            0
+        ],
+        [
+            "|00|02From|08: |10{userName} |08(|02node |10{nodeId}|08) |02at |10{timestamp}\n\n|07{text}",
+            "\u001b[22;30m\u001b[22;32mFrom\u001b[1;30m: \u001b[1;32m{userName} \u001b[1;30m(\u001b[22;32mnode \u001b[1;32m{nodeId}\u001b[1;30m) \u001b[22;32mat \u001b[1;32m{timestamp}\n\n\u001b[22;37m{text}",
+            0
+        ],
+        [
+            "|00|02No messages|08.",
+            "\u001b[22;30m\u001b[22;32mNo messages\u001b[1;30m.",
+            0
+        ],
+        [
+            "|00  {statusIndicator} |02{desc:<26.26} |03{schedule:<16.16} |02{nextRun:<13.13} |07{lastResult:<6.6}",
+            "\u001b[22;30m  {statusIndicator} \u001b[22;32m{desc:<26.26} \u001b[22;36m{schedule:<16.16} \u001b[22;32m{nextRun:<13.13} \u001b[22;37m{lastResult:<6.6}",
+            0
+        ],
+        [
+            "|00|10> {statusIndicator} |15{desc:<26.26} |11{schedule:<16.16} |15{nextRun:<13.13} |15{lastResult:<6.6}",
+            "\u001b[22;30m\u001b[1;32m> {statusIndicator} \u001b[1;37m{desc:<26.26} \u001b[1;36m{schedule:<16.16} \u001b[1;37m{nextRun:<13.13} \u001b[1;37m{lastResult:<6.6}",
+            0
+        ],
+        ["|11*", "\u001b[1;36m*", 0],
+        ["|14!", "\u001b[1;33m!", 0],
+        ["|12X", "\u001b[1;31mX", 0],
+        ["|10+", "\u001b[1;32m+", 0],
+        ["|08-", "\u001b[1;30m-", 0],
+        [
+            "|03{name}|08{sep}|11{value}",
+            "\u001b[22;36m{name}\u001b[1;30m{sep}\u001b[1;36m{value}",
+            0
+        ],
+        ["|00|02No tasks|08.", "\u001b[22;30m\u001b[22;32mNo tasks\u001b[1;30m.", 0],
+        [
+            "|00|07Run |15{desc}|07?",
+            "\u001b[22;30m\u001b[22;37mRun \u001b[1;37m{desc}\u001b[22;37m?",
+            0
+        ],
+        [
+            "|00|07{stopVerb} |15{desc}|07?",
+            "\u001b[22;30m\u001b[22;37m{stopVerb} \u001b[1;37m{desc}\u001b[22;37m?",
+            0
+        ],
+        [
+            "|00|15{runningTaskCount} |02running|08, |15{taskCount} |02tasks",
+            "\u001b[22;30m\u001b[1;37m{runningTaskCount} \u001b[22;32mrunning\u001b[1;30m, \u001b[1;37m{taskCount} \u001b[22;32mtasks",
+            0
+        ],
+        ["|00|15{callsToday:>5}", "\u001b[22;30m\u001b[1;37m{callsToday:>5}", 0],
+        ["|00|15{postsToday:>5}", "\u001b[22;30m\u001b[1;37m{postsToday:>5}", 0],
+        ["|00|15{newUsersToday:>5}", "\u001b[22;30m\u001b[1;37m{newUsersToday:>5}", 0],
+        ["|00|15{uploadsToday:<4}", "\u001b[22;30m\u001b[1;37m{uploadsToday:<4}", 0],
+        ["|00|15{downloadsToday:<4}", "\u001b[22;30m\u001b[1;37m{downloadsToday:<4}", 0],
+        [
+            "|00|15{uploadBytesToday!sizeWithoutAbbr:<5} |07{uploadBytesToday!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{uploadBytesToday!sizeWithoutAbbr:<5} \u001b[22;37m{uploadBytesToday!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|15{downloadBytesToday!sizeWithoutAbbr:<5} |07{downloadBytesToday!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{downloadBytesToday!sizeWithoutAbbr:<5} \u001b[22;37m{downloadBytesToday!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|15{lastLoginUserName:<26} |07{lastLogin}",
+            "\u001b[22;30m\u001b[1;37m{lastLoginUserName:<26} \u001b[22;37m{lastLogin}",
+            0
+        ],
+        [
+            "|00|15{freeMemoryBytes!sizeWithoutAbbr} |07{freeMemoryBytes!sizeAbbr} free |08/ |15{totalMemoryBytes!sizeWithoutAbbr} |07{totalMemoryBytes!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{freeMemoryBytes!sizeWithoutAbbr} \u001b[22;37m{freeMemoryBytes!sizeAbbr} free \u001b[1;30m/ \u001b[1;37m{totalMemoryBytes!sizeWithoutAbbr} \u001b[22;37m{totalMemoryBytes!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|15{systemCurrentLoad} |07% |08/ |15{systemAvgLoad} |07load avg|08.",
+            "\u001b[22;30m\u001b[1;37m{systemCurrentLoad} \u001b[22;37m% \u001b[1;30m/ \u001b[1;37m{systemAvgLoad} \u001b[22;37mload avg\u001b[1;30m.",
+            0
+        ],
+        [
+            "|00|15{processUptimeSeconds!durationSeconds} |08/ |15{processBytesIngress!sizeWithoutAbbr:>4} |07{processBytesIngress!sizeAbbr}|08/|15{processBytesEgress!sizeWithoutAbbr:>4} |07{processBytesEgress!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{processUptimeSeconds!durationSeconds} \u001b[1;30m/ \u001b[1;37m{processBytesIngress!sizeWithoutAbbr:>4} \u001b[22;37m{processBytesIngress!sizeAbbr}\u001b[1;30m/\u001b[1;37m{processBytesEgress!sizeWithoutAbbr:>4} \u001b[22;37m{processBytesEgress!sizeAbbr}",
+            0
+        ],
+        ["|00|15{totalCalls:>5}", "\u001b[22;30m\u001b[1;37m{totalCalls:>5}", 0],
+        ["|00|15{totalPosts:>7}", "\u001b[22;30m\u001b[1;37m{totalPosts:>7}", 0],
+        ["|00|15{totalUsers:>5}", "\u001b[22;30m\u001b[1;37m{totalUsers:>5}", 0],
+        [
+            "|00|15{totalFiles:>4} |08/ |15{totalFileBytes!sizeWithoutAbbr:>4} |07{totalFileBytes!sizeAbbr}",
+            "\u001b[22;30m\u001b[1;37m{totalFiles:>4} \u001b[1;30m/ \u001b[1;37m{totalFileBytes!sizeWithoutAbbr:>4} \u001b[22;37m{totalFileBytes!sizeAbbr}",
+            0
+        ],
+        ["|00|02T", "\u001b[22;30m\u001b[22;32mT", 0],
+        ["|00|03D", "\u001b[22;30m\u001b[22;36mD", 0],
+        ["|00|15I", "\u001b[22;30m\u001b[1;37mI", 0],
+        ["|00|14W", "\u001b[22;30m\u001b[1;33mW", 0],
+        ["|00|12E", "\u001b[22;30m\u001b[1;31mE", 0],
+        ["|00|28F", "\u001b[22;30m\u001b[5;41mF", 0],
+        ["|00|02", "\u001b[22;30m\u001b[22;32m", 0],
+        ["|00|03", "\u001b[22;30m\u001b[22;36m", 0],
+        ["|00|14", "\u001b[22;30m\u001b[1;33m", 0],
+        ["|00|12", "\u001b[22;30m\u001b[1;31m", 0],
+        ["|00|28", "\u001b[22;30m\u001b[5;41m", 0],
+        [
+            "|03{name}|08{sep} |11{value}",
+            "\u001b[22;36m{name}\u001b[1;30m{sep} \u001b[1;36m{value}",
+            0
+        ],
+        [
+            "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}\n{pageIndicator}",
+            "\u001b[22;30m\u001b[22;37m{realName:<12}\n\u001b[1;30m- \u001b[22;37m{serverName:<10}\n\u001b[1;30m- \u001b[22;37m{remoteAddress:<10}\n{pageIndicator}",
+            0
+        ],
+        ["|13!", "\u001b[1;35m!", 0],
+        [
+            "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}",
+            "\u001b[22;30m\u001b[1;37m{msgNumSelected:>4.4} \u001b[1;30m/ \u001b[1;37m{msgNumTotal:<4.4}",
+            0
+        ],
+        [
+            "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}",
+            "\u001b[22;30m\u001b[1;37m{msgNum:>4}  \u001b[22;36m{subject:<28.27} \u001b[1;36m{fromUserName:<20.20} \u001b[22;36m{ts:<15.16} \u001b[1;37m{newIndicator}",
+            0
+        ],
+        [
+            "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}",
+            0
+        ],
+        [
+            "|00|15{index} |07- |03{name}",
+            "\u001b[22;30m\u001b[1;37m{index} \u001b[22;37m- \u001b[22;36m{name}",
+            0
+        ],
+        [
+            "|00|19|15{index} - {name}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{index} - {name}",
+            0
+        ],
+        [
+            "|00|15{index:.2} |07- |03{name}",
+            "\u001b[22;30m\u001b[1;37m{index:.2} \u001b[22;37m- \u001b[22;36m{name}",
+            0
+        ],
+        [
+            "|00|09|15{index:.2} - {name}",
+            "\u001b[22;30m\u001b[1;34m\u001b[1;37m{index:.2} - {name}",
+            0
+        ],
+        [
+            "|00|07{conf.name} |08- |07{area.name}",
+            "\u001b[22;30m\u001b[22;37m{conf.name} \u001b[1;30m- \u001b[22;37m{area.name}",
+            0
+        ],
+        [
+            "|00|15{conf.name} |07- |15{area.name}",
+            "\u001b[22;30m\u001b[1;37m{conf.name} \u001b[22;37m- \u001b[1;37m{area.name}",
+            0
+        ],
+        [
+            "|00|15{selectedIndicator:<5.5}|03{confName:<25.25} |11{areaName}",
+            "\u001b[22;30m\u001b[1;37m{selectedIndicator:<5.5}\u001b[22;36m{confName:<25.25} \u001b[1;36m{areaName}",
+            0
+        ],
+        [
+            "|00|19{selectedIndicator:<5.5}{confName:<25.25} {areaName}",
+            "\u001b[22;30m\u001b[46m{selectedIndicator:<5.5}{confName:<25.25} {areaName}",
+            0
+        ],
+        [
+            "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}",
+            "\u001b[22;30m\u001b[1;37m{msgNum:>4}  \u001b[22;36m{subject:<28.27} \u001b[1;36m{fromUserName:<20.20} \u001b[22;36m{ts} \u001b[1;37m{newIndicator}",
+            0
+        ],
+        [
+            "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}",
+            0
+        ],
+        ["|00|11  {rumor}", "\u001b[22;30m\u001b[1;36m  {rumor}", 0],
+        ["|00|15> |14{rumor}", "\u001b[22;30m\u001b[1;37m> \u001b[1;33m{rumor}", 0],
+        ["|00|07{bbsName}", "\u001b[22;30m\u001b[22;37m{bbsName}", 0],
+        [
+            "|00|19|15{bbsName!styleFirstLower}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{bbsName!styleFirstLower}",
+            0
+        ],
+        ["|00|08", "\u001b[22;30m\u001b[1;30m", 0],
+        ["|10√", "\u001b[1;32m√", 0],
+        [
+            "|00|03node |07{text} |08(|07{userName}|08)",
+            "\u001b[22;30m\u001b[22;36mnode \u001b[22;37m{text} \u001b[1;30m(\u001b[22;37m{userName}\u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|11node |15{text} |07(|15{userName}|07)",
+            "\u001b[22;30m\u001b[1;36mnode \u001b[1;37m{text} \u001b[22;37m(\u001b[1;37m{userName}\u001b[22;37m)",
+            0
+        ],
+        [
+            "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}",
+            "\u001b[22;30m\u001b[1;30m :: \u001b[22;36mmessage from \u001b[1;36m{fromUserName} \u001b[1;30m/ \u001b[22;36mnode \u001b[1;36m{fromNodeId}\u001b[1;30m @ \u001b[1;36m{timestamp} \u001b[1;30m::\r\n\u001b[22;37m    {message}",
+            0
+        ],
+        [
+            "|00|15  {msgNum:<4.4} |03{subject:<27.26} |07{toUserName:<13.12} {fromUserName:<13.12} |03{ts:<12.12}",
+            "\u001b[22;30m\u001b[1;37m  {msgNum:<4.4} \u001b[22;36m{subject:<27.26} \u001b[22;37m{toUserName:<13.12} {fromUserName:<13.12} \u001b[22;36m{ts:<12.12}",
+            0
+        ],
+        [
+            "|00|19> |15{msgNum:<4.4} {subject:<27.26} {toUserName:<13.12} {fromUserName:<13.12} {ts:<12.12}",
+            "\u001b[22;30m\u001b[46m> \u001b[1;37m{msgNum:<4.4} {subject:<27.26} {toUserName:<13.12} {fromUserName:<13.12} {ts:<12.12}",
+            0
+        ],
+        [
+            "|00|15  {msgNum:<4.4} |03{subject:<34.33} {fromUserName:<19.18} |03{ts:<12.12}",
+            "\u001b[22;30m\u001b[1;37m  {msgNum:<4.4} \u001b[22;36m{subject:<34.33} {fromUserName:<19.18} \u001b[22;36m{ts:<12.12}",
+            0
+        ],
+        [
+            "|00|19> |15{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}",
+            "\u001b[22;30m\u001b[46m> \u001b[1;37m{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}",
+            0
+        ],
+        ["|00|11", "\u001b[22;30m\u001b[1;36m", 0],
+        ["|00|06", "\u001b[22;30m\u001b[22;33m", 0],
+        [
+            "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}",
+            "\u001b[22;30m\u001b[1;37m  {msgNum:<5.5}\u001b[22;36m{subject:<28.27} \u001b[1;37m{fromUserName:<20.20} {ts}",
+            0
+        ],
+        [
+            "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}",
+            "\u001b[22;30m\u001b[46m> \u001b[1;37m{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}",
+            0
+        ],
+        [
+            "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[22;36m{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} \u001b[1;36m{byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            0
+        ],
+        ["|08, |07", "\u001b[1;30m, \u001b[22;37m", 0],
+        [
+            "|00|10{fileName:<.44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}",
+            "\u001b[22;30m\u001b[1;32m{fileName:<.44} \u001b[1;30m- \u001b[22;36m{byteSize!sizeWithoutAbbr} \u001b[1;36m{byteSize!sizeAbbr} \u001b[1;30m- \u001b[22;36muploaded \u001b[1;36m{uploadTimestamp}",
+            0
+        ],
+        ["|00|15{areaName}", "\u001b[22;30m\u001b[1;37m{areaName}", 0],
+        ["|00|07{hashTags}", "\u001b[22;30m\u001b[22;37m{hashTags}", 0],
+        ["|00|07{estReleaseYear}", "\u001b[22;30m\u001b[22;37m{estReleaseYear}", 0],
+        ["|00|07{dlCount}", "\u001b[22;30m\u001b[22;37m{dlCount}", 0],
+        [
+            " [|08- |07exp] ddd, MMM Do @ h:mm a",
+            " [\u001b[1;30m- \u001b[22;37mexp] ddd, MMM Do @ h:mm a",
+            0
+        ],
+        [
+            "|08(|07press |10W |07to generate link|08)",
+            "\u001b[1;30m(\u001b[22;37mpress \u001b[1;32mW \u001b[22;37mto generate link\u001b[1;30m)",
+            0
+        ],
+        ["|00|10YES", "\u001b[22;30m\u001b[1;32mYES", 0],
+        ["|00|07no", "\u001b[22;30m\u001b[22;37mno", 0],
+        ["|00|08n/a", "\u001b[22;30m\u001b[1;30mn/a", 0],
+        ["|00|15*", "\u001b[22;30m\u001b[1;37m*", 0],
+        ["|00|07-", "\u001b[22;30m\u001b[22;37m-", 0],
+        [
+            "|00|07{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08(|03{byteSize:,} |11B|08)",
+            "\u001b[22;30m\u001b[22;37m{byteSize!sizeWithoutAbbr} \u001b[1;36m{byteSize!sizeAbbr} \u001b[1;30m(\u001b[22;36m{byteSize:,} \u001b[1;36mB\u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|08( |07{fileName} is not an archive |08)",
+            "\u001b[22;30m\u001b[1;30m( \u001b[22;37m{fileName} is not an archive \u001b[1;30m)",
+            0
+        ],
+        [
+            "|00|10{fileName:<44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}",
+            "\u001b[22;30m\u001b[1;32m{fileName:<44} \u001b[1;30m- \u001b[22;36m{byteSize!sizeWithoutAbbr} \u001b[1;36m{byteSize!sizeAbbr} \u001b[1;30m- \u001b[22;36muploaded \u001b[1;36m{uploadTimestamp}",
+            0
+        ],
+        ["|00|03{name}", "\u001b[22;30m\u001b[22;36m{name}", 0],
+        ["|00|19|15{name}", "\u001b[22;30m\u001b[46m\u001b[1;37m{name}", 0],
+        ["|15▒", "\u001b[1;37m▒", 0],
+        [
+            "|07{currentFile} |08/ |07{totalFileCount} |08(|07{progress} %|08)",
+            "\u001b[22;37m{currentFile} \u001b[1;30m/ \u001b[22;37m{totalFileCount} \u001b[1;30m(\u001b[22;37m{progress} %\u001b[1;30m)",
+            0
+        ],
+        ["|06░", "\u001b[22;33m░", 0],
+        [
+            "|00|03{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[22;36m{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} \u001b[1;36m{byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|19|15{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|03{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[22;36m{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} \u001b[1;36m{byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|00|19|15{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}",
+            0
+        ],
+        [
+            "|03batch|08: |03{webBatchDlLink}",
+            "\u001b[22;36mbatch\u001b[1;30m: \u001b[22;36m{webBatchDlLink}",
+            0
+        ],
+        [
+            "|03exp  |08: |03{webBatchDlExpire}",
+            "\u001b[22;36mexp  \u001b[1;30m: \u001b[22;36m{webBatchDlExpire}",
+            0
+        ],
+        [
+            "|00|15{fileName} |08- |11{currentFileNum} |08/ |11{totalFileNum}",
+            "\u001b[22;30m\u001b[1;37m{fileName} \u001b[1;30m- \u001b[1;36m{currentFileNum} \u001b[1;30m/ \u001b[1;36m{totalFileNum}",
+            0
+        ],
+        ["{fileName} |02■", "{fileName} \u001b[22;32m■", 0],
+        [
+            "|00|11{fileName:<53.52}|03{areaName}",
+            "\u001b[22;30m\u001b[1;36m{fileName:<53.52}\u001b[22;36m{areaName}",
+            0
+        ],
+        [
+            "|00|08[ |03{text} |08]",
+            "\u001b[22;30m\u001b[1;30m[ \u001b[22;36m{text} \u001b[1;30m]",
+            0
+        ],
+        [
+            "|00|15[ |19|15{text}|16 |15]",
+            "\u001b[22;30m\u001b[1;37m[ \u001b[46m\u001b[1;37m{text}\u001b[40m \u001b[1;37m]",
+            0
+        ],
+        [
+            "|00|08{statusIndicator} |00|03{subject}",
+            "\u001b[22;30m\u001b[1;30m{statusIndicator} \u001b[22;30m\u001b[22;36m{subject}",
+            0
+        ],
+        [
+            "|00|08{statusIndicator} |00|19|15{subject}",
+            "\u001b[22;30m\u001b[1;30m{statusIndicator} \u001b[22;30m\u001b[46m\u001b[1;37m{subject}",
+            0
+        ],
+        ["|08[|03{text}|08]", "\u001b[1;30m[\u001b[22;36m{text}\u001b[1;30m]", 0],
+        [
+            "|08[|11{text!styleFirstLower}|08]",
+            "\u001b[1;30m[\u001b[1;36m{text!styleFirstLower}\u001b[1;30m]",
+            0
+        ],
+        [
+            "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}",
+            "\u001b[22;30m\u001b[1;37m{preferredUsername} \u001b[1;30m(\u001b[22;32m{name}\u001b[1;30m)\n\u001b[22;37mfollowing\u001b[1;30m: {statusIndicator}\n\n\u001b[22;33m{plainTextSummary}",
+            0
+        ],
+        ["|00|10√", "\u001b[22;30m\u001b[1;32m√", 0],
+        ["|00|12X", "\u001b[22;30m\u001b[1;31mX", 0],
+        [
+            "|00|10SPC |08: |02Toggle Following",
+            "\u001b[22;30m\u001b[1;32mSPC \u001b[1;30m: \u001b[22;32mToggle Following",
+            0
+        ],
+        [
+            "|00|10DEL |08: |02Remove Follower",
+            "\u001b[22;30m\u001b[1;32mDEL \u001b[1;30m: \u001b[22;32mRemove Follower",
+            0
+        ],
+        [
+            "|00|10SPC |08: |02Accept\r\n|10DEL |08: |02Deny",
+            "\u001b[22;30m\u001b[1;32mSPC \u001b[1;30m: \u001b[22;32mAccept\r\n\u001b[1;32mDEL \u001b[1;30m: \u001b[22;32mDeny",
+            0
+        ],
+        ["|00|14YES", "\u001b[22;30m\u001b[1;33mYES", 0],
+        ["|00|12NO", "\u001b[22;30m\u001b[1;31mNO", 0],
+        ["|11{statusText}", "\u001b[1;36m{statusText}", 0],
+        [
+            "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}",
+            "\u001b[22;30m\u001b[22;36m{from:<20.20} {subject:<29.29} {date:<12.12} \u001b[1;31m{likes:>2} \u001b[1;32m{boosts:>2} \u001b[1;35m{att}",
+            0
+        ],
+        [
+            "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}",
+            "\u001b[22;30m\u001b[46m\u001b[1;37m{from:<20.20} {subject:<29.29} {date:<12.12} \u001b[1;31m{likes:>2} \u001b[1;32m{boosts:>2} \u001b[1;35m{att}",
+            0
+        ],
+        ["|03", "\u001b[22;36m", 0],
+        ["|11", "\u001b[1;36m", 0],
+        [
+            "|12{likeIndicator} {likes} |10{boostIndicator} {boosts} |13{att}",
+            "\u001b[1;31m{likeIndicator} {likes} \u001b[1;32m{boostIndicator} {boosts} \u001b[1;35m{att}",
+            0
+        ],
+        [
+            "|00|10<|02{fromUserName}|10>|00 |03{message}|00",
+            "\u001b[22;30m\u001b[1;32m<\u001b[22;32m{fromUserName}\u001b[1;32m>\u001b[22;30m \u001b[22;36m{message}\u001b[22;30m",
+            0
+        ],
+        [
+            "|00|10<|02{fromUserName}|15->{toUserName}|10>|00 |03{message}|00",
+            "\u001b[22;30m\u001b[1;32m<\u001b[22;32m{fromUserName}\u001b[1;37m->{toUserName}\u001b[1;32m>\u001b[22;30m \u001b[22;36m{message}\u001b[22;30m",
+            0
+        ],
+        ["|11{userName} |14> ", "\u001b[1;36m{userName} \u001b[1;33m> ", 0],
+        ["|11{duration}", "\u001b[1;36m{duration}", 0],
+        [
+            "|11Page |03from |11{userName} |08(node |07{nodeId}|08):|03\r\n|03{message}\r\n\r\n|08Visit WFC and press |03B|08 on the node to respond.|07",
+            "\u001b[1;36mPage \u001b[22;36mfrom \u001b[1;36m{userName} \u001b[1;30m(node \u001b[22;37m{nodeId}\u001b[1;30m):\u001b[22;36m\r\n\u001b[22;36m{message}\r\n\r\n\u001b[1;30mVisit WFC and press \u001b[22;36mB\u001b[1;30m on the node to respond.\u001b[22;37m",
+            0
+        ],
+        [
+            "|00|15|MD|08: |03|MC|08>>|11|MA",
+            "\u001b[22;30m\u001b[1;37m|MD\u001b[1;30m: \u001b[22;36m|MC\u001b[1;30m>>\u001b[1;36m|MA",
+            "\u001b[22;30m\u001b[1;37mMDMDMD\u001b[1;30m: \u001b[22;36mMCMCMC\u001b[1;30m>>\u001b[1;36mMAMAMA"
+        ],
+        [
+            "|00|15|MD|08 >> |03active filter|08: |10|FN",
+            "\u001b[22;30m\u001b[1;37m|MD\u001b[1;30m >> \u001b[22;36mactive filter\u001b[1;30m: \u001b[1;32m|FN",
+            "\u001b[22;30m\u001b[1;37mMDMDMD\u001b[1;30m >> \u001b[22;36mactive filter\u001b[1;30m: \u001b[1;32mFNFNFN"
+        ],
+        [
+            "|00|08(|11|AS|08)",
+            "\u001b[22;30m\u001b[1;30m(\u001b[1;36m|AS\u001b[1;30m)",
+            "\u001b[22;30m\u001b[1;30m(\u001b[1;36mASASAS\u001b[1;30m)"
+        ],
+        [
+            "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n   {message}",
+            "\u001b[1;30m > \u001b[1;32m{title} \u001b[1;30m(\u001b[1;36m{points} \u001b[22;36mpoints\u001b[1;30m)\r\n\r\n   {message}",
+            0
+        ],
+        [
+            "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n  {message}",
+            "\u001b[1;30m > \u001b[1;32m{title} \u001b[1;30m(\u001b[1;36m{points} \u001b[22;36mpoints\u001b[1;30m)\r\n\r\n  {message}",
+            0
+        ],
+        ["|10", "\u001b[1;32m", 0],
+        ["|12", "\u001b[1;31m", 0],
+        [
+            "${\n                                    headerArt || ''\n                                }\r\n${contents}\r\n${footerArt || ''}",
+            null,
+            0
+        ],
+        ["${a.name}: ${htmlToMessageBody(a.value || '')}", null, 0],
+        [
+            "enigma-vamiga ${version || '(unknown version)'} is installed; Amiga doors need ",
+            null,
+            0
+        ],
+        ["${sgr}${col.char || ' '}", null, 0],
+        ["|07System starting up...", "\u001b[22;37mSystem starting up...", 0],
+        ["|10System started!", "\u001b[1;32mSystem started!", 0],
+        ["${addr.zone || 0}:${addr.net}/${addr.node}", null, 0],
+        [
+            "|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS",
+            "\u001b[1;30mA\u001b[22;37mnother \u001b[22;37mF\u001b[1;30mine \u001b[22;37mE\u001b[1;30mNiGMA\u001b[22;37m½ B\u001b[1;30mBS",
+            0
+        ],
+        [
+            "|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00",
+            "\u001b[1;31mTime warning: \u001b[1;37m{minutes} minute{plural}\u001b[1;31m remaining today.\u001b[22;30m",
+            0
+        ],
+        [
+            "\n|06Connected to |02EN|10i|02GMA|10½ |06BBS version |12|VN\n|06Copyright (c) 2014-2026 Bryan Ashby |14- |12http://l33t.codes/\n|06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/\n|00",
+            "\n\u001b[22;33mConnected to \u001b[22;32mEN\u001b[1;32mi\u001b[22;32mGMA\u001b[1;32m½ \u001b[22;33mBBS version \u001b[1;31m|VN\n\u001b[22;33mCopyright (c) 2014-2026 Bryan Ashby \u001b[1;33m- \u001b[1;31mhttp://l33t.codes/\n\u001b[22;33mUpdates & source \u001b[1;33m- \u001b[1;31mhttps://github.com/NuSkooler/enigma-bbs/\n\u001b[22;30m",
+            "\n\u001b[22;33mConnected to \u001b[22;32mEN\u001b[1;32mi\u001b[22;32mGMA\u001b[1;32m½ \u001b[22;33mBBS version \u001b[1;31mVNVNVN\n\u001b[22;33mCopyright (c) 2014-2026 Bryan Ashby \u001b[1;33m- \u001b[1;31mhttp://l33t.codes/\n\u001b[22;33mUpdates & source \u001b[1;33m- \u001b[1;31mhttps://github.com/NuSkooler/enigma-bbs/\n\u001b[22;30m"
+        ],
+        [
+            "UPDATE \"${table}\" SET \"${column}\" = CAST(CAST(\"${column}\" AS INTEGER) AS TEXT)\n            WHERE \"${column}\" LIKE '%.0'\n              AND CAST(CAST(\"${column}\" AS INTEGER) AS TEXT) || '.0' = \"${column}\";",
+            null,
+            0
+        ],
+        ["f.${sortColumn || 'file_id'}", null, 0],
+        ["${sign || '+'}${hours}:${minutes}", null, 0],
+        ["gOLD mINE rlogin client error: ${err.message || err}", null, 0],
+        ["|07Starting servers...", "\u001b[22;37mStarting servers...", 0],
+        [
+            ", CASE WHEN LENGTH(m.subject) > 0 THEN\n                        m.subject\n                    ELSE\n                        REPLACE(REPLACE(SUBSTR(m.message,1,32),CHAR(10),''),CHAR(13),'') || '...'\n                    END gen_subject",
+            null,
+            0
+        ],
+        [" ${op || filter.operator} ", null, 0],
+        ["|01", "\u001b[22;34m", 0],
+        ["|02", "\u001b[22;32m", 0],
+        ["|04", "\u001b[22;31m", 0],
+        ["|05", "\u001b[22;35m", 0],
+        ["|06", "\u001b[22;33m", 0],
+        ["|09", "\u001b[1;34m", 0],
+        ["|13", "\u001b[1;35m", 0],
+        ["|14", "\u001b[1;33m", 0],
+        ["|00 ", "\u001b[22;30m ", 0],
+        ["|24|14» |00", "\u001b[5;40m\u001b[1;33m» \u001b[22;30m", 0],
+        [
+            "|00${lt}${nc}{fromUserName}${rt}|00 ${mc}{message}",
+            "\u001b[22;30m${lt}${nc}{fromUserName}${rt}\u001b[22;30m ${mc}{message}",
+            0
+        ],
+        [
+            "|15* |08(|15{fromUserName}|08->|14DirectMsg|00 ${mc}{message}",
+            "\u001b[1;37m* \u001b[1;30m(\u001b[1;37m{fromUserName}\u001b[1;30m->\u001b[1;33mDirectMsg\u001b[22;30m ${mc}{message}",
+            0
+        ],
+        [
+            "|15* |13${this.state.alias} ${action.replace(\n                        /~/g,\n                        ' '\n                    )}",
+            "\u001b[1;37m* \u001b[1;35m${this.state.alias} ${action.replace(\n                        /~/g,\n                        ' '\n                    )}",
+            0
+        ],
+        [
+            "|15* |08(|15${\n                        this.state.alias\n                    }|08/|14Broadcast|08) |07${text.replace(/~/g, ' ')}",
+            "\u001b[1;37m* \u001b[1;30m(\u001b[1;37m${\n                        this.state.alias\n                    }\u001b[1;30m/\u001b[1;33mBroadcast\u001b[1;30m) \u001b[22;37m${text.replace(/~/g, ' ')}",
+            0
+        ],
+        [
+            "|08No recent DM to reply to.|00",
+            "\u001b[1;30mNo recent DM to reply to.\u001b[22;30m",
+            0
+        ],
+        ["|${cc}${c}|00 ", "|${cc}${c}\u001b[22;30m ", 0],
+        [
+            "|08Enter room password:|00",
+            "\u001b[1;30mEnter room password:\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Enter password to register:|00",
+            "\u001b[1;30mEnter password to register:\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Enter your password:|00",
+            "\u001b[1;30mEnter your password:\u001b[22;30m",
+            0
+        ],
+        ["|08Enter new password:|00", "\u001b[1;30mEnter new password:\u001b[22;30m", 0],
+        ["|08No nicks matching \"", "\u001b[1;30mNo nicks matching \"", 0],
+        ["\"|00", "\"\u001b[22;30m", 0],
+        ["|10<", "\u001b[1;32m<", 0],
+        ["|10>", "\u001b[1;32m>", 0],
+        [
+            "|08Unknown option: |07${key}|08. Type |03/set help|08 for options.|00",
+            "\u001b[1;30mUnknown option: \u001b[22;37m${key}\u001b[1;30m. Type \u001b[22;36m/set help\u001b[1;30m for options.\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Set |03${key}|08 \\u2192 |07${val || '(default)'}|00",
+            "\u001b[1;30mSet \u001b[22;36m${key}\u001b[1;30m \\u2192 \u001b[22;37m${val || '(default)'}\u001b[22;30m",
+            0
+        ],
+        ["|15/set options|08:", "\u001b[1;37m/set options\u001b[1;30m:", 0],
+        [
+            "|03/|11set NICKCOLOR |03<pipe-code>    |08- |07Nick colour (e.g. |0202|07 for green)",
+            "\u001b[22;36m/\u001b[1;36mset NICKCOLOR \u001b[22;36m<pipe-code>    \u001b[1;30m- \u001b[22;37mNick colour (e.g. \u001b[22;32m02\u001b[22;37m for green)",
+            0
+        ],
+        [
+            "|03/|11set MESSAGECOLOR |03<pipe-code> |08- |07Message colour (|11left|08/|11right|08 to cycle)",
+            "\u001b[22;36m/\u001b[1;36mset MESSAGECOLOR \u001b[22;36m<pipe-code> \u001b[1;30m- \u001b[22;37mMessage colour (\u001b[1;36mleft\u001b[1;30m/\u001b[1;36mright\u001b[1;30m to cycle)",
+            0
+        ],
+        [
+            "|03/|11set LTBRACKET |03<str>          |08- |07Left bracket around nick (e.g. |10<|07)",
+            "\u001b[22;36m/\u001b[1;36mset LTBRACKET \u001b[22;36m<str>          \u001b[1;30m- \u001b[22;37mLeft bracket around nick (e.g. \u001b[1;32m<\u001b[22;37m)",
+            0
+        ],
+        [
+            "|03/|11set RTBRACKET |03<str>          |08- |07Right bracket around nick (e.g. |10>|07)",
+            "\u001b[22;36m/\u001b[1;36mset RTBRACKET \u001b[22;36m<str>          \u001b[1;30m- \u001b[22;37mRight bracket around nick (e.g. \u001b[1;32m>\u001b[22;37m)",
+            0
+        ],
+        [
+            "|03/|11set DEFAULTROOM |03<room>       |08- |07Room to join on connect",
+            "\u001b[22;36m/\u001b[1;36mset DEFAULTROOM \u001b[22;36m<room>       \u001b[1;30m- \u001b[22;37mRoom to join on connect",
+            0
+        ],
+        [
+            "|03/|11set USECLOCK on|08/|03off          |08- |07Show timestamp on messages",
+            "\u001b[22;36m/\u001b[1;36mset USECLOCK on\u001b[1;30m/\u001b[22;36moff          \u001b[1;30m- \u001b[22;37mShow timestamp on messages",
+            0
+        ],
+        [
+            "|03/|11set CLOCKFORMAT |03<fmt>        |08- |14hh:mm |0712hr|08/|14HH:mm |0724hr (|03default|07 to reset)",
+            "\u001b[22;36m/\u001b[1;36mset CLOCKFORMAT \u001b[22;36m<fmt>        \u001b[1;30m- \u001b[1;33mhh:mm \u001b[22;37m12hr\u001b[1;30m/\u001b[1;33mHH:mm \u001b[22;37m24hr (\u001b[22;36mdefault\u001b[22;37m to reset)",
+            0
+        ],
+        [
+            "|03/|11set SHIELD on|08/|03off            |08- |07Suppress broadcast messages",
+            "\u001b[22;36m/\u001b[1;36mset SHIELD on\u001b[1;30m/\u001b[22;36moff            \u001b[1;30m- \u001b[22;37mSuppress broadcast messages",
+            0
+        ],
+        [
+            "|03/|11set HIDECTCPREQ on|08/|03off       |08- |07Hide CTCP request messages",
+            "\u001b[22;36m/\u001b[1;36mset HIDECTCPREQ on\u001b[1;30m/\u001b[22;36moff       \u001b[1;30m- \u001b[22;37mHide CTCP request messages",
+            0
+        ],
+        [
+            "|03/|11set SHOWSMILIES on|08/|03off       |08- |07Convert :) :D =) to smiley characters",
+            "\u001b[22;36m/\u001b[1;36mset SHOWSMILIES on\u001b[1;30m/\u001b[22;36moff       \u001b[1;30m- \u001b[22;37mConvert :) :D =) to smiley characters",
+            0
+        ],
+        [
+            "|03/|11set TWITFILTER on|08/|03off        |08- |07Enable your twit filter (see |03/twit|07)",
+            "\u001b[22;36m/\u001b[1;36mset TWITFILTER on\u001b[1;30m/\u001b[22;36moff        \u001b[1;30m- \u001b[22;37mEnable your twit filter (see \u001b[22;36m/twit\u001b[22;37m)",
+            0
+        ],
+        [
+            "|03/|11set JOINMSG |03<message>        |08- |07Message sent on room join (|03%1|08 = nick)",
+            "\u001b[22;36m/\u001b[1;36mset JOINMSG \u001b[22;36m<message>        \u001b[1;30m- \u001b[22;37mMessage sent on room join (\u001b[22;36m%1\u001b[1;30m = nick)",
+            0
+        ],
+        [
+            "|03/|11set LEAVEMSG |03<message>       |08- |07Message sent on room leave (|03%1|08 = nick)",
+            "\u001b[22;36m/\u001b[1;36mset LEAVEMSG \u001b[22;36m<message>       \u001b[1;30m- \u001b[22;37mMessage sent on room leave (\u001b[22;36m%1\u001b[1;30m = nick)",
+            0
+        ],
+        [
+            "|03/|11set list                     |08- |07Show current settings",
+            "\u001b[22;36m/\u001b[1;36mset list                     \u001b[1;30m- \u001b[22;37mShow current settings",
+            0
+        ],
+        ["|15Current /set values|08:", "\u001b[1;37mCurrent /set values\u001b[1;30m:", 0],
+        [
+            "|14NICKCOLOR         ${p.nickColor}${this.state.alias}|00",
+            "\u001b[1;33mNICKCOLOR         ${p.nickColor}${this.state.alias}\u001b[22;30m",
+            0
+        ],
+        [
+            "|14MESSAGECOLOR      ${p.messageColor}example text|00",
+            "\u001b[1;33mMESSAGECOLOR      ${p.messageColor}example text\u001b[22;30m",
+            0
+        ],
+        [
+            "|14LTBRACKET         |07${p.ltBracket}|16|07",
+            "\u001b[1;33mLTBRACKET         \u001b[22;37m${p.ltBracket}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14RTBRACKET         |07${p.rtBracket}|16|07",
+            "\u001b[1;33mRTBRACKET         \u001b[22;37m${p.rtBracket}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14DEFAULTROOM       |07${p.defaultRoom}|16|07",
+            "\u001b[1;33mDEFAULTROOM       \u001b[22;37m${p.defaultRoom}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14USECLOCK          |07${p.useClock ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mUSECLOCK          \u001b[22;37m${p.useClock ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14CLOCKFORMAT       |07${p.clockFormat || '(theme default)'}|16|07",
+            "\u001b[1;33mCLOCKFORMAT       \u001b[22;37m${p.clockFormat || '(theme default)'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14SHIELD            |07${p.shield ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mSHIELD            \u001b[22;37m${p.shield ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14HIDECTCPREQ       |07${p.hideCTCPReq ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mHIDECTCPREQ       \u001b[22;37m${p.hideCTCPReq ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14SHOWSMILIES       |07${p.showSmilies ? 'on' : 'off'}|16|07",
+            "\u001b[1;33mSHOWSMILIES       \u001b[22;37m${p.showSmilies ? 'on' : 'off'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14TWITFILTER        |07${p.twitFilter ? 'on' : 'off'} |08(${\n                (p.twitList || []).length\n            } user(s))|16|07",
+            "\u001b[1;33mTWITFILTER        \u001b[22;37m${p.twitFilter ? 'on' : 'off'} \u001b[1;30m(${\n                (p.twitList || []).length\n            } user(s))\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14JOINMSG           |07${p.joinMsg || '(none)'}|16|07",
+            "\u001b[1;33mJOINMSG           \u001b[22;37m${p.joinMsg || '(none)'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        [
+            "|14LEAVEMSG          |07${p.leaveMsg || '(none)'}|16|07",
+            "\u001b[1;33mLEAVEMSG          \u001b[22;37m${p.leaveMsg || '(none)'}\u001b[40m\u001b[22;37m",
+            0
+        ],
+        ["|15on", "\u001b[1;37mon", 0],
+        ["|08off", "\u001b[1;30moff", 0],
+        [
+            "|07- |08[|10::|08] |10Welcome to ENiGMA½ MRC Chat",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;32mWelcome to ENiGMA½ MRC Chat",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |10|15UP|10/|15DN|10 history |15LEFT|10/|15RIGHT|10 msg colour",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;32m\u001b[1;37mUP\u001b[1;32m/\u001b[1;37mDN\u001b[1;32m history \u001b[1;37mLEFT\u001b[1;32m/\u001b[1;37mRIGHT\u001b[1;32m msg colour",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |15TAB|10 nick complete |15DEL|10 mentions",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;37mTAB\u001b[1;32m nick complete \u001b[1;37mDEL\u001b[1;32m mentions",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |10Type |15/help|10 for a list of commands",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;32mType \u001b[1;37m/help\u001b[1;32m for a list of commands",
+            0
+        ],
+        [
+            "|07- |08[|10::|08] |14Broadcast Shield: ${shieldStatus}|14  Twit Filter: ${twitStatus}|14 (${twitCount} user(s))|07",
+            "\u001b[22;37m- \u001b[1;30m[\u001b[1;32m::\u001b[1;30m] \u001b[1;33mBroadcast Shield: ${shieldStatus}\u001b[1;33m  Twit Filter: ${twitStatus}\u001b[1;33m (${twitCount} user(s))\u001b[22;37m",
+            0
+        ],
+        [
+            "|08Usage: |03/twit add <user>|00",
+            "\u001b[1;30mUsage: \u001b[22;36m/twit add <user>\u001b[22;30m",
+            0
+        ],
+        [
+            "|12Cannot add |15${target}|12 to twit list|00",
+            "\u001b[1;31mCannot add \u001b[1;37m${target}\u001b[1;31m to twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Added |15${target}|11 to your twit list|00",
+            "\u001b[1;36mAdded \u001b[1;37m${target}\u001b[1;36m to your twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|08Usage: |03/twit del <user>|00",
+            "\u001b[1;30mUsage: \u001b[22;36m/twit del <user>\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Cannot find |15${target}|11 in your twit list|00",
+            "\u001b[1;36mCannot find \u001b[1;37m${target}\u001b[1;36m in your twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Removed |15${target}|11 from your twit list|00",
+            "\u001b[1;36mRemoved \u001b[1;37m${target}\u001b[1;36m from your twit list\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Your twit list is |15empty|00",
+            "\u001b[1;36mYour twit list is \u001b[1;37mempty\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Twit list (${list.length}): |15${list.join(', ')}",
+            "\u001b[1;36mTwit list (${list.length}): \u001b[1;37m${list.join(', ')}",
+            0
+        ],
+        [
+            "|11Twit filter is ${filterStatus}|11 — see |15/set TWITFILTER|00",
+            "\u001b[1;36mTwit filter is ${filterStatus}\u001b[1;36m — see \u001b[1;37m/set TWITFILTER\u001b[22;30m",
+            0
+        ],
+        [
+            "|11Your twit list has been cleared|00",
+            "\u001b[1;36mYour twit list has been cleared\u001b[22;30m",
+            0
+        ],
+        ["|15/twit commands|08:", "\u001b[1;37m/twit commands\u001b[1;30m:", 0],
+        [
+            "|03/|11twit add |03<user>  |08- |07Add user to twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit add \u001b[22;36m<user>  \u001b[1;30m- \u001b[22;37mAdd user to twit list",
+            0
+        ],
+        [
+            "|03/|11twit del |03<user>  |08- |07Remove user from twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit del \u001b[22;36m<user>  \u001b[1;30m- \u001b[22;37mRemove user from twit list",
+            0
+        ],
+        [
+            "|03/|11twit list         |08- |07Show your twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit list         \u001b[1;30m- \u001b[22;37mShow your twit list",
+            0
+        ],
+        [
+            "|03/|11twit clear        |08- |07Clear your twit list",
+            "\u001b[22;36m/\u001b[1;36mtwit clear        \u001b[1;30m- \u001b[22;37mClear your twit list",
+            0
+        ],
+        [
+            "|08Use |03/set TWITFILTER on|08/|03off |08to enable/disable filtering",
+            "\u001b[1;30mUse \u001b[22;36m/set TWITFILTER on\u001b[1;30m/\u001b[22;36moff \u001b[1;30mto enable/disable filtering",
+            0
+        ],
+        [
+            "|08No mentions this session.|00",
+            "\u001b[1;30mNo mentions this session.\u001b[22;30m",
+            0
+        ],
+        [
+            "|08-- |15Mentions |08(${this.state.mentionsLog.length}) --",
+            "\u001b[1;30m-- \u001b[1;37mMentions \u001b[1;30m(${this.state.mentionsLog.length}) --",
+            0
+        ],
+        [
+            "|08-- |15End of Mentions |08--",
+            "\u001b[1;30m-- \u001b[1;37mEnd of Mentions \u001b[1;30m--",
+            0
+        ],
+        ["|15CTCP commands|08:", "\u001b[1;37mCTCP commands\u001b[1;30m:", 0],
+        [
+            "|03/|11ctcp |03<target> <command>",
+            "\u001b[22;36m/\u001b[1;36mctcp \u001b[22;36m<target> <command>",
+            0
+        ],
+        ["|10[target] |07can be:", "\u001b[1;32m[target] \u001b[22;37mcan be:", 0],
+        [
+            "  |15*          |07All users",
+            "  \u001b[1;37m*          \u001b[22;37mAll users",
+            0
+        ],
+        [
+            "  |15#room      |07All users in a room",
+            "  \u001b[1;37m#room      \u001b[22;37mAll users in a room",
+            0
+        ],
+        [
+            "  |15user       |07A specific user",
+            "  \u001b[1;37muser       \u001b[22;37mA specific user",
+            0
+        ],
+        ["|10[command] |07can be:", "\u001b[1;32m[command] \u001b[22;37mcan be:", 0],
+        [
+            "  |15VERSION    |07Request client version",
+            "  \u001b[1;37mVERSION    \u001b[22;37mRequest client version",
+            0
+        ],
+        [
+            "  |15TIME       |07Request local time",
+            "  \u001b[1;37mTIME       \u001b[22;37mRequest local time",
+            0
+        ],
+        [
+            "  |15PING       |07Latency check",
+            "  \u001b[1;37mPING       \u001b[22;37mLatency check",
+            0
+        ],
+        [
+            "  |15CLIENTINFO |07Request supported commands",
+            "  \u001b[1;37mCLIENTINFO \u001b[22;37mRequest supported commands",
+            0
+        ],
+        [
+            "* |14[CTCP-REQUEST] |15${cmd} |07on |15${target} |07from |10${message.from_user}|00",
+            "* \u001b[1;33m[CTCP-REQUEST] \u001b[1;37m${cmd} \u001b[22;37mon \u001b[1;37m${target} \u001b[22;37mfrom \u001b[1;32m${message.from_user}\u001b[22;30m",
+            0
+        ],
+        [
+            "* |14[CTCP-REPLY] |10${responder} |15${rest}|00",
+            "* \u001b[1;33m[CTCP-REPLY] \u001b[1;32m${responder} \u001b[1;37m${rest}\u001b[22;30m",
+            0
+        ],
+        ["NEWROOM:${oldRoom || room}:${room}", null, 0],
+        [
+            "\n|00Cannot change area: ${err.message}\n",
+            "\n\u001b[22;30mCannot change area: ${err.message}\n",
+            0
+        ],
+        [
+            "\n|00Cannot change conference: ${err.message}\n",
+            "\n\u001b[22;30mCannot change conference: ${err.message}\n",
+            0
+        ],
+        [
+            "${headerArt || ''}\r\n${pipeToAnsi(\n                            item.text\n                        )}\r\n${footerArt || ''}",
+            null,
+            0
+        ],
+        [
+            ");\n        if ('ok' !== res.status || (res.disk && res.disk.error)) {\n            process.exitCode = ExitCodes.ERROR;\n        }\n    } catch (e) {\n        if (e instanceof ConsoleError) {\n            process.stderr.write('\\x1b[0m\r\n');\n            console.error(",
+            null,
+            0
+        ],
+        [
+            "${padRight(node.address.toString(), 22)}${padLeft(\n                    live.length,\n                    8\n                )}${padLeft(missing.length || '', 9)}${padLeft(\n                    friendlyAge(oldestTimestamp(live)),\n                    8\n                )}",
+            null,
+            0
+        ],
+        ["Label: ${label || '(none)'}", null, 0],
+        [
+            "${String(row.id).padEnd(6)}${row.user_name.padEnd(20)}${(row.label || '').padEnd(20)}${row.scope.padEnd(14)}${row.created_at.padEnd(22)}${lastUsed.padEnd(22)}${status}",
+            null,
+            0
+        ],
+        ["Real name: ${user.properties[UserProps.RealName] || 'N/A'}", null, 0],
+        [
+            "\nOTP secret   : ${\n            user.getProperty(UserProps.AuthFactor2OTPSecret) || 'N/A'\n        }\nOTP Backup   : ${backupCodesOrNa()}",
+            null,
+            0
+        ],
+        [
+            "|08You may only page the sysop once every |15${remainingMinutes}|08 minute(s). Please try again later.|07",
+            "\u001b[1;30mYou may only page the sysop once every \u001b[1;37m${remainingMinutes}\u001b[1;30m minute(s). Please try again later.\u001b[22;37m",
+            0
+        ],
+        [
+            "|10Page |07from |15{userName} |08(node {nodeId})|07\r\n",
+            "\u001b[1;32mPage \u001b[22;37mfrom \u001b[1;37m{userName} \u001b[1;30m(node {nodeId})\u001b[22;37m\r\n",
+            0
+        ],
+        ["|07{message}\r\n", "\u001b[22;37m{message}\r\n", 0],
+        [
+            "|08Visit WFC and press |07B|08 on the node to respond.|07",
+            "\u001b[1;30mVisit WFC and press \u001b[22;37mB\u001b[1;30m on the node to respond.\u001b[22;37m",
+            0
+        ],
+        [
+            "Reason: ${\n                                                        err.reason || err.message\n                                                    }\r\n\r\n",
+            null,
+            0
+        ],
+        ["${address || '*'}:${port}", null, 0],
+        [
+            "  |10${nameColumn(name)}|07listening on |15${target}",
+            "  \u001b[1;32m${nameColumn(name)}\u001b[22;37mlistening on \u001b[1;37m${target}",
+            0
+        ],
+        [
+            "  |12${nameColumn(name)}FAILED: |15${bindErr.reason}",
+            "  \u001b[1;31m${nameColumn(name)}FAILED: \u001b[1;37m${bindErr.reason}",
+            0
+        ],
+        ["|08XXXXX", "\u001b[1;30mXXXXX", 0],
+        ["|08 ", "\u001b[1;30m ", 0],
+        ["\\x1b[1|07m", "\\x1b[1\u001b[22;37mm", 0],
+        [
+            "|15{userName}|07: {message}",
+            "\u001b[1;37m{userName}\u001b[22;37m: {message}",
+            0
+        ],
+        [
+            "|08[ Chat session ended ]|07",
+            "\u001b[1;30m[ Chat session ended ]\u001b[22;37m",
+            0
+        ],
+        ["\r\n!|1K\r\n", null, 0],
+        ["${zone}:${addr.net}/${addr.node}.${addr.point || 0}", null, 0],
+        [
+            "|00|07Duplicate upload(s) found:\n",
+            "\u001b[22;30m\u001b[22;37mDuplicate upload(s) found:\n",
+            0
+        ],
+        [
+            "|15{userName}|07 logged in on node |15{nodeId}|07",
+            "\u001b[1;37m{userName}\u001b[22;37m logged in on node \u001b[1;37m{nodeId}\u001b[22;37m",
+            0
+        ],
+        [
+            "|15{userName}|07 earned |14{title}|07 (+{points})",
+            "\u001b[1;37m{userName}\u001b[22;37m earned \u001b[1;33m{title}\u001b[22;37m (+{points})",
+            0
+        ],
+        [
+            "|15{userName}|07 uploaded |15{fileCount}|07 file(s)",
+            "\u001b[1;37m{userName}\u001b[22;37m uploaded \u001b[1;37m{fileCount}\u001b[22;37m file(s)",
+            0
+        ],
+        [
+            "|12Task |15{taskDesc}|12 failed|07: {error}",
+            "\u001b[1;31mTask \u001b[1;37m{taskDesc}\u001b[1;31m failed\u001b[22;37m: {error}",
+            0
+        ],
+        [
+            "|14Task |15{taskDesc}|14 is overdue|07",
+            "\u001b[1;33mTask \u001b[1;37m{taskDesc}\u001b[1;33m is overdue\u001b[22;37m",
+            0
+        ],
+        [
+            "|07  {statusIndicator}|07 {desc:<26.26} |08{schedule:<16.16} |07{nextRun:<14.14} {lastResult}",
+            "\u001b[22;37m  {statusIndicator}\u001b[22;37m {desc:<26.26} \u001b[1;30m{schedule:<16.16} \u001b[22;37m{nextRun:<14.14} {lastResult}",
+            0
+        ],
+        [
+            "|15> {statusIndicator}|15 {desc:<26.26} |07{schedule:<16.16} |15{nextRun:<14.14} {lastResult}",
+            "\u001b[1;37m> {statusIndicator}\u001b[1;37m {desc:<26.26} \u001b[22;37m{schedule:<16.16} \u001b[1;37m{nextRun:<14.14} {lastResult}",
+            0
+        ],
+        [
+            "|10Started |15{desc}|07",
+            "\u001b[1;32mStarted \u001b[1;37m{desc}\u001b[22;37m",
+            0
+        ],
+        [
+            "|14{desc} is already running|07",
+            "\u001b[1;33m{desc} is already running\u001b[22;37m",
+            0
+        ],
+        [
+            "|12{desc} cannot be run by hand|07",
+            "\u001b[1;31m{desc} cannot be run by hand\u001b[22;37m",
+            0
+        ],
+        [
+            "|12No such task: {name}|07",
+            "\u001b[1;31mNo such task: {name}\u001b[22;37m",
+            0
+        ],
+        [
+            "|14Stopping |15{desc}|14: its process was told to quit|07",
+            "\u001b[1;33mStopping \u001b[1;37m{desc}\u001b[1;33m: its process was told to quit\u001b[22;37m",
+            0
+        ],
+        [
+            "|14Abandoned |15{desc}|14; it may still be running|07",
+            "\u001b[1;33mAbandoned \u001b[1;37m{desc}\u001b[1;33m; it may still be running\u001b[22;37m",
+            0
+        ],
+        ["|07{desc} is not running", "\u001b[22;37m{desc} is not running", 0],
+        [
+            "|14{desc} finished and started again; not stopped|07",
+            "\u001b[1;33m{desc} finished and started again; not stopped\u001b[22;37m",
+            0
+        ],
+        [
+            "|12The event scheduler is not running|07",
+            "\u001b[1;31mThe event scheduler is not running\u001b[22;37m",
+            0
+        ],
+        [
+            "|08[|07{index}|08] |15{userName}|08/|07{nodeId} |08- |07{timestamp}\r\n    |07{text}",
+            "\u001b[1;30m[\u001b[22;37m{index}\u001b[1;30m] \u001b[1;37m{userName}\u001b[1;30m/\u001b[22;37m{nodeId} \u001b[1;30m- \u001b[22;37m{timestamp}\r\n    \u001b[22;37m{text}",
+            0
+        ],
+        ["|08No messages.|07", "\u001b[1;30mNo messages.\u001b[22;37m", 0],
+        ["|08No tasks.|07", "\u001b[1;30mNo tasks.\u001b[22;37m", 0],
+        ["|08{name}|07{sep}{value}", "\u001b[1;30m{name}\u001b[22;37m{sep}{value}", 0],
+        [
+            "|15${escapePipes(obj.desc)} |08(${escapePipes(row.name)})|07",
+            "\u001b[1;37m${escapePipes(obj.desc)} \u001b[1;30m(${escapePipes(row.name)})\u001b[22;37m",
+            0
+        ],
+        [
+            "|15${escapePipes(obj.desc)}|07",
+            "\u001b[1;37m${escapePipes(obj.desc)}\u001b[22;37m",
+            0
+        ],
+        ["failed: ${lastRun.error || 'error'}", null, 0],
+        [
+            "|07${escapePipes(lastRun.outputTail)}",
+            "\u001b[22;37m${escapePipes(lastRun.outputTail)}",
+            0
+        ],
+        [
+            " |08[|15y|08/|15N|08]|07 ",
+            " \u001b[1;30m[\u001b[1;37my\u001b[1;30m/\u001b[1;37mN\u001b[1;30m]\u001b[22;37m ",
+            0
+        ],
+        ["|07${question}${suffix}", "\u001b[22;37m${question}${suffix}", 0],
+        [
+            "|15Tasks|08: |07up|08/|07down select, |15R|07un, |15X|07 stop, |15F|07 refresh, |15Q|07uit",
+            "\u001b[1;37mTasks\u001b[1;30m: \u001b[22;37mup\u001b[1;30m/\u001b[22;37mdown select, \u001b[1;37mR\u001b[22;37mun, \u001b[1;37mX\u001b[22;37m stop, \u001b[1;37mF\u001b[22;37m refresh, \u001b[1;37mQ\u001b[22;37muit",
+            0
+        ],
+        ["${screen}|07", "${screen}\u001b[22;37m", 0],
+        ["${prefixes[levelName] || ''}${rec.msg || ''}", null, 0],
+        [
+            "|08[|07${ts}|08] ${levelIndicator} ${levelName.toUpperCase()}|08",
+            "\u001b[1;30m[\u001b[22;37m${ts}\u001b[1;30m] ${levelIndicator} ${levelName.toUpperCase()}\u001b[1;30m",
+            0
+        ],
+        [
+            "  node:|07${rec.nodeId}|08",
+            "  node:\u001b[22;37m${rec.nodeId}\u001b[1;30m",
+            0
+        ],
+        [
+            "  session:|07${rec.sessionId}|08",
+            "  session:\u001b[22;37m${rec.sessionId}\u001b[1;30m",
+            0
+        ],
+        [
+            "${levelPrefix}${rec.msg || '(no message)'}|00",
+            "${levelPrefix}${rec.msg || '(no message)'}\u001b[22;30m",
+            0
+        ],
+        [
+            "|08{name}|07{sep}|07{value}",
+            "\u001b[1;30m{name}\u001b[22;37m{sep}\u001b[22;37m{value}",
+            0
+        ],
+        ["|08${rec.err.stack}|00", "\u001b[1;30m${rec.err.stack}\u001b[22;30m", 0],
+        [
+            "|08No log entries available|00",
+            "\u001b[1;30mNo log entries available\u001b[22;30m",
+            0
+        ],
+        ["|16|07{text}", "\u001b[40m\u001b[22;37m{text}", 0],
+        ["|00|23{text}", "\u001b[22;30m\u001b[47m{text}", 0],
+        [
+            "|16|07{userName:<15.14}{location:<10.9}{ts:<13.13}",
+            "\u001b[40m\u001b[22;37m{userName:<15.14}{location:<10.9}{ts:<13.13}",
+            0
+        ],
+        [
+            "|16|07{node:<5.4}{userName:<16.15}{action:<17.17}",
+            "\u001b[40m\u001b[22;37m{node:<5.4}{userName:<16.15}{action:<17.17}",
+            0
+        ],
+        [
+            "|16|07{index:>2} {name:<33.32}",
+            "\u001b[40m\u001b[22;37m{index:>2} {name:<33.32}",
+            0
+        ],
+        [
+            "|00|23{index:>2} {name:<33.32}",
+            "\u001b[22;30m\u001b[47m{index:>2} {name:<33.32}",
+            0
+        ],
+        [
+            "|16|07{msgNumSelected}/{msgNumTotal} {fromUserName:<16.15} {ts}",
+            "\u001b[40m\u001b[22;37m{msgNumSelected}/{msgNumTotal} {fromUserName:<16.15} {ts}",
+            0
+        ],
+        [
+            "|16|07{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            "\u001b[40m\u001b[22;37m{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            0
+        ],
+        [
+            "|00|23{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            "\u001b[22;30m\u001b[47m{msgNum:>3} {subject:<20.19}{fromUserName:<13.12}{newIndicator}",
+            0
+        ],
+        ["|00|23", "\u001b[22;30m\u001b[47m", 0],
+        ["|03mode|08:", "\u001b[22;36mmode\u001b[1;30m:", 0],
+        [" |03pos|08:", " \u001b[22;36mpos\u001b[1;30m:", 0],
+        [
+            "|08Chatting with |15{partnerName}|08 · {duration} · |07ESC|08 to end|07",
+            "\u001b[1;30mChatting with \u001b[1;37m{partnerName}\u001b[1;30m · {duration} · \u001b[22;37mESC\u001b[1;30m to end\u001b[22;37m",
+            0
+        ],
+        [
+            "|03smash a key to continue |08[|11C|08] |03continuous  |08[|11Q|08] |03quit",
+            "\u001b[22;36msmash a key to continue \u001b[1;30m[\u001b[1;36mC\u001b[1;30m] \u001b[22;36mcontinuous  \u001b[1;30m[\u001b[1;36mQ\u001b[1;30m] \u001b[22;36mquit",
+            0
+        ],
+        [
+            "|11s|03mash |11y|03our |11k|03eyboard|08!",
+            "\u001b[1;36ms\u001b[22;36mmash \u001b[1;36my\u001b[22;36mour \u001b[1;36mk\u001b[22;36meyboard\u001b[1;30m!",
+            0
+        ],
+        ["|11{text}", "\u001b[1;36m{text}", 0],
+        [
+            "|15{userName:<15.14}|07{location:<10.9}|11{ts:<13.13}",
+            "\u001b[1;37m{userName:<15.14}\u001b[22;37m{location:<10.9}\u001b[1;36m{ts:<13.13}",
+            0
+        ],
+        [
+            "|07{node:<5.4}|15{userName:<16.15}|11{action:<17.17}",
+            "\u001b[22;37m{node:<5.4}\u001b[1;37m{userName:<16.15}\u001b[1;36m{action:<17.17}",
+            0
+        ],
+        [
+            "|15{index:>2} |03{name:<33.32}",
+            "\u001b[1;37m{index:>2} \u001b[22;36m{name:<33.32}",
+            0
+        ],
+        [
+            "|07{msgNumSelected}/{msgNumTotal} |15{fromUserName:<16.15} |11{ts}",
+            "\u001b[22;37m{msgNumSelected}/{msgNumTotal} \u001b[1;37m{fromUserName:<16.15} \u001b[1;36m{ts}",
+            0
+        ],
+        [
+            "|15{msgNum:>3} |03{subject:<20.19}|11{fromUserName:<13.12}|15{newIndicator}",
+            "\u001b[1;37m{msgNum:>3} \u001b[22;36m{subject:<20.19}\u001b[1;36m{fromUserName:<13.12}\u001b[1;37m{newIndicator}",
+            0
+        ],
+        ["|16|11", "\u001b[40m\u001b[1;36m", 0],
+        [
+            "${metadata.artist || 'Unknown Artist'} - ${\n        metadata.title || 'Unknown'\n    } (",
+            null,
+            0
+        ]
+    ]
+}

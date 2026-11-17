@@ -1347,6 +1347,48 @@ describe('VerticalMenuView', () => {
 
 // ─── EditTextView — wide-character scroll and display fixes ───────────────────
 
+describe('EditTextView — measures what it draws', () => {
+    function makeEtv(itemFormat) {
+        const writes = [];
+        const v = new EditTextView({
+            client: {
+                term: {
+                    termWidth: 80,
+                    termHeight: 25,
+                    write: s => writes.push(s),
+                    rawWrite: () => {},
+                },
+            },
+            id: 1,
+            position: { row: 1, col: 1 },
+            dimens: { width: 10, height: 1 },
+        });
+        if (itemFormat) {
+            v.itemFormat = itemFormat;
+        }
+        v.setText('abc|07defgh', false);
+        v.hasFocus = true;
+        writes.length = 0;
+        return { v, writes };
+    }
+    // eslint-disable-next-line no-control-regex
+    const shown = writes => writes.join('').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+
+    it('without an itemFormat a typed |07 is three columns, as drawn', () => {
+        const { v, writes } = makeEtv();
+        v.drawText(v.text);
+        assert.equal(shown(writes).trimEnd(), 'bc|07defgh');
+        assert.equal(v._bufferToDisplayCol(v.cursorPos.col), 11);
+    });
+
+    it('with an itemFormat the |07 is the colour it previews', () => {
+        const { v, writes } = makeEtv('{text}');
+        v.drawText(v.text);
+        assert.equal(shown(writes).trimEnd(), 'abcdefgh');
+        assert.equal(v._bufferToDisplayCol(v.cursorPos.col), 8);
+    });
+});
+
 describe('EditTextView — wide-character scroll and display', () => {
     function makeEtv({ width = 20 } = {}) {
         return new EditTextView({

@@ -7,6 +7,9 @@ const strUtil = require('./string_util.js');
 const formatString = require('./string_format');
 const { pipeToAnsi } = require('./color_codes.js');
 
+//  Items are drawn already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
+
 //  deps
 const _ = require('lodash');
 
@@ -113,7 +116,10 @@ class FullMenuView extends MenuView {
                         if (this.items[i - j].col != this.items[i].col) {
                             break;
                         }
-                        const itemLength = this.items[i - j].text.length;
+                        const itemLength = strUtil.renderStringLength(
+                            this.items[i - j].text,
+                            ANSI_ONLY
+                        );
                         if (itemLength > maxLength) {
                             maxLength = itemLength;
                         }
@@ -155,7 +161,10 @@ class FullMenuView extends MenuView {
                     let maxLength = 0;
                     for (let j = 0; j < this.itemsPerRow; j++) {
                         // TODO: handle complex items
-                        const itemLength = this.items[i - j].text.length;
+                        const itemLength = strUtil.renderStringLength(
+                            this.items[i - j].text,
+                            ANSI_ONLY
+                        );
                         if (itemLength > maxLength) {
                             maxLength = itemLength;
                         }
@@ -239,7 +248,7 @@ class FullMenuView extends MenuView {
             sgr = index === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR();
         }
 
-        const renderLength = strUtil.renderStringLength(text);
+        const renderLength = strUtil.renderStringLength(text, ANSI_ONLY);
 
         let relativeColumn = item.col - this.position.col;
         if (relativeColumn < 0) {
@@ -250,13 +259,16 @@ class FullMenuView extends MenuView {
             );
         }
 
+        let textWidth = renderLength;
         if (relativeColumn + renderLength > this.dimens.width) {
             if (this.hasTextOverflow()) {
                 text = strUtil.renderTruncate(text, {
                     length:
                         this.dimens.width - (relativeColumn + this.textOverflow.length),
                     omission: this.textOverflow,
+                    dialect: 'ansi',
                 });
+                textWidth = ANSI_ONLY;
             }
         }
 
@@ -266,7 +278,10 @@ class FullMenuView extends MenuView {
             text,
             padLength,
             this.fillChar,
-            this.justify
+            this.justify,
+            '',
+            '',
+            textWidth
         )}${this.getSGR()}`;
         this.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);

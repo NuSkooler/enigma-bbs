@@ -1131,7 +1131,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         views.forEach(view => {
             const format = config[view.key];
-            const text = stringFormat(format, fmtObj);
+            //  measured with the client the view renders it with
+            const text = stringFormat(format, fmtObj, { client: this.client });
 
             if (options.skipUnchanged && MenuModule.canSkipUnchangedText(view)) {
                 //  getData() is the text as setText() leaves it -- predefined

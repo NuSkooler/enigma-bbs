@@ -8,12 +8,17 @@ const {
     pad: padStr,
     stylizeString,
     renderSubstr,
+    renderFirstChar,
     renderStringLength,
     stripAllLineFeeds,
 } = require('./string_util.js');
 const { pipeToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 const stringFormat = require('./string_format');
+
+//  What drawText() writes is already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
 
 //  deps
 const _ = require('lodash');
@@ -32,11 +37,7 @@ class TextView extends View {
             this.maxLength = this.client.term.termWidth - this.position.col;
         }
 
-        this.fillChar = renderSubstr(
-            miscUtil.valueWithDefault(options.fillChar, ' '),
-            0,
-            1
-        );
+        this.fillChar = renderFirstChar(miscUtil.valueWithDefault(options.fillChar, ' '));
         this.justify = options.justify || 'left';
         this.resizable = miscUtil.valueWithDefault(options.resizable, true);
         this.horizScroll = miscUtil.valueWithDefault(options.horizScroll, true);
@@ -60,8 +61,9 @@ class TextView extends View {
         //          ^-- this.dimens.width
         //
         let textToDraw;
+        let renderLength;
         if (this.itemFormat) {
-            textToDraw = pipeToAnsi(
+            ({ text: textToDraw, width: renderLength } = PipeCodes.renderWithWidth(
                 stringFormat(
                     this.hasFocus && this.focusItemFormat
                         ? this.focusItemFormat
@@ -73,14 +75,16 @@ class TextView extends View {
                         ),
                     }
                 )
-            );
+            ));
         } else {
             textToDraw = _.isString(this.textMaskChar)
-                ? new Array(renderStringLength(s) + 1).join(this.textMaskChar)
+                ? new Array(renderStringLength(s, ANSI_ONLY) + 1).join(this.textMaskChar)
                 : stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+            renderLength = renderStringLength(textToDraw, ANSI_ONLY);
         }
 
-        const renderLength = renderStringLength(textToDraw);
+        //  the width of textToDraw, until it is cut
+        let drawnLength = renderLength;
 
         if (renderLength >= this.dimens.width) {
             if (this.hasFocus) {
@@ -88,24 +92,36 @@ class TextView extends View {
                     textToDraw = renderSubstr(
                         textToDraw,
                         renderLength - this.dimens.width,
-                        renderLength
+                        renderLength,
+                        ANSI_ONLY
                     );
+                    drawnLength = ANSI_ONLY;
                 }
             } else {
+                const overflowLength = this.textOverflow
+                    ? renderStringLength(this.textOverflow, ANSI_ONLY)
+                    : 0;
                 if (
                     this.textOverflow &&
-                    this.dimens.width > this.textOverflow.length &&
-                    renderLength - this.textOverflow.length >= this.textOverflow.length
+                    this.dimens.width > overflowLength &&
+                    renderLength - overflowLength >= overflowLength
                 ) {
                     textToDraw =
                         renderSubstr(
                             textToDraw,
                             0,
-                            this.dimens.width - this.textOverflow.length
+                            this.dimens.width - overflowLength,
+                            ANSI_ONLY
                         ) + this.textOverflow;
                 } else {
-                    textToDraw = renderSubstr(textToDraw, 0, this.dimens.width);
+                    textToDraw = renderSubstr(
+                        textToDraw,
+                        0,
+                        this.dimens.width,
+                        ANSI_ONLY
+                    );
                 }
+                drawnLength = ANSI_ONLY;
             }
         }
 
@@ -119,14 +135,17 @@ class TextView extends View {
                 this.justify,
                 this.hasFocus ? this.getFocusSGR() : this.getSGR(),
                 this.getStyleSGR(1) || this.getSGR(),
-                true //  use render len
+                drawnLength //  a known width, or measure it ANSI only
             ),
             false //  no converting CRLF needed
         );
     }
 
     getEndOfTextColumn() {
-        const offset = Math.min(this.text.length, this.dimens.width);
+        const offset = Math.min(
+            renderStringLength(this.text, ANSI_ONLY),
+            this.dimens.width
+        );
         return this.position.col + offset;
     }
 
@@ -180,12 +199,13 @@ class TextView extends View {
 
         const formatObj = getPredefinedMCIFormatObject(this.client, text);
         if (formatObj) {
-            text = stringFormat(text, formatObj);
+            //  measured with the client it is rendered with below
+            text = stringFormat(text, formatObj, { client: this.client });
         }
 
         this.text = pipeToAnsi(stripAllLineFeeds(text), this.client);
         if (this.maxLength > 0) {
-            this.text = renderSubstr(this.text, 0, this.maxLength);
+            this.text = renderSubstr(this.text, 0, this.maxLength, ANSI_ONLY);
         }
 
         this.text = stylizeString(
@@ -200,7 +220,7 @@ class TextView extends View {
 
     clearText() {
         if (this.text) {
-            this.setText(this.fillChar.repeat(this.text.length));
+            this.setText(this.fillChar.repeat(renderStringLength(this.text, ANSI_ONLY)));
         }
 
         this.setText('');

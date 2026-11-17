@@ -1,11 +1,11 @@
 /* jslint node: true */
 'use strict';
 
-const ANSI = require('./ansi_term.js');
-const { getPredefinedMCIValue } = require('./predefined_mci.js');
+const PipeCodes = require('./pipe_codes.js');
 
-//  deps
-const _ = require('lodash');
+//  Loaded for its side effect: predefined_mci.js registers its MCI resolver
+//  with pipe_codes.js, which is how |UN and friends resolve below.
+require('./predefined_mci.js');
 
 exports.stripMciColorCodes = stripMciColorCodes;
 exports.pipeStringLength = pipeStringLength;
@@ -14,135 +14,35 @@ exports.controlCodesToAnsi = controlCodesToAnsi;
 
 //  Convert a two-digit Renegade/ENiGMA pipe color code (as an integer 0-31) to
 //  an ANSI SGR escape sequence.  Exposed for live pipe-code rendering in MLTEV.
-exports.pipeColorToAnsi = ansiSgrFromRenegadeColorCode;
+exports.pipeColorToAnsi = PipeCodes.pipeColorSgr;
 
 //  :TODO: Not really happy with the module name of "color_codes". Would like something better ... control_code_string?
 
+//
+//  Remove the pipe codes pipeToAnsi() would consume: colours, cursor codes
+//  (|CF05 becomes five spaces) and known MCI codes. An unknown |XY stays, as
+//  it shows literally. The result can be rendered again (achievement titles
+//  are): "||" stays "||", and a pipe the removal would turn into a code is
+//  escaped.
+//
+const STRIP_RERENDER = { rerender: true };
+
 function stripMciColorCodes(s) {
-    return s.replace(/\|[A-Z\d]{2}/g, '');
+    return PipeCodes.strip(s, STRIP_RERENDER);
 }
 
+//  Display columns of |s| as pipeToAnsi() without a client would draw it.
 function pipeStringLength(s) {
-    return stripMciColorCodes(s).length;
+    return PipeCodes.width(s);
 }
 
-function ansiSgrFromRenegadeColorCode(cc) {
-    return ANSI.sgr(
-        {
-            //  Dark foreground colors (0–7): use 'normal' (SGR 22) to clear bold/bright
-            //  without a full SGR 0 reset that would wipe any previously set background.
-            //  See: https://github.com/NuSkooler/enigma-bbs/issues/555
-            0: ['normal', 'black'],
-            1: ['normal', 'blue'],
-            2: ['normal', 'green'],
-            3: ['normal', 'cyan'],
-            4: ['normal', 'red'],
-            5: ['normal', 'magenta'],
-            6: ['normal', 'yellow'],
-            7: ['normal', 'white'],
-
-            8: ['bold', 'black'],
-            9: ['bold', 'blue'],
-            10: ['bold', 'green'],
-            11: ['bold', 'cyan'],
-            12: ['bold', 'red'],
-            13: ['bold', 'magenta'],
-            14: ['bold', 'yellow'],
-            15: ['bold', 'white'],
-
-            16: ['blackBG'],
-            17: ['blueBG'],
-            18: ['greenBG'],
-            19: ['cyanBG'],
-            20: ['redBG'],
-            21: ['magentaBG'],
-            22: ['yellowBG'],
-            23: ['whiteBG'],
-
-            24: ['blink', 'blackBG'],
-            25: ['blink', 'blueBG'],
-            26: ['blink', 'greenBG'],
-            27: ['blink', 'cyanBG'],
-            28: ['blink', 'redBG'],
-            29: ['blink', 'magentaBG'],
-            30: ['blink', 'yellowBG'],
-            31: ['blink', 'whiteBG'],
-        }[cc] || 'normal'
-    );
-}
-
-function ansiSgrFromCnetStyleColorCode(cc) {
-    return ANSI.sgr(
-        {
-            //  Same fix as Renegade codes 0–7: 'normal' (SGR 22) clears bold without
-            //  a full reset that would wipe a previously set background.
-            c0: ['normal', 'black'],
-            c1: ['normal', 'red'],
-            c2: ['normal', 'green'],
-            c3: ['normal', 'yellow'],
-            c4: ['normal', 'blue'],
-            c5: ['normal', 'magenta'],
-            c6: ['normal', 'cyan'],
-            c7: ['normal', 'white'],
-
-            c8: ['bold', 'black'],
-            c9: ['bold', 'red'],
-            ca: ['bold', 'green'],
-            cb: ['bold', 'yellow'],
-            cc: ['bold', 'blue'],
-            cd: ['bold', 'magenta'],
-            ce: ['bold', 'cyan'],
-            cf: ['bold', 'white'],
-
-            z0: ['blackBG'],
-            z1: ['redBG'],
-            z2: ['greenBG'],
-            z3: ['yellowBG'],
-            z4: ['blueBG'],
-            z5: ['magentaBG'],
-            z6: ['cyanBG'],
-            z7: ['whiteBG'],
-        }[cc] || 'normal'
-    );
-}
-
+//
+//  Renegade/ENiGMA pipe codes (|##, |AA MCI, |C[FBUD]##, ||) to ANSI. See
+//  pipe_codes.js for the grammar. Without a client, MCI and cursor codes
+//  are shown literally.
+//
 function renegadeToAnsi(s, client) {
-    if (!s) {
-        return '';
-    }
-    if (-1 == s.indexOf('|')) {
-        return s; //  no pipe codes present
-    }
-
-    let result = '';
-    const re = /\|(?:(C[FBUD])([0-9]{1,2})|([0-9]{2})|([A-Z]{2})|(\|))/g;
-    let m;
-    let lastIndex = 0;
-    while ((m = re.exec(s))) {
-        if (m[3]) {
-            //  |## color
-            const val = parseInt(m[3], 10);
-            const attr = ansiSgrFromRenegadeColorCode(val);
-            result += s.substr(lastIndex, m.index - lastIndex) + attr;
-        } else if (m[4] || m[1]) {
-            //  |AA MCI code or |Cx## movement where ## is in m[1]
-            let val = getPredefinedMCIValue(client, m[4] || m[1], m[2]);
-            val = _.isString(val) ? val : m[0]; //  value itself or literal
-            result += s.substr(lastIndex, m.index - lastIndex) + val;
-        } else if (m[5]) {
-            //  || -- literal '|', that is.
-            //
-            //  The text between the previous match and this one has to come
-            //  along, exactly as the other branches do it. Without it every
-            //  character before a "||" was dropped: "if (a || b) {" rendered
-            //  as "| b) {".
-            result += s.substr(lastIndex, m.index - lastIndex) + '|';
-        }
-
-        lastIndex = re.lastIndex;
-    }
-
-    return 0 === result.length ? s : result + s.substr(lastIndex);
+    return PipeCodes.render(s, client ? { client } : undefined);
 }
 
 //
@@ -164,135 +64,15 @@ function renegadeToAnsi(s, client) {
 //  * http://wiki.synchro.net/custom:colors
 //  * https://archive.org/stream/C-Net_Pro_3.0_1994_Perspective_Software/C-Net_Pro_3.0_1994_Perspective_Software_djvu.txt
 //
+//  Pipe codes follow the UI grammar minus the "||" escape (as on Renegade,
+//  Synchronet and Mystic, "||05" is "|" then colour 05): |1A is text, and
+//  |C[FBUD]## moves the cursor when a client resolves it.
+//
+const BODY = { dialect: 'body' };
+
 function controlCodesToAnsi(s, client) {
-    const RE =
-        /(\|([A-Z0-9]{2})|\|)|(@X([0-9A-F]{2}))|(@([0-9A-F]{2})@)|(\x03[0-9]|\x03)|(\x19(c[0-9a-f]|z[0-7]|n1|f1|q1)|\x19)|(\x11(c[0-9a-f]|z[0-7]|n1|f1|q1)}|\x11)/g; //  eslint-disable-line no-control-regex
-
-    let m;
-    let result = '';
-    let lastIndex = 0;
-    let v;
-    let fg;
-    let bg;
-
-    while ((m = RE.exec(s))) {
-        switch (m[0].charAt(0)) {
-            case '|':
-                //  Renegade |##
-                v = parseInt(m[2], 10);
-
-                if (isNaN(v)) {
-                    v = getPredefinedMCIValue(client, m[2]) || m[0]; //  value itself or literal
-                }
-
-                if (_.isString(v)) {
-                    result += s.substr(lastIndex, m.index - lastIndex) + v;
-                } else {
-                    v = ansiSgrFromRenegadeColorCode(v);
-                    result += s.substr(lastIndex, m.index - lastIndex) + v;
-                }
-                break;
-
-            case '@':
-                //  PCBoard @X## or Wildcat! @##@
-                if ('@' === m[0].substr(-1)) {
-                    //  Wildcat!
-                    v = m[6];
-                } else {
-                    v = m[4];
-                }
-
-                bg = {
-                    0: ['blackBG'],
-                    1: ['blueBG'],
-                    2: ['greenBG'],
-                    3: ['cyanBG'],
-                    4: ['redBG'],
-                    5: ['magentaBG'],
-                    6: ['yellowBG'],
-                    7: ['whiteBG'],
-
-                    8: ['bold', 'blackBG'],
-                    9: ['bold', 'blueBG'],
-                    A: ['bold', 'greenBG'],
-                    B: ['bold', 'cyanBG'],
-                    C: ['bold', 'redBG'],
-                    D: ['bold', 'magentaBG'],
-                    E: ['bold', 'yellowBG'],
-                    F: ['bold', 'whiteBG'],
-                }[v.charAt(0)] || ['normal'];
-
-                fg = {
-                    0: ['reset', 'black'],
-                    1: ['reset', 'blue'],
-                    2: ['reset', 'green'],
-                    3: ['reset', 'cyan'],
-                    4: ['reset', 'red'],
-                    5: ['reset', 'magenta'],
-                    6: ['reset', 'yellow'],
-                    7: ['reset', 'white'],
-
-                    8: ['blink', 'black'],
-                    9: ['blink', 'blue'],
-                    A: ['blink', 'green'],
-                    B: ['blink', 'cyan'],
-                    C: ['blink', 'red'],
-                    D: ['blink', 'magenta'],
-                    E: ['blink', 'yellow'],
-                    F: ['blink', 'white'],
-                }[v.charAt(1)] || ['normal'];
-
-                v = ANSI.sgr(fg.concat(bg));
-                result += s.substr(lastIndex, m.index - lastIndex) + v;
-                break;
-
-            case '\x03':
-                //  WWIV — m[7] is the full match (e.g. "\x031"); extract the digit
-                v = parseInt(m[0].charAt(1), 10);
-
-                if (isNaN(v)) {
-                    v = m[0]; //  no digit — pass through literally
-                } else {
-                    v = ANSI.sgr(
-                        {
-                            0: ['reset', 'black'],
-                            1: ['bold', 'cyan'],
-                            2: ['bold', 'yellow'],
-                            3: ['reset', 'magenta'],
-                            4: ['bold', 'white', 'blueBG'],
-                            5: ['reset', 'green'],
-                            6: ['bold', 'blink', 'red'],
-                            7: ['bold', 'blue'],
-                            8: ['reset', 'blue'],
-                            9: ['reset', 'cyan'],
-                        }[v] || 'normal'
-                    );
-                }
-
-                result += s.substr(lastIndex, m.index - lastIndex) + v;
-                break;
-
-            case '\x19':
-            case '\x11':
-                //  CNET "Y-Style" & "Q-Style"
-                v = m[9] || m[11];
-                if (v) {
-                    if ('n1' === v) {
-                        v = '\n';
-                    } else if ('f1' === v) {
-                        v = ANSI.clearScreen();
-                    } else {
-                        v = ansiSgrFromCnetStyleColorCode(v);
-                    }
-                } else {
-                    v = m[0];
-                }
-                result += s.substr(lastIndex, m.index - lastIndex) + v;
-                break;
-        }
-
-        lastIndex = RE.lastIndex;
+    if (!s || 'string' !== typeof s) {
+        return s; //  as it always has: a number or other non-string comes back as is
     }
-
-    return 0 === result.length ? s : result + s.substr(lastIndex);
+    return PipeCodes.render(s, client ? { dialect: 'body', client } : BODY);
 }

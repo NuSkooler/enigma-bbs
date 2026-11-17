@@ -7,6 +7,9 @@ const strUtil = require('./string_util.js');
 const formatString = require('./string_format');
 const { pipeToAnsi } = require('./color_codes.js');
 
+//  Items are drawn already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
+
 //  deps
 const _ = require('lodash');
 
@@ -113,6 +116,7 @@ class VerticalMenuView extends MenuView {
             text = strUtil.renderTruncate(text, {
                 length: this.dimens.width,
                 omission: this.textOverflow,
+                dialect: 'ansi',
             });
         }
 
@@ -121,7 +125,10 @@ class VerticalMenuView extends MenuView {
                 `${text}${this.styleSGR1}`,
                 this.dimens.width,
                 this.fillChar,
-                this.justify
+                this.justify,
+                '',
+                '',
+                ANSI_ONLY
             )}`
         );
 

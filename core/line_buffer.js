@@ -2,6 +2,9 @@
 
 const { renderStringLength, renderSplitPos } = require('./string_util');
 
+//  Editor text is drawn with the |##-only live preview: measure it that way
+const EDITOR_TEXT = { dialect: 'color' };
+
 //
 //  LineBuffer — low-level line storage with per-character Uint32 attribute
 //  words.  No view dependencies; fully unit-testable in isolation.
@@ -135,7 +138,7 @@ function u32Concat(a, b) {
 //  eol=hardEol.
 //
 //  Width is measured in visible (rendered) characters — ANSI escape sequences
-//  and |XX pipe color codes are skipped and do not contribute to line length.
+//  and |## pipe color codes are skipped and do not contribute to line length.
 function _wrapText(text, attrs, width, hardEol) {
     if (text.length === 0) {
         return [{ chars: '', attrs: new Uint32Array(0), eol: hardEol, initialAttr: 0 }];
@@ -151,7 +154,7 @@ function _wrapText(text, attrs, width, hardEol) {
         //  Indices stay 1:1 since both are single BMP chars, so splitAt is reusable.
         const remainingVis = remaining.replace(/\t/g, ' ');
 
-        if (renderStringLength(remainingVis) <= width) {
+        if (renderStringLength(remainingVis, EDITOR_TEXT) <= width) {
             lines.push({
                 chars: remaining,
                 attrs: remAttrs,
@@ -162,7 +165,7 @@ function _wrapText(text, attrs, width, hardEol) {
         }
 
         //  Find the last space within the first `width` visible chars
-        const splitAt = renderSplitPos(remainingVis, width);
+        const splitAt = renderSplitPos(remainingVis, width, EDITOR_TEXT);
         const window = remaining.slice(0, splitAt);
         const lastSpace = window.lastIndexOf(' ');
         const wrapAt = lastSpace > 0 ? lastSpace : splitAt;
