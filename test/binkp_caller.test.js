@@ -74,20 +74,32 @@ describe('BinkP caller', function () {
         };
     }
 
-    function makeSpool() {
+    function makeSpool(root = tmpDir) {
         return new BsoSpool({
             paths: {
-                outbound: tmpDir,
-                inbound: path.join(tmpDir, 'ftn_in'),
-                secInbound: path.join(tmpDir, 'ftn_secin'),
+                outbound: root,
+                inbound: path.join(root, 'ftn_in'),
+                secInbound: path.join(root, 'ftn_secin'),
             },
             networks: { testnet: { localAddress: '1:218/700', defaultZone: 1 } },
         });
     }
 
+    //  The answering server's own spool. It locks the caller's presented
+    //  address, 1:218/700 -- which in the caller's outbound is also the
+    //  address some tests dial, so sharing one outbound would make the
+    //  server find it already locked by the caller.
+    async function makeServerSpool() {
+        const root = path.join(tmpDir, 'server');
+        for (const d of ['outbound', 'ftn_in', 'ftn_secin']) {
+            await fsp.mkdir(path.join(root, d), { recursive: true });
+        }
+        return makeSpool(root);
+    }
+
     // Start a minimal answering BinkP server; returns { port, stop }
     async function startAnsweringServer(opts = {}) {
-        const spool = opts.spool || makeSpool();
+        const spool = opts.spool || (await makeServerSpool());
         const server = net.createServer(async serverSocket => {
             const sess = new BinkpSession(serverSocket, {
                 role: 'answering',
@@ -106,7 +118,9 @@ describe('BinkP caller', function () {
 
         return {
             port,
-            spool,
+            //  For the caller: the outbound under test, not the server's.
+            spool: makeSpool(),
+            serverSpool: spool,
             stop: () => new Promise(res => server.close(res)),
         };
     }
@@ -186,9 +200,9 @@ describe('BinkP caller', function () {
                 const nodeConf = { host: '127.0.0.1', port };
 
                 let lockHeldDuringSession = false;
-                const origAcquire = spool.acquireLock.bind(spool);
-                spool.acquireLock = async a => {
-                    const result = await origAcquire(a);
+                const origLockNode = spool.lockNode.bind(spool);
+                spool.lockNode = async (a, lock) => {
+                    const result = await origLockNode(a, lock);
                     lockHeldDuringSession = result;
                     return result;
                 };
@@ -271,6 +285,61 @@ describe('BinkP caller', function () {
                 await callNode(addr, nodeConf, spool);
                 assert.ok(serverReceivedFile, 'server should have received the file');
             } finally {
+                await stop();
+            }
+        });
+
+        it('keeps the lock until marking what was sent has finished', async () => {
+            const refFile = path.join(tmpDir, 'settle_outbound.pkt');
+            await fsp.writeFile(refFile, 'PKT_CONTENT');
+            const flowPath = path.join(outboundDir, '00010002.flo'); //  1:1/2
+            const bsyPath = path.join(outboundDir, '00010002.bsy');
+            await fsp.writeFile(flowPath, `^${refFile}\n`);
+
+            let serverEnded;
+            const serverEnd = new Promise(r => (serverEnded = r));
+            const { port, stop } = await startAnsweringServer({
+                addresses: ['1:1/2@testnet'],
+                spool: makeSpool(),
+                onSession: sess => sess.on('session-end', serverEnded),
+            });
+
+            //  Pause the flow file rewrite that marks the line sent.
+            const spool = makeSpool();
+            let release;
+            const gate = new Promise(r => (release = r));
+            let rewriteStarted;
+            const inFlight = new Promise(r => (rewriteStarted = r));
+            const applyFlowDisposition = spool._applyFlowDisposition.bind(spool);
+            spool._applyFlowDisposition = async (...args) => {
+                rewriteStarted();
+                await gate;
+                return applyFlowDisposition(...args);
+            };
+
+            try {
+                let returned = false;
+                const call = callNode(
+                    new Address({ zone: 1, net: 1, node: 2 }),
+                    { host: '127.0.0.1', port },
+                    spool
+                ).then(() => (returned = true));
+
+                await inFlight;
+                await serverEnd;
+                await new Promise(r => setTimeout(r, 100));
+
+                assert.equal(returned, false, 'callNode waits for the rewrite');
+                await fsp.access(bsyPath); //  still locked
+
+                release();
+                await call;
+
+                await assert.rejects(fsp.access(bsyPath), { code: 'ENOENT' });
+                //  Nothing left to send, so the rewrite removed the flow file.
+                await assert.rejects(fsp.access(flowPath), { code: 'ENOENT' });
+            } finally {
+                release();
                 await stop();
             }
         });

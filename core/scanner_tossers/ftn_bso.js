@@ -4223,7 +4223,7 @@ function FTNMessageScanTossModule() {
                 timeoutMs: _.get(Config(), 'scannerTossers.ftn_bso.flowLockTimeoutMs'),
                 log: Log,
             },
-            done => {
+            (done, lock) => {
                 let removed = 0;
                 let ticPaths = [];
 
@@ -4254,54 +4254,69 @@ function FTNMessageScanTossModule() {
                                 ticPaths = companion.ticPaths;
                                 return { remove: Array.from(companion.indices) };
                             },
-                            { policy }
+                            { policy, lock }
                         )
                     )
-                    .then(
-                        result => {
-                            //  No flow file for this node is the ordinary case.
-                            if (!result.changed) {
-                                return done(null);
-                            }
+                    .then(result => {
+                        //  No flow file for this node is the ordinary case.
+                        if (!result.changed) {
+                            return done(null);
+                        }
 
-                            //
-                            //  Rewrite first, then unlink. The other order leaves
-                            //  the flow file naming files that no longer exist if
-                            //  the write fails, which is the dangling reference
-                            //  #735 is about.
-                            //
-                            //  companionTicPath() rather than the raw reference
-                            //  text: resolveFlowRef() falls back to the basename
-                            //  beside the flow file when the stored path no longer
-                            //  resolves, so unlinking the literal text missed the
-                            //  file in exactly that case -- and it is also the
-                            //  containment rule, since a generated TIC is always a
-                            //  sibling of its flow file.
-                            //
-                            async.each(
-                                ticPaths,
-                                (ref, nextTic) => {
-                                    const ticPath = companionTicPath(flowFilePath, ref);
-                                    if (!ticPath) {
-                                        return nextTic(null);
-                                    }
-                                    fs.unlink(ticPath, () => nextTic(null));
-                                },
-                                () => {
-                                    Log.debug(
+                        //
+                        //  Rewrite first, then unlink. The other order leaves
+                        //  the flow file naming files that no longer exist if
+                        //  the write fails, which is the dangling reference
+                        //  #735 is about.
+                        //
+                        //  companionTicPath() rather than the raw reference
+                        //  text: resolveFlowRef() falls back to the basename
+                        //  beside the flow file when the stored path no longer
+                        //  resolves, so unlinking the literal text missed the
+                        //  file in exactly that case -- and it is also the
+                        //  containment rule, since a generated TIC is always a
+                        //  sibling of its flow file.
+                        //
+                        async.each(
+                            ticPaths,
+                            (ref, nextTic) => {
+                                //  A throw here would skip done() and keep
+                                //  the lock; the TIC is best effort.
+                                let ticPath = null;
+                                try {
+                                    ticPath = companionTicPath(flowFilePath, ref);
+                                } catch (err) {
+                                    Log.warn(
                                         {
                                             flowFile: flowFilePath,
-                                            file: paths.basename(targetPath),
-                                            removed,
+                                            ref,
+                                            error: err.message,
                                         },
-                                        'Dequeued superseded file from downlink outbound'
+                                        'Could not resolve the TIC queued with a dequeued file'
                                     );
-                                    return done(null);
                                 }
-                            );
-                        },
-                        err => done(err)
-                    );
+                                if (!ticPath) {
+                                    return nextTic(null);
+                                }
+                                fs.unlink(ticPath, () => nextTic(null));
+                            },
+                            () => {
+                                Log.debug(
+                                    {
+                                        flowFile: flowFilePath,
+                                        file: paths.basename(targetPath),
+                                        removed,
+                                    },
+                                    'Dequeued superseded file from downlink outbound'
+                                );
+                                return done(null);
+                            }
+                        );
+                    })
+                    //  Anything thrown above, as well as a failed rewrite, ends
+                    //  the work: done() releases the lock (a second call is
+                    //  ignored).
+                    .catch(err => done(err));
             },
             err => {
                 if (err && isBusyError(err)) {

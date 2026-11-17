@@ -12,6 +12,8 @@ const {
     nodeBaseName,
 } = require('../core/binkp/bso_spool');
 const { BinkpSession } = require('../core/binkp/session');
+const { FlowLockSet } = require('../core/bso_lock');
+const { listQueued } = require('./helpers/bso_listing');
 
 // ── test fixtures ─────────────────────────────────────────────────────────────
 
@@ -52,8 +54,39 @@ after(async () => {
     await fsp.rm(tmpDir, { recursive: true, force: true });
 });
 
+//  spool -> the lock set lockedFiles() took for it, released by
+//  cleanOutbound().
+const heldLocks = new Map();
+
+//
+//  What is queued for |addr|, read as a session reads it: holding the node's
+//  locks, so each disposeFn() marks its line under them. rewriteFlowFile()
+//  refuses to change a flow file without its lock.
+//
+async function lockedFiles(sp, addr) {
+    if (!heldLocks.has(sp)) {
+        heldLocks.set(sp, sp.newLockSet());
+    }
+    const lock = heldLocks.get(sp);
+    assert.ok(await sp.lockNode(addr, lock), 'node lock taken');
+    return sp.getOutboundFilesForNode(addr, { lock });
+}
+
+//  Just what is queued: under the lock lockedFiles() holds for |sp| if
+//  there is one, otherwise under a lock taken and released around it.
+async function listFiles(sp, addr) {
+    return heldLocks.has(sp) ? lockedFiles(sp, addr) : listQueued(sp, addr);
+}
+
+async function releaseHeldLocks() {
+    const locks = Array.from(heldLocks.values());
+    heldLocks.clear();
+    await Promise.all(locks.map(l => l.close()));
+}
+
 // Reset the outbound dir between tests so they don't step on each other
 async function cleanOutbound() {
+    await releaseHeldLocks();
     const dir = outboundDir(tmpDir);
     const entries = await fsp.readdir(dir).catch(() => []);
     await Promise.all(
@@ -128,7 +161,7 @@ describe('BsoSpool — lock management', () => {
         const flowPath = path.join(dir, `${nodeBaseName(TEST_ADDR)}.clo`);
         await fsp.writeFile(flowPath, `${payload}\n^${tic}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         assert.equal(files.length, 2, 'both entries queued');
 
         //  Concurrently, as a session does -- not one after the other.
@@ -160,7 +193,7 @@ describe('BsoSpool — lock management', () => {
         }
 
         //  ...and the node therefore has nothing further pending
-        const again = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const again = await listFiles(spool, TEST_ADDR);
         assert.equal(again.length, 0, 'nothing may be queued a second time');
     });
 
@@ -276,7 +309,7 @@ describe('BsoSpool — getOutboundFilesForNode: direct-attach', () => {
         const outPath = path.join(outboundDir(tmpDir), '00680001.out');
         await fsp.writeFile(outPath, 'PACKETDATA');
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].path, outPath, 'reads from the .out on disk');
         //  FTS-5005.003 §3.1: netmail flow files must be sent under a unique
@@ -291,7 +324,7 @@ describe('BsoSpool — getOutboundFilesForNode: direct-attach', () => {
         const iloPath = path.join(outboundDir(tmpDir), '00680001.ilo');
         await fsp.writeFile(iloPath, ''); // zero bytes
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 0);
     });
 
@@ -303,7 +336,7 @@ describe('BsoSpool — getOutboundFilesForNode: direct-attach', () => {
         const outPath = path.join(outboundDir(tmpDir), '00680001.out');
         await fsp.writeFile(outPath, 'DATA');
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].disposeFn, null, 'direct-attach disposeFn must be null');
         assert.equal(files[0].disposition, 'delete');
@@ -334,7 +367,7 @@ describe('BsoSpool — getOutboundFilesForNode: flow files', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].path, referencedFile);
         assert.equal(files[0].disposition, 'keep');
@@ -344,7 +377,7 @@ describe('BsoSpool — getOutboundFilesForNode: flow files', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `^${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].disposition, 'delete');
     });
@@ -353,7 +386,7 @@ describe('BsoSpool — getOutboundFilesForNode: flow files', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `-${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].disposition, 'delete');
     });
@@ -362,7 +395,7 @@ describe('BsoSpool — getOutboundFilesForNode: flow files', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `#${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].disposition, 'truncate');
     });
@@ -371,7 +404,7 @@ describe('BsoSpool — getOutboundFilesForNode: flow files', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `~${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 0);
     });
 
@@ -379,7 +412,7 @@ describe('BsoSpool — getOutboundFilesForNode: flow files', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, '/nonexistent/path/file.pkt\n');
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 0);
     });
 
@@ -392,7 +425,7 @@ describe('BsoSpool — getOutboundFilesForNode: flow files', () => {
             },
             networks: { testnet: { localAddress: '1:1/100', defaultZone: 1 } },
         });
-        const files = await emptySpool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(emptySpool, TEST_ADDR);
         assert.equal(files.length, 0);
     });
 });
@@ -422,7 +455,7 @@ describe('BsoSpool — disposeFn for flow entries', () => {
     it('delete disposition: leaves file alone, GCs the (now all-tilded) flow file', async () => {
         await fsp.writeFile(flowPath, `^${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         await files[0].disposeFn();
 
         //  File untouched by disposeFn (the session layer is what unlinks)
@@ -439,7 +472,7 @@ describe('BsoSpool — disposeFn for flow entries', () => {
     it('keep disposition: marks the flow line ~ and GCs the flow file', async () => {
         await fsp.writeFile(flowPath, `${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         await files[0].disposeFn();
 
         await assert.doesNotReject(fsp.access(referencedFile));
@@ -449,7 +482,7 @@ describe('BsoSpool — disposeFn for flow entries', () => {
     it('truncate disposition: leaves file alone, GCs the (now all-tilded) flow file', async () => {
         await fsp.writeFile(flowPath, `#${referencedFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         await files[0].disposeFn();
 
         //  Disposition belongs to the session; the spool must not truncate.
@@ -467,7 +500,7 @@ describe('BsoSpool — disposeFn for flow entries', () => {
         try {
             await fsp.writeFile(flowPath, `^${referencedFile}\n^${otherFile}\n`);
 
-            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            const files = await lockedFiles(spool, TEST_ADDR);
             assert.equal(files.length, 2);
             await files[0].disposeFn();
 
@@ -485,7 +518,7 @@ describe('BsoSpool — disposeFn for flow entries', () => {
                 `second line should still be live, got: ${content}`
             );
             //  And it must still resolve as pending (the surviving line)
-            const remaining = await spool.getOutboundFilesForNode(TEST_ADDR);
+            const remaining = await listFiles(spool, TEST_ADDR);
             assert.equal(remaining.length, 1);
             assert.equal(remaining[0].path, otherFile);
         } finally {
@@ -501,7 +534,7 @@ describe('BsoSpool — disposeFn for flow entries', () => {
         try {
             await fsp.writeFile(flowPath, `^${referencedFile}\n^${otherFile}\n`);
 
-            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            const files = await lockedFiles(spool, TEST_ADDR);
             await files[0].disposeFn();
             //  Still present after first
             await assert.doesNotReject(fsp.access(flowPath));
@@ -518,7 +551,7 @@ describe('BsoSpool — disposeFn for flow entries', () => {
         //  or a stale callback fired after a manual cleanup): disposeFn
         //  must skip both the rewrite and the GC.
         await fsp.writeFile(flowPath, `^${referencedFile}\n`);
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
 
         //  Replace the line entirely before disposeFn runs
         await fsp.writeFile(flowPath, '/some/other/path.pkt\n');
@@ -712,7 +745,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `^${zone2Path('moved.pkt')}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1, 'the moved packet must still be found');
         assert.equal(files[0].path, moved);
         assert.equal(files[0].disposition, 'delete');
@@ -726,7 +759,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `^${stale}\nkeepme\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
 
         await files[0].disposeFn();
@@ -773,7 +806,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `^${path.join(tmpDir, 'gone', 'decoy.pkt')}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 0);
     });
 
@@ -786,7 +819,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, `^${dir}\n`);
 
-        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
         assert.deepEqual(await spool.getNodesWithPendingMail(), []);
     });
 
@@ -803,7 +836,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
             await fsp.writeFile(flowPath, `^${tmpDir}/gone/missing/${tail}\n`);
 
             assert.deepEqual(
-                await spool.getOutboundFilesForNode(TEST_ADDR),
+                await listFiles(spool, TEST_ADDR),
                 [],
                 `a reference ending in "${tail}" must resolve to nothing`
             );
@@ -818,7 +851,7 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
         await fsp.writeFile(flowPath, '^C:\\fido\\outbound\\aabbccdd.pkt\n');
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].path, here);
     });
@@ -919,7 +952,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
         await fsp.writeFile(path.join(outboundDir(tmpDir), 'moved.pkt'), 'PKT');
         await fsp.writeFile(flowPath(), `${zone2Path('moved.pkt')}\n`);
 
-        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
         assert.deepEqual(await spool.getNodesWithPendingMail(), []);
     });
 
@@ -931,7 +964,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
             `${path.join(tmpDir, 'filebase', 'area', '00680025.out')}\n`
         );
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.deepEqual(
             files.map(f => f.path),
             [],
@@ -964,7 +997,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
             await fsp.writeFile(victim, 'CONTROL');
             await fsp.writeFile(flowPath(), `^${zone2Path(name)}\n`);
 
-            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            const files = await listFiles(spool, TEST_ADDR);
             assert.deepEqual(
                 files.filter(f => f.path === victim),
                 [],
@@ -984,7 +1017,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
             `^${path.join(tmpDir, 'husky', 'inbound', 'nodediff.a21')}\n`
         );
 
-        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
         assert.ok(await exists(sameName));
     });
 
@@ -1002,7 +1035,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
             await fsp.writeFile(here, 'BUNDLE');
             await fsp.writeFile(flowPath(), `^${zone2Path(name)}\n`);
 
-            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            const files = await listFiles(spool, TEST_ADDR);
             assert.deepEqual(
                 files.map(f => f.path),
                 [here],
@@ -1030,7 +1063,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
             await fsp.writeFile(here, 'PKT');
             await fsp.writeFile(flowPath(), `^${stored}\n`);
 
-            const files = await multi.getOutboundFilesForNode(TEST_ADDR);
+            const files = await listFiles(multi, TEST_ADDR);
             assert.deepEqual(
                 files.map(f => f.path),
                 [here],
@@ -1062,7 +1095,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
                 await fsp.writeFile(beside, 'STILL HERE');
                 await fsp.writeFile(flowPath(), `${line()}\n`);
 
-                assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+                assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
 
                 const node = (await spool.inspectOutbound()).find(
                     n => 104 === n.address.net && 1 === n.address.node
@@ -1090,7 +1123,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
             loggerModule.log.warn = (fields, message) =>
                 warnings.push({ fields, message });
             try {
-                await spool.getOutboundFilesForNode(TEST_ADDR);
+                await listFiles(spool, TEST_ADDR);
             } finally {
                 loggerModule.log.warn = original;
             }
@@ -1122,7 +1155,7 @@ describe('BsoSpool — basename rescue applies only where it belongs', () => {
             flowPath(),
             `^${path.join(tmpDir, 'somewhere', 'moved.pkt')}\n`
         );
-        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
     });
 });
 
@@ -1143,7 +1176,7 @@ describe('BsoSpool — deletes and truncates only inside the mail directories', 
         await fsp.writeFile(file, 'ATTACHMENT');
         await fsp.writeFile(flowPath(), `^${file}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].disposition, 'delete');
         assert.equal(files[0].allowed, false);
@@ -1178,7 +1211,7 @@ describe('BsoSpool — deletes and truncates only inside the mail directories', 
         await fsp.writeFile(inbound, 'TRANSIT');
         await fsp.writeFile(flowPath(), `^${pkt}\n#${trunc}\n^${inbound}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.deepEqual(
             files.map(f => f.allowed),
             [true, true, true]
@@ -1200,7 +1233,7 @@ describe('BsoSpool — deletes and truncates only inside the mail directories', 
         await fsp.writeFile(file, 'ATTACHMENT');
         await fsp.writeFile(flowPath(), `^${file}\n`);
 
-        const files = await listed.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(listed, TEST_ADDR);
         assert.equal(files[0].allowed, true);
 
         await sendThroughSession(listed, TEST_ADDR);
@@ -1214,7 +1247,7 @@ describe('BsoSpool — deletes and truncates only inside the mail directories', 
         await fsp.symlink(target, link);
         await fsp.writeFile(flowPath(), `#${link}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files[0].allowed, false);
 
         await sendThroughSession(spool, TEST_ADDR);
@@ -1230,7 +1263,7 @@ describe('BsoSpool — deletes and truncates only inside the mail directories', 
         await fsp.symlink(target, link);
         await fsp.writeFile(flowPath(), `^${link}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files[0].allowed, true);
 
         const received = await sendThroughSession(spool, TEST_ADDR);
@@ -1280,8 +1313,8 @@ describe('BsoSpool — deletes and truncates only inside the mail directories', 
         const original = loggerModule.log.warn;
         loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
         try {
-            await throttled.getOutboundFilesForNode(TEST_ADDR);
-            await throttled.getOutboundFilesForNode(TEST_ADDR);
+            await listFiles(throttled, TEST_ADDR);
+            await listFiles(throttled, TEST_ADDR);
         } finally {
             loggerModule.log.warn = original;
         }
@@ -1316,7 +1349,7 @@ describe('BsoSpool — protected directories', () => {
         it(`never queues a file in one ("${directive}" line)`, async () => {
             await fsp.writeFile(flowPath(), `${directive}${secret}\n`);
 
-            assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+            assert.deepEqual(await listFiles(guarded, TEST_ADDR), []);
             assert.deepEqual(
                 await guarded.getNodesWithPendingMail(),
                 [],
@@ -1343,9 +1376,9 @@ describe('BsoSpool — protected directories', () => {
         const original = loggerModule.log.warn;
         loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
         try {
-            await windowed.getOutboundFilesForNode(TEST_ADDR);
+            await listFiles(windowed, TEST_ADDR);
             await windowed.getNodesWithPendingMail();
-            await windowed.getOutboundFilesForNode(TEST_ADDR);
+            await listFiles(windowed, TEST_ADDR);
         } finally {
             loggerModule.log.warn = original;
         }
@@ -1379,13 +1412,13 @@ describe('BsoSpool — protected directories', () => {
         await fsp.symlink(secret, link);
         await fsp.writeFile(flowPath(), `${link}\n`);
 
-        assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(guarded, TEST_ADDR), []);
     });
 
     it('refuses a direct-attach netmail file that is a link into one', async () => {
         await fsp.symlink(secret, path.join(outboundDir(tmpDir), '00680001.out'));
 
-        assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(guarded, TEST_ADDR), []);
         assert.deepEqual(await guarded.getNodesWithPendingMail(), []);
     });
 
@@ -1395,7 +1428,7 @@ describe('BsoSpool — protected directories', () => {
             flowPaths: { protectedDirs: [configDir], dispositionRoots: [tmpDir] },
         });
         await fsp.writeFile(flowPath(), `^${secret}\n`);
-        assert.deepEqual(await widened.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(widened, TEST_ADDR), []);
     });
 
     it('keeps mail flowing when the mail directories sit inside one', async () => {
@@ -1413,7 +1446,7 @@ describe('BsoSpool — protected directories', () => {
         await fsp.writeFile(loose, 'LOOSE');
         await fsp.writeFile(flowPath(), `^${pkt}\n^${loose}\n`);
 
-        const files = await wholeTree.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(wholeTree, TEST_ADDR);
         assert.deepEqual(
             files.map(f => [f.path, f.allowed]),
             [[pkt, true]]
@@ -1430,7 +1463,7 @@ describe('BsoSpool — protected directories', () => {
         await fsp.writeFile(path.join(outboundDir(tmpDir), 'moved.pkt'), 'PKT');
         await fsp.writeFile(flowPath(), `^${zone2Path('moved.pkt')}\n`);
 
-        assert.deepEqual(await sealed.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(sealed, TEST_ADDR), []);
     });
 });
 
@@ -1544,9 +1577,7 @@ describe('BsoSpool — reporting a missing reference', () => {
             `^${missing}\n`
         );
 
-        const warnings = await captureWarnings(() =>
-            spool.getOutboundFilesForNode(TEST_ADDR)
-        );
+        const warnings = await captureWarnings(() => listFiles(spool, TEST_ADDR));
 
         const warned = warnings.find(w => w.fields && w.fields.ref === missing);
         assert.ok(warned, `expected a warning about ${missing}`);
@@ -1589,9 +1620,9 @@ describe('BsoSpool — reporting a missing reference', () => {
         );
 
         const warnings = await captureWarnings(async () => {
-            await quiet.getOutboundFilesForNode(TEST_ADDR);
-            await quiet.getOutboundFilesForNode(TEST_ADDR);
-            await quiet.getOutboundFilesForNode(TEST_ADDR);
+            await listFiles(quiet, TEST_ADDR);
+            await listFiles(quiet, TEST_ADDR);
+            await listFiles(quiet, TEST_ADDR);
         });
 
         assert.equal(
@@ -1613,9 +1644,9 @@ describe('BsoSpool — reporting a missing reference', () => {
         );
 
         const warnings = await captureWarnings(async () => {
-            await chatty.getOutboundFilesForNode(TEST_ADDR);
+            await listFiles(chatty, TEST_ADDR);
             await new Promise(r => setTimeout(r, 60)); //  3x the window
-            await chatty.getOutboundFilesForNode(TEST_ADDR);
+            await listFiles(chatty, TEST_ADDR);
         });
 
         assert.equal(
@@ -1633,9 +1664,7 @@ describe('BsoSpool — reporting a missing reference', () => {
             `^${one}\n^${two}\n`
         );
 
-        const warnings = await captureWarnings(() =>
-            spool.getOutboundFilesForNode(TEST_ADDR)
-        );
+        const warnings = await captureWarnings(() => listFiles(spool, TEST_ADDR));
 
         const files = warnings
             .filter(w => w.fields && w.fields.file)
@@ -2143,7 +2172,7 @@ describe('BsoSpool — upper case outbound (FTS-5005.003 §2)', () => {
             `^${refFile}\n`
         );
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1, 'per-node lookup must find it');
         assert.equal(path.basename(files[0].path), 'UPPER.PKT');
 
@@ -2156,7 +2185,7 @@ describe('BsoSpool — upper case outbound (FTS-5005.003 §2)', () => {
     it('finds an upper case direct-attach file', async () => {
         await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.CUT'), 'PKTDATA');
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.match(files[0].name, /^[0-9a-f]{8}\.pkt$/);
     });
@@ -2181,7 +2210,7 @@ describe('BsoSpool — upper case outbound (FTS-5005.003 §2)', () => {
             `^${upperRef}\n`
         );
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.deepEqual(
             files.map(f => path.basename(f.path)),
             ['dup_lower.pkt'],
@@ -2233,7 +2262,7 @@ describe('BsoSpool — point addresses (FTS-5005.003 §2)', () => {
         await fsp.writeFile(refFile, 'DATA');
         await writePointFlow(refFile);
 
-        const files = await spool.getOutboundFilesForNode(POINT_ADDR);
+        const files = await listFiles(spool, POINT_ADDR);
         assert.equal(files.length, 1);
         assert.equal(path.basename(files[0].path), 'point.pkt');
 
@@ -2260,7 +2289,7 @@ describe('BsoSpool — point addresses (FTS-5005.003 §2)', () => {
             `^${bossRef}\n`
         );
 
-        const files = await spool.getOutboundFilesForNode(POINT_ADDR);
+        const files = await listFiles(spool, POINT_ADDR);
         assert.equal(files.length, 0, 'the point has no mail of its own');
 
         await fsp.unlink(bossRef);
@@ -2280,16 +2309,12 @@ describe('BsoSpool — point addresses (FTS-5005.003 §2)', () => {
         await writePointFlow(pointRef);
 
         assert.deepEqual(
-            (await spool.getOutboundFilesForNode(TEST_ADDR)).map(f =>
-                path.basename(f.path)
-            ),
+            (await listFiles(spool, TEST_ADDR)).map(f => path.basename(f.path)),
             ['boss_own.pkt'],
             'the boss node gets its own mail, not the point’s'
         );
         assert.deepEqual(
-            (await spool.getOutboundFilesForNode(POINT_ADDR)).map(f =>
-                path.basename(f.path)
-            ),
+            (await listFiles(spool, POINT_ADDR)).map(f => path.basename(f.path)),
             ['point3.pkt'],
             'the point gets its own mail, not the boss node’s'
         );
@@ -2311,7 +2336,7 @@ describe('BsoSpool — point addresses (FTS-5005.003 §2)', () => {
         await fsp.mkdir(pntDir, { recursive: true });
         await fsp.writeFile(path.join(pntDir, '0000002D.CLO'), `^${refFile}\n`);
 
-        const files = await spool.getOutboundFilesForNode(POINT_ADDR);
+        const files = await listFiles(spool, POINT_ADDR);
         assert.equal(files.length, 1);
 
         await fsp.unlink(refFile);
@@ -2482,9 +2507,9 @@ describe('attachSpoolToSession', () => {
                 //  Lose the race on purpose: make the spool lookup slower than the
                 //  client's M_EOB.
                 const slowSpool = Object.create(spool);
-                slowSpool.getOutboundFilesForNode = async addr => {
+                slowSpool.getOutboundFilesForNode = async (addr, opts) => {
                     await new Promise(r => setTimeout(r, 120));
-                    return spool.getOutboundFilesForNode(addr);
+                    return spool.getOutboundFilesForNode(addr, opts);
                 };
 
                 const server = net.createServer(serverSocket => {
@@ -2613,7 +2638,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         const p = await packet('skipme.pkt');
         await fsp.writeFile(flowPath(), `!${p}\n`);
 
-        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
         assert.deepEqual(await spool.getNodesWithPendingMail(), []);
         const entries = entriesFor(await spool.inspectOutbound());
         assert.equal(entries.length, 1);
@@ -2625,7 +2650,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         const p = await packet('keepme.pkt');
         await fsp.writeFile(flowPath(), `@${p}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         assert.equal(files.length, 1);
         assert.equal(files[0].path, p);
         assert.equal(files[0].disposition, 'keep');
@@ -2647,7 +2672,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
         let files;
         try {
-            files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            files = await lockedFiles(spool, TEST_ADDR);
         } finally {
             loggerModule.log.warn = original;
         }
@@ -2676,7 +2701,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         const bad = `^${path.join(outboundDir(tmpDir), 'a')}\x00b.pkt`;
         await fsp.writeFile(flowPath(), `${bad}\n^${other}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         assert.deepEqual(
             files.map(f => f.path),
             [other]
@@ -2705,13 +2730,13 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         process.chdir(cwdDir);
         try {
             await fsp.writeFile(flowPath(), '^config/x.hjson\n');
-            assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+            assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
             assert.equal(entriesFor(await spool.inspectOutbound())[0].status, 'missing');
 
             //  The same name beside the flow file is what it means.
             const beside = await packet('rel.pkt');
             await fsp.writeFile(flowPath(), '^rel.pkt\n');
-            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            const files = await listFiles(spool, TEST_ADDR);
             assert.deepEqual(
                 files.map(f => f.path),
                 [beside]
@@ -2729,7 +2754,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         const keep = await packet('keep.pkt');
         await fsp.writeFile(flowPath(), `^${p}\n${keep}\n^${p}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         assert.deepEqual(
             files.map(f => f.path),
             [p, keep]
@@ -2749,7 +2774,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         ]);
         await fsp.writeFile(flowPath(), before);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         assert.deepEqual(
             files.map(f => f.path),
             [p]
@@ -2779,7 +2804,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
             Buffer.concat([latin1('^'), Buffer.from(`${dir}/`), name, latin1('\n')])
         );
 
-        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
         assert.deepEqual(await spool.getNodesWithPendingMail(), []);
         let entries = entriesFor(await spool.inspectOutbound());
         assert.equal(entries[0].status, 'invalid');
@@ -2794,7 +2819,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         const dlo = path.join(outboundDir(tmpDir), '00680001.dlo');
         await fsp.writeFile(dlo, '');
 
-        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
         assert.deepEqual(await spool.getNodesWithPendingMail(), []);
         assert.deepEqual(entriesFor(await spool.inspectOutbound()), []);
         await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
@@ -2802,7 +2827,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         //  And sending another flavour's last entry leaves it alone.
         const p = await packet('crash.pkt');
         await fsp.writeFile(flowPath(), `^${p}\n`);
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         await files[0].disposeFn();
 
         assert.equal((await fsp.stat(dlo)).size, 0);
@@ -2824,7 +2849,7 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         await fsp.writeFile(payload, 'PAYLOAD');
         await fsp.writeFile(flowPath(), `^${p}\n${payload}\n`);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await lockedFiles(spool, TEST_ADDR);
         const realRename = fsp.rename;
         let listing;
         const unreadable = [];
@@ -2938,9 +2963,266 @@ describe('attachSpoolToSession — the same file listed twice', () => {
             receiveFile: async () => {},
         };
 
-        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR]);
+        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR], {
+            lock: new FlowLockSet(),
+        });
         await disposeMap.get('x.pkt\u00003\u00001000')();
         assert.deepEqual(calls, [1, 2]);
+    });
+});
+
+describe('BsoSpool — the session locks every directory holding the node', () => {
+    //  With makeConfig, testnet is the default network, so its pre-0.5.1-beta
+    //  directory "testnet/" is a legacy directory the spool still drains.
+    const legacyDir = () => path.join(tmpDir, 'testnet');
+    const canonicalBsy = () => path.join(outboundDir(tmpDir), '00680001.bsy');
+    const legacyBsy = () => path.join(legacyDir(), '00680001.bsy');
+    const legacyFlow = () => path.join(legacyDir(), '00680001.flo');
+    const exists = p =>
+        fsp.access(p).then(
+            () => true,
+            () => false
+        );
+
+    beforeEach(cleanOutbound);
+    afterEach(() => fsp.rm(legacyDir(), { recursive: true, force: true }));
+
+    it('covers each directory that exists, creating none', async () => {
+        assert.deepEqual(await spool.lockPathsForNode(TEST_ADDR), [canonicalBsy()]);
+        await fsp.mkdir(legacyDir());
+        assert.deepEqual(await spool.lockPathsForNode(TEST_ADDR), [
+            canonicalBsy(),
+            legacyBsy(),
+        ]);
+        assert.equal(await exists(legacyBsy()), false, 'listing creates nothing');
+    });
+
+    it('marks a legacy directory flow file under the lock beside it', async () => {
+        await fsp.mkdir(legacyDir());
+        const pkt = path.join(legacyDir(), 'legacy.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(legacyFlow(), `^${pkt}\n/fb/keep.zip\n`);
+
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+        try {
+            assert.ok(await exists(legacyBsy()), 'the legacy directory is locked');
+
+            //  Another writer of that flow file is kept out for the session.
+            const { withFlowFileLock, isBusyError } = require('../core/bso_lock');
+            const busy = await new Promise(resolve =>
+                withFlowFileLock(
+                    legacyFlow(),
+                    { timeoutMs: 100 },
+                    done => done(null),
+                    err => resolve(isBusyError(err))
+                )
+            );
+            assert.ok(busy, 'a writer beside the legacy flow file finds it locked');
+
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR, { lock });
+            assert.deepEqual(
+                files.map(f => f.path),
+                [pkt]
+            );
+            await files[0].disposeFn();
+            assert.equal(
+                await fsp.readFile(legacyFlow(), 'utf8'),
+                `~${pkt}\n/fb/keep.zip\n`
+            );
+        } finally {
+            await lock.releaseAll();
+        }
+        assert.equal(await exists(legacyBsy()), false);
+        assert.equal(await exists(canonicalBsy()), false);
+    });
+
+    it('does not read a flow file in a directory the lock does not cover', async () => {
+        await fsp.mkdir(legacyDir());
+        const pkt = path.join(legacyDir(), 'legacy.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(legacyFlow(), `^${pkt}\n`);
+
+        //  Only the canonical lock, as a session that started before the
+        //  legacy directory appeared would hold.
+        const lock = spool.newLockSet();
+        assert.equal(await lock.acquire([canonicalBsy()]), true);
+        try {
+            assert.deepEqual(
+                await spool.getOutboundFilesForNode(TEST_ADDR, { lock }),
+                []
+            );
+        } finally {
+            await lock.releaseAll();
+        }
+    });
+
+    it('is all or nothing: a busy legacy lock leaves the canonical one untaken', async () => {
+        await fsp.mkdir(legacyDir());
+        await fsp.writeFile(legacyBsy(), '4242'); //  held by another process
+
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), false);
+        assert.equal(lock.size, 0);
+        assert.equal(await exists(canonicalBsy()), false);
+        assert.equal(
+            await fsp.readFile(legacyBsy(), 'utf8'),
+            '4242',
+            'not ours to touch'
+        );
+    });
+
+    it('refuses to list without the lock set, or with a lookalike', async () => {
+        const { isNotHeldError } = require('../core/bso_lock');
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.flo'),
+            '/fb/x.zip\n'
+        );
+        for (const opts of [
+            undefined,
+            {},
+            { lock: { holds: () => true, closed: false } },
+        ]) {
+            await assert.rejects(spool.getOutboundFilesForNode(TEST_ADDR, opts), err =>
+                isNotHeldError(err)
+            );
+        }
+        await assert.rejects(
+            spool._parseFlowFile(
+                path.join(outboundDir(tmpDir), '00680001.flo'),
+                TEST_ADDR
+            ),
+            err => isNotHeldError(err)
+        );
+    });
+
+    it('a closed lock set lists nothing, even part way through', async () => {
+        const pkt = path.join(outboundDir(tmpDir), 'closed.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.flo'), `^${pkt}\n`);
+        const lock = spool.newLockSet();
+        assert.ok(await spool.lockNode(TEST_ADDR, lock));
+        await lock.close();
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR, { lock }), []);
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), false, 'closed for good');
+        assert.equal(await exists(canonicalBsy()), false);
+    });
+
+    describe('a point directory spelled in upper case', () => {
+        const POINT = { zone: 1, net: 104, node: 1, point: 45 };
+        const upperDir = () => path.join(outboundDir(tmpDir), '00680001.PNT');
+        const lowerDir = () => path.join(outboundDir(tmpDir), '00680001.pnt');
+
+        async function queuePointMail() {
+            await fsp.mkdir(upperDir());
+            const pkt = path.join(upperDir(), 'point.pkt');
+            await fsp.writeFile(pkt, 'PKT');
+            await fsp.writeFile(path.join(upperDir(), '0000002D.CLO'), `^${pkt}\n`);
+            return pkt;
+        }
+
+        for (const createDirs of [false, true]) {
+            it(`is locked and read where it is, with no second spelling made (createDirs: ${createDirs})`, async () => {
+                const pkt = await queuePointMail();
+                const lock = spool.newLockSet();
+                assert.ok(await spool.lockNode(POINT, lock, { createDirs }));
+                try {
+                    assert.deepEqual(lock.paths, [path.join(upperDir(), '0000002d.bsy')]);
+                    assert.equal(await exists(lowerDir()), false);
+                    const files = await spool.getOutboundFilesForNode(POINT, { lock });
+                    assert.deepEqual(
+                        files.map(f => f.path),
+                        [pkt]
+                    );
+                } finally {
+                    await lock.releaseAll();
+                }
+                assert.equal(await exists(lowerDir()), false);
+            });
+        }
+    });
+
+    it('is re-entrant on a lock the set already holds', async () => {
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+        try {
+            assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+            assert.equal(await spool.lockNode(TEST_ADDR, spool.newLockSet()), false);
+        } finally {
+            await lock.releaseAll();
+        }
+        assert.equal(await exists(canonicalBsy()), false);
+    });
+});
+
+describe('attachSpoolToSession — settle() before the lock is released', () => {
+    const EventEmitter = require('events');
+
+    async function attached(disposeFn) {
+        const session = new EventEmitter();
+        session.queueFile = () => {};
+        const fakeSpool = {
+            getOutboundFilesForNode: async () => [
+                {
+                    path: '/ob/x.pkt',
+                    name: 'x.pkt',
+                    size: 3,
+                    timestamp: 1000,
+                    disposition: 'delete',
+                    disposeFn,
+                },
+            ],
+            receiveFile: async () => {},
+        };
+        const disposeMap = await attachSpoolToSession(session, fakeSpool, [TEST_ADDR], {
+            lock: new FlowLockSet(),
+        });
+        return { session, disposeMap };
+    }
+
+    it('resolves at once when nothing is in flight', async () => {
+        const { disposeMap } = await attached(async () => {});
+        assert.equal(disposeMap.pending, 0);
+        assert.equal(await disposeMap.settle(), true);
+    });
+
+    it('waits for a flow file rewrite still running when the session ends', async () => {
+        let release;
+        const gate = new Promise(r => (release = r));
+        let finished = false;
+        const { session, disposeMap } = await attached(async () => {
+            await gate;
+            finished = true;
+        });
+
+        session.emit('file-sent', 'x.pkt', 3, 1000);
+        assert.equal(disposeMap.pending, 1, 'tracked as soon as the file is sent');
+
+        let settled = null;
+        const settling = disposeMap.settle().then(v => (settled = v));
+        await new Promise(r => setTimeout(r, 50));
+        assert.equal(settled, null, 'still waiting for the rewrite');
+
+        release();
+        assert.equal(await settling, true);
+        assert.ok(finished, 'the rewrite finished before settle() resolved');
+        assert.equal(disposeMap.pending, 0);
+    });
+
+    it('does not reject when the rewrite fails', async () => {
+        const { session, disposeMap } = await attached(async () => {
+            throw new Error('disk full');
+        });
+        session.emit('file-sent', 'x.pkt', 3, 1000);
+        assert.equal(await disposeMap.settle(), true);
+    });
+
+    it('gives up after the timeout so a stuck write cannot hold the lock forever', async () => {
+        const { session, disposeMap } = await attached(() => new Promise(() => {}));
+        session.emit('file-sent', 'x.pkt', 3, 1000);
+        const started = Date.now();
+        assert.equal(await disposeMap.settle(50), false);
+        assert.ok(Date.now() - started < 1000);
     });
 });
 
@@ -3050,7 +3332,7 @@ describe('BsoSpool — review follow-ups', () => {
         const bom = Buffer.from([0xef, 0xbb, 0xbf]);
         await fsp.writeFile(flowPath(), Buffer.concat([bom, Buffer.from(`^${pkt}\n`)]));
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        const files = await listFiles(spool, TEST_ADDR);
         assert.deepEqual(
             files.map(f => [f.path, f.disposition]),
             [[pkt, 'delete']]
@@ -3098,7 +3380,7 @@ describe('BsoSpool — a flow file that is a symlink', () => {
         const elsewhere = path.join(tmpDir, 'elsewhere');
         const { pkt, target, link } = await linkedFlow(elsewhere);
         try {
-            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            const files = await lockedFiles(spool, TEST_ADDR);
             await files[0].disposeFn();
             await assert.rejects(fsp.lstat(link), { code: 'ENOENT' });
             assert.equal(await fsp.readFile(target, 'utf8'), `~${pkt}\n`);
@@ -3132,7 +3414,7 @@ describe('BsoSpool — a flow file that is a symlink', () => {
             loggerModule.log.warn = (fields, message) =>
                 warnings.push({ fields, message });
             try {
-                assert.deepEqual(await guarded.getOutboundFilesForNode(TEST_ADDR), []);
+                assert.deepEqual(await listFiles(guarded, TEST_ADDR), []);
                 assert.deepEqual(await guarded.getNodesWithPendingMail(), []);
             } finally {
                 loggerModule.log.warn = original;
@@ -3165,12 +3447,19 @@ describe('BsoSpool — a flow file that is a symlink', () => {
         });
 
         it('is not changed by marking', async () => {
-            await guarded._applyFlowDisposition(
-                linked.link,
-                0,
-                `^${linked.pkt}`,
-                await guarded.flowPathPolicy()
-            );
+            const lock = guarded.newLockSet();
+            assert.ok(await guarded.lockNode(TEST_ADDR, lock));
+            try {
+                await guarded._applyFlowDisposition(
+                    linked.link,
+                    0,
+                    `^${linked.pkt}`,
+                    await guarded.flowPathPolicy(),
+                    lock
+                );
+            } finally {
+                await lock.releaseAll();
+            }
             assert.ok((await fsp.lstat(linked.link)).isSymbolicLink());
             assert.equal(await fsp.readFile(linked.target, 'utf8'), `^${linked.pkt}\n`);
         });

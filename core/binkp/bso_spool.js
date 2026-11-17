@@ -8,6 +8,7 @@ const { moveFileWithCollisionHandling } = require('../file_util');
 const { isPlainFileName } = require('./file_name');
 const FNV1a = require('../fnv1a');
 const Log = require('../logger').log;
+const { Errors } = require('../enig_error');
 const {
     resolveDefaultNetworkName,
     resolveNetworkDefaultZone,
@@ -137,6 +138,77 @@ class BsoSpool {
         await bsoLock.release(this._bsyPath(addr));
     }
 
+    //  An empty lock set with this spool's lock options. See lockNode().
+    newLockSet() {
+        return new bsoLock.FlowLockSet(this._lockOpts());
+    }
+
+    //
+    //  Take, into |lock| (a FlowLockSet), every .bsy that covers |addr|'s flow
+    //  files: see lockPathsForNode(). All or nothing; resolves false when any
+    //  of them is held elsewhere, leaving |lock| as it was. Re-entrant on
+    //  locks |lock| already holds.
+    //
+    //  No directory is created unless |createDirs|: the answering side locks
+    //  what a caller presents before it has proved anything, and a directory
+    //  that does not exist holds no flow file to protect. callNode() passes
+    //  it, keeping the canonical lock (and its directory) it always took.
+    //
+    async lockNode(addr, lock, { createDirs = false } = {}) {
+        return lock.acquire(await this.lockPathsForNode(addr, { createDirs }), {
+            createDir: createDirs,
+        });
+    }
+
+    //
+    //  The .bsy files that cover |addr|: the one in its canonical directory
+    //  (where the tosser writes, and where other software looks for it), and
+    //  the one beside its flow files in every other existing directory that
+    //  may hold them -- a legacy directory still draining, a second network
+    //  sharing the zone. Each is the lock any other writer of a flow file
+    //  there takes (bsyPathForFlowFile()), so holding them all means nothing
+    //  else can change a flow file this session reads or marks.
+    //
+    //  A point's directory is used under the spelling it has on disk
+    //  (00680001.PNT as well as 00680001.pnt), never a second spelling made
+    //  beside it. Directories that do not exist are left out -- the canonical
+    //  one too, unless |createDirs|. A flow file appearing in one later is not
+    //  read by a session holding this set: getOutboundFilesForNode() skips
+    //  what the lock does not cover.
+    //
+    async lockPathsForNode(addr, { createDirs = false } = {}) {
+        const out = [];
+        const seen = new Set();
+        const add = async (bsyPath, mayCreate) => {
+            const key = bsoLock.lockKey(bsyPath);
+            if (seen.has(key)) return;
+            const stat = await fsp.stat(path.dirname(bsyPath)).catch(() => null);
+            if (mayCreate || (stat && stat.isDirectory())) {
+                seen.add(key);
+                out.push(bsyPath);
+            }
+        };
+
+        await add(await this._canonicalBsyPath(addr), createDirs);
+        for (const { dir, base } of await this._spoolTargetsForNode(addr)) {
+            await add(path.join(dir, `${base}.bsy`), false);
+        }
+        return out;
+    }
+
+    //  _bsyPath(), with a point's directory under the spelling it already
+    //  has on disk, if it has one.
+    async _canonicalBsyPath(addr) {
+        if (!addr.point) {
+            return this._bsyPath(addr);
+        }
+        const dir = this._outboundDir(addr);
+        const pointDir =
+            (await readDirCaseMap(dir)).get(`${nodeBaseName(addr)}.pnt`) ||
+            `${nodeBaseName(addr)}.pnt`;
+        return path.join(dir, pointDir, `${pointBaseName(addr)}.bsy`);
+    }
+
     _lockOpts() {
         return { staleMaxAgeMs: this._staleLockMaxAgeMs, log: Log };
     }
@@ -198,16 +270,44 @@ class BsoSpool {
     // Returns all pending outbound files for |addr|.
     // Each entry: { name, path, size, timestamp, disposition, disposeFn }
     // Call disposeFn() after the remote acknowledges receipt (file-sent event).
-    async getOutboundFilesForNode(addr) {
+    //
+    // |lock| is the FlowLockSet the session holds for |addr| (lockNode()),
+    // and is required: without one this rejects (ReasonCodes.NotHeld).
+    // disposeFn() marks the flow file under it. Anything the lock does not
+    // cover -- another directory, or everything once the set is closed -- is
+    // skipped: it is not read, so it is not sent.
+    async getOutboundFilesForNode(addr, { lock } = {}) {
+        if (!bsoLock.isFlowLockSet(lock)) {
+            throw Errors.General(
+                "Lock not held: listing a node's outbound needs its lock set (lockNode())",
+                bsoLock.ReasonCodes.NotHeld
+            );
+        }
         const results = [];
         const policy = await this._flowPathPolicy();
 
         for (const { dir, base, entries } of await this._spoolTargetsForNode(addr)) {
+            if (lock.closed) {
+                break;
+            }
+            if (!lock.holds(path.join(dir, `${base}.bsy`))) {
+                if (entries.size > 0) {
+                    Log.debug(
+                        { node: nodeLabel(dir, addr), dir },
+                        '[BinkP/BSO] Directory not covered by the session lock; not reading it this session'
+                    );
+                }
+                continue;
+            }
+
             for (const ext of DIRECT_EXTS) {
                 const actual = entries.get(`${base}.${ext}`);
                 if (!actual) continue;
 
                 const filePath = path.join(dir, actual);
+                //  Checked per file: the session may have ended, and its
+                //  locks gone, while this listing ran.
+                if (!lock.holdsFlowFile(filePath)) continue;
                 try {
                     const stat = await fsp.stat(filePath);
                     // Zero-byte .ilo = poll trigger, not actual mail
@@ -259,8 +359,11 @@ class BsoSpool {
                 if (!actual) continue;
 
                 const flowPath = path.join(dir, actual);
+                if (!lock.holdsFlowFile(flowPath)) continue;
                 try {
-                    results.push(...(await this._parseFlowFile(flowPath, addr, policy)));
+                    results.push(
+                        ...(await this._parseFlowFile(flowPath, addr, policy, lock))
+                    );
                 } catch (err) {
                     if (err.code !== 'ENOENT') {
                         Log.warn(
@@ -660,9 +763,9 @@ class BsoSpool {
                         timeoutMs: lockTimeoutMs,
                         log: Log,
                     },
-                    done => {
+                    (done, lock) => {
                         //  rewriteFlowFile() takes the in-process chain itself.
-                        this._pruneFromFlowFile(flowPath, entries, policy)
+                        this._pruneFromFlowFile(flowPath, entries, policy, lock)
                             .then(spliced => {
                                 actuallyRemoved.push(...spliced);
                                 done(null);
@@ -716,7 +819,8 @@ class BsoSpool {
     //  collects a TIC for a file it never receives -- #735, but inflicted on
     //  someone else's system under our From and our Seenby. See #862.
     //
-    async _pruneFromFlowFile(flowPath, entries, policy = null) {
+    //  |lock|: the FlowLockSet holding the .bsy beside |flowPath|.
+    async _pruneFromFlowFile(flowPath, entries, policy = null, lock = null) {
         let spliced = [];
         let ticPaths = [];
 
@@ -774,7 +878,7 @@ class BsoSpool {
 
                 return { remove: Array.from(companion.indices) };
             },
-            { policy }
+            { policy, lock }
         );
 
         if (!result.changed) {
@@ -980,7 +1084,9 @@ class BsoSpool {
         });
     }
 
-    async _parseFlowFile(flowPath, addr, policy) {
+    //  |lock|: the FlowLockSet holding the .bsy beside |flowPath|. Required.
+    async _parseFlowFile(flowPath, addr, policy, lock) {
+        bsoLock.assertFlowFileLockHeld(lock, flowPath);
         if (!policy) {
             policy = await this._flowPathPolicy();
         }
@@ -1097,7 +1203,7 @@ class BsoSpool {
                 //  |resolved.path| — so a reference rescued by the fallback
                 //  above is still marked sent correctly.
                 disposeFn: () =>
-                    this._applyFlowDisposition(flowPath, lineIdx, captured, policy),
+                    this._applyFlowDisposition(flowPath, lineIdx, captured, policy, lock),
             });
         }
 
@@ -1113,11 +1219,19 @@ class BsoSpool {
         return withFlowFileWrite(flowPath, work);
     }
 
-    async _applyFlowDisposition(flowPath, lineIdx, originalText, policy = null) {
-        return this._applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy);
+    //  |lock| is required; rewriteFlowFile() refuses without it.
+    async _applyFlowDisposition(flowPath, lineIdx, originalText, policy, lock) {
+        return this._applyFlowDispositionLocked(
+            flowPath,
+            lineIdx,
+            originalText,
+            policy,
+            lock
+        );
     }
 
-    async _applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy = null) {
+    //  |lock|: the FlowLockSet holding the .bsy beside |flowPath|.
+    async _applyFlowDispositionLocked(flowPath, lineIdx, originalText, policy, lock) {
         //  The file-side action (unlink for 'delete', truncate for 'truncate')
         //  is already performed by BinkpSession._applyDisposition before the
         //  'file-sent' event fires; session.js owns file lifecycle. This
@@ -1151,7 +1265,7 @@ class BsoSpool {
                     });
                     return { mark };
                 },
-                { policy }
+                { policy, lock }
             );
         } catch (err) {
             Log.warn(
@@ -1649,21 +1763,141 @@ function nodeLabel(flowPath, addr) {
 }
 
 //
+//  How long settle() waits for flow file bookkeeping before giving up. A
+//  rewrite is normally a few milliseconds of local I/O; this only bounds a
+//  write that is stuck (a hung network filesystem), so that it cannot keep a
+//  node's .bsy held -- and the node unreachable -- until the lock goes stale.
+//
+const DEFAULT_SETTLE_TIMEOUT_MS = 30 * 1000;
+
+//
+//  The most addresses from one M_ADR an answering session locks and serves.
+//  binkd sets no limit (only the frame size, about 1500 addresses), but each
+//  one costs .bsy files before the caller has given a password. A real
+//  system presents a handful; this is generous.
+//
+const MAX_PRESENTED_ADDRESSES = 128;
+
+//
+//  The map attachSpoolToSession() returns: 'name\0size\0timestamp' -> the
+//  flow file bookkeeping to run when that file has been sent.
+//
+//  That bookkeeping runs on the session's 'file-sent' event, which nothing
+//  awaits, so it can still be rewriting a flow file when the session ends.
+//  The .bsy is what keeps every other writer out of that flow file, so it
+//  must not be released until the rewrite has landed: settle() first.
+//
+class SpoolDisposeMap extends Map {
+    constructor() {
+        super();
+        this._pending = new Set();
+    }
+
+    //  Bookkeeping still running.
+    get pending() {
+        return this._pending.size;
+    }
+
+    _track(work) {
+        this._pending.add(work);
+        work.finally(() => this._pending.delete(work)).catch(() => {});
+        return work;
+    }
+
+    //
+    //  Resolves true once every rewrite started so far has finished (including
+    //  any that start while waiting), or false if |timeoutMs| ran out first;
+    //  that is logged. Never rejects.
+    //
+    async settle(timeoutMs = DEFAULT_SETTLE_TIMEOUT_MS) {
+        const deadline = Date.now() + timeoutMs;
+        while (this._pending.size > 0) {
+            const remaining = deadline - Date.now();
+            let timer;
+            const timedOut = await Promise.race([
+                Promise.allSettled(Array.from(this._pending)).then(() => false),
+                new Promise(resolve => {
+                    timer = setTimeout(() => resolve(true), Math.max(0, remaining));
+                }),
+            ]);
+            clearTimeout(timer);
+            if (timedOut) {
+                Log.warn(
+                    { pending: this._pending.size, timeoutMs },
+                    '[BinkP/BSO] Flow file bookkeeping still running at session end; releasing the lock anyway'
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+//
 //  Wire a BsoSpool to a BinkpSession for the standard inbound/outbound case.
 //
 //  For the originating (outbound) side:
 //    Pass the known remote addresses in |remoteAddrs|. Files are queued
-//    synchronously before session.start() is called.
+//    synchronously before session.start() is called. Pass |options.lock|,
+//    the FlowLockSet the caller took with spool.lockNode() before dialling;
+//    the caller releases it, after disposeMap.settle(). Without one, the
+//    locks are taken here (an address that is busy is skipped) and released
+//    when the session ends.
 //
 //  For the answering (inbound) side:
-//    Pass remoteAddrs = null. The function listens for the 'authenticated'
-//    event, holds M_EOB until the async spool read completes, then queues
-//    whatever is pending for the addresses the session authenticated.
+//    Pass remoteAddrs = null. The locks are taken here, on 'addresses'
+//    (M_ADR), for every presented address -- see lockPresented below. On
+//    'authenticated' M_EOB is held until they have settled and the spool
+//    read completes, then whatever is pending is queued for the addresses
+//    the session both authenticated and locked. The locks are released when
+//    the session ends, however it ends, after settle().
 //
-//  Returns the disposeMap so callers can add extra entries if needed.
+//  Returns the disposeMap so callers can add extra entries if needed. It
+//  also carries settle(): see SpoolDisposeMap.
 //
-async function attachSpoolToSession(session, spool, remoteAddrs) {
-    const disposeMap = new Map();
+async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
+    const disposeMap = new SpoolDisposeMap();
+
+    //  Locks taken here (rather than handed in) are released here: once the
+    //  session has ended, its flow file bookkeeping has settled, and any
+    //  acquisition still running has finished.
+    let ownLock = null;
+    let locking = Promise.resolve();
+    //  The answering side's flow file listing, while it runs.
+    let listing = Promise.resolve();
+    let ended = false;
+    let released = null;
+    const releaseOwnLock = () => {
+        ended = true;
+        if (!released) {
+            released = (async () => {
+                await locking.catch(() => {});
+                await listing.catch(() => {});
+                //  Settle before release: marking what was sent can still be
+                //  rewriting a flow file, and it was started under this lock.
+                await disposeMap.settle();
+                if (ownLock) {
+                    const paths = ownLock.paths;
+                    await ownLock.close();
+                    if (paths.length > 0) {
+                        Log.debug(
+                            { locks: paths },
+                            '[BinkP/BSO] Session released .bsy locks'
+                        );
+                    }
+                }
+            })();
+        }
+        return released;
+    };
+    const watchSessionEnd = () => {
+        //  Every way a session ends emits one of these.
+        for (const event of ['session-end', 'disconnect', 'error']) {
+            session.on(event, () => {
+                releaseOwnLock().catch(() => {});
+            });
+        }
+    };
 
     //  Direct-attach files don't have a flow-file annotation step, so their
     //  disposeFn is null and we skip the disposeMap entry entirely. Only flow
@@ -1690,8 +1924,20 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
 
     if (remoteAddrs && remoteAddrs.length > 0) {
         // Originating side: addresses are known up-front
+        let lock = options.lock;
+        if (!lock) {
+            lock = ownLock = spool.newLockSet();
+            watchSessionEnd();
+        }
         for (const addr of remoteAddrs) {
-            const files = await spool.getOutboundFilesForNode(addr);
+            if (ownLock && !(await spool.lockNode(addr, lock).catch(() => false))) {
+                Log.info(
+                    { addr: nodeLabel('', addr) },
+                    '[BinkP/BSO] Node is busy; nothing queued for it this session'
+                );
+                continue;
+            }
+            const files = await spool.getOutboundFilesForNode(addr, { lock });
             for (const f of files) {
                 session.queueFile(f.path, f.name, f.size, f.timestamp, f.disposition, {
                     allowed: f.allowed,
@@ -1736,13 +1982,122 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         //  especially for file echoes, because a downlink normally polls its
         //  hub rather than being dialled.
         //
-        session.on('authenticated', async (secure, addrStrings) => {
+        //  FTS-5005.003 §5.1: "before sending information from flow files
+        //  the mailer creates the list of all AKAs presented by the remote
+        //  system. The mailer must then check bsy files corresponding to the
+        //  list. If a bsy file is detected the corresponding AKA is removed
+        //  from the list. If all AKAs are removed due to this procedure, the
+        //  session must be terminated with an appropriate diagnostic
+        //  message."
+        //
+        //  As binkd does (protocol.c ADR(), "Drop incoming session if secure
+        //  remote AKA is busy", 1.0a-292), one exception: a busy address that
+        //  has a password configured makes the whole session busy. Another
+        //  session for that secure system is already running, and this one
+        //  would run beside it.
+        //
+        //  Every lock covering each address is taken (lockNode()), at M_ADR
+        //  -- before the password is checked, as binkd does. The session
+        //  refuses a bad password before 'authenticated', and the locks are
+        //  released when it ends.
+        //
+        ownLock = spool.newLockSet();
+        watchSessionEnd();
+
+        const lockPresented = async addrStrings => {
+            const locked = new Set();
+            let presented = 0;
+            for (const addrStr of addrStrings) {
+                const addr = Address.fromString(addrStr);
+                if (!addr || !addr.isValid()) continue;
+                if (++presented > MAX_PRESENTED_ADDRESSES) {
+                    Log.warn(
+                        { presented: addrStrings.length, max: MAX_PRESENTED_ADDRESSES },
+                        '[BinkP/BSO] Caller presented more addresses than are served in one session; ignoring the rest'
+                    );
+                    break;
+                }
+                if (ended) break;
+                if (locked.has(addrStr)) continue;
+
+                const got = await spool.lockNode(addr, ownLock).catch(err => {
+                    Log.warn(
+                        { addr: addrStr, error: err.message },
+                        '[BinkP/BSO] Could not take the .bsy lock; treating the address as busy'
+                    );
+                    return false;
+                });
+                if (got) {
+                    locked.add(addrStr);
+                    continue;
+                }
+
+                if (session.hasPasswordFor(addrStr)) {
+                    Log.info(
+                        { addr: addrStr },
+                        '[BinkP] Secure address already in session, sending M_BSY'
+                    );
+                    await ownLock.releaseAll();
+                    session.sendBusy(`Secure AKA ${addrStr} busy`);
+                    return null;
+                }
+                Log.info(
+                    { addr: addrStr },
+                    '[BinkP] Address already in session; nothing for it this session'
+                );
+            }
+
+            if (locked.size > 0) {
+                Log.debug(
+                    { addresses: Array.from(locked), locks: ownLock.paths },
+                    '[BinkP/BSO] Session holds .bsy locks'
+                );
+            }
+
+            if (!ended && presented > 0 && 0 === locked.size) {
+                Log.info(
+                    '[BinkP] Every presented address already in session, sending M_BSY'
+                );
+                session.sendBusy('All AKAs are busy');
+                return null;
+            }
+            return locked;
+        };
+
+        //  The promise of the locks taken for this session's addresses: the
+        //  Set of those locked, or null when the session is busy.
+        let presentedLocks = null;
+        session.on('addresses', addrStrings => {
+            //  Locked once. The session emits this for the first M_ADR only
+            //  and ignores a later one, so its addresses, its password check
+            //  and these locks all go by the same list.
+            if (presentedLocks) {
+                return;
+            }
+            presentedLocks = lockPresented(addrStrings || []);
+            locking = presentedLocks;
+            //  M_PWD is not answered until this is decided, so M_BSY always
+            //  goes before any M_OK, as binkd decides in ADR().
+            session.holdAuth(presentedLocks);
+        });
+
+        session.on('authenticated', (secure, addrStrings) => {
+            listing = queueLocked(addrStrings);
+        });
+
+        const queueLocked = async addrStrings => {
             session.holdEOB();
             try {
+                //  Nothing is read until the locks have settled.
+                const locked = presentedLocks ? await presentedLocks : null;
                 for (const addrStr of addrStrings || []) {
+                    if (!locked || ended || ownLock.closed) break;
+                    if (!locked.has(addrStr)) continue;
                     const addr = Address.fromString(addrStr);
                     if (!addr || !addr.isValid()) continue;
-                    const files = await spool.getOutboundFilesForNode(addr);
+                    const files = await spool.getOutboundFilesForNode(addr, {
+                        lock: ownLock,
+                    });
                     for (const f of files) {
                         session.queueFile(
                             f.path,
@@ -1758,7 +2113,7 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
             } finally {
                 session.releaseEOB();
             }
-        });
+        };
     }
 
     // isSecure is determined at authentication time; use a mutable binding
@@ -1783,11 +2138,17 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
         const fn = disposeMap.get(key);
         if (typeof fn === 'function') {
             disposeMap.delete(key);
-            await fn().catch(err =>
-                Log.warn(
-                    { name, error: err.message },
-                    '[BinkP/BSO] Error applying file disposition'
-                )
+            //  Tracked (synchronously, before the first await) so that whoever
+            //  holds the .bsy can settle it before releasing the lock.
+            await disposeMap._track(
+                Promise.resolve()
+                    .then(() => fn())
+                    .catch(err =>
+                        Log.warn(
+                            { name, error: err.message },
+                            '[BinkP/BSO] Error applying file disposition'
+                        )
+                    )
             );
         } else if (fn !== undefined) {
             disposeMap.delete(key);
@@ -1799,6 +2160,9 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
 }
 
 module.exports = {
+    DEFAULT_SETTLE_TIMEOUT_MS,
+    MAX_PRESENTED_ADDRESSES,
+    SpoolDisposeMap,
     sameAddress,
     BsoSpool,
     attachSpoolToSession,

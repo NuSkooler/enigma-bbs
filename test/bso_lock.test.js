@@ -151,6 +151,34 @@ describe('BSO .bsy flow file lock', function () {
         });
     });
 
+    describe('acquire when writing the lock fails', () => {
+        it('removes the lock it created and rejects', async () => {
+            const realOpen = fsp.open;
+            let closed = false;
+            fsp.open = async (p, flags, ...rest) => {
+                const fh = await realOpen.call(fsp, p, flags, ...rest);
+                if (p === bsyPath && 'wx' === flags) {
+                    fh.writeFile = async () => {
+                        throw Object.assign(new Error('no space'), { code: 'ENOSPC' });
+                    };
+                    const close = fh.close.bind(fh);
+                    fh.close = async () => {
+                        closed = true;
+                        return close();
+                    };
+                }
+                return fh;
+            };
+            try {
+                await assert.rejects(bsoLock.acquire(bsyPath), { code: 'ENOSPC' });
+            } finally {
+                fsp.open = realOpen;
+            }
+            assert.ok(closed, 'handle closed');
+            assert.ok(!fs.existsSync(bsyPath), 'no lock left behind');
+        });
+    });
+
     describe('withFlowFileLock', () => {
         it('runs the work holding the lock, and releases afterwards', done => {
             let heldDuringWork = false;
@@ -262,6 +290,142 @@ describe('BSO .bsy flow file lock', function () {
 
             one();
             one();
+        });
+    });
+
+    describe('FlowLockSet', () => {
+        it('holds a lock under either spelling of its name', async () => {
+            const lock = new bsoLock.FlowLockSet();
+            assert.ok(await lock.acquire([bsyPath]));
+            assert.ok(lock.holds(bsyPath));
+            assert.ok(lock.holds(paths.join(tmpDir, '00DA02BC.BSY')));
+            assert.ok(lock.holdsFlowFile(paths.join(tmpDir, '00DA02BC.FLO')));
+            assert.ok(!lock.holds(paths.join(tmpDir, '00da02bd.bsy')));
+            await lock.releaseAll();
+            assert.ok(!fs.existsSync(bsyPath));
+            assert.equal(lock.size, 0);
+        });
+
+        it('is all or nothing', async () => {
+            const other = paths.join(tmpDir, 'sub', '00da02bc.bsy');
+            await fsp.mkdir(paths.dirname(other));
+            fs.writeFileSync(other, '4242');
+            const lock = new bsoLock.FlowLockSet();
+            assert.equal(await lock.acquire([bsyPath, other]), false);
+            assert.equal(lock.size, 0);
+            assert.ok(!fs.existsSync(bsyPath), 'the lock it did take is released');
+            assert.equal(fs.readFileSync(other, 'utf8'), '4242');
+        });
+
+        it('is re-entrant, and takes a lock reached twice only once', async () => {
+            const lock = new bsoLock.FlowLockSet();
+            assert.ok(await lock.acquire([bsyPath, paths.join(tmpDir, '00DA02BC.BSY')]));
+            assert.ok(await lock.acquire([bsyPath]));
+            assert.equal(lock.size, 1);
+            assert.equal(await new bsoLock.FlowLockSet().acquire([bsyPath]), false);
+            await lock.releaseAll();
+        });
+
+        it('takes nothing once closed, and gives back what it was taking when closed', async () => {
+            const lock = new bsoLock.FlowLockSet();
+            const taking = lock.acquire([bsyPath]);
+            await lock.close(); //  while that acquire is in flight
+            assert.equal(await taking, false);
+            assert.ok(!fs.existsSync(bsyPath), 'nothing left behind');
+            assert.equal(await lock.acquire([bsyPath]), false);
+            assert.ok(!fs.existsSync(bsyPath));
+            assert.ok(lock.closed);
+        });
+
+        it('does not release a lock twice when closed during an acquire', async () => {
+            //  p is taken, then close() releases it while q is being taken;
+            //  another process takes p meanwhile. Giving q back must leave
+            //  that other process's p alone.
+            const p = bsyPath;
+            const q = paths.join(tmpDir, 'other', '00da02bc.bsy');
+            await fsp.mkdir(paths.dirname(q));
+            const realOpen = fsp.open;
+            let atGate;
+            const reached = new Promise(r => (atGate = r));
+            let openGate;
+            const gate = new Promise(r => (openGate = r));
+            fsp.open = async (file, flags, ...rest) => {
+                if (file === q && 'wx' === flags) {
+                    atGate();
+                    await gate;
+                }
+                return realOpen.call(fsp, file, flags, ...rest);
+            };
+            try {
+                const lock = new bsoLock.FlowLockSet();
+                const taking = lock.acquire([p, q]);
+                await reached;
+                await lock.close();
+                assert.ok(!fs.existsSync(p), 'close() released p');
+                fs.writeFileSync(p, '4242'); //  someone else's now
+                openGate();
+                assert.equal(await taking, false);
+                assert.equal(fs.readFileSync(p, 'utf8'), '4242', 'not ours to remove');
+                assert.ok(!fs.existsSync(q), 'q given back');
+            } finally {
+                openGate();
+                fsp.open = realOpen;
+            }
+        });
+
+        it('with createDir false makes no directory and skips a lock that would need one', async () => {
+            const missing = paths.join(tmpDir, 'nope', '00da02bc.bsy');
+            const lock = new bsoLock.FlowLockSet();
+            assert.equal(
+                await lock.acquire([bsyPath, missing], { createDir: false }),
+                true
+            );
+            assert.ok(lock.holds(bsyPath));
+            assert.ok(!lock.holds(missing));
+            assert.ok(!fs.existsSync(paths.dirname(missing)));
+            await lock.close();
+        });
+
+        it('withFlowFileLock hands the work the lock set', done => {
+            bsoLock.withFlowFileLock(
+                flowPath,
+                (work, lock) => {
+                    try {
+                        assert.ok(lock instanceof bsoLock.FlowLockSet);
+                        bsoLock.assertFlowFileLockHeld(lock, flowPath);
+                        work(null);
+                    } catch (err) {
+                        work(err);
+                    }
+                },
+                done
+            );
+        });
+    });
+
+    describe('assertFlowFileLockHeld', () => {
+        it('throws NotHeld without a lock, with the wrong lock, or with a lookalike', async () => {
+            const wrong = new bsoLock.FlowLockSet();
+            await wrong.acquire([paths.join(tmpDir, '00da02bd.bsy')]);
+            const lookalike = { holds: () => true, holdsFlowFile: () => true };
+            for (const lock of [null, undefined, wrong, lookalike]) {
+                assert.throws(
+                    () => bsoLock.assertFlowFileLockHeld(lock, flowPath),
+                    err =>
+                        bsoLock.isNotHeldError(err) && /Lock not held/.test(err.message)
+                );
+            }
+            await wrong.releaseAll();
+        });
+
+        it('throws once the lock has been released', async () => {
+            const lock = new bsoLock.FlowLockSet();
+            await lock.acquire([bsyPath]);
+            bsoLock.assertFlowFileLockHeld(lock, flowPath);
+            await lock.releaseAll();
+            assert.throws(() => bsoLock.assertFlowFileLockHeld(lock, flowPath), {
+                reasonCode: bsoLock.ReasonCodes.NotHeld,
+            });
         });
     });
 });

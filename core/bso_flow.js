@@ -5,6 +5,8 @@ const fsp = require('fs/promises');
 const paths = require('path');
 const crypto = require('crypto');
 
+const { assertFlowFileLockHeld } = require('./bso_lock.js');
+
 //
 //  Reading and rewriting BSO flow files (FTS-5005.003 sec. 3.1).
 //
@@ -755,6 +757,14 @@ async function rewriteLocked(flowPath, edit, { policy } = {}) {
 //
 //  Edit |flowPath| under the caller's .bsy lock.
 //
+//  |options.lock| is the proof: the FlowLockSet (core/bso_lock.js) holding
+//  the .bsy beside |flowPath| -- bsyPathForFlowFile(flowPath), the lock
+//  every other writer of that flow file takes. withFlowFileLock() hands its
+//  work one, and a session holds one for its addresses (BsoSpool.lockNode()).
+//  Without it -- no lock, a lock on another flow file, one already released
+//  -- this rejects with ReasonCodes.NotHeld and nothing is read or written.
+//  That is a bug in the caller; callers log it.
+//
 //  |edit(lines)| gets the file as it stands now, parsed, and returns
 //  { mark: [index...], remove: [index...] } (or nothing, for no change). It
 //  must check that what it meant to change is still there: the file may
@@ -779,7 +789,12 @@ async function rewriteLocked(flowPath, edit, { policy } = {}) {
 //  read (so callers can report what they removed).
 //
 function rewriteFlowFile(flowPath, edit, options = {}) {
-    return withFlowFileWrite(flowPath, () => rewriteLocked(flowPath, edit, options));
+    return withFlowFileWrite(flowPath, async () => {
+        //  Checked here, in turn, rather than when queued: a lock released
+        //  while this waited behind another rewrite no longer counts.
+        assertFlowFileLockHeld(options.lock, flowPath);
+        return rewriteLocked(flowPath, edit, options);
+    });
 }
 
 function isFlowTempFileName(name) {

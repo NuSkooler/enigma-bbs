@@ -48,11 +48,19 @@ async function callNode(addr, nodeConf, spool) {
     // fails fast without leaving a dangling .bsy file.
     const tlsOpts = await _buildTlsOpts(nodeConf);
 
-    const locked = await spool.acquireLock(addr).catch(() => false);
+    //  Every .bsy covering the node's flow files (BsoSpool.lockPathsForNode()).
+    const lock = spool.newLockSet();
+    const locked = await spool
+        .lockNode(addr, lock, { createDirs: true })
+        .catch(() => false);
     if (!locked) {
         Log.info({ addr: addrStr }, '[BinkP/Caller] Node already in session, skipping');
         return;
     }
+    Log.debug({ addr: addrStr, locks: lock.paths }, '[BinkP/Caller] Holding .bsy locks');
+
+    //  Set once the spool is attached; settled before the lock goes.
+    let disposeMap = null;
 
     try {
         const socket = await _connect(host, port, tlsOpts);
@@ -100,7 +108,7 @@ async function callNode(addr, nodeConf, spool) {
         //  → handled asynchronously" pair for every aborted-on-connect peer.
         sessionResult.catch(() => {});
 
-        await attachSpoolToSession(session, spool, [addr]);
+        disposeMap = await attachSpoolToSession(session, spool, [addr], { lock });
         session.start();
 
         await sessionResult;
@@ -111,7 +119,14 @@ async function callNode(addr, nodeConf, spool) {
 
         Log.info({ addr: addrStr, host, port }, '[BinkP/Caller] Session complete');
     } finally {
-        await spool.releaseLock(addr).catch(() => {});
+        //  Marking what was sent can still be rewriting a flow file; it was
+        //  started under this lock and has to finish under it.
+        if (disposeMap) {
+            await disposeMap.settle();
+        }
+        const paths = lock.paths;
+        await lock.close();
+        Log.debug({ addr: addrStr, locks: paths }, '[BinkP/Caller] Released .bsy locks');
     }
 }
 

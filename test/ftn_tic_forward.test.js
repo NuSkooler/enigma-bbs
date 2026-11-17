@@ -22,6 +22,7 @@ const paths = require('path');
 
 const configModule = require('../core/config.js');
 const TicFileInfo = require('../core/tic_file_info.js');
+const { listQueued } = require('./helpers/bso_listing');
 
 describe('TIC forwarding to downlinks', function () {
     let tmpDir;
@@ -206,7 +207,8 @@ describe('TIC forwarding to downlinks', function () {
 
             const { buildSpool } = require('../core/binkp/util.js');
             const Address = require('../core/ftn_address.js');
-            const files = await buildSpool(makeConfig()).getOutboundFilesForNode(
+            const files = await listQueued(
+                buildSpool(makeConfig()),
                 Address.fromString(DOWNLINK)
             );
 
