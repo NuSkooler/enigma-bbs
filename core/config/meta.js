@@ -522,10 +522,14 @@ module.exports = {
         type: 'boolean',
         description: 'Listen for inbound BinkP sessions.',
     },
+    //  null and '' both turn the pull cycle off: _startPullSchedule() in
+    //  core/scanner_tossers/binkp.js starts nothing for a falsy schedule, and
+    //  the BinkP docs document setting it to null
     'scannerTossers.ftn_bso.binkp.pullSchedule': {
         type: 'string',
+        nullable: true,
         description:
-            'When to poll uplinks for waiting mail, in the same syntax as eventScheduler.',
+            'When to poll uplinks for waiting mail, in the same syntax as eventScheduler; null or "" for never.',
     },
 
     //

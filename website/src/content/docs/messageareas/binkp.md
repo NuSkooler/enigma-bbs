@@ -139,7 +139,7 @@ See [Configuration Files — Secret Files](../configuration/config-files.md#secr
 
 [Later.js text expression](https://bunkat.github.io/later/parsers.html#text) — for example `"every 15 minutes"` or `"at 3:00 am"`. When the timer fires, ENiGMA½ dials **every** configured peer in `binkp.nodes` (excluding wildcard patterns and any peer with `pull: false`). This is independent of whether we have outbound mail queued — its job is to give quiet hubs a chance to push their pending echo mail down to us.
 
-Set to `null`, `""`, or omit the key entirely to disable the pull cycle. Crashmail (event-driven dialing on outbound) still works without it.
+Set to `null` or `""` to disable the pull cycle. Leaving the key out does not disable it: the default, `"every 15 minutes"`, applies. Crashmail (event-driven dialing on outbound) still works without it.
 
 If the expression fails to parse, the pull cycle is disabled and a warning is logged at startup.
 
