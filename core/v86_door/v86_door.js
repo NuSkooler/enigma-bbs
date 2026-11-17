@@ -37,17 +37,20 @@
 
 const { MenuModule } = require('../menu_module.js');
 const { Errors } = require('../enig_error.js');
-const { trackDoorRunBegin, trackDoorRunEnd } = require('../door_util.js');
+//  through the module objects, not destructured, so that tests can stand in
+const DoorUtil = require('../door_util.js');
+const FatImage = require('./fat_image.js');
+const Events = require('../events.js');
 const DropFile = require('../dropfile.js');
 const theme = require('../theme.js');
 const ansi = require('../ansi_term.js');
-const { createFloppyWithFiles } = require('./fat_image.js');
 
 //  deps
 const async = require('async');
 const _ = require('lodash');
 const paths = require('path');
-const { existsSync, readFileSync, writeFileSync } = require('fs');
+const { existsSync } = require('fs');
+const fsp = require('fs').promises;
 const { Worker } = require('worker_threads');
 
 const WORKER_PATH = paths.join(__dirname, 'v86_worker.js');
@@ -58,8 +61,27 @@ const DEFAULT_VGA_BIOS_PATH = paths.join(ENIGMA_ROOT, 'misc', 'v86_bios', 'vgabi
 //  Track active instances per door name (mirrors abracadabra pattern)
 const activeDoorInstances = {};
 
+//  Sessions from the slot being taken until their image has been flushed
+//  and released (see _finishRun()); what shutdown() waits for
+const runningSessions = new Set();
+
+const Timeouts = {
+    //  how long a worker may take to stop after terminate() before the
+    //  session flushes the image anyway
+    terminateMs: 5 * 1000,
+    //  how long a server shutdown waits for session-end image flushes
+    shutdownFlushMs: 5 * 1000,
+};
+
+//  An image is read and written in pieces of this size, so that a large one
+//  never holds the event loop for long
+const ImageChunkBytes = 16 * 1024 * 1024;
+
 // ─── SAB image registry ───────────────────────────────────────────────────────
-// Maps imagePath → { sab: SharedArrayBuffer, flushQueue: Promise<void> }
+// Maps imagePath → {
+//   path, sab: SharedArrayBuffer, refs, ready: Promise<SharedArrayBuffer>,
+//   flushQueue: Promise (never rejects), flushPending: Promise | null
+// }
 //
 // All concurrent sessions for the same image path share one SAB. Guest writes go
 // directly into the SAB with no cross-instance coordination — this is an accepted
@@ -68,29 +90,233 @@ const activeDoorInstances = {};
 // the exact same CPU cycle. For casual BBS use this is acceptable; implement the
 // ENIGLOCK.COM TSR approach (Option C) if real-world corruption is observed.
 //
-// flushQueue serializes SAB → disk writes so two exiting sessions never call
-// writeFileSync on the same path concurrently at the OS level.
+// Each session holds a reference from acquireImage() until its flush at session
+// end has landed (releaseImage()). The last one out drops the entry, so the
+// image's memory is given back while the door is idle, and an image changed on
+// disk while no session uses it (oputil v86 console/desktop) is read afresh by
+// the next session instead of being overwritten by it.
+//
+// flushQueue serializes SAB → disk writes so two exiting sessions never write
+// the same path at the same time. At most one flush runs and one waits: a
+// flush asked for while one is already waiting shares the waiting one, which
+// reads the SAB only when it starts.
 const imageRegistry = new Map();
 
-function getOrCreateSab(imagePath) {
-    if (imageRegistry.has(imagePath)) {
-        return imageRegistry.get(imagePath).sab;
+async function readImage(imagePath) {
+    const fh = await fsp.open(imagePath, 'r');
+    try {
+        const { size } = await fh.stat();
+        const sab = new SharedArrayBuffer(size);
+        let offset = 0;
+        while (offset < size) {
+            const length = Math.min(ImageChunkBytes, size - offset);
+            const { bytesRead } = await fh.read(
+                new Uint8Array(sab, offset, length),
+                0,
+                length,
+                offset
+            );
+            if (0 === bytesRead) {
+                throw new Error(`short read at ${offset} of ${size} bytes`);
+            }
+            offset += bytesRead;
+        }
+        return sab;
+    } finally {
+        await fh.close();
     }
-    const fileData = readFileSync(imagePath);
-    const sab = new SharedArrayBuffer(fileData.byteLength);
-    new Uint8Array(sab).set(fileData);
-    imageRegistry.set(imagePath, { sab, flushQueue: Promise.resolve() });
-    return sab;
 }
 
-function flushSabToDisk(imagePath) {
-    const entry = imageRegistry.get(imagePath);
-    if (!entry) {
-        return;
+//
+//  Write the image over the file in place: never truncated, so a write that
+//  is cut short (the process killed mid-flush) leaves a full-size image with
+//  a mix of old and new sectors rather than a short one, and the file keeps
+//  its inode, links, ownership and permissions, and works as a single-file
+//  bind mount.
+//
+async function writeImage(imagePath, sab) {
+    const fh = await fsp.open(imagePath, 'r+');
+    try {
+        const view = new Uint8Array(sab);
+        let offset = 0;
+        while (offset < view.byteLength) {
+            const length = Math.min(ImageChunkBytes, view.byteLength - offset);
+            const { bytesWritten } = await fh.write(view, offset, length, offset);
+            offset += bytesWritten;
+        }
+        await fh.sync();
+    } finally {
+        await fh.close();
     }
-    entry.flushQueue = entry.flushQueue.then(() => {
-        writeFileSync(imagePath, Buffer.from(entry.sab));
+}
+
+//  Take a reference on |imagePath|'s entry, loading the image on first use.
+//  Resolves with the entry; rejects (holding no reference) if it cannot load.
+function acquireImage(imagePath) {
+    let entry = imageRegistry.get(imagePath);
+    if (!entry) {
+        entry = {
+            path: imagePath,
+            sab: null,
+            refs: 0,
+            flushQueue: Promise.resolve(),
+            flushPending: null,
+        };
+        entry.ready = readImage(imagePath).then(
+            sab => {
+                entry.sab = sab;
+                return sab;
+            },
+            err => {
+                if (imageRegistry.get(imagePath) === entry) {
+                    imageRegistry.delete(imagePath);
+                }
+                throw err;
+            }
+        );
+        imageRegistry.set(imagePath, entry);
+    }
+    entry.refs += 1;
+    return entry.ready.then(
+        () => entry,
+        err => {
+            entry.refs -= 1;
+            throw err;
+        }
+    );
+}
+
+//  Drop a reference; the last one drops the entry once its flushes are done
+function releaseImage(entry) {
+    entry.refs = Math.max(0, entry.refs - 1);
+    if (entry.refs > 0) {
+        return Promise.resolve();
+    }
+    return entry.flushQueue.then(() => {
+        if (0 === entry.refs && imageRegistry.get(entry.path) === entry) {
+            imageRegistry.delete(entry.path);
+        }
     });
+}
+
+//
+//  Queue a write of |entry|'s SAB to its file. Resolves with { ok, error }
+//  and never rejects: a failed flush is logged, and does not keep later ones
+//  from running.
+//
+function flushImage(entry, log) {
+    if (!entry || !entry.sab) {
+        return Promise.resolve({ ok: false, error: 'not loaded' });
+    }
+    if (entry.flushPending) {
+        return entry.flushPending;
+    }
+    const flush = entry.flushQueue
+        .then(() => {
+            //  started: a flush asked for from now on reads the SAB again
+            entry.flushPending = null;
+            return writeImage(entry.path, entry.sab);
+        })
+        .then(
+            () => ({ ok: true }),
+            err => {
+                if (log) {
+                    log.warn(
+                        { image: entry.path, error: err.message },
+                        'v86 door image flush failed; what the guest wrote since the last flush is not on disk'
+                    );
+                }
+                return { ok: false, error: err.message };
+            }
+        );
+    entry.flushPending = flush;
+    entry.flushQueue = flush;
+    return flush;
+}
+
+//  terminate() and wait for the thread to go, at most |ms|
+function terminateWorker(worker, ms) {
+    return new Promise(resolve => {
+        const timer = setTimeout(resolve, ms);
+        let stopping;
+        try {
+            stopping = Promise.resolve(worker.terminate());
+        } catch (e) {
+            stopping = Promise.resolve();
+        }
+        stopping
+            .catch(() => {})
+            .then(() => {
+                clearTimeout(timer);
+                resolve();
+            });
+    });
+}
+
+//
+//  Server shutdown (bbs.js shutdownSystem, after the callers have been
+//  disconnected): end every session still running and wait, at most
+//  |timeoutMs|, for each one's image flush. Best effort: what has not been
+//  flushed by then is logged. Calls back without an error, always.
+//
+function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
+    const sessions = [...runningSessions];
+    if (0 === sessions.length) {
+        return cb(null);
+    }
+    log = log || require('../logger.js').log;
+    const t0 = Date.now();
+
+    for (const s of sessions) {
+        try {
+            s._stopRun('shutdown');
+        } catch (e) {
+            //  best effort; it is reported as not flushed
+        }
+    }
+
+    let timer = null;
+    let reported = false;
+    const report = () => {
+        if (reported) {
+            return;
+        }
+        reported = true;
+        clearTimeout(timer);
+
+        //  by image: sessions on the same image share its flushes
+        const images = new Map();
+        for (const s of sessions) {
+            const run = s._run;
+            if (!run.image) {
+                continue; //  never got as far as the image
+            }
+            const was = images.get(run.image.path);
+            const r = run.flushResult;
+            const now = r ? (r.ok ? 'ok' : r.error) : 'not finished';
+            if (!was || 'ok' === was) {
+                images.set(run.image.path, now);
+            }
+        }
+        const flushed = [];
+        const notFlushed = [];
+        for (const [image, r] of images) {
+            if ('ok' === r) {
+                flushed.push(image);
+            } else {
+                notFlushed.push({ image, why: r });
+            }
+        }
+        (notFlushed.length ? log.warn : log.info).call(
+            log,
+            { flushed, notFlushed, ms: Date.now() - t0 },
+            `v86 doors at shutdown: ${flushed.length} images flushed, ${notFlushed.length} not`
+        );
+        return cb(null);
+    };
+
+    timer = setTimeout(report, timeoutMs);
+    Promise.all(sessions.map(s => s._run.settled)).then(report);
 }
 
 exports.moduleInfo = {
@@ -113,7 +339,6 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
     initSequence() {
         const self = this;
-        let clientTerminated = false;
 
         async.series(
             [
@@ -186,7 +411,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                             );
                         }
                     } else {
-                        self._incrementInstances();
+                        self._beginRun();
                         return callback(null);
                     }
                 },
@@ -256,171 +481,313 @@ exports.getModule = class V86DoorModule extends MenuModule {
                         });
                     }
 
-                    createFloppyWithFiles(floppyFiles)
-                        .then(img => {
+                    //  callback is outside the promise chain: a throw further
+                    //  along the series must not come back here as a rejection
+                    //  and call it a second time
+                    FatImage.createFloppyWithFiles(floppyFiles).then(
+                        img => {
                             self.floppyBuffer = img;
-                            return callback(null);
-                        })
-                        .catch(err => callback(err));
+                            setImmediate(() => callback(null));
+                        },
+                        err => setImmediate(() => callback(err))
+                    );
+                },
+
+                function loadImage(callback) {
+                    const run = self._run;
+                    if (run.hungUp) {
+                        return callback(null); //  gone while the floppy was built
+                    }
+
+                    run.doorTracking = DoorUtil.trackDoorRunBegin(
+                        self.client,
+                        self.config.name
+                    );
+
+                    //  Load (or reuse) the SAB-backed disk image for this session
+                    acquireImage(self.config.image).then(
+                        entry => {
+                            run.image = entry;
+                            setImmediate(() => callback(null));
+                        },
+                        err => setImmediate(() => callback(err))
+                    );
                 },
 
                 function runDoor(callback) {
-                    const doorTracking = trackDoorRunBegin(self.client, self.config.name);
-                    const doorName = self.config.name;
-
-                    //  Load (or reuse) the SAB-backed disk image for this session
-                    let imageSab;
-                    try {
-                        imageSab = getOrCreateSab(self.config.image);
-                    } catch (err) {
-                        trackDoorRunEnd(doorTracking);
-                        return callback(err);
+                    if (self._run.hungUp) {
+                        return callback(null); //  gone while the image loaded
                     }
-
-                    const workerData = {
-                        imageSab,
-                        floppyBuffer: self.floppyBuffer || Buffer.alloc(0),
-                        memoryMb: self.config.memoryMb,
-                        biosPath: self.config.biosPath,
-                        vgaBiosPath: self.config.vgaBiosPath,
-                    };
-
-                    let worker;
-                    try {
-                        worker = new Worker(WORKER_PATH, { workerData });
-                    } catch (err) {
-                        trackDoorRunEnd(doorTracking);
-                        return callback(err);
-                    }
-
-                    //  Loading spinner — shown until the first serial byte arrives
-                    const SPINNER_FRAMES = ['|', '/', '-', '\\'];
-                    let spinnerIdx = 0;
-                    let firstOutput = true;
-
-                    self.client.term.write(ansi.resetScreen());
-                    self.client.term.write(
-                        `\r\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`
-                    );
-
-                    const spinnerInterval = setInterval(() => {
-                        spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
-                        self.client.term.rawWrite(
-                            Buffer.from(
-                                `\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`
-                            )
-                        );
-                    }, 150);
-
-                    const stopSpinner = () => {
-                        if (!firstOutput) return;
-                        firstOutput = false;
-                        clearInterval(spinnerInterval);
-                        self.client.term.write(ansi.resetScreen());
-                    };
-
-                    //  Client → COM1
-                    const onClientData = data => {
-                        worker.postMessage({ type: 'input', data });
-                    };
-                    self.client.term.output.on('data', onClientData);
-
-                    //  Client disconnected mid-session
-                    self.client.once('end', () => {
-                        clientTerminated = true;
-                        clearInterval(spinnerInterval);
-                        self.client.log.info(
-                            { name: doorName },
-                            'Client disconnected — terminating v86 worker'
-                        );
-                        worker.terminate();
-                        self.client.term.output.removeListener('data', onClientData);
-                    });
-
-                    worker.on('message', msg => {
-                        switch (msg.type) {
-                            case 'ready':
-                                self.client.log.info(
-                                    { name: doorName },
-                                    'v86 emulator ready'
-                                );
-                                break;
-
-                            case 'output':
-                                stopSpinner();
-                                self.client.term.passThroughWrite(Buffer.from(msg.data));
-                                break;
-
-                            case 'stopped': {
-                                clearInterval(spinnerInterval);
-                                const secs = (msg.elapsed / 1000).toFixed(1);
-                                self.client.log.info(
-                                    { name: doorName, elapsed: secs },
-                                    'v86 emulator stopped'
-                                );
-                                self.client.term.output.removeListener(
-                                    'data',
-                                    onClientData
-                                );
-                                flushSabToDisk(self.config.image);
-                                trackDoorRunEnd(doorTracking);
-                                self._decrementInstances();
-                                return callback(null);
-                            }
-
-                            case 'error':
-                                clearInterval(spinnerInterval);
-                                self.client.log.warn(
-                                    { name: doorName, error: msg.message },
-                                    'v86 worker error'
-                                );
-                                self.client.term.output.removeListener(
-                                    'data',
-                                    onClientData
-                                );
-                                flushSabToDisk(self.config.image);
-                                trackDoorRunEnd(doorTracking);
-                                self._decrementInstances();
-                                return callback(new Error(msg.message));
-
-                            default:
-                                break;
-                        }
-                    });
-
-                    worker.on('error', err => {
-                        clearInterval(spinnerInterval);
-                        self.client.log.warn(
-                            { name: doorName, error: err.message },
-                            'v86 worker thread error'
-                        );
-                        self.client.term.output.removeListener('data', onClientData);
-                        flushSabToDisk(self.config.image);
-                        trackDoorRunEnd(doorTracking);
-                        self._decrementInstances();
-                        return callback(err);
-                    });
-
-                    worker.on('exit', code => {
-                        if (code !== 0) {
-                            self.client.log.warn(
-                                { name: doorName, code },
-                                'v86 worker exited with non-zero code'
-                            );
-                        }
-                    });
+                    return self._runWorker(callback);
                 },
             ],
-            err => {
-                if (err) {
-                    self.client.log.warn({ error: err.message }, 'v86_door error');
+            err => self._finishRun(err)
+        );
+    }
+
+    //  seam for tests: the thread the emulator runs in
+    _newWorker(workerData) {
+        return new Worker(WORKER_PATH, { workerData });
+    }
+
+    //
+    //  The slot is taken: from here every way out goes through _finishRun().
+    //  The hangup watcher is set now, not when the worker starts, so a caller
+    //  who hangs up while the floppy is built or the image loads is noticed
+    //  and no worker is started for them.
+    //
+    _beginRun() {
+        this._incrementInstances();
+
+        const run = {
+            finished: false,
+            hungUp: false,
+            reason: null,
+            worker: null,
+            done: null,
+            spinner: null,
+            inputSource: null,
+            onClientData: null,
+            doorTracking: null,
+            image: null,
+            flushResult: null,
+        };
+        run.settled = new Promise(resolve => (run.settle = resolve));
+        this._run = run;
+        runningSessions.add(this);
+
+        run.onDisconnect = evt => {
+            if (
+                _.get(evt, 'client.session.uniqueId') ===
+                _.get(this.client, 'session.uniqueId')
+            ) {
+                this._stopRun('hangup');
+            }
+        };
+        Events.on(Events.getSystemEvents().ClientDisconnected, run.onDisconnect);
+    }
+
+    //  The caller is gone, or the server is stopping: end the run now if the
+    //  worker is going, else when the step under way calls back
+    _stopRun(reason) {
+        const run = this._run;
+        if (!run || run.finished || run.hungUp) {
+            return;
+        }
+        run.hungUp = true;
+        run.reason = reason;
+        if (run.done) {
+            run.done(null);
+        }
+    }
+
+    _runWorker(callback) {
+        const self = this;
+        const run = self._run;
+        const doorName = self.config.name;
+
+        let called = false;
+        run.done = err => {
+            if (called) {
+                return;
+            }
+            called = true;
+            return callback(err);
+        };
+
+        const workerData = {
+            imageSab: run.image.sab,
+            floppyBuffer: self.floppyBuffer || Buffer.alloc(0),
+            memoryMb: self.config.memoryMb,
+            biosPath: self.config.biosPath,
+            vgaBiosPath: self.config.vgaBiosPath,
+        };
+
+        let worker;
+        try {
+            worker = self._newWorker(workerData);
+        } catch (err) {
+            return run.done(err);
+        }
+        run.worker = worker;
+
+        //  Loading spinner — shown until the first serial byte arrives
+        const SPINNER_FRAMES = ['|', '/', '-', '\\'];
+        let spinnerIdx = 0;
+        let firstOutput = true;
+
+        self.client.term.write(ansi.resetScreen());
+        self.client.term.write(`\r\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`);
+
+        run.spinner = setInterval(() => {
+            spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
+            self.client.term.rawWrite(
+                Buffer.from(`\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`)
+            );
+        }, 150);
+
+        const stopSpinner = () => {
+            if (!firstOutput) return;
+            firstOutput = false;
+            clearInterval(run.spinner);
+            self.client.term.write(ansi.resetScreen());
+        };
+
+        //  Client → COM1. The stream is kept: client.end() clears
+        //  term.output before ClientDisconnected reaches us.
+        run.onClientData = data => {
+            worker.postMessage({ type: 'input', data });
+        };
+        run.inputSource = self.client.term.output;
+        if (run.inputSource) {
+            run.inputSource.on('data', run.onClientData);
+        }
+
+        run.onWorkerMessage = msg => {
+            switch (msg.type) {
+                case 'ready':
+                    self.client.log.info({ name: doorName }, 'v86 emulator ready');
+                    break;
+
+                case 'output':
+                    stopSpinner();
+                    self.client.term.passThroughWrite(Buffer.from(msg.data));
+                    break;
+
+                case 'stopped': {
+                    const secs = (msg.elapsed / 1000).toFixed(1);
+                    self.client.log.info(
+                        { name: doorName, elapsed: secs },
+                        'v86 emulator stopped'
+                    );
+                    return run.done(null);
                 }
 
-                if (!clientTerminated) {
-                    self.prevMenu();
-                }
+                case 'error':
+                    self.client.log.warn(
+                        { name: doorName, error: msg.message },
+                        'v86 worker error'
+                    );
+                    return run.done(new Error(msg.message));
+
+                default:
+                    break;
             }
+        };
+
+        run.onWorkerError = err => {
+            self.client.log.warn(
+                { name: doorName, error: err.message },
+                'v86 worker thread error'
+            );
+            return run.done(err);
+        };
+
+        //  A worker that goes without saying so first (killed, out of memory,
+        //  the emulator aborted) ends the run too. After 'stopped' or 'error'
+        //  this does nothing: messages arrive before 'exit'.
+        run.onWorkerExit = code => {
+            if (0 === code) {
+                return run.done(null);
+            }
+            return run.done(new Error(`v86 worker exited unexpectedly (code ${code})`));
+        };
+
+        worker.on('message', run.onWorkerMessage);
+        worker.on('error', run.onWorkerError);
+        worker.on('exit', run.onWorkerExit);
+    }
+
+    //
+    //  The single way out once the slot is taken (the series' final callback),
+    //  whatever ended the run. It stops the worker, frees the slot at once, and
+    //  then, once the thread is gone, writes the image to disk and lets go of
+    //  it. A hangup ends the worker at once: what the guest wrote is already in
+    //  the shared image, and the worker's own 'stop' saves nothing more.
+    //
+    _finishRun(err) {
+        const run = this._run;
+
+        if (!run) {
+            //  ended before a slot was taken (bad config, too many callers)
+            if (err) {
+                this.client.log.warn({ error: err.message }, 'v86_door error');
+            }
+            return this.prevMenu();
+        }
+
+        if (run.finished) {
+            return;
+        }
+        run.finished = true;
+
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            run.onDisconnect
         );
+        clearInterval(run.spinner);
+        if (run.inputSource) {
+            run.inputSource.removeListener('data', run.onClientData);
+        }
+
+        let stopped = Promise.resolve();
+        if (run.worker) {
+            const worker = run.worker;
+            worker.removeListener('message', run.onWorkerMessage);
+            worker.removeListener('error', run.onWorkerError);
+            worker.removeListener('exit', run.onWorkerExit);
+            //  a late 'error' from a worker we no longer listen to must not
+            //  become an unhandled one
+            worker.on('error', () => {});
+            //  always, even after 'stopped': no thread outlives its run
+            stopped = terminateWorker(worker, Timeouts.terminateMs);
+        }
+
+        if (run.doorTracking) {
+            DoorUtil.trackDoorRunEnd(run.doorTracking);
+            run.doorTracking = null;
+        }
+        this._decrementInstances();
+
+        if (err) {
+            this.client.log.warn({ error: err.message }, 'v86_door error');
+        } else if (run.hungUp) {
+            this.client.log.info(
+                { name: this.config.name, reason: run.reason },
+                'shutdown' === run.reason
+                    ? 'Server shutting down — terminating v86 worker'
+                    : 'Client disconnected — terminating v86 worker'
+            );
+        }
+
+        const log = this.client.log;
+        const image = run.image;
+        stopped
+            .then(() => {
+                if (!image) {
+                    return;
+                }
+                if (!run.worker) {
+                    //  no guest ran for this session: nothing to write
+                    run.flushResult = { ok: true, skipped: true };
+                    return releaseImage(image);
+                }
+                return flushImage(image, log).then(result => {
+                    run.flushResult = result;
+                    return releaseImage(image);
+                });
+            })
+            .catch(e => {
+                log.warn({ error: e.message }, 'v86 door session end failed');
+            })
+            .then(() => {
+                runningSessions.delete(this);
+                run.settle();
+            });
+
+        if (!run.hungUp) {
+            this.prevMenu();
+        }
     }
 
     _incrementInstances() {
@@ -438,9 +805,18 @@ exports.getModule = class V86DoorModule extends MenuModule {
     }
 };
 
+//  For bbs.js shutdownSystem
+exports.shutdown = shutdown;
+
 //  Exported for unit tests only — not part of the public API
 exports._test = {
     imageRegistry,
-    getOrCreateSab,
-    flushSabToDisk,
+    activeDoorInstances,
+    runningSessions,
+    Timeouts,
+    acquireImage,
+    releaseImage,
+    flushImage,
+    readImage,
+    writeImage,
 };
