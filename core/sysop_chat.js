@@ -432,7 +432,9 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  Wire itemFormat so TextView.drawText applies pipeToAnsi on every redraw.
         //  Also store on the view instance so EditTextView._atomicLineWrite can use them
         //  directly (needed for expanded-mode rendering that bypasses pipeToAnsi).
-        inputView.itemFormat = resolvedPrefix + '{text}';
+        //  resolvedPrefix is rendered: escaped, it comes out of the redraw's
+        //  render as it is
+        inputView.itemFormat = PipeCodes.escape(resolvedPrefix) + '{text}';
         inputView._resolvedPrefix = resolvedPrefix;
         inputView._prefixW = prefixW;
         //  the scroll offset below is in display columns, prefix or not

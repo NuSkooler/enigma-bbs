@@ -1,13 +1,13 @@
 'use strict';
 
 //
-//  What the input side draws today, byte for byte: the single-line editor's
+//  What the input side draws, byte for byte: the single-line editor's
 //  live colour preview, the multi-line editor, sysop chat's input line and a
 //  TextView with an itemFormat (pipe codes PR B, #1022).
 //
 //  A refactor must leave every pin as it is. A fix that changes what is drawn
 //  changes its own pins in the same commit, so the test diff is the record of
-//  the change. Pins marked "today:" hold output that is known to be wrong.
+//  the change.
 //
 //  Terminal output is shown with ESC written as ^[ so a pin reads as text.
 //
@@ -476,8 +476,7 @@ describe('Pipe code input pins', function () {
             ]);
         });
 
-        it('a typed || (today: shown || while typing and | after a redraw)', function () {
-            //  changes when an itemFormat renders its text once
+        it('a typed || is drawn as typed, redraw included', function () {
             const { v, client } = makeEtv({ itemFormat: '{text}' });
             const steps = [...'a||b', '<home>', '<redraw>'];
             assertSteps(steps, run(v, client, timers, steps), [
@@ -485,8 +484,8 @@ describe('Pipe code input pins', function () {
                 '^[[?25l^[[3;5Ha|^[[0;39;49m        ^[[3;7H^[[0;39;49m^[[?25h',
                 '^[[?25l^[[3;5Ha||^[[0;39;49m       ^[[3;8H^[[0;39;49m^[[?25h',
                 '^[[?25l^[[3;5Ha||b^[[0;39;49m      ^[[3;9H^[[0;39;49m^[[?25h',
-                '^[[3;5H^[[0;39;49m^[[0;39;49ma|b^[[0;39;49m       ^[[3;5H^[[0;39;49m',
-                '^[[3;5H^[[0;39;49m^[[0;39;49ma|b^[[0;39;49m       ',
+                '^[[3;5H^[[0;39;49m^[[0;39;49ma||b^[[0;39;49m      ^[[3;5H^[[0;39;49m',
+                '^[[3;5H^[[0;39;49m^[[0;39;49ma||b^[[0;39;49m      ',
             ]);
         });
     });
@@ -586,12 +585,11 @@ describe('Pipe code input pins', function () {
             );
         });
 
-        it('a prefix with literal pipes (today: the redraw draws || as |)', function () {
-            //  changes when an itemFormat renders its text once
+        it('a prefix with literal pipes is measured and redrawn as drawn', function () {
             const { v, client } = makeChatInput({ prefixFormat: '[|14||||]' });
             const steps = ['<focus>', ...'ab|04c', '<tick>', '<redraw>'];
             assertSteps(steps, run(v, client, timers, steps), [
-                '^[[?25h^[[3;5H^[[0;39;49m^[[0;39;49m[^[[1;33m|]^[[0;39;49m                 ^[[3;9H^[[0;39;49m^[[0;39;49m',
+                '^[[?25h^[[3;5H^[[0;39;49m^[[0;39;49m[^[[1;33m||]^[[0;39;49m                ^[[3;9H^[[0;39;49m^[[0;39;49m',
                 '^[[?25l^[[3;5H[^[[1;33m||]a^[[0;39;49m               ^[[3;10H^[[0;39;49m^[[?25h',
                 '^[[?25l^[[3;5H[^[[1;33m||]ab^[[0;39;49m              ^[[3;11H^[[0;39;49m^[[?25h',
                 '^[[?25l^[[3;5H[^[[1;33m||]ab|^[[0;39;49m             ^[[3;12H^[[0;39;49m^[[?25h',
@@ -599,11 +597,11 @@ describe('Pipe code input pins', function () {
                 '^[[?25l^[[3;5H[^[[1;33m||]ab^[[22;31m|04^[[0;39;49m           ^[[3;14H^[[0;39;49m^[[?25h',
                 '^[[?25l^[[3;5H[^[[1;33m||]ab^[[22;31m|04c^[[0;39;49m          ^[[3;15H^[[0;39;49m^[[?25h',
                 '^[[?25l^[[3;5H[^[[1;33m||]ab^[[22;31mc^[[0;39;49m             ^[[3;12H^[[0;39;49m^[[?25h',
-                '^[[3;5H^[[0;39;49m^[[0;39;49m[^[[1;33m|]ab^[[22;31mc^[[0;39;49m              ',
+                '^[[3;5H^[[0;39;49m^[[0;39;49m[^[[1;33m||]ab^[[22;31mc^[[0;39;49m             ',
             ]);
             assert.deepEqual(
                 [show(v._resolvedPrefix), v._prefixW, show(v.itemFormat)],
-                ['[^[[1;33m||]', 4, '[^[[1;33m||]{text}']
+                ['[^[[1;33m||]', 4, '[^[[1;33m||||]{text}']
             );
         });
 
@@ -691,8 +689,7 @@ describe('Pipe code input pins', function () {
             return [show(v.text), takeWrites(client)];
         }
 
-        it('TextView (today: a literal pipe in the text is read as a code again)', function () {
-            //  changes when an itemFormat renders its text once
+        it('TextView: a literal pipe in the text stays text', function () {
             const opts = client => ({
                 client,
                 position: { row: 2, col: 1 },
@@ -708,16 +705,12 @@ describe('Pipe code input pins', function () {
                 [plain, formatted],
                 [
                     ['a|07b', '^[[2;1H^[[0;39;49m^[[0;39;49ma|07b^[[0;39;49m     '],
-                    [
-                        'a|07b',
-                        '^[[2;1H^[[0;39;49m^[[0;39;49m<a^[[22;37mb>^[[0;39;49m      ',
-                    ],
+                    ['a|07b', '^[[2;1H^[[0;39;49m^[[0;39;49m<a|07b>^[[0;39;49m   '],
                 ]
             );
         });
 
-        it('ButtonView with the shipped BT7 format (today: as TextView)', function () {
-            //  changes when an itemFormat renders its text once
+        it('ButtonView with the shipped BT7 format: as TextView', function () {
             const got = drawn(client => {
                 const v = new ButtonView({
                     client,
@@ -729,7 +722,7 @@ describe('Pipe code input pins', function () {
             });
             assert.deepEqual(got, [
                 'a|07b',
-                '^[[2;1H^[[0;39;49m^[[0;39;49m    ^[[0;39;49m^[[22;30m^[[1;30m[ ^[[22;36ma^[[22;37mb ^[[1;30m]^[[0;39;49m    ',
+                '^[[2;1H^[[0;39;49m^[[0;39;49m  ^[[0;39;49m^[[22;30m^[[1;30m[ ^[[22;36ma|07b ^[[1;30m]^[[0;39;49m   ',
             ]);
         });
     });

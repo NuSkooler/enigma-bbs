@@ -413,6 +413,12 @@ class EditTextView extends TextView {
         super.drawText(s);
     }
 
+    //  this.text is the raw typed text: the live preview draws its |## codes
+    //  as colour and every other pipe as typed, as the live write does.
+    _formatValue(s) {
+        return PipeCodes.escape(PipeCodes.render(s, EDITOR_TEXT));
+    }
+
     //  Override _positionCursor to place cursor at cursorPos.col instead of end-of-text.
     //  Called by TextView.setFocus after redraw — single cursor move, no conflict.
     _positionCursor(focused) {

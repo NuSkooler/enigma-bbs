@@ -69,9 +69,11 @@ class TextView extends View {
                         ? this.focusItemFormat
                         : this.itemFormat,
                     {
-                        text: stylizeString(
-                            s,
-                            this.hasFocus ? this.focusTextStyle : this.textStyle
+                        text: this._formatValue(
+                            stylizeString(
+                                s,
+                                this.hasFocus ? this.focusTextStyle : this.textStyle
+                            )
                         ),
                     }
                 )
@@ -139,6 +141,14 @@ class TextView extends View {
             ),
             false //  no converting CRLF needed
         );
+    }
+
+    //  The {text} value for an itemFormat. The format is rendered (its own
+    //  codes are theme codes), but this.text has been rendered already: a
+    //  pipe left in it is text, so every pipe is escaped and the text comes
+    //  out of that render as it went in.
+    _formatValue(s) {
+        return PipeCodes.escape(s);
     }
 
     getEndOfTextColumn() {
