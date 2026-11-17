@@ -954,6 +954,17 @@ describe('v86_door', () => {
         });
 
         describe('server shutdown', () => {
+            let savedShutdownTerminateMs;
+
+            beforeEach(() => {
+                savedShutdownTerminateMs = Timeouts.shutdownTerminateMs;
+            });
+
+            afterEach(() => {
+                Timeouts.shutdownTerminateMs = savedShutdownTerminateMs;
+                _test.resetShutdown();
+            });
+
             it('calls back at once with nothing running', done => {
                 shutdown(done, { log: quietLog() });
             });
@@ -982,6 +993,33 @@ describe('v86_door', () => {
                     log.lines.find(l => /at shutdown/.test(l.msg)).msg,
                     /1 images/
                 );
+            });
+
+            it('a worker slow to stop still lets the flush land within the budget', async () => {
+                Timeouts.terminateMs = 5000;
+                Timeouts.shutdownTerminateMs = 50;
+                const a = await startRunning(
+                    { name, image: img, nodeMax: 2 },
+                    { holdTerminate: true }
+                );
+                const b = await startRunning(
+                    { name, image: img, nodeMax: 2 },
+                    { holdTerminate: true }
+                );
+                a.worker.guestWrite(5, 0xd5);
+                hangUp(a.client); //  closeConnections, before the shutdown step
+                const log = quietLog();
+                const t0 = Date.now();
+                //  b is still running: the shutdown step ends it
+                await new Promise(resolve => shutdown(resolve, { timeoutMs: 1000, log }));
+                assert.ok(Date.now() - t0 < 900, 'did not wait out terminateMs');
+                assert.equal(fs.readFileSync(img)[5], 0xd5);
+                assert.match(
+                    log.lines.find(l => /at shutdown/.test(l.msg)).msg,
+                    /1 images flushed, 0 not/
+                );
+                a.worker.release();
+                b.worker.release();
             });
 
             it('gives up on a flush that does not finish in time, and says so', async () => {

@@ -69,6 +69,9 @@ const Timeouts = {
     //  how long a worker may take to stop after terminate() before the
     //  session flushes the image anyway
     terminateMs: 5 * 1000,
+    //  the same once the server is shutting down, so that the flush gets the
+    //  rest of shutdownFlushMs
+    shutdownTerminateMs: 1000,
     //  how long a server shutdown waits for session-end image flushes
     shutdownFlushMs: 5 * 1000,
     //  how long an image no session uses is kept in memory
@@ -315,22 +318,40 @@ function flushImage(entry, log) {
     return flush;
 }
 
-//  terminate() and wait for the thread to go, at most |ms|
+//  Workers being waited on after terminate() (see terminateWorker()), and
+//  whether the server is shutting down
+const pendingTerminates = new Set();
+let shuttingDown = false;
+
+//
+//  terminate() and wait for the thread to go, at most |ms|, or at most
+//  Timeouts.shutdownTerminateMs once the server is shutting down (from then
+//  on, for a wait already under way), so that the flush that follows fits
+//  in the shutdown's budget.
+//
 function terminateWorker(worker, ms) {
     return new Promise(resolve => {
-        const timer = setTimeout(resolve, ms);
+        let timer = null;
+        const pending = {
+            hurry: () => {
+                clearTimeout(timer);
+                timer = setTimeout(done, Timeouts.shutdownTerminateMs);
+            },
+        };
+        const done = () => {
+            clearTimeout(timer);
+            pendingTerminates.delete(pending);
+            resolve();
+        };
+        timer = setTimeout(done, shuttingDown ? Timeouts.shutdownTerminateMs : ms);
+        pendingTerminates.add(pending);
         let stopping;
         try {
             stopping = Promise.resolve(worker.terminate());
         } catch (e) {
             stopping = Promise.resolve();
         }
-        stopping
-            .catch(() => {})
-            .then(() => {
-                clearTimeout(timer);
-                resolve();
-            });
+        stopping.catch(() => {}).then(done);
     });
 }
 
@@ -348,7 +369,13 @@ function clearIdleTimers() {
 //  flushed by then is logged. Calls back without an error, always.
 //
 function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
+    shuttingDown = true;
     clearIdleTimers();
+    //  workers already ending (their callers were disconnected just before)
+    //  get no more than Timeouts.shutdownTerminateMs from here
+    for (const p of [...pendingTerminates]) {
+        p.hurry();
+    }
     const sessions = [...runningSessions];
     if (0 === sessions.length) {
         return cb(null);
@@ -901,6 +928,7 @@ exports.shutdown = shutdown;
 //  Exported for unit tests only — not part of the public API
 exports._test = {
     imageRegistry,
+    resetShutdown: () => (shuttingDown = false),
     activeDoorInstances,
     runningSessions,
     Timeouts,
