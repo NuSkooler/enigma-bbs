@@ -191,9 +191,9 @@ function main() {
 //  anyway, with a non-zero code. Every step below either bounds itself
 //  (the listening servers get about 1 s to stop, running Amiga doors about
 //  3 s to sync their images, v86 doors about 5 s to write theirs) or is
-//  quick, so this only fires when one of them hangs. A service manager must allow at least this long before it
-//  kills ENiGMA½: see "Stopping" in
-//  website/src/content/docs/installation/production.md.
+//  quick, so this only fires when one of them hangs. A service manager
+//  must allow at least this long before it kills ENiGMA½: see "Stopping"
+//  in website/src/content/docs/installation/production.md.
 //
 const ShutdownTimeoutMs = 15000;
 
