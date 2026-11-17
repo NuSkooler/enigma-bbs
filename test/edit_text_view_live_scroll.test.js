@@ -168,6 +168,14 @@ describe('EditTextView live colour: scroll and redraw', function () {
         assert.deepEqual(redrawAgainstCollapse(10, keys), ['defghijklm', 15]);
     });
 
+    it('sysop chat: a redraw while a code is shown draws what the live write draws', function () {
+        const keys = [...'abcdefghijklmnopqrstuvwxyz|07'];
+        assert.deepEqual(
+            redrawAgainstCollapse(24, keys, { prefixFormat: '|11{userName} |14> ' }),
+            ['Bryan > klmnopqrstuvwxyz', 29]
+        );
+    });
+
     //  What the row shows and where the cursor is, after |keys| and then
     //  after each of |redraws| redraws: a redraw draws what was drawn.
     function redrawsAfter(width, keys, opts, redraws = 2) {

@@ -451,18 +451,35 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  A column that is not inside a wide character: one inside moves to
         //  the column after it, so the window never starts mid-character.
         const charStart = (s, col) => {
+            if (0 === col) {
+                return 0;
+            }
             const end = PipeCodes.splitPos(s, col, EDITOR_TEXT);
             const w = PipeCodes.width(s.slice(0, end), EDITOR_TEXT);
             return w < col ? visLen(s, PipeCodes.splitPos(s, col + 1, EDITOR_TEXT)) : col;
         };
 
+        //  Where the window may start: not inside a wide character, and not
+        //  inside the code shown as typed (in |text| that is three columns).
+        const windowStart = (text, expanded, col) => {
+            col = charStart(text, col);
+            if (!expanded) {
+                return col;
+            }
+            const nearCol = visLen(text, inputView._pipeNearIndex);
+            return col > nearCol && col < nearCol + 3 ? nearCol + 3 : col;
+        };
+
         const effectiveWidth = () => inputView.dimens.width - prefixW;
 
         //  ── Patch scroll offset (now in display columns) ─────────────────────
+        //  (laid out as the live preview draws it: a code shown as typed is
+        //  three columns)
         inputView._computeScrollOffset = () => {
             const raw = inputView.lineBuffer ? inputView.lineBuffer.lines[0].chars : '';
-            const visCur = visLen(raw, inputView.cursorPos.col);
-            const visTotal = visLen(raw);
+            const text = inputView._previewChars(raw);
+            const visCur = visLen(text, inputView.cursorPos.col);
+            const visTotal = visLen(text);
             const ew = effectiveWidth();
             const cur = inputView._scrollOffset || 0;
             const maxOff = Math.max(0, visTotal - ew);
@@ -471,13 +488,18 @@ exports.getModule = class SysopChatModule extends MenuModule {
                 return visCur;
             }
             if (visCur >= cur + ew) {
-                return charStart(raw, Math.min(visCur - ew + 1, maxOff));
+                return windowStart(text, text !== raw, Math.min(visCur - ew + 1, maxOff));
             }
-            return charStart(raw, Math.min(cur, maxOff));
+            return windowStart(text, text !== raw, Math.min(cur, maxOff));
         };
 
         //  ── Patch drawText (use effective width for slice, skip to TextView) ─
         inputView.drawText = s => {
+            //  as EditTextView.drawText(): a redraw draws every code as its
+            //  colour, so a code shown as typed collapses first
+            if (inputView._pipeExpanded) {
+                inputView._ensureCollapsed();
+            }
             if (inputView.hasFocus && inputView.lineBuffer) {
                 inputView._scrollOffset = inputView._computeScrollOffset();
                 s = inputView._visSliceRaw(s, inputView._scrollOffset, effectiveWidth());
@@ -488,7 +510,7 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  ── Patch cursor positioning ─────────────────────────────────────────
         inputView._repositionCursor = () => {
             const raw = inputView.lineBuffer ? inputView.lineBuffer.getText() : '';
-            const visCur = visLen(raw, inputView.cursorPos.col);
+            const visCur = visLen(inputView._previewChars(raw), inputView.cursorPos.col);
             const screenCol =
                 inputView.position.col +
                 prefixW +

@@ -133,8 +133,14 @@ class EditTextView extends TextView {
         let visibleRaw;
         let bufStart;
         if (this._scrollInCells) {
-            bufStart = this._visToBufferIdx(raw, scrollOff);
-            visibleRaw = this._visSliceRaw(raw, scrollOff, ew);
+            //  measured as laid out (a code shown as typed is three columns);
+            //  the indexes are the same in raw
+            const preview = this._previewChars(raw);
+            bufStart = this._visToBufferIdx(preview, scrollOff);
+            visibleRaw = raw.slice(
+                bufStart,
+                bufStart + this._visSliceRaw(preview, scrollOff, ew).length
+            );
         } else {
             bufStart = scrollOff;
             const tail = this._previewChars(raw).slice(scrollOff);
