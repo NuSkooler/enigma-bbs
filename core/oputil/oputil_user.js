@@ -794,7 +794,7 @@ function listUsers() {
                     );
                     table.cell(
                         'Last Login',
-                        timestampOrNA(user, UserProps.LastLoginTs, 'YYYY-MM-DD HH::mm')
+                        timestampOrNA(user, UserProps.LastLoginTs, 'YYYY-MM-DD HH:mm')
                     );
                     table.cell('Logins', propOrNA(user, UserProps.LoginCount));
 

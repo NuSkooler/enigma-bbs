@@ -103,6 +103,9 @@ Actions:
 info arguments:
   --security                   Include security information in output
 
+rm arguments:
+  --no-prompt                  Skip the confirmation prompt
+
 fix-achievement-stats arguments:
   --dry-run                    Report what would change without writing
 
