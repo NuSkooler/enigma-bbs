@@ -315,9 +315,13 @@ describe('Pipe code output pins', function () {
             assert.equal(consoleStyle('|07a|10b|12c|15d', { isTTY: false }), 'abcd');
         });
 
-        //  changes in the banner commit: rendered through pipe_codes.js
+        //  rendered through pipe_codes.js as everywhere else: a background,
+        //  or for |32-|99 normal intensity (the banner used to drop them)
         it('|16-|99', function () {
-            assert.equal(show(consoleStyle('|16x|17y|40z', { isTTY: true })), 'xyz^[[0m');
+            assert.equal(
+                show(consoleStyle('|16x|17y|40z', { isTTY: true })),
+                '^[[40mx^[[44my^[[22mz^[[0m'
+            );
             assert.equal(consoleStyle('|16x|17y|40z', { isTTY: false }), 'xyz');
         });
 

@@ -230,7 +230,8 @@ describe('server_listen — bind result reporting', () => {
     //  it undefined for the life of the process and StatLog.init() then throws
     //  'Cannot read properties of undefined (reading prepare)'. color_codes.js
     //  reaches it via predefined_mci -> message_area, which is why this module
-    //  renders its own pipe codes. Guard that boundary.
+    //  renders through pipe_codes.js rather than color_codes.js. Guard that
+    //  boundary.
     //
     describe('module isolation', () => {
         it('does not pull in the database-dependent module graph', () => {
@@ -239,7 +240,7 @@ describe('server_listen — bind result reporting', () => {
                     require.resolve('../core/server_listen.js')
                 )});`,
                 "consoleStyle('|07probe', { isTTY: true });",
-                'const re = /core\\/(stat_log|message_area|predefined_mci|color_codes)\\.js$/;',
+                'const re = /core\\/(stat_log|message_area|predefined_mci|color_codes|pipe_codes)\\.js$/;',
                 'console.log(',
                 '    JSON.stringify(Object.keys(require.cache).filter(f => re.test(f)))',
                 ');',
@@ -249,10 +250,12 @@ describe('server_listen — bind result reporting', () => {
                 encoding: 'utf8',
             });
 
+            const loaded = JSON.parse(out.trim()).map(f => f.replace(/^.*core\//, ''));
             assert.deepEqual(
-                JSON.parse(out.trim()),
-                [],
-                'server_listen must stay standalone at startup'
+                loaded,
+                ['pipe_codes.js'],
+                'server_listen must render through pipe_codes.js and stay ' +
+                    'clear of the database-dependent modules at startup'
             );
         });
     });
