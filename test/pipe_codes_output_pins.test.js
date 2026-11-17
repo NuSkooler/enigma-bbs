@@ -151,31 +151,38 @@ describe('Pipe code output pins', function () {
             );
         });
 
-        //  changes in the Q4 commit: ESC[nC becomes n spaces, other escapes
-        //  are dropped
+        //  Q4: a cursor forward becomes spaces, other escapes are dropped
+        //  (they used to stay as characters and scroll in pieces)
         it('cursor codes rendered with a client', function () {
+            const RED = '^[[1;31m';
+            const GREEN = '^[[1;32m';
             assert.deepEqual(parsed('|12ab|CF03|10cd'), {
-                plain: 'ab^[[3Ccd',
-                colors: [
-                    '^[[1;31m',
-                    '^[[1;31m',
-                    '^[[1;31m',
-                    '^[[1;31m',
-                    '^[[1;31m',
-                    '^[[1;31m',
-                    '^[[1;32m',
-                    '^[[1;32m',
-                ],
+                plain: 'ab   cd',
+                colors: [RED, RED, RED, RED, RED, GREEN, GREEN],
             });
-            assert.deepEqual(parsed('AB|CF03CD'), { plain: 'AB^[[3CCD', colors: [] });
+            assert.deepEqual(parsed('AB|CF03CD'), { plain: 'AB   CD', colors: [] });
             assert.deepEqual(parsed('|12AB|CB02CD'), {
-                plain: 'AB^[[2DCD',
-                colors: Array(8).fill('^[[1;31m'),
+                plain: 'ABCD',
+                colors: [RED, RED, RED, RED],
+            });
+            assert.deepEqual(parsed(`a${ESC}[Cb${ESC}[;Cc${ESC}[0Cd${ESC}[2;5Ce`), {
+                plain: 'a b cd  e',
+                colors: [],
             });
         });
 
-        it('an ESC that is not a colour stays as text', function () {
-            assert.deepEqual(parsed(`x${ESC}[?25my`), { plain: 'x^[[?25my', colors: [] });
+        it('a cursor forward becomes at most 99 spaces', function () {
+            assert.equal(parsed('a|CF99b').plain, `a${' '.repeat(99)}b`);
+            assert.equal(parsed(`x${ESC}[9999Cy`).plain, `x${' '.repeat(99)}y`);
+            assert.equal(parsed(`${ESC}[9999Cx`.repeat(1000)).plain.length, 100 * 1000);
+        });
+
+        it('an escape that is not a colour is dropped; a lone ESC stays', function () {
+            assert.deepEqual(parsed(`x${ESC}[?25my`), { plain: 'xy', colors: [] });
+            assert.deepEqual(parsed(`x${ESC}(Cy${ESC}[2Jz`), {
+                plain: 'xyz',
+                colors: [],
+            });
             assert.deepEqual(parsed(`a${ESC}b`), { plain: 'a^[b', colors: [] });
         });
 
@@ -189,7 +196,7 @@ describe('Pipe code output pins', function () {
         it('switching to a text style effect re-bakes the plain text', function () {
             const { view } = makeTicker('|04he|07llo|CF02!');
             view.setPropertyValue('effect', 'upper');
-            assert.equal(show(view._plainText), 'HELLO^[[2C!');
+            assert.equal(show(view._plainText), 'HELLO  !');
         });
     });
 

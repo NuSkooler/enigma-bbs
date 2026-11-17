@@ -49,6 +49,10 @@ const TEXT_STYLE_EFFECTS = new Set([
 const ANSI_ONLY = { dialect: 'ansi' };
 const SGR_RE = /^\x1b\[[0-9;]*m$/; //  eslint-disable-line no-control-regex
 
+//  The most spaces one cursor forward becomes: as many as |CF99 moves. A
+//  raw ESC[9999C (an MCI value, say) cannot blow the text up.
+const MAX_CURSOR_FORWARD = 99;
+
 function randomNoise() {
     return NOISE_CHARS[Math.floor(Math.random() * NOISE_CHARS.length)];
 }
@@ -129,23 +133,35 @@ class TickerView extends View {
     //  |ansiText| split into its visible characters (plain) and the SGR that
     //  applies to each of them (colors[i] for plain[i]; '' before the first
     //  SGR). colors is empty when there is no SGR at all.
-    //  An escape that is not an SGR is kept as characters.
+    //
+    //  Other escapes cannot scroll one character at a time: a cursor forward
+    //  (ESC[nC, from |CF##) becomes n spaces, as export stripping does, and
+    //  the rest (|CB##, |CU##, |CD##, an ESC in an MCI value) are dropped.
     _parseRendered(ansiText) {
         let plain = '';
         const colors = [];
         let currentColor = '';
         let colored = false; //  an SGR was seen
 
+        const addText = text => {
+            plain += text;
+            for (let i = 0; i < text.length; ++i) {
+                colors.push(currentColor);
+            }
+        };
+
         PipeCodes.walk(ansiText, ANSI_ONLY, (type, start, end, value) => {
             const raw = ansiText.slice(start, end);
-            if (PipeCodes.T.ANSI === type && 'm' === value.cmd && SGR_RE.test(raw)) {
+            if (PipeCodes.T.ANSI !== type) {
+                return addText(raw);
+            }
+            if ('m' === value.cmd && SGR_RE.test(raw)) {
                 currentColor = raw;
                 colored = true;
-                return;
-            }
-            plain += raw;
-            for (let i = start; i < end; ++i) {
-                colors.push(currentColor);
+            } else if ('C' === value.cmd && '[' === raw[1]) {
+                //  ESC[C and ESC[;C move one column, ESC[0C none
+                const n = undefined === value.args ? 1 : parseInt(value.args, 10);
+                addText(' '.repeat(Math.min(n, MAX_CURSOR_FORWARD)));
             }
         });
 
