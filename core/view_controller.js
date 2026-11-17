@@ -48,7 +48,10 @@ class ViewController extends events.EventEmitter {
                     //
                     this.switchFocus(actionForKey.viewId);
                     this.submitForm(key);
-                } else if (_.isString(actionForKey.action)) {
+                } else if (
+                    _.isString(actionForKey.action) ||
+                    Array.isArray(actionForKey.action) //  conditional (e.g. ACS) action list
+                ) {
                     const formData = this.getFocusedView() ? this.getFormData() : {};
                     this.handleActionWrapper(
                         Object.assign({ ch: ch, key: key }, formData), //  formData + key info

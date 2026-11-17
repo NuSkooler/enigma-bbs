@@ -163,3 +163,39 @@ describe('ViewController: actionKeys through the real load path', () => {
         });
     });
 });
+
+//
+//  A bound key has to actually fire its action, including the ACS-conditional
+//  form ("action: [ { acs: ..., action: ... }, { action: ... } ]") that menus
+//  use everywhere else. That form is resolved later by handleAction(); the key
+//  handler used to pass only plain strings through, so a hotkey with an ACS
+//  check silently did nothing.
+//
+describe('ViewController: pressing a bound key', () => {
+    function pressAndCapture(action, ch, keyName) {
+        const { client } = makeClient();
+        const vc = new ViewController({ client });
+        const fired = [];
+        vc.handleActionWrapper = (formData, actionBlock) => fired.push(actionBlock);
+
+        vc.mapActionKeys([{ keys: [keyName], action }], 'form');
+        vc.clientKeyPressHandler(ch, { name: keyName });
+        return fired;
+    }
+
+    it('fires a plain string action', () => {
+        const fired = pressAndCapture('@menu:somewhere', 'c', 'c');
+        assert.equal(fired.length, 1);
+        assert.equal(fired[0].action, '@menu:somewhere');
+    });
+
+    it('fires an ACS-conditional action list', () => {
+        const action = [
+            { acs: 'AE1', action: '@menu:activityPubSearch' },
+            { action: '@menu:activityPubNotEnabled' },
+        ];
+        const fired = pressAndCapture(action, 'S', 'shift + s');
+        assert.equal(fired.length, 1);
+        assert.deepEqual(fired[0].action, action);
+    });
+});
