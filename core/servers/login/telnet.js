@@ -4,7 +4,7 @@ const { Client } = require('../../client');
 const Config = require('../../config').get;
 const { log: Log } = require('../../logger');
 const { Errors } = require('../../enig_error');
-const { listenServer } = require('../../server_listen');
+const { listenServer, closeServer } = require('../../server_listen');
 
 //  deps
 const net = require('net');
@@ -400,35 +400,6 @@ function resolveListeners(telnetConfig) {
     return result;
 }
 
-//
-//  close() stops a server accepting at once; its callback waits for open
-//  connections, so a server no longer listening counts as stopped. Mirrors
-//  closeServer() in core/listening_server.js.
-//
-function closeServer(server, cb) {
-    let called = false;
-    const done = () => {
-        if (!called) {
-            called = true;
-            return cb();
-        }
-    };
-
-    try {
-        server.close(() => done());
-    } catch (err) {
-        Log.warn(
-            { err, server: ModuleInfo.name },
-            'Failed to stop listening; continuing'
-        );
-        return done();
-    }
-
-    if (false === server.listening) {
-        return done();
-    }
-}
-
 exports.getModule = class TelnetServerModule extends LoginServerModule {
     constructor() {
         super();
@@ -567,7 +538,7 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
         }
 
         servers.forEach(server =>
-            closeServer(server, () => {
+            closeServer(server, Log, ModuleInfo.name, () => {
                 if (0 === --left) {
                     return cb(null);
                 }
