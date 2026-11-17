@@ -198,6 +198,16 @@ describe('Pipe code output pins', function () {
             view.setPropertyValue('effect', 'upper');
             assert.equal(show(view._plainText), 'HELLO  !');
         });
+
+        //  the plain text is styled as plain text: a '|' left from '||' is a
+        //  character (it used to be read as the start of a code again)
+        it('a text style effect does not read codes in the plain text', function () {
+            assert.equal(parsed('||AB cd', 'lower').plain, '|ab cd');
+            assert.equal(parsed('|04||AB cd', 'title').plain, '|Ab Cd');
+            const { view } = makeTicker('||AB cd');
+            view.setPropertyValue('effect', 'lower');
+            assert.equal(view._plainText, '|ab cd');
+        });
     });
 
     describe('MRC', function () {

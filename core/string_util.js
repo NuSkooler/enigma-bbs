@@ -10,6 +10,7 @@ const iconv = require('iconv-lite');
 const _ = require('lodash');
 
 exports.stylizeString = stylizeString;
+exports.stylizePlainText = stylizePlainText;
 exports.pad = pad;
 exports.insert = insert;
 exports.replaceAt = replaceAt;
@@ -68,6 +69,14 @@ function stylizeString(s, style) {
         return styleText(s, style); //  no codes: the common case
     }
     return stylizeCodedString(s, style);
+}
+
+//
+//  stylizeString() for text that holds no codes, such as text already
+//  rendered and stripped: a '|' or ESC in it is a character like any other.
+//
+function stylizePlainText(s, style) {
+    return s ? styleText(s, style) : '';
 }
 
 //  Apart from stylizeString() so that its common case allocates no closure

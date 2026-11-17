@@ -4,7 +4,7 @@
 const { View } = require('./view.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const PipeCodes = require('./pipe_codes.js');
-const { pad: padStr, stylizeString, stripAllLineFeeds } = require('./string_util.js');
+const { pad: padStr, stylizePlainText, stripAllLineFeeds } = require('./string_util.js');
 const stringFormat = require('./string_format');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 
@@ -114,13 +114,14 @@ class TickerView extends View {
         //  One pass over the rendered text gives the raw visible characters
         //  and, so pipe codes survive scrolling, the SGR that applies to each.
         //  An empty colour map means "use the view SGR". Any text-style effect
-        //  (l33t, upper, mixed, …) is then applied to the plain text; dynamic
-        //  effects (rainbow, scramble, glitch) operate on it every tick
-        //  instead.
+        //  (l33t, upper, mixed, …) is then applied to the plain text, as
+        //  plain text: a '|' left in it (from '||') is a character, not the
+        //  start of a code. Dynamic effects (rainbow, scramble, glitch)
+        //  operate on it every tick instead.
         const { plain, colors } = this._parseRendered(this._renderText(text));
         this._charColors = colors;
         this._plainText = TEXT_STYLE_EFFECTS.has(this.effect)
-            ? stylizeString(plain, this.effect)
+            ? stylizePlainText(plain, this.effect)
             : plain;
 
         this._resetMotion();
@@ -689,7 +690,7 @@ class TickerView extends View {
                     const { plain } = this._parseRendered(
                         this._renderText(this._rawText)
                     );
-                    this._plainText = stylizeString(plain, value);
+                    this._plainText = stylizePlainText(plain, value);
                 }
                 break;
             case 'tickInterval':
