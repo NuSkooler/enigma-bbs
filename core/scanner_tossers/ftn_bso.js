@@ -131,6 +131,9 @@ function FTNMessageScanTossModule() {
     //  outgoing packet names claimed by an export in progress; see
     //  allocateEchoMailPacketPath()
     this.claimedPacketStems = new Set();
+    //  outgoing bundle names (lowercased basenames) claimed by an export in
+    //  progress; see getOutgoingBundleFileName()
+    this.claimedBundleNames = new Set();
 
     const config = Config();
     if (_.has(config, 'scannerTossers.ftn_bso')) {
@@ -536,18 +539,47 @@ function FTNMessageScanTossModule() {
         }
 
         //
-        //  We need to now find the first entry that does not exist starting
-        //  with dd0 to ddz
+        //  We need to now find the first entry that is free, starting with
+        //  dd0 to ddz. Free means: not claimed by another export in this
+        //  process, not in |basePath| in either case, and not left in the
+        //  export temp area, where the bundle is built under this same name.
+        //
+        //  Exports run in parallel (one per area in the export scan), so two
+        //  can look for a name for the same destination before either bundle
+        //  exists. The claim is what keeps them apart: it is checked and taken
+        //  in one synchronous step, after the last stat, so nothing can run in
+        //  between. Claims are by basename alone because the temp area is
+        //  shared by every destination, and two destinations can have the same
+        //  basename. The caller releases the claim with releaseBundleName()
+        //  once the bundle is in outbound or has failed to get there.
         //
         const EXT_SUFFIXES = '0123456789abcdefghijklmnopqrstuvwxyz'.split('');
         let fileName = `${basename}.${moment().format('dd').toLowerCase()}`;
+        const absent = (p, next) =>
+            fs.stat(p, err => next(Boolean(err && 'ENOENT' === err.code)));
         async.detectSeries(
             EXT_SUFFIXES,
             (suffix, callback) => {
                 const checkFileName = fileName + suffix;
-                fs.stat(paths.join(basePath, checkFileName), err => {
-                    callback(null, err && 'ENOENT' === err.code ? true : false);
-                });
+                const candidates = [
+                    paths.join(basePath, checkFileName),
+                    paths.join(basePath, checkFileName.toUpperCase()),
+                ];
+                if (self.exportTempDir) {
+                    candidates.push(paths.join(self.exportTempDir, checkFileName));
+                }
+                async.everySeries(
+                    candidates,
+                    (p, nextCandidate) => absent(p, free => nextCandidate(null, free)),
+                    (err, allAbsent) => {
+                        const key = checkFileName.toLowerCase();
+                        if (!allAbsent || self.claimedBundleNames.has(key)) {
+                            return callback(null, false);
+                        }
+                        self.claimedBundleNames.add(key);
+                        return callback(null, true);
+                    }
+                );
             },
             (err, finalSuffix) => {
                 if (finalSuffix) {
@@ -557,6 +589,11 @@ function FTNMessageScanTossModule() {
                 return cb(new Error('Could not acquire a bundle filename!'));
             }
         );
+    };
+
+    //  Gives back a name getOutgoingBundleFileName() claimed.
+    this.releaseBundleName = function (bundlePath) {
+        self.claimedBundleNames.delete(paths.basename(bundlePath).toLowerCase());
     };
 
     this.prepareMessage = function (message, options) {
@@ -1273,9 +1310,11 @@ function FTNMessageScanTossModule() {
                     );
                 },
                 function deliver(callback) {
-                    //  One destination at a time: two of them can want the same
-                    //  bundle name (getOutgoingBundleFileName looks at what is
-                    //  already in outbound), and they share the temp area.
+                    //  One destination at a time, so that one export call runs
+                    //  one archiver at a time. Bundle names do not depend on
+                    //  it: getOutgoingBundleFileName() claims each one, which
+                    //  also keeps apart export calls that run at the same time
+                    //  (the export scan runs one per area).
                     //
                     //  |onDestinationDone| runs as each one is finished with,
                     //  delivered or failed, before the next one starts: relay
@@ -1647,6 +1686,11 @@ function FTNMessageScanTossModule() {
             return cb(null);
         }
 
+        //  Set once a bundle name is claimed: the claim is released, and the
+        //  temp bundle removed if it did not reach outbound, however this ends.
+        let claimedBundlePath = null;
+        let tempBundlePath = null;
+
         async.waterfall(
             [
                 function createArcMailBundle(callback) {
@@ -1667,20 +1711,30 @@ function FTNMessageScanTossModule() {
                                     return callback(err);
                                 }
 
+                                claimedBundlePath = bundlePath;
+
                                 //  adjust back to temp path
-                                const tempBundlePath = paths.join(
+                                tempBundlePath = paths.join(
                                     self.exportTempDir,
                                     paths.basename(bundlePath)
                                 );
 
-                                self.archUtil.compressTo(
-                                    exportOpts.nodeConfig.archiveType,
-                                    tempBundlePath,
-                                    exportedFileNames,
-                                    err => {
-                                        callback(err, [tempBundlePath]);
+                                //  Archivers add to an archive that is already
+                                //  there, so start from nothing: a file at this
+                                //  path can only be left over from this process.
+                                fs.rm(tempBundlePath, { force: true }, err => {
+                                    if (err) {
+                                        return callback(err);
                                     }
-                                );
+                                    self.archUtil.compressTo(
+                                        exportOpts.nodeConfig.archiveType,
+                                        tempBundlePath,
+                                        exportedFileNames,
+                                        err => {
+                                            callback(err, [tempBundlePath]);
+                                        }
+                                    );
+                                });
                             }
                         );
                     } else {
@@ -1814,7 +1868,31 @@ function FTNMessageScanTossModule() {
                     );
                 },
             ],
-            err => cb(err || null)
+            err => {
+                if (!claimedBundlePath) {
+                    return cb(err || null);
+                }
+
+                //  Removed before the claim is released, so that no other
+                //  export can be building a bundle at this path yet. After a
+                //  successful move there is nothing left to remove.
+                const release = () => {
+                    self.releaseBundleName(claimedBundlePath);
+                    return cb(err || null);
+                };
+                if (!err) {
+                    return release();
+                }
+                fs.rm(tempBundlePath, { force: true }, rmErr => {
+                    if (rmErr) {
+                        Log.warn(
+                            { path: tempBundlePath, error: rmErr.message },
+                            'Could not remove an undelivered FTN bundle'
+                        );
+                    }
+                    return release();
+                });
+            }
         );
     };
 
@@ -7757,7 +7835,7 @@ FTNMessageScanTossModule.prototype.performExport = function (cb) {
                     async.eachSeries(
                         //  EchoMailRelay runs after EchoMail: both can target
                         //  the same node, and the export scan's packets should
-                        //  claim their bundle names first.
+                        //  get the earlier bundle names.
                         ['EchoMail', 'EchoMailRelay', 'NetMail'],
                         (type, nextType) => {
                             self[`perform${type}Export`](err => {
