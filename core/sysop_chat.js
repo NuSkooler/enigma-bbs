@@ -6,8 +6,11 @@ const { MenuModule } = require('./menu_module.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const stringFormat = require('./string_format.js');
 const ansi = require('./ansi_term.js');
-const { renderStringLength } = require('./string_util.js');
 const { TextView } = require('./text_view.js');
+const PipeCodes = require('./pipe_codes.js');
+
+//  The input line previews |## colour codes only (EditTextView's live colour)
+const EDITOR_TEXT = { dialect: 'color' };
 
 //  deps
 const _ = require('lodash');
@@ -413,68 +416,73 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  ── Resolve prefix ───────────────────────────────────────────────────
         const prefixFmt = inputView.prefixFormat || this.config.prefixFormat || '';
-        const resolvedPrefix = prefixFmt
-            ? pipeToAnsi(
+        //  The width is that of the rendered prefix: a pipe left after
+        //  rendering ('||' drawn as '|') is text and takes its column
+        const { text: resolvedPrefix, width: prefixW } = prefixFmt
+            ? PipeCodes.renderWithWidth(
                   stringFormat(
                       prefixFmt,
                       { userName: this.client.user.username },
                       { client }
                   ),
-                  client
+                  { client }
               )
-            : '';
-        const prefixW = renderStringLength(resolvedPrefix); // visible terminal columns
+            : { text: '', width: 0 };
 
         //  Wire itemFormat so TextView.drawText applies pipeToAnsi on every redraw.
         //  Also store on the view instance so EditTextView._atomicLineWrite can use them
         //  directly (needed for expanded-mode rendering that bypasses pipeToAnsi).
-        inputView.itemFormat = resolvedPrefix + '{text}';
+        //  resolvedPrefix is rendered: escaped, it comes out of the redraw's
+        //  render as it is
+        inputView.itemFormat = PipeCodes.escape(resolvedPrefix) + '{text}';
         inputView._resolvedPrefix = resolvedPrefix;
         inputView._prefixW = prefixW;
+        //  the scroll offset below is in display columns, prefix or not
+        inputView._scrollInCells = true;
 
         //  ── Helpers ──────────────────────────────────────────────────────────
 
-        //  Visible (non-pipe-code) char count of s up to rawIndex.
-        const visLen = (s, rawIndex) => {
-            const sub = rawIndex === undefined ? s : s.slice(0, rawIndex);
-            return sub.replace(/\|[0-9]{2}/g, '').length;
+        //  Display columns of s up to rawIndex, as the live preview draws it
+        //  (|## codes take none).
+        const visLen = (s, rawIndex) =>
+            PipeCodes.width(
+                rawIndex === undefined ? s : s.slice(0, rawIndex),
+                EDITOR_TEXT
+            );
+
+        //  A column that is not inside a wide character: one inside moves to
+        //  the column after it, so the window never starts mid-character.
+        const charStart = (s, col) => {
+            if (0 === col) {
+                return 0;
+            }
+            const end = PipeCodes.splitPos(s, col, EDITOR_TEXT);
+            const w = PipeCodes.width(s.slice(0, end), EDITOR_TEXT);
+            return w < col ? visLen(s, PipeCodes.splitPos(s, col + 1, EDITOR_TEXT)) : col;
         };
 
-        //  Slice s to visCount visible chars starting at visible offset visOff,
-        //  preserving pipe codes so they reach TextView.drawText intact.
-        const visSlice = (s, visOff, visCount) => {
-            let i = 0,
-                vis = 0;
-            while (i < s.length && vis < visOff) {
-                if (s[i] === '|' && /[0-9]{2}/.test(s.slice(i + 1, i + 3))) {
-                    i += 3;
-                } else {
-                    i++;
-                    vis++;
-                }
+        //  Where the window may start: not inside a wide character, and not
+        //  inside the code shown as typed (in |text| that is three columns).
+        const windowStart = (text, expanded, col) => {
+            col = charStart(text, col);
+            if (!expanded) {
+                return col;
             }
-            let result = '',
-                seen = 0;
-            while (i < s.length && seen < visCount) {
-                if (s[i] === '|' && /[0-9]{2}/.test(s.slice(i + 1, i + 3))) {
-                    result += s.slice(i, i + 3);
-                    i += 3;
-                } else {
-                    result += s[i];
-                    i++;
-                    seen++;
-                }
-            }
-            return result;
+            const nearCol = visLen(text, inputView._pipeNearIndex);
+            return col > nearCol && col < nearCol + 3 ? nearCol + 3 : col;
         };
 
         const effectiveWidth = () => inputView.dimens.width - prefixW;
 
-        //  ── Patch scroll offset (now in visible-char units) ──────────────────
+        //  ── Patch scroll offset (now in display columns) ─────────────────────
+        //  (laid out as the live preview draws it: a code shown as typed is
+        //  three columns)
         inputView._computeScrollOffset = () => {
             const raw = inputView.lineBuffer ? inputView.lineBuffer.lines[0].chars : '';
-            const visCur = visLen(raw, inputView.cursorPos.col);
-            const visTotal = visLen(raw);
+            const text = inputView._previewChars(raw);
+            const visTotal = visLen(text);
+            const col = inputView.cursorPos.col;
+            const visCur = col >= text.length ? visTotal : visLen(text, col);
             const ew = effectiveWidth();
             const cur = inputView._scrollOffset || 0;
             const maxOff = Math.max(0, visTotal - ew);
@@ -483,16 +491,21 @@ exports.getModule = class SysopChatModule extends MenuModule {
                 return visCur;
             }
             if (visCur >= cur + ew) {
-                return Math.min(visCur - ew + 1, maxOff);
+                return windowStart(text, text !== raw, Math.min(visCur - ew + 1, maxOff));
             }
-            return Math.min(cur, maxOff);
+            return windowStart(text, text !== raw, Math.min(cur, maxOff));
         };
 
         //  ── Patch drawText (use effective width for slice, skip to TextView) ─
         inputView.drawText = s => {
+            //  as EditTextView.drawText(): a redraw draws every code as its
+            //  colour, so a code shown as typed collapses first
+            if (inputView._pipeExpanded) {
+                inputView._ensureCollapsed();
+            }
             if (inputView.hasFocus && inputView.lineBuffer) {
                 inputView._scrollOffset = inputView._computeScrollOffset();
-                s = visSlice(s, inputView._scrollOffset, effectiveWidth());
+                s = inputView._visSliceRaw(s, inputView._scrollOffset, effectiveWidth());
             }
             TextView.prototype.drawText.call(inputView, s);
         };
@@ -500,7 +513,7 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  ── Patch cursor positioning ─────────────────────────────────────────
         inputView._repositionCursor = () => {
             const raw = inputView.lineBuffer ? inputView.lineBuffer.getText() : '';
-            const visCur = visLen(raw, inputView.cursorPos.col);
+            const visCur = visLen(inputView._previewChars(raw), inputView.cursorPos.col);
             const screenCol =
                 inputView.position.col +
                 prefixW +

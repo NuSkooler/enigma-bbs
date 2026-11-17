@@ -30,6 +30,11 @@ Anything else after a `|` is shown as typed: an unknown `|ZZ`, a `|1A`, a lone `
 
 Text is padded, centred and cut to the columns it takes on screen: `a || b` is five columns wide, `|CF05` five, `|UN` as wide as the user's name, and an unknown `|ZZ` three, because it is shown as typed.
 
+In a button's `itemFormat`, `{text}` is the button's text as drawn without the format: the format's codes render, and a pipe that is left in the text stays a pipe (it is not read as a code a second time).
+
+### In Edit Fields
+The full screen editor, and single-line fields that show colour as you type (such as the [sysop chat](../modules/sysop-chat.md) input line), take only the colour codes `|00` to `|99`; every other pipe is shown as typed, so `||` is two pipes there. A code you have just typed is shown as `|07` in its colour, and takes those three columns, until you move past it; then it collapses to its colour. Fields are measured in screen columns, so double-width characters take two.
+
 ### In Message Bodies
 Messages and file descriptions take the colour codes above, the cursor codes (in ANSI messages; a plain message shows them as typed) and the PCBoard (`@X##`), Wildcat! (`@##@`), WWIV (`^C#`) and CNET colour codes. There is no `||` escape there: as on Renegade, Synchronet and Mystic, `||05` is a `|` followed by colour 05. When a message is exported (e-mail, NNTP, Gopher, ActivityPub, the REST API, the full screen editor's export), the codes are removed and anything shown as typed stays; `|CF05` becomes five spaces, but never more spaces than the code is long (`|CF99` also gives five), so an export is never longer than the message.
 

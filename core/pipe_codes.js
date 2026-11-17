@@ -957,13 +957,18 @@ function splitPos(s, cols, opts) {
 //  no set at all every |AA code is dropped, so nothing leaks.
 //  opts.ansi === true also drops ANSI escapes; opts.legacy === false keeps
 //  the body dialect's @X## / ^C# / CNET codes (pipe codes only).
+//  The 'ansi' dialect is text that has already been rendered: only its ANSI
+//  escapes are dropped, and every pipe is text.
 //
 function strip(s, opts) {
     if (!s) {
         return '';
     }
+    let f = flagsOf(opts);
+    if (f & F_ANSIONLY) {
+        return stripAnsi(s);
+    }
     const ansi = !!(opts && true === opts.ansi);
-    let f = flagsOf(opts) & ~F_ANSIONLY;
     if (opts && false === opts.legacy) {
         f &= ~F_LEGACY;
     }
@@ -1021,6 +1026,24 @@ function strip(s, opts) {
         out += s.slice(last, i) + rep;
         last = e;
         i = e - 1;
+    }
+    return 0 === last ? s : out + s.slice(last);
+}
+
+//  strip() of rendered text: drop the ANSI escapes, keep everything else.
+function stripAnsi(s) {
+    let i = s.indexOf('\x1b');
+    let out = '';
+    let last = 0;
+    while (-1 !== i) {
+        const e = scanAnsi(s, i);
+        if (e < 0) {
+            i = s.indexOf('\x1b', i + 1);
+            continue;
+        }
+        out += s.slice(last, i);
+        last = e;
+        i = s.indexOf('\x1b', e);
     }
     return 0 === last ? s : out + s.slice(last);
 }
@@ -1505,6 +1528,32 @@ function colorCodeAt(s, i) {
     return isDigit(c1) && isDigit(c2) ? (c1 - 48) * 10 + (c2 - 48) : -1;
 }
 
+//
+//  Index of the first complete |## code at or after |from|, or -1.
+//
+function indexOfColorCode(s, from = 0) {
+    if (!s) {
+        return -1;
+    }
+    for (let i = s.indexOf('|', from); -1 !== i; i = s.indexOf('|', i + 1)) {
+        if (isDigit(s.charCodeAt(i + 1)) && isDigit(s.charCodeAt(i + 2))) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+//
+//  |s| with every '|' written '||', so a later UI render (pipeToAnsi) shows
+//  it as it is: rendered text, or text from outside, cannot turn into codes.
+//
+function escape(s) {
+    if (!s) {
+        return '';
+    }
+    return -1 === s.indexOf('|') ? s : s.replace(/\|/g, '||');
+}
+
 //  ── mapText ──────────────────────────────────────────────────────────────────
 
 //
@@ -1677,6 +1726,8 @@ exports.substr = substr;
 exports.truncate = truncate;
 exports.splitPos = splitPos;
 exports.colorCodeAt = colorCodeAt;
+exports.indexOfColorCode = indexOfColorCode;
+exports.escape = escape;
 exports.mapText = mapText;
 exports.pipeColorSgr = pipeColorSgr;
 exports.setMciResolver = setMciResolver;

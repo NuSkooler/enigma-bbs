@@ -7,7 +7,8 @@ const miscUtil = require('./misc_util.js');
 const strUtil = require('./string_util.js');
 const ansi = require('./ansi_term.js');
 const { VIEW_SPECIAL_KEY_MAP_DEFAULT } = require('./view');
-const { pipeColorToAnsi } = require('./color_codes.js');
+const PipeCodes = require('./pipe_codes.js');
+const ColorPreview = require('./color_preview.js');
 
 //  deps
 const _ = require('lodash');
@@ -22,17 +23,7 @@ const EDIT_TEXT_VIEW_KEY_MAP = Object.assign({}, VIEW_SPECIAL_KEY_MAP_DEFAULT, {
 const EDITOR_TEXT = { dialect: 'color' };
 const AS_TYPED = { dialect: 'ansi' };
 
-//  Returns true when chars[i..i+2] is a complete |## pipe color code.
-function isPipeCode(chars, i) {
-    return (
-        chars[i] === '|' &&
-        i + 2 < chars.length &&
-        chars[i + 1] >= '0' &&
-        chars[i + 1] <= '9' &&
-        chars[i + 2] >= '0' &&
-        chars[i + 2] <= '9'
-    );
-}
+const { colorCodeAt } = PipeCodes;
 
 class EditTextView extends TextView {
     constructor(options) {
@@ -67,31 +58,26 @@ class EditTextView extends TextView {
         //  redraw path (which would collapse the near code via pipeToAnsi).
         this._resolvedPrefix = '';
         this._prefixW = 0;
+        //  True when _scrollOffset is in display columns, not a buffer index
+        //  (sysop chat's input line sets it).
+        this._scrollInCells = false;
     }
 
-    // ── Pipe-code helpers (ported from MLTEV) ────────────────────────────────
+    // ── Pipe-code helpers (shared with MLTEV: color_preview.js) ─────────────
 
+    //  A complete |## code, or one being typed at the end
     _hasPipeCodes(chars) {
-        return /\|[0-9]{2}/.test(chars) || /\|[0-9]?$/.test(chars);
+        return ColorPreview.hasColorCodeOrPartial(chars);
     }
 
     //  Returns the buffer index where the pipe-code sequence adjacent to the
     //  cursor starts, or -1 if the cursor is not near any code.
     _codeStartNearCursor(chars, col) {
-        if (col >= 3 && isPipeCode(chars, col - 3)) return col - 3;
-        if (
-            col >= 2 &&
-            chars[col - 2] === '|' &&
-            chars[col - 1] >= '0' &&
-            chars[col - 1] <= '9'
-        )
-            return col - 2;
-        if (col >= 1 && chars[col - 1] === '|') return col - 1;
-        return -1;
+        return ColorPreview.codeStartNearCursor(chars, col);
     }
 
     _cursorNearCompleteCode(chars, col) {
-        return col >= 3 && isPipeCode(chars, col - 3);
+        return ColorPreview.cursorNearCompleteCode(chars, col);
     }
 
     _cursorNearPipeCode(chars, col) {
@@ -100,87 +86,30 @@ class EditTextView extends TextView {
 
     //  Convert all complete |## codes in s to ANSI SGR; non-numeric |XX literals pass through.
     _renderLineCollapsed(s) {
-        return s.replace(/\|([0-9]{2})/g, (_, code) =>
-            pipeColorToAnsi(parseInt(code, 10))
-        );
+        return PipeCodes.render(s, EDITOR_TEXT);
     }
 
     //  Expanded-mode render: the code at nearIdx shows as literal |## chars in its
     //  own color; all other complete codes are ANSI SGR only (0 display width).
+    //  A trailing partial at the near position shows in the base view color.
     _renderLineExpanded(s, nearIdx) {
-        const PIPE_RE = /\|([0-9]{2})/g;
-        let m;
-        let rendered = '';
-        let lastIndex = 0;
-
-        while ((m = PIPE_RE.exec(s)) !== null) {
-            rendered += s.slice(lastIndex, m.index);
-            if (m.index === nearIdx) {
-                //  Near code — show literal |## in its own color
-                rendered += pipeColorToAnsi(parseInt(m[1], 10)) + m[0];
-            } else {
-                //  Other codes — ANSI SGR, 0 display width
-                rendered += pipeColorToAnsi(parseInt(m[1], 10));
-            }
-            lastIndex = PIPE_RE.lastIndex;
-        }
-
-        const tail = s.slice(lastIndex);
-        if (tail) {
-            //  Trailing partial at the near position — show in base view color
-            if (tail[0] === '|' && lastIndex === nearIdx) {
-                rendered += this.getFocusSGR() + tail;
-            } else {
-                rendered += tail;
-            }
-        }
-
-        return rendered;
+        return ColorPreview.renderExpanded(s, nearIdx, this.getFocusSGR());
     }
 
-    //  Walk chars counting visible (non-pipe-code) characters until visOff is reached;
-    //  return the corresponding buffer index.  Used to remap _pipeNearIndex (a buffer
-    //  index into the full raw string) to an index within the visible slice.
-    _visToBufferIdx(chars, visOff) {
-        let i = 0;
-        let vis = 0;
-        while (i < chars.length && vis < visOff) {
-            if (isPipeCode(chars, i)) {
-                i += 3;
-            } else {
-                i++;
-                vis++;
-            }
-        }
-        return i;
+    //  The buffer index |cols| display columns into chars (|## codes take
+    //  none; a wide character straddling the column is not included).  Used to
+    //  remap _pipeNearIndex (a buffer index into the full raw string) to an
+    //  index within the visible slice.
+    _visToBufferIdx(chars, cols) {
+        return PipeCodes.splitPos(chars, cols, EDITOR_TEXT);
     }
 
-    //  Visible-char-aware slice: skip visOff visible chars, then collect up to
-    //  visCount visible chars (pipe codes preserved, not counted).
-    _visSliceRaw(chars, visOff, visCount) {
-        let i = 0;
-        let vis = 0;
-        while (i < chars.length && vis < visOff) {
-            if (isPipeCode(chars, i)) {
-                i += 3;
-            } else {
-                i++;
-                vis++;
-            }
-        }
-        let result = '';
-        let seen = 0;
-        while (i < chars.length && seen < visCount) {
-            if (isPipeCode(chars, i)) {
-                result += chars.slice(i, i + 3);
-                i += 3;
-            } else {
-                result += chars[i];
-                i++;
-                seen++;
-            }
-        }
-        return result;
+    //  The part of chars that is |count| display columns wide, starting |off|
+    //  columns in, with the |## codes inside it kept.
+    _visSliceRaw(chars, off, count) {
+        const a = PipeCodes.splitPos(chars, off, EDITOR_TEXT);
+        const rest = chars.slice(a);
+        return rest.slice(0, PipeCodes.splitPos(rest, count, EDITOR_TEXT));
     }
 
     //  Atomic single-line write: renders the visible portion of the current text
@@ -197,21 +126,33 @@ class EditTextView extends TextView {
         const resolvedPrefix = this._resolvedPrefix || '';
         const ew = this.dimens.width - prefixW;
 
-        //  Slice the visible portion of the raw text.  When a prefix is present
-        //  the scroll offset is in visible-char units (set by the monkey-patched
-        //  _computeScrollOffset in sysop_chat); otherwise it's a raw buffer offset.
+        //  Slice the visible portion of the raw text, ew display columns wide.
+        //  The scroll offset is in display columns when _scrollInCells is set
+        //  (by the monkey-patched _computeScrollOffset in sysop_chat);
+        //  otherwise it's a raw buffer offset, as drawText() takes it.
         let visibleRaw;
-        if (prefixW > 0) {
-            visibleRaw = this._visSliceRaw(raw, scrollOff, ew);
+        let bufStart;
+        if (this._scrollInCells) {
+            //  measured as laid out (a code shown as typed is three columns);
+            //  the indexes are the same in raw
+            const preview = this._previewChars(raw);
+            bufStart = this._visToBufferIdx(preview, scrollOff);
+            visibleRaw = raw.slice(
+                bufStart,
+                bufStart + this._visSliceRaw(preview, scrollOff, ew).length
+            );
         } else {
-            visibleRaw = raw.slice(scrollOff, scrollOff + ew);
+            bufStart = scrollOff;
+            const tail = this._previewChars(raw).slice(scrollOff);
+            visibleRaw = raw.slice(
+                scrollOff,
+                scrollOff + PipeCodes.splitPos(tail, ew, this._measure())
+            );
         }
 
         let renderedText;
         if (this._pipeExpanded && this._pipeNearIndex >= 0 && this._hasPipeCodes(raw)) {
             //  Remap near index to its position within the visible slice
-            const bufStart =
-                prefixW > 0 ? this._visToBufferIdx(raw, scrollOff) : scrollOff;
             const nearIdxInSlice = this._pipeNearIndex - bufStart;
 
             renderedText =
@@ -223,7 +164,8 @@ class EditTextView extends TextView {
         }
 
         const fullLine = resolvedPrefix + renderedText;
-        const visLen = prefixW + strUtil.renderStringLength(renderedText, EDITOR_TEXT);
+        //  renderedText is already rendered: a code shown as typed is text
+        const visLen = prefixW + strUtil.renderStringLength(renderedText, AS_TYPED);
         const fillCount = Math.max(0, this.dimens.width - visLen);
         const fill = fillCount > 0 ? this.getFocusSGR() + ' '.repeat(fillCount) : '';
 
@@ -255,8 +197,11 @@ class EditTextView extends TextView {
         }
     }
 
+    //  The scroll offset is worked out again whenever the expand/collapse
+    //  state changes: a code shown as typed takes three columns.
     _collapsePipeCodes() {
         this._ensureCollapsed();
+        this._scrollOffset = this._computeScrollOffset();
         this._atomicLineWrite();
     }
 
@@ -270,6 +215,7 @@ class EditTextView extends TextView {
             clearTimeout(this._pipeTimer);
             this._pipeTimer = null;
         }
+        this._scrollOffset = this._computeScrollOffset();
         this._atomicLineWrite();
     }
 
@@ -294,7 +240,6 @@ class EditTextView extends TextView {
     //  expanded form; otherwise falls back to a normal redraw.
     _redrawAfterEdit() {
         this._syncFromBuffer();
-        this._scrollOffset = this._computeScrollOffset();
 
         if (this.itemFormat && this._hasPipeCodes(this.lineBuffer.lines[0].chars)) {
             if (
@@ -303,13 +248,15 @@ class EditTextView extends TextView {
                     this.cursorPos.col
                 )
             ) {
-                this._expandNear();
+                this._expandNear(); //  works the scroll offset out
             } else {
                 this._ensureCollapsed();
+                this._scrollOffset = this._computeScrollOffset();
                 this._atomicLineWrite();
             }
         } else {
             this._ensureCollapsed();
+            this._scrollOffset = this._computeScrollOffset();
             this.redraw();
             this._repositionCursor();
         }
@@ -327,16 +274,38 @@ class EditTextView extends TextView {
         return this.itemFormat ? EDITOR_TEXT : AS_TYPED;
     }
 
+    //  The text as the live preview lays it out. In expanded mode the code
+    //  shown as typed takes three columns: its '|' is swapped for a character
+    //  that starts no code, so it measures as text and every index still
+    //  points at the same character.
+    _previewChars(chars) {
+        const near = this._pipeNearIndex;
+        if (
+            this.itemFormat &&
+            this._pipeExpanded &&
+            near >= 0 &&
+            colorCodeAt(chars, near) >= 0
+        ) {
+            return chars.slice(0, near) + '#' + chars.slice(near + 1);
+        }
+        return chars;
+    }
+
     //  Maps a buffer column (string index into the text) to the terminal display
     //  column, skipping collapsed pipe codes (0 display width) and accumulating
     //  display widths for wide Unicode characters (CJK, Hangul, fullwidth forms).
+    //  In expanded mode the code shown as typed counts its three columns.
     _bufferToDisplayCol(bufferCol) {
-        const chars = this.lineBuffer.lines[0]?.chars ?? '';
+        const chars = this._previewChars(this.lineBuffer.lines[0]?.chars ?? '');
         let dispCol = 0;
         let i = 0;
         while (i < bufferCol && i < chars.length) {
-            if (this.itemFormat && isPipeCode(chars, i)) {
+            const c = chars.charCodeAt(i);
+            if (124 === c && this.itemFormat && colorCodeAt(chars, i) >= 0) {
                 i += 3; //  pipe codes: 0 display width in collapsed mode
+            } else if (c >= 0x20 && c < 0x7f) {
+                dispCol += 1; //  printable ASCII: one column, no allocation
+                i += 1;
             } else {
                 const cp = chars.codePointAt(i);
                 const ch = String.fromCodePoint(cp);
@@ -352,7 +321,15 @@ class EditTextView extends TextView {
     //  All boundary comparisons are in display columns; the return value is a
     //  buffer index so buffer operations (insertChar, deleteChar) remain correct.
     _computeScrollOffset() {
-        const chars = this.lineBuffer.lines[0].chars;
+        const raw = this.lineBuffer.lines[0].chars;
+        const chars = this._previewChars(raw);
+        const off = this._scrollOffsetIn(chars);
+        //  The window never starts inside the code shown as typed
+        const near = this._pipeNearIndex;
+        return chars !== raw && off > near && off < near + 3 ? near + 3 : off;
+    }
+
+    _scrollOffsetIn(chars) {
         const textDisplayLen = strUtil.renderStringLength(chars, this._measure());
         if (textDisplayLen <= this.dimens.width) return 0;
 
@@ -372,14 +349,32 @@ class EditTextView extends TextView {
                 this._measure()
             );
         }
-        //  Cursor still visible — clamp offset to valid buffer index
+        //  Cursor still visible — clamp offset to valid buffer index. The
+        //  window starts no earlier than maxOffDisplay, so the end of the text
+        //  (and a cursor there) stays in view; with a wide character on that
+        //  column, after it. Where both branches land on a wide character they
+        //  then agree, so a redraw draws what the last write drew.
         const maxOffDisplay = textDisplayLen - this.dimens.width;
-        const maxOffBuffer = strUtil.renderSplitPos(
-            chars,
-            maxOffDisplay,
-            this._measure()
-        );
-        return Math.min(cur, maxOffBuffer);
+        return Math.min(cur, this._bufferIndexFrom(chars, maxOffDisplay));
+    }
+
+    //  The buffer index where display column |col| starts. When a wide
+    //  character straddles |col| it is the index after that character (not
+    //  before it, as splitPos() gives), so a window starting there keeps every
+    //  column from |col| on in view.
+    _bufferIndexFrom(chars, col) {
+        const i = strUtil.renderSplitPos(chars, col, this._measure());
+        if (i >= chars.length) {
+            return i;
+        }
+        const ch = String.fromCodePoint(chars.codePointAt(i));
+        if (
+            strUtil.charDisplayWidth(ch) < 2 ||
+            strUtil.renderStringLength(chars.slice(0, i), this._measure()) >= col
+        ) {
+            return i;
+        }
+        return i + ch.length;
     }
 
     //  Move the terminal cursor to match cursorPos.col within the scroll window
@@ -399,6 +394,14 @@ class EditTextView extends TextView {
     //  Override drawText to apply our managed scroll offset instead of
     //  TextView's default "always show last N chars" horizScroll behaviour.
     drawText(s) {
+        //  A redraw renders through the itemFormat, which draws every code as
+        //  its colour: a code shown as typed collapses first, so the scroll
+        //  offset, the cells drawn and the cursor agree with what the live
+        //  write draws collapsed. (A just-typed code stays shown until the
+        //  next key; a redraw, such as sysop chat's, ends that early.)
+        if (this._pipeExpanded) {
+            this._ensureCollapsed();
+        }
         if (
             this.hasFocus &&
             this.lineBuffer &&
@@ -412,6 +415,12 @@ class EditTextView extends TextView {
             );
         }
         super.drawText(s);
+    }
+
+    //  this.text is the raw typed text: the live preview draws its |## codes
+    //  as colour and every other pipe as typed, as the live write does.
+    _formatValue(s) {
+        return PipeCodes.escape(PipeCodes.render(s, EDITOR_TEXT));
     }
 
     //  Override _positionCursor to place cursor at cursorPos.col instead of end-of-text.
