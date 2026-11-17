@@ -1070,6 +1070,56 @@ describe('v86_door', () => {
                 }
             });
 
+            //  an idle image whose last write failed, with no session left
+            async function dirtyIdleImage() {
+                const dir = fs.mkdtempSync(path.join(tmpDir, 'shutdirty_'));
+                const p = path.join(dir, 'door.img');
+                fs.writeFileSync(p, Buffer.alloc(16));
+                const entry = await acquireImage(p);
+                new Uint8Array(entry.sab)[3] = 0x33;
+                fs.renameSync(p, p + '.away');
+                const r = await flushImage(entry);
+                assert.equal(r.ok, false);
+                await releaseImage(entry);
+                assert.ok(isIdle(p) && entry.dirty);
+                return { p, entry };
+            }
+
+            it('writes an idle image whose last write failed, and says so', async () => {
+                const { p, entry } = await dirtyIdleImage();
+                try {
+                    fs.renameSync(p + '.away', p);
+                    const log = quietLog();
+                    await new Promise(resolve =>
+                        shutdown(resolve, { timeoutMs: 2000, log })
+                    );
+                    assert.equal(fs.readFileSync(p)[3], 0x33);
+                    assert.equal(entry.dirty, false);
+                    const line = log.lines.find(l => /at shutdown/.test(l.msg));
+                    assert.equal(line.level, 'info');
+                    assert.match(line.msg, /1 images flushed, 0 not/);
+                    assert.deepEqual(line.obj.flushed, [p]);
+                } finally {
+                    forgetImage(p);
+                }
+            });
+
+            it('reports an idle image whose write fails again as not flushed', async () => {
+                const { p } = await dirtyIdleImage();
+                try {
+                    const log = quietLog();
+                    await new Promise(resolve =>
+                        shutdown(resolve, { timeoutMs: 2000, log })
+                    );
+                    const line = log.lines.find(l => /at shutdown/.test(l.msg));
+                    assert.equal(line.level, 'warn');
+                    assert.match(line.msg, /0 images flushed, 1 not/);
+                    assert.equal(line.obj.notFlushed[0].image, p);
+                } finally {
+                    forgetImage(p);
+                }
+            });
+
             it('clears idle timers', async () => {
                 const m = await startRunning({ name, image: img });
                 hangUp(m.client);

@@ -368,7 +368,8 @@ function clearIdleTimers() {
 //
 //  Server shutdown (bbs.js shutdownSystem, after the callers have been
 //  disconnected): end every session still running and wait, at most
-//  |timeoutMs|, for each one's image flush. Best effort: what has not been
+//  |timeoutMs|, for each one's image flush, and try once more to write
+//  every idle image whose last write failed. Best effort: what has not been
 //  flushed by then is logged. Calls back without an error, always.
 //
 function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
@@ -380,11 +381,19 @@ function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
         p.hurry();
     }
     const sessions = [...runningSessions];
-    if (0 === sessions.length) {
+    //  no session will write these: their writes would be lost on exit
+    const dirtyIdle = [...imageRegistry.values()].filter(
+        e => 0 === e.refs && e.dirty && e.sab
+    );
+    if (0 === sessions.length && 0 === dirtyIdle.length) {
         return cb(null);
     }
     log = log || require('../logger.js').log;
     const t0 = Date.now();
+    const idleResults = new Map();
+    const idleFlushes = dirtyIdle.map(entry =>
+        flushImage(entry, log).then(r => idleResults.set(entry.path, r))
+    );
 
     for (const s of sessions) {
         try {
@@ -406,17 +415,21 @@ function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
 
         //  by image: sessions on the same image share its flushes
         const images = new Map();
-        for (const s of sessions) {
-            const run = s._run;
-            if (!run.image) {
-                continue; //  never got as far as the image
-            }
-            const was = images.get(run.image.path);
-            const r = run.flushResult;
+        const note = (image, r) => {
+            const was = images.get(image);
             const now = r ? (r.ok ? 'ok' : r.error) : 'not finished';
             if (!was || 'ok' === was) {
-                images.set(run.image.path, now);
+                images.set(image, now);
             }
+        };
+        for (const s of sessions) {
+            const run = s._run;
+            if (run.image) {
+                note(run.image.path, run.flushResult);
+            }
+        }
+        for (const entry of dirtyIdle) {
+            note(entry.path, idleResults.get(entry.path));
         }
         const flushed = [];
         const notFlushed = [];
@@ -436,7 +449,7 @@ function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
     };
 
     timer = setTimeout(report, timeoutMs);
-    Promise.all(sessions.map(s => s._run.settled)).then(report);
+    Promise.all([...sessions.map(s => s._run.settled), ...idleFlushes]).then(report);
 }
 
 exports.moduleInfo = {
