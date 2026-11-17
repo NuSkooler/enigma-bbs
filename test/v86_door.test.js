@@ -439,6 +439,94 @@ describe('v86_door', () => {
             }
         });
 
+        it('the idle timer does not hold the process open', async () => {
+            const a = await acquireImage(tmpPath);
+            await releaseImage(a);
+            assert.ok(isIdle(tmpPath));
+            assert.equal(a.idleTimer.hasRef(), false);
+        });
+
+        it('a reuse waits for the last write before checking the file', async () => {
+            const a = await acquireImage(tmpPath);
+            new Uint8Array(a.sab)[2] = 0x22;
+            const realOpen = fs.promises.open;
+            let syncGate;
+            const gate = new Promise(resolve => (syncGate = resolve));
+            let syncing = false;
+            const opens = { r: 0 };
+            fs.promises.open = async (p, flags) => {
+                const fh = await realOpen(p, flags);
+                if ('r' === flags) {
+                    opens.r += 1;
+                }
+                if ('r+' === flags) {
+                    //  the data is on disk (the mtime has moved) but the
+                    //  write has not finished
+                    const sync = fh.sync.bind(fh);
+                    fh.sync = async () => {
+                        syncing = true;
+                        await gate;
+                        return sync();
+                    };
+                }
+                return fh;
+            };
+            try {
+                const flushing = flushImage(a);
+                await waitFor(() => syncing, 'the write to reach sync');
+                //  the last session is out (its release waits for the write)
+                const released = releaseImage(a);
+                assert.equal(a.refs, 0);
+                const acquiring = acquireImage(tmpPath);
+                await tick();
+                syncGate();
+                const b = await acquiring;
+                await flushing;
+                await released;
+                assert.equal(b.sab, a.sab);
+                assert.equal(opens.r, 0, 'not read again: its own write is not a change');
+                assert.equal(b.mtimeMs, fs.statSync(tmpPath).mtimeMs);
+            } finally {
+                syncGate();
+                fs.promises.open = realOpen;
+            }
+        });
+
+        it('a change of size alone, same mtime, is read in', async () => {
+            const when = new Date(1700000000 * 1000);
+            fs.utimesSync(tmpPath, when, when);
+            const a = await acquireImage(tmpPath);
+            assert.equal(a.mtimeMs, when.getTime());
+            await releaseImage(a);
+            changeOnDisk(tmpPath, 280, 0x44, 300);
+            fs.utimesSync(tmpPath, when, when);
+            assert.equal(fs.statSync(tmpPath).mtimeMs, a.mtimeMs, 'same mtime');
+            const b = await acquireImage(tmpPath);
+            assert.equal(b.size, 300);
+            assert.equal(new Uint8Array(b.sab)[280], 0x44);
+        });
+
+        it('a dirty entry whose file cannot be checked keeps its contents', async () => {
+            const log = quietLog();
+            const dir = fs.mkdtempSync(path.join(tmpDir, 'nostat_'));
+            const p = path.join(dir, 'door.img');
+            fs.writeFileSync(p, Buffer.alloc(16));
+            try {
+                const a = await acquireImage(p, log);
+                new Uint8Array(a.sab)[4] = 0x44;
+                fs.renameSync(p, p + '.away');
+                assert.equal((await flushImage(a, log)).ok, false);
+                await releaseImage(a);
+                //  still gone: the check on reuse fails
+                const b = await acquireImage(p, log);
+                assert.equal(b, a);
+                assert.equal(new Uint8Array(b.sab)[4], 0x44);
+                assert.equal(b.refs, 1);
+            } finally {
+                forgetImage(p);
+            }
+        });
+
         it('the idle timer does not drop an entry whose refs came back', async () => {
             //  the guard itself, should a timer fire while the entry is in use
             const savedIdleMs = Timeouts.imageIdleMs;
