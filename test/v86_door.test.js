@@ -555,6 +555,25 @@ describe('v86_door', () => {
             }
         });
 
+        it('a write that makes no progress fails rather than looping', async () => {
+            const realOpen = fs.promises.open;
+            fs.promises.open = async (p, flags) => {
+                const fh = await realOpen(p, flags);
+                if ('r+' === flags) {
+                    fh.write = async () => ({ bytesWritten: 0 });
+                }
+                return fh;
+            };
+            try {
+                const r = await flushImage(entry, quietLog());
+                assert.equal(r.ok, false);
+                assert.match(r.error, /short write/);
+                assert.equal(entry.dirty, true);
+            } finally {
+                fs.promises.open = realOpen;
+            }
+        });
+
         it('a failed flush is logged and does not keep later ones from landing', async () => {
             const log = quietLog();
             const dir = fs.mkdtempSync(path.join(tmpDir, 'gone_'));
