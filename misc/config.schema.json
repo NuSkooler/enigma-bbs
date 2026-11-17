@@ -2018,8 +2018,11 @@
                                     "additionalProperties": false
                                 },
                                 "pullSchedule": {
-                                    "description": "When to poll uplinks for waiting mail, in the same syntax as eventScheduler.",
-                                    "type": "string",
+                                    "description": "When to poll uplinks for waiting mail, in the same syntax as eventScheduler; null or \"\" for never.",
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
                                     "default": "every 15 minutes"
                                 },
                                 "crashmailDebounceMs": {

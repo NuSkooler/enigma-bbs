@@ -166,6 +166,27 @@ describe('config validation: false positives', () => {
         assert.deepEqual(issues, []);
     });
 
+    it('accepts every documented way to turn the BinkP pull cycle off (#1041)', () => {
+        for (const pullSchedule of [null, '']) {
+            const issues = validate({
+                scannerTossers: { ftn_bso: { binkp: { pullSchedule } } },
+            });
+
+            assert.deepEqual(issues, [], `pullSchedule: ${JSON.stringify(pullSchedule)}`);
+        }
+    });
+
+    it('still rejects a BinkP pullSchedule that is not a string', () => {
+        const issues = validate({
+            scannerTossers: { ftn_bso: { binkp: { pullSchedule: 15 } } },
+        });
+
+        assert.deepEqual(
+            issues.map(i => `${i.path}:${i.code}`),
+            ['scannerTossers.ftn_bso.binkp.pullSchedule:typeMismatch']
+        );
+    });
+
     it('leaves an underscore-prefixed block alone', () => {
         //  "_snips" is a long standing convention for fragments that
         //  @reference: points at -- scratch space, not configuration
