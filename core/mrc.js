@@ -5,6 +5,7 @@
 const Log = require('./logger.js').log;
 const { MenuModule } = require('./menu_module.js');
 const { pipeToAnsi } = require('./color_codes.js');
+const { colorCodeAt } = require('./pipe_codes.js');
 const stringFormat = require('./string_format.js');
 const StringUtil = require('./string_util.js');
 const Config = require('./config.js').get;
@@ -78,6 +79,24 @@ const helpText = `
 |03/|11set |03<option> <value>      |08- |07Personalise your MRC experience |08(/set help)
 |03/|11ctcp |03<target> <command>   |08- |07Send a CTCP request |08(/ctcp help)
 `;
+
+//  /rainbow lines are cut at 140 characters (codes included), backing off
+//  to the start of a |## code the cut would split: a receiver shows half a
+//  code ('|0') as text.
+const RainbowMaxChars = 140;
+
+function cutRainbowLine(line) {
+    if (line.length <= RainbowMaxChars) {
+        return line;
+    }
+    let cut = RainbowMaxChars;
+    if (colorCodeAt(line, cut - 2) >= 0) {
+        cut -= 2;
+    } else if (colorCodeAt(line, cut - 1) >= 0) {
+        cut -= 1;
+    }
+    return line.slice(0, cut);
+}
 
 exports.getModule = class mrcModule extends MenuModule {
     constructor(options) {
@@ -881,11 +900,9 @@ exports.getModule = class mrcModule extends MenuModule {
                             .padStart(2, '0');
                         a += `|${cc}${c}|00 `;
                         return a;
-                    }, '')
-                    .substr(0, 140)
-                    .replace(/\\s\|\d*$/, '');
+                    }, '');
 
-                this.processOutgoingMessage(line);
+                this.processOutgoingMessage(cutRainbowLine(line));
                 break;
             }
 
