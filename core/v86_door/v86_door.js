@@ -71,6 +71,8 @@ const Timeouts = {
     terminateMs: 5 * 1000,
     //  how long a server shutdown waits for session-end image flushes
     shutdownFlushMs: 5 * 1000,
+    //  how long an image no session uses is kept in memory
+    imageIdleMs: 10 * 60 * 1000,
 };
 
 //  An image is read and written in pieces of this size, so that a large one
@@ -80,7 +82,9 @@ const ImageChunkBytes = 16 * 1024 * 1024;
 // ─── SAB image registry ───────────────────────────────────────────────────────
 // Maps imagePath → {
 //   path, sab: SharedArrayBuffer, refs, ready: Promise<SharedArrayBuffer>,
-//   flushQueue: Promise (never rejects), flushPending: Promise | null
+//   mtimeMs, size: the file as last read or written,
+//   dirty: the last flush failed, so the SAB holds writes the file does not,
+//   idleTimer, flushQueue: Promise (never rejects), flushPending: Promise | null
 // }
 //
 // All concurrent sessions for the same image path share one SAB. Guest writes go
@@ -91,10 +95,13 @@ const ImageChunkBytes = 16 * 1024 * 1024;
 // ENIGLOCK.COM TSR approach (Option C) if real-world corruption is observed.
 //
 // Each session holds a reference from acquireImage() until its flush at session
-// end has landed (releaseImage()). The last one out drops the entry, so the
-// image's memory is given back while the door is idle, and an image changed on
-// disk while no session uses it (oputil v86 console/desktop) is read afresh by
-// the next session instead of being overwritten by it.
+// end has landed (releaseImage()). When the last one is out the entry stays,
+// idle, for Timeouts.imageIdleMs, and the next session reuses its SAB. Before
+// it does, the file is checked: one changed on disk meanwhile (oputil v86
+// console/desktop) is read again, into the same SAB if the size is unchanged,
+// so that the change is not overwritten by the next flush. An entry whose last
+// flush failed (dirty) keeps what the guests wrote over any change on disk,
+// and is never dropped: the next session's flush tries the write again.
 //
 // flushQueue serializes SAB → disk writes so two exiting sessions never write
 // the same path at the same time. At most one flush runs and one waits: a
@@ -102,11 +109,17 @@ const ImageChunkBytes = 16 * 1024 * 1024;
 // reads the SAB only when it starts.
 const imageRegistry = new Map();
 
-async function readImage(imagePath) {
+//
+//  Read the file into |sab| if it is the file's size, else into a new one.
+//  Resolves with { sab, mtimeMs, size }.
+//
+async function readImage(imagePath, sab = null) {
     const fh = await fsp.open(imagePath, 'r');
     try {
-        const { size } = await fh.stat();
-        const sab = new SharedArrayBuffer(size);
+        const { size, mtimeMs } = await fh.stat();
+        if (!sab || sab.byteLength !== size) {
+            sab = new SharedArrayBuffer(size);
+        }
         let offset = 0;
         while (offset < size) {
             const length = Math.min(ImageChunkBytes, size - offset);
@@ -121,7 +134,7 @@ async function readImage(imagePath) {
             }
             offset += bytesRead;
         }
-        return sab;
+        return { sab, mtimeMs, size };
     } finally {
         await fh.close();
     }
@@ -132,7 +145,7 @@ async function readImage(imagePath) {
 //  is cut short (the process killed mid-flush) leaves a full-size image with
 //  a mix of old and new sectors rather than a short one, and the file keeps
 //  its inode, links, ownership and permissions, and works as a single-file
-//  bind mount.
+//  bind mount. Resolves with the file's { mtimeMs, size } once written.
 //
 async function writeImage(imagePath, sab) {
     const fh = await fsp.open(imagePath, 'r+');
@@ -148,33 +161,81 @@ async function writeImage(imagePath, sab) {
     } finally {
         await fh.close();
     }
+    const { mtimeMs, size } = await fsp.stat(imagePath);
+    return { mtimeMs, size };
+}
+
+function setLoaded(entry, { sab, mtimeMs, size }) {
+    entry.sab = sab;
+    entry.mtimeMs = mtimeMs;
+    entry.size = size;
+    return sab;
+}
+
+//
+//  An idle entry is about to be used again: read the file again if it has
+//  changed on disk since it was last read or written, unless the entry holds
+//  writes the file does not (dirty), which win.
+//
+async function refreshImage(entry, log) {
+    const { mtimeMs, size } = await fsp.stat(entry.path);
+    if (mtimeMs === entry.mtimeMs && size === entry.size) {
+        return entry.sab;
+    }
+    if (entry.dirty) {
+        (log || require('../logger.js').log).warn(
+            { image: entry.path },
+            'v86 door image changed on disk while a failed write was pending; keeping the image in memory, which the next write puts back'
+        );
+        return entry.sab;
+    }
+    return setLoaded(entry, await readImage(entry.path, entry.sab));
+}
+
+function clearIdleTimer(entry) {
+    if (entry.idleTimer) {
+        clearTimeout(entry.idleTimer);
+        entry.idleTimer = null;
+    }
 }
 
 //  Take a reference on |imagePath|'s entry, loading the image on first use.
 //  Resolves with the entry; rejects (holding no reference) if it cannot load.
-function acquireImage(imagePath) {
+function acquireImage(imagePath, log) {
     let entry = imageRegistry.get(imagePath);
+    const forget = err => {
+        if (imageRegistry.get(imagePath) === entry) {
+            imageRegistry.delete(imagePath);
+        }
+        throw err;
+    };
     if (!entry) {
         entry = {
             path: imagePath,
             sab: null,
             refs: 0,
+            mtimeMs: null,
+            size: null,
+            dirty: false,
+            idleTimer: null,
             flushQueue: Promise.resolve(),
             flushPending: null,
         };
-        entry.ready = readImage(imagePath).then(
-            sab => {
-                entry.sab = sab;
-                return sab;
-            },
-            err => {
-                if (imageRegistry.get(imagePath) === entry) {
-                    imageRegistry.delete(imagePath);
-                }
-                throw err;
-            }
-        );
+        entry.ready = readImage(imagePath).then(r => setLoaded(entry, r), forget);
         imageRegistry.set(imagePath, entry);
+    } else if (0 === entry.refs) {
+        //  idle: whoever comes next while this runs shares it
+        clearIdleTimer(entry);
+        entry.ready = entry.flushQueue
+            .then(() => refreshImage(entry, log))
+            .catch(err => {
+                if (entry.dirty) {
+                    //  the file cannot be checked; what is in memory is
+                    //  what the next write puts back
+                    return entry.sab;
+                }
+                return forget(err);
+            });
     }
     entry.refs += 1;
     return entry.ready.then(
@@ -186,23 +247,37 @@ function acquireImage(imagePath) {
     );
 }
 
-//  Drop a reference; the last one drops the entry once its flushes are done
+//  Drop a reference. Once the last is gone and its flush is done the entry
+//  is idle; it is dropped after Timeouts.imageIdleMs unless it is dirty or
+//  in use again by then.
 function releaseImage(entry) {
     entry.refs = Math.max(0, entry.refs - 1);
     if (entry.refs > 0) {
         return Promise.resolve();
     }
     return entry.flushQueue.then(() => {
-        if (0 === entry.refs && imageRegistry.get(entry.path) === entry) {
-            imageRegistry.delete(entry.path);
+        if (0 !== entry.refs || imageRegistry.get(entry.path) !== entry) {
+            return;
         }
+        clearIdleTimer(entry);
+        entry.idleTimer = setTimeout(() => {
+            entry.idleTimer = null;
+            if (
+                0 === entry.refs &&
+                !entry.dirty &&
+                imageRegistry.get(entry.path) === entry
+            ) {
+                imageRegistry.delete(entry.path);
+            }
+        }, Timeouts.imageIdleMs);
+        entry.idleTimer.unref();
     });
 }
 
 //
 //  Queue a write of |entry|'s SAB to its file. Resolves with { ok, error }
-//  and never rejects: a failed flush is logged, and does not keep later ones
-//  from running.
+//  and never rejects: a failed flush is logged, marks the entry dirty, and
+//  does not keep later ones from running.
 //
 function flushImage(entry, log) {
     if (!entry || !entry.sab) {
@@ -218,12 +293,18 @@ function flushImage(entry, log) {
             return writeImage(entry.path, entry.sab);
         })
         .then(
-            () => ({ ok: true }),
+            ({ mtimeMs, size }) => {
+                entry.mtimeMs = mtimeMs;
+                entry.size = size;
+                entry.dirty = false;
+                return { ok: true };
+            },
             err => {
+                entry.dirty = true;
                 if (log) {
                     log.warn(
                         { image: entry.path, error: err.message },
-                        'v86 door image flush failed; what the guest wrote since the last flush is not on disk'
+                        'v86 door image flush failed; what the guest wrote since the last flush is not on disk yet (kept in memory and written at the next session end)'
                     );
                 }
                 return { ok: false, error: err.message };
@@ -253,6 +334,13 @@ function terminateWorker(worker, ms) {
     });
 }
 
+//  so that no idle image's timer is left behind at shutdown
+function clearIdleTimers() {
+    for (const entry of imageRegistry.values()) {
+        clearIdleTimer(entry);
+    }
+}
+
 //
 //  Server shutdown (bbs.js shutdownSystem, after the callers have been
 //  disconnected): end every session still running and wait, at most
@@ -260,6 +348,7 @@ function terminateWorker(worker, ms) {
 //  flushed by then is logged. Calls back without an error, always.
 //
 function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
+    clearIdleTimers();
     const sessions = [...runningSessions];
     if (0 === sessions.length) {
         return cb(null);
@@ -283,6 +372,7 @@ function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
         }
         reported = true;
         clearTimeout(timer);
+        clearIdleTimers();
 
         //  by image: sessions on the same image share its flushes
         const images = new Map();
@@ -505,7 +595,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     );
 
                     //  Load (or reuse) the SAB-backed disk image for this session
-                    acquireImage(self.config.image).then(
+                    acquireImage(self.config.image, self.client.log).then(
                         entry => {
                             run.image = entry;
                             setImmediate(() => callback(null));

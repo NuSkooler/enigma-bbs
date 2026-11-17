@@ -193,6 +193,44 @@ async function settled(m) {
     await m._run.settled;
 }
 
+//  drop an image's entry, idle timer and all
+function forgetImage(p) {
+    const entry = imageRegistry.get(p);
+    if (entry && entry.idleTimer) {
+        clearTimeout(entry.idleTimer);
+    }
+    imageRegistry.delete(p);
+}
+
+//  kept in memory with no session using it, waiting out its idle time
+function isIdle(p) {
+    const entry = imageRegistry.get(p);
+    return !!entry && 0 === entry.refs && !!entry.idleTimer;
+}
+
+//  count the opens of image files, by flags
+function countOpens() {
+    const realOpen = fs.promises.open;
+    const counts = { r: 0, 'r+': 0 };
+    fs.promises.open = async (p, flags) => {
+        counts[flags] = (counts[flags] || 0) + 1;
+        return realOpen(p, flags);
+    };
+    counts.restore = () => (fs.promises.open = realOpen);
+    return counts;
+}
+
+//  rewrite a file with its byte |at| set to |value|, and a later mtime
+function changeOnDisk(p, at, value, size) {
+    const data = fs.readFileSync(p);
+    const out = Buffer.alloc(size || data.length);
+    data.copy(out, 0, 0, Math.min(data.length, out.length));
+    out[at] = value;
+    fs.writeFileSync(p, out);
+    const later = new Date(Date.now() + 5000);
+    fs.utimesSync(p, later, later);
+}
+
 describe('v86_door', () => {
     before(() => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'v86_test_'));
@@ -225,7 +263,7 @@ describe('v86_door', () => {
         });
 
         afterEach(() => {
-            imageRegistry.delete(tmpPath);
+            forgetImage(tmpPath);
         });
 
         it('acquireImage loads the file into a SharedArrayBuffer', async () => {
@@ -264,22 +302,157 @@ describe('v86_door', () => {
             assert.equal(imageRegistry.has(dir), false);
         });
 
-        it('the last release drops the entry; the next acquire reads the file again', async () => {
+        it('the last release keeps the entry idle; the next acquire reuses its SAB', async () => {
             const a = await acquireImage(tmpPath);
             const b = await acquireImage(tmpPath);
             await releaseImage(a);
             assert.equal(imageRegistry.get(tmpPath), b, 'still held by the second');
+            assert.equal(isIdle(tmpPath), false);
 
             await releaseImage(b);
-            assert.equal(imageRegistry.has(tmpPath), false);
+            assert.ok(isIdle(tmpPath));
 
-            //  changed on disk while nothing held it (as oputil v86 does)
-            const changed = fs.readFileSync(tmpPath);
-            changed[0] = 0x77;
-            fs.writeFileSync(tmpPath, changed);
-            const c = await acquireImage(tmpPath);
-            assert.notEqual(c, a);
-            assert.equal(new Uint8Array(c.sab)[0], 0x77);
+            const opens = countOpens();
+            try {
+                const c = await acquireImage(tmpPath);
+                assert.equal(c, a);
+                assert.equal(c.sab, a.sab, 'the same buffer');
+                assert.equal(c.idleTimer, null, 'the idle timer is cancelled');
+                assert.equal(opens.r, 0, 'an unchanged file is not read again');
+            } finally {
+                opens.restore();
+            }
+        });
+
+        it('a change on disk while idle, same size, is read into the same SAB', async () => {
+            const a = await acquireImage(tmpPath);
+            const sab = a.sab;
+            await releaseImage(a);
+            changeOnDisk(tmpPath, 0, 0x77);
+            const b = await acquireImage(tmpPath);
+            assert.equal(b.sab, sab, 'no new buffer');
+            assert.equal(new Uint8Array(b.sab)[0], 0x77);
+            assert.equal(b.mtimeMs, fs.statSync(tmpPath).mtimeMs);
+        });
+
+        it('a change on disk while idle, new size, gets a new SAB', async () => {
+            const a = await acquireImage(tmpPath);
+            const sab = a.sab;
+            await releaseImage(a);
+            changeOnDisk(tmpPath, 300, 0x66, 512);
+            const b = await acquireImage(tmpPath);
+            assert.notEqual(b.sab, sab);
+            assert.equal(b.sab.byteLength, 512);
+            assert.equal(new Uint8Array(b.sab)[300], 0x66);
+            assert.equal(b.size, 512);
+        });
+
+        it('two acquires of an idle, changed file share one reload', async () => {
+            const a = await acquireImage(tmpPath);
+            await releaseImage(a);
+            changeOnDisk(tmpPath, 1, 0x55);
+            const opens = countOpens();
+            try {
+                const [b, c] = await Promise.all([
+                    acquireImage(tmpPath),
+                    acquireImage(tmpPath),
+                ]);
+                assert.equal(b, c);
+                assert.equal(b.refs, 2);
+                assert.equal(opens.r, 1, 'read once');
+                assert.equal(new Uint8Array(b.sab)[1], 0x55);
+            } finally {
+                opens.restore();
+            }
+        });
+
+        it('a failed flush leaves the entry dirty: kept, its writes win, a later flush clears it', async () => {
+            const log = quietLog();
+            const dir = fs.mkdtempSync(path.join(tmpDir, 'dirty_'));
+            const p = path.join(dir, 'door.img');
+            fs.writeFileSync(p, Buffer.alloc(16));
+            const savedIdleMs = Timeouts.imageIdleMs;
+            try {
+                const a = await acquireImage(p, log);
+                new Uint8Array(a.sab)[0] = 0x11;
+                fs.chmodSync(p, 0o444);
+                fs.renameSync(p, p + '.away'); //  the write cannot open it
+                const r = await flushImage(a, log);
+                assert.equal(r.ok, false);
+                assert.equal(a.dirty, true);
+
+                //  the idle timer leaves a dirty entry alone
+                Timeouts.imageIdleMs = 5;
+                await releaseImage(a);
+                await new Promise(resolve => setTimeout(resolve, 30));
+                assert.equal(imageRegistry.get(p), a, 'a dirty entry is not dropped');
+
+                //  meanwhile the file comes back, changed
+                fs.renameSync(p + '.away', p);
+                fs.chmodSync(p, 0o644);
+                changeOnDisk(p, 0, 0x99);
+
+                const b = await acquireImage(p, log);
+                assert.equal(b, a);
+                assert.equal(new Uint8Array(b.sab)[0], 0x11, "the guest's write wins");
+                assert.ok(
+                    log.lines.some(
+                        l => 'warn' === l.level && /changed on disk/.test(l.msg)
+                    )
+                );
+
+                //  the next session end writes it, and the entry is clean
+                const r2 = await flushImage(b, log);
+                assert.deepEqual(r2, { ok: true });
+                assert.equal(b.dirty, false);
+                assert.equal(fs.readFileSync(p)[0], 0x11);
+                assert.equal(b.mtimeMs, fs.statSync(p).mtimeMs);
+            } finally {
+                Timeouts.imageIdleMs = savedIdleMs;
+                forgetImage(p);
+            }
+        });
+
+        it('the idle timer drops a clean entry, not one in use again', async () => {
+            const savedIdleMs = Timeouts.imageIdleMs;
+            Timeouts.imageIdleMs = 5;
+            try {
+                const a = await acquireImage(tmpPath);
+                await releaseImage(a);
+                const b = await acquireImage(tmpPath);
+                await new Promise(resolve => setTimeout(resolve, 30));
+                assert.equal(imageRegistry.get(tmpPath), b, 'in use: kept');
+
+                await releaseImage(b);
+                assert.ok(isIdle(tmpPath));
+                await new Promise(resolve => setTimeout(resolve, 30));
+                assert.equal(
+                    imageRegistry.has(tmpPath),
+                    false,
+                    'idle and clean: dropped'
+                );
+
+                const c = await acquireImage(tmpPath);
+                assert.notEqual(c, a, 'loaded afresh');
+            } finally {
+                Timeouts.imageIdleMs = savedIdleMs;
+            }
+        });
+
+        it('the idle timer does not drop an entry whose refs came back', async () => {
+            //  the guard itself, should a timer fire while the entry is in use
+            const savedIdleMs = Timeouts.imageIdleMs;
+            Timeouts.imageIdleMs = 5;
+            try {
+                const a = await acquireImage(tmpPath);
+                await releaseImage(a);
+                a.refs = 1; //  in use, without acquire() cancelling the timer
+                await new Promise(resolve => setTimeout(resolve, 30));
+                assert.equal(imageRegistry.get(tmpPath), a);
+                a.refs = 0;
+            } finally {
+                Timeouts.imageIdleMs = savedIdleMs;
+            }
         });
 
         it('an acquire while the last flush is in flight reuses the entry', async () => {
@@ -308,7 +481,7 @@ describe('v86_door', () => {
         });
 
         afterEach(() => {
-            imageRegistry.delete(tmpPath);
+            forgetImage(tmpPath);
         });
 
         it('writes SAB contents back to disk', async () => {
@@ -404,7 +577,7 @@ describe('v86_door', () => {
                 assert.deepEqual(r2, { ok: true });
                 assert.equal(fs.readFileSync(p)[0], 2);
             } finally {
-                imageRegistry.delete(p);
+                forgetImage(p);
             }
         });
     });
@@ -426,7 +599,7 @@ describe('v86_door', () => {
         afterEach(() => {
             Timeouts.terminateMs = savedTerminateMs;
             assert.equal(runningSessions.size, 0, 'no session left running');
-            imageRegistry.delete(img);
+            forgetImage(img);
         });
 
         it('hangups free the slot: nodeMax + 1 hangups, then the door still starts', async () => {
@@ -462,7 +635,7 @@ describe('v86_door', () => {
             await settled(m);
             assert.equal(fs.readFileSync(img)[3], 0xee);
             assert.equal(wentBack, false);
-            assert.equal(imageRegistry.has(img), false, 'released and dropped');
+            assert.ok(isIdle(img), 'released, kept idle');
         });
 
         it('the flush waits for the worker to stop', async () => {
@@ -550,10 +723,10 @@ describe('v86_door', () => {
             await settled(b);
             assert.equal(activeDoorInstances[name], 0);
             assert.equal(trackEnds.length, 2);
-            assert.equal(imageRegistry.has(img), false);
+            assert.ok(isIdle(img));
         });
 
-        it('two concurrent sessions: eviction only after the last ends and its flush lands', async () => {
+        it('two concurrent sessions: idle only after the last ends and its flush lands', async () => {
             const a = await startRunning({ name, image: img, nodeMax: 2 });
             const b = await startRunning(
                 { name, image: img, nodeMax: 2 },
@@ -574,11 +747,11 @@ describe('v86_door', () => {
             hangUp(b.client);
             assert.equal(activeDoorInstances[name], 0);
             await tick();
-            assert.equal(imageRegistry.get(img), entry, 'kept until b has flushed');
+            assert.equal(isIdle(img), false, 'not idle until b has flushed');
             b.worker.release();
             await settled(b);
             assert.equal(fs.readFileSync(img)[11], 0xb2);
-            assert.equal(imageRegistry.has(img), false);
+            assert.ok(isIdle(img), 'idle only once b has flushed');
         });
 
         it('a session started while the last flush writes uses the image in memory', async () => {
@@ -703,7 +876,7 @@ describe('v86_door', () => {
                 await settled(m);
                 assert.equal(activeDoorInstances[name], 0);
                 assert.equal(trackEnds.length, 1);
-                assert.equal(imageRegistry.has(img), false, 'the image is released');
+                assert.ok(isIdle(img), 'the image is released');
                 await thenStarts('worker failure');
             });
         });
@@ -759,7 +932,25 @@ describe('v86_door', () => {
             assert.equal(workers.length, 0);
             assert.equal(activeDoorInstances[name], 0);
             assert.equal(trackEnds.length, 1);
-            assert.equal(imageRegistry.has(img), false);
+            assert.ok(isIdle(img));
+        });
+
+        it('back-to-back sessions reuse the same SAB', async () => {
+            const a = await startRunning({ name, image: img });
+            a.worker.guestWrite(20, 0x20);
+            hangUp(a.client);
+            await settled(a);
+            const opens = countOpens();
+            try {
+                const b = await startRunning({ name, image: img });
+                assert.equal(b.worker.workerData.imageSab, a.worker.workerData.imageSab);
+                assert.equal(new Uint8Array(b.worker.workerData.imageSab)[20], 0x20);
+                assert.equal(opens.r, 0, 'not read again');
+                hangUp(b.client);
+                await settled(b);
+            } finally {
+                opens.restore();
+            }
         });
 
         describe('server shutdown', () => {
@@ -794,20 +985,41 @@ describe('v86_door', () => {
             });
 
             it('gives up on a flush that does not finish in time, and says so', async () => {
-                Timeouts.terminateMs = 5000;
-                const m = await startRunning(
-                    { name, image: img },
-                    { holdTerminate: true }
-                );
-                const log = quietLog();
-                const t0 = Date.now();
-                await new Promise(resolve => shutdown(resolve, { timeoutMs: 50, log }));
-                assert.ok(Date.now() - t0 < 1000);
-                const line = log.lines.find(l => /at shutdown/.test(l.msg));
-                assert.equal(line.level, 'warn');
-                assert.match(line.msg, /0 images flushed, 1 not/);
-                m.worker.release();
+                const realOpen = fs.promises.open;
+                let openGate;
+                const gate = new Promise(resolve => (openGate = resolve));
+                fs.promises.open = async (p, flags) => {
+                    if ('r+' === flags) {
+                        await gate; //  a write that hangs
+                    }
+                    return realOpen(p, flags);
+                };
+                try {
+                    const m = await startRunning({ name, image: img });
+                    const log = quietLog();
+                    const t0 = Date.now();
+                    await new Promise(resolve =>
+                        shutdown(resolve, { timeoutMs: 50, log })
+                    );
+                    assert.ok(Date.now() - t0 < 1000);
+                    const line = log.lines.find(l => /at shutdown/.test(l.msg));
+                    assert.equal(line.level, 'warn');
+                    assert.match(line.msg, /0 images flushed, 1 not/);
+                    openGate();
+                    await settled(m);
+                } finally {
+                    openGate();
+                    fs.promises.open = realOpen;
+                }
+            });
+
+            it('clears idle timers', async () => {
+                const m = await startRunning({ name, image: img });
+                hangUp(m.client);
                 await settled(m);
+                assert.ok(isIdle(img));
+                await new Promise(resolve => shutdown(resolve, { log: quietLog() }));
+                assert.equal(imageRegistry.get(img).idleTimer, null);
             });
         });
     });
