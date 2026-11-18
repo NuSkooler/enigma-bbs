@@ -36,19 +36,28 @@ function refreshTotalUserCount(now = Date.now()) {
         setCount(db.prepare('SELECT COUNT(*) AS total FROM user;').get().total);
     } catch (e) {
         //  not ready, or broken: keep what we have and try again after CacheMs
+        require('./logger').log?.warn(
+            { error: e.message },
+            'Could not read the total user count'
+        );
     }
     return cachedCount;
 }
 
+//  Seed the cache with a count already read (at startup).
+function primeTotalUserCount(count, now = Date.now()) {
+    cachedAt = now;
+    setCount(count);
+}
+
 //  Total users; the cached count while it is fresh. 0 if it was never read.
+//  A failed read is retried once per CacheMs, not on every call (cachedAt
+//  starts at 0, so the first call always reads).
 function getTotalUserCount(now = Date.now()) {
-    if (null === cachedCount || now - cachedAt >= CacheMs) {
+    if (now - cachedAt >= CacheMs) {
         refreshTotalUserCount(now);
     }
-    if (null === cachedCount) {
-        return require('./stat_log').getSystemStatNum(SysProps.TotalUserCount);
-    }
-    return cachedCount;
+    return null === cachedCount ? 0 : cachedCount;
 }
 
 //  Count a new user at once, rather than when the cache expires.
@@ -66,6 +75,7 @@ module.exports = {
     CacheMs,
     getTotalUserCount,
     refreshTotalUserCount,
+    primeTotalUserCount,
     watchNewUsers,
     resetUserCountCache,
 };

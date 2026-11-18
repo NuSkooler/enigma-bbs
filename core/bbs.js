@@ -668,13 +668,13 @@ function initialize(cb) {
             },
             function initUserCount(callback) {
                 const User = require('./user.js');
-                User.getUserCount((err, _count) => {
+                User.getUserCount((err, count) => {
                     if (err) {
                         return callback(err);
                     }
 
                     const userCount = require('./user_count');
-                    userCount.refreshTotalUserCount();
+                    userCount.primeTotalUserCount(count);
                     userCount.watchNewUsers();
                     return callback(null);
                 });

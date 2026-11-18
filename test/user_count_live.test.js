@@ -133,4 +133,37 @@ describe('live total user count (#1049)', function () {
             db.exec('ALTER TABLE user_gone RENAME TO user;');
         }
     });
+
+    it('a failed first read is retried once per cache window, not on every call', () => {
+        const realPrepare = db.prepare;
+        let reads = 0;
+        db.prepare = function (sql) {
+            if (/COUNT\(\*\)/.test(sql)) {
+                ++reads;
+            }
+            return realPrepare.call(this, sql);
+        };
+        db.exec('ALTER TABLE user RENAME TO user_gone;');
+        try {
+            assert.equal(userCount.getTotalUserCount(), 0);
+            assert.equal(userCount.getTotalUserCount(), 0);
+            assert.equal(mci.getPredefinedMCIValue(client, 'TU'), 1);
+            assert.equal(reads, 1);
+
+            now += userCount.CacheMs;
+            userCount.getTotalUserCount();
+            assert.equal(reads, 2);
+        } finally {
+            db.prepare = realPrepare;
+            db.exec('ALTER TABLE user_gone RENAME TO user;');
+        }
+    });
+
+    it('a count primed at startup is served without another read', () => {
+        addUser('a');
+        userCount.primeTotalUserCount(7);
+        assert.equal(userCount.getTotalUserCount(), 7);
+        now += userCount.CacheMs;
+        assert.equal(userCount.getTotalUserCount(), 1);
+    });
 });
