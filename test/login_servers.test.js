@@ -854,8 +854,13 @@ describe('login servers (#1017)', function () {
                 assert.equal(client.clientEnded, true);
             });
 
-            it('a caller that stalls during authentication is disconnected and its node freed', async () => {
-                config.loginServers.ssh.loginTimeoutSeconds = 0.3;
+            //
+            //  The timeouts below leave room for a full key exchange (and, for
+            //  the shell test, a login) on a slow CI runner.
+            //
+            it('a caller that stalls during authentication is disconnected and its node freed', async function () {
+                this.timeout(10000);
+                config.loginServers.ssh.loginTimeoutSeconds = 1.5;
                 const count = clients.length;
 
                 const sshClient = new ssh2.Client();
@@ -878,15 +883,18 @@ describe('login servers (#1017)', function () {
                 await waitFor('authentication', () => authAsked);
                 assert.ok(clientConns.clientConnections.includes(client), 'holds a node');
 
-                await waitFor('the disconnect', () => closed);
+                await waitFor('the disconnect', () => closed, 5000);
                 await waitFor('the node to be freed', () => {
                     return !clientConns.clientConnections.includes(client);
                 });
             });
 
-            it('a caller that logs in and opens a shell keeps its connection', async () => {
-                config.loginServers.ssh.loginTimeoutSeconds = 0.2;
+            it('a caller that logs in and opens a shell keeps its connection', async function () {
+                this.timeout(10000);
+                const loginTimeoutMs = 1500;
+                config.loginServers.ssh.loginTimeoutSeconds = loginTimeoutMs / 1000;
                 const count = clients.length;
+                const connectedAt = Date.now();
 
                 const sshClient = new ssh2.Client();
                 let closed = false;
@@ -920,7 +928,8 @@ describe('login servers (#1017)', function () {
                 await waitFor('the shell', () => Boolean(client.input));
                 assert.equal(client.loginTimer, undefined, 'timer cleared');
 
-                await tick(400); //  twice the timeout
+                //  well past the point where the timer would have fired
+                await tick(Math.max(0, connectedAt + loginTimeoutMs + 500 - Date.now()));
                 assert.equal(closed, false, 'still connected');
                 assert.equal(client.clientEnded, false);
                 assert.ok(clientConns.clientConnections.includes(client));
