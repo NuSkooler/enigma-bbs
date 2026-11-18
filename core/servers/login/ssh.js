@@ -446,15 +446,23 @@ function SSHClient(clientConn, connInfo) {
     //  timer ends the connection whatever state it is in, so a refused
     //  caller cannot hold a socket open.
     //
+    //  The client's own teardown (Client.prototype.end(), which releases
+    //  what the constructor registered) runs when the connection closes, or
+    //  when the timer fires, whichever comes first; end() does it once.
+    //  Not before: ending the client is what disconnects it.
+    //
     this.refuseConnection = function (message) {
         self.refusalMessage = message;
 
         const refusalTimer = setTimeout(() => {
             self.log.debug('Refused SSH connection still open; ending it');
-            clientConn.end();
+            self.end();
         }, SSHClient.RefusalTimeoutMs);
 
-        clientConn.once('close', () => clearTimeout(refusalTimer));
+        clientConn.once('close', () => {
+            clearTimeout(refusalTimer);
+            self.end();
+        });
     };
 }
 

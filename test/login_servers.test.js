@@ -134,6 +134,11 @@ describe('login servers (#1017)', function () {
         log.entries.length = 0;
     });
 
+    function themeListeners() {
+        const Events = require('../core/events.js');
+        return Events.listenerCount(Events.getSystemEvents().ThemeChanged);
+    }
+
     function refusedLogged() {
         return log.entries.some(
             e => 'info' === e.level && /All nodes are busy; refusing/.test(e.msg)
@@ -322,10 +327,42 @@ describe('login servers (#1017)', function () {
 
             it('the timer is cleared when the connection closes', async () => {
                 ssh.SSHClient.RefusalTimeoutMs = 5;
-                const { conn } = connectRefused();
+                const { conn, client } = connectRefused();
                 conn.emit('close');
+                assert.equal(client.clientEnded, true, 'torn down on close');
+                const endCount = conn.endCount;
                 await tick(30);
-                assert.equal(conn.endCount, 0);
+                assert.equal(conn.endCount, endCount, 'timer did not fire');
+            });
+
+            //
+            //  The Client constructor registers a ThemeChanged listener that
+            //  only end() removes; a refused client must still get there.
+            //
+            it('releases the client when the connection closes, once', () => {
+                const before = themeListeners();
+                for (let i = 0; i < 5; i++) {
+                    const { conn } = connectRefused();
+                    assert.equal(themeListeners(), before + 1, 'held while open');
+                    conn.emit('close');
+                    conn.emit('close');
+                    assert.equal(themeListeners(), before);
+                    clientConns.clientConnections.splice(
+                        clientConns.clientConnections.indexOf(occupant),
+                        1
+                    );
+                }
+            });
+
+            it('releases the client when the refusal timer ends it', async () => {
+                ssh.SSHClient.RefusalTimeoutMs = 5;
+                const before = themeListeners();
+                const { conn, client } = connectRefused();
+                await tick(30);
+                assert.equal(client.clientEnded, true);
+                assert.equal(themeListeners(), before);
+                conn.emit('close');
+                assert.equal(themeListeners(), before);
             });
         });
 
@@ -345,6 +382,7 @@ describe('login servers (#1017)', function () {
 
             it('writes the message, ends the connection, and tracks nothing', () => {
                 fillBoard();
+                const listenersBefore = themeListeners();
                 const rawSocket = makeRawSocket();
                 const client = new telnet.TelnetClient(rawSocket);
                 client.banner();
@@ -364,6 +402,7 @@ describe('login servers (#1017)', function () {
                 //  for what still arrives from the caller (a terminal type
                 //  answering the negotiation, say) before the socket closes
                 assert.ok(client.log, 'client.log');
+                assert.equal(themeListeners(), listenersBefore, 'client released');
                 rawSocket.emit('close');
             });
         });
@@ -438,12 +477,14 @@ describe('login servers (#1017)', function () {
 
             it('writes the message, then closes with 1013 (Try Again Later)', async () => {
                 fillBoard();
+                const listenersBefore = themeListeners();
                 const got = await call();
                 const closed = await withTimeout(got.closed, 'refused');
 
                 assert.ok(closed.text.includes(BusyMessage), closed.text);
                 assert.equal(closed.code, 1013);
                 assert.equal(closed.reason, 'All nodes are busy');
+                assert.equal(themeListeners(), listenersBefore, 'client released');
                 assert.ok(!clientConns.clientConnections.includes(got.client));
                 assert.ok(refusedLogged());
             });
