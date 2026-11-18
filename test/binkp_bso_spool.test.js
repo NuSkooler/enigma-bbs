@@ -234,8 +234,11 @@ describe('BsoSpool — stale .bsy reaper', () => {
 
     it('acquireLock reaps a stale .bsy and succeeds on retry', async () => {
         const s = freshSpool(60 * 1000); // 60s threshold
-        await s.acquireLock(TEST_ADDR);
+        //  Left by another program that crashed. One this process holds is
+        //  never reaped by it, however old it looks.
         const bsyPath = path.join(outboundDir(tmpDir), '00680001.bsy');
+        await fsp.mkdir(path.dirname(bsyPath), { recursive: true });
+        await fsp.writeFile(bsyPath, '4242\n');
         await backdate(bsyPath, 5 * 60 * 1000); // 5 min old → stale
 
         const got = await s.acquireLock(TEST_ADDR);
@@ -262,6 +265,35 @@ describe('BsoSpool — stale .bsy reaper', () => {
         await assert.doesNotReject(fsp.access(freshPath));
 
         await fsp.unlink(freshPath);
+    });
+
+    //  #1052: a restart after a crash or a SIGKILL during a session.
+    it('reapStaleLocks removes, whatever its age, our lock whose process on this machine is gone', async function () {
+        const bsoLock = require('../core/bso_lock');
+        const hostId = bsoLock.lockHostId();
+        if ('-' === hostId) {
+            return this.skip(); //  no boot id / PID namespace to compare
+        }
+        const { spawnSync } = require('child_process');
+        const deadPid = spawnSync(process.execPath, ['-e', '']).pid;
+        const s = freshSpool(30 * 60 * 1000);
+
+        const goneHolder = path.join(outboundDir(tmpDir), '00680001.bsy');
+        const liveHolder = path.join(outboundDir(tmpDir), '00680002.bsy');
+        const foreign = path.join(outboundDir(tmpDir), '00680003.bsy');
+        await fsp.writeFile(goneHolder, `${deadPid} ENiGMA ${hostId} 0123456789abcdef\n`);
+        await fsp.writeFile(
+            liveHolder,
+            `${process.ppid} ENiGMA ${hostId} 0123456789abcdef\n`
+        );
+        await fsp.writeFile(foreign, `${deadPid}\n`); //  e.g. binkd's
+
+        assert.equal(await s.reapStaleLocks(), 1);
+        await assert.rejects(fsp.access(goneHolder), { code: 'ENOENT' });
+        await assert.doesNotReject(fsp.access(liveHolder));
+        await assert.doesNotReject(fsp.access(foreign));
+        await fsp.unlink(liveHolder);
+        await fsp.unlink(foreign);
     });
 
     it('reapStaleLocks ignores non-.bsy files', async () => {
@@ -3035,6 +3067,37 @@ describe('BsoSpool — the session locks every directory holding the node', () =
         }
         assert.equal(await exists(legacyBsy()), false);
         assert.equal(await exists(canonicalBsy()), false);
+    });
+
+    //  The session deletes or truncates a sent file only while it still
+    //  holds the lock covering it (BinkpSession._applyDisposition).
+    it('reports, per file, whether the lock covering it is still held', async () => {
+        await fsp.mkdir(outboundDir(tmpDir), { recursive: true });
+        const pkt = path.join(outboundDir(tmpDir), 'queued.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.flo'), `^${pkt}\n`);
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.out'), 'NETMAIL');
+
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+        try {
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR, { lock });
+            assert.equal(files.length, 2);
+            assert.ok(
+                files.every(f => f.stillLocked()),
+                'held'
+            );
+
+            //  Removed underneath the session.
+            await fsp.unlink(canonicalBsy());
+            await require('../core/bso_lock')._refreshHeldNow();
+            assert.ok(
+                files.every(f => !f.stillLocked()),
+                'no longer held'
+            );
+        } finally {
+            await lock.releaseAll();
+        }
     });
 
     it('does not read a flow file in a directory the lock does not cover', async () => {
