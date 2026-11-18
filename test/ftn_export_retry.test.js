@@ -308,12 +308,14 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
         });
 
         let apSeq = 0;
-        function apExport(message) {
-            ++apSeq;
-            const activity = {
-                id: `https://bbs.example/activities/${apSeq}`,
-                object: { id: `https://bbs.example/notes/${apSeq}` },
-            };
+        function apExport(message, activity) {
+            if (!activity) {
+                ++apSeq;
+                activity = {
+                    id: `https://bbs.example/activities/${apSeq}`,
+                    object: { id: `https://bbs.example/notes/${apSeq}` },
+                };
+            }
             return new Promise(resolve =>
                 tosser._markExported(message, activity, err => resolve({ err, activity }))
             );
@@ -403,15 +405,23 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
             assertEachOnce(await tally(), ['ftn first'], [U1, U2, U3], () => minted);
         });
 
-        it('records a second delivery of the same message without error or a second flag row', async () => {
+        //
+        //  The same Activity, recorded twice. A message reaches the tosser once
+        //  (persistMessage -> record), so this is the only repeat there is. A
+        //  different Activity for the same message would add a second row for
+        //  each ID, as the plain INSERTs before #1032 did: REPLACE collides only
+        //  on an identical meta_value.
+        //
+        it('records the same delivery twice without error, as one flag row and one row per ID', async () => {
             const message = await h.addLocal({ subject: 'ap twice' });
             const first = await apExport(message);
             assert.ok(!first.err, first.err && first.err.message);
-            const second = await apExport(message);
+            const second = await apExport(message, first.activity);
             assert.ok(!second.err, second.err && second.err.message);
             assert.deepEqual(stateFlags(message), [
                 String(h.Message.StateFlags0.ActivityPubExported),
             ]);
+            assert.deepEqual(apIds(message), idsOf(first.activity));
         });
 
         it('never exports EchoMail imported from FTN, ActivityPub flagged or not', async () => {

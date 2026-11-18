@@ -5225,9 +5225,8 @@ function FTNMessageScanTossModule() {
         //
         //  Select all messages with a |message_id| > |lastScanId|.
         //  Additionally exclude messages with the System state_flags0 which will be present for
-        //  imported or already exported messages
-        //
-        //  NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
+        //  imported or already exported messages. A new StateFlags0 bit needs a
+        //  decision here: does it, on its own, keep a message from the echo?
         //
         //  The one flag that does not exclude a message is ActivityPubExported
         //  on its own: a local post in an area that is both federated and an
