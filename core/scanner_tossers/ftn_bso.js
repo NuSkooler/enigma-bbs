@@ -7209,6 +7209,11 @@ function watchedCall(watchdogMs, label, fn, cb) {
     try {
         fn(finish);
     } catch (e) {
+        //  A throw from |cb| itself (finish ran synchronously) is not the
+        //  work failing: let it propagate rather than swallow it.
+        if (finished) {
+            throw e;
+        }
         finish(e);
     }
 }
