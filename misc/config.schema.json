@@ -746,9 +746,10 @@
                             "default": "sshConnectedNewUser"
                         },
                         "loginTimeoutSeconds": {
-                            "description": "Seconds a connection may take from connecting to reaching the shell (key exchange and login) before it is disconnected. 0 disables.",
+                            "description": "Seconds a connection may take from connecting to reaching the shell (key exchange and login) before it is disconnected. 0 disables; at most 2147483 (about 24.8 days).",
                             "type": "number",
                             "minimum": 0,
+                            "maximum": 2147483,
                             "default": 120
                         },
                         "untrustedTermSizeClients": {

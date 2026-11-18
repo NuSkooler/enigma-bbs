@@ -754,8 +754,10 @@ module.exports = {
     'loginServers.ssh.loginTimeoutSeconds': {
         type: 'number',
         min: 0,
+        //  the longest a Node timer can run, in whole seconds
+        max: 2147483,
         description:
-            'Seconds a connection may take from connecting to reaching the shell (key exchange and login) before it is disconnected. 0 disables.',
+            'Seconds a connection may take from connecting to reaching the shell (key exchange and login) before it is disconnected. 0 disables; at most 2147483 (about 24.8 days).',
     },
     'loginServers.webSocket.ws.port': PORT,
     'loginServers.webSocket.wss.port': PORT,

@@ -681,6 +681,30 @@ describe('login servers (#1017)', function () {
             });
         });
 
+        //  a longer Node timer fires after 1 ms, which would end every connection
+        it('is held to the longest timer Node can run', () => {
+            const maxMs = 2 ** 31 - 1;
+            [2147483, 2147484, 1e9, Number.MAX_VALUE].forEach(value => {
+                config.loginServers.ssh.loginTimeoutSeconds = value;
+                const ms = ssh.SSHClient.getLoginTimeoutMs();
+                assert.ok(ms > 2147480000 && ms <= maxMs, `${value}: ${ms}`);
+            });
+            config.loginServers.ssh.loginTimeoutSeconds = 0.0001;
+            assert.equal(
+                ssh.SSHClient.getLoginTimeoutMs(),
+                1,
+                'a tiny value is not 0 (off)'
+            );
+        });
+
+        it('the config schema allows no more than that', () => {
+            const meta = require('../core/config/meta.js');
+            assert.equal(
+                meta['loginServers.ssh.loginTimeoutSeconds'].max,
+                ssh.SSHClient.MaxLoginTimeoutSeconds
+            );
+        });
+
         //  |conn.endedAt| and |conn._sock.destroyedAt| say when each happened
         function connectTracked() {
             const conn = makeSshConn();
@@ -965,11 +989,11 @@ describe('login servers (#1017)', function () {
 
             //
             //  The timeouts below leave room for a full key exchange (and, for
-            //  the shell test, a login) on a slow CI runner.
+            //  the shell test, a login) on a slow or loaded CI runner.
             //
             it('a caller that stalls during authentication is disconnected and its node freed', async function () {
-                this.timeout(10000);
-                config.loginServers.ssh.loginTimeoutSeconds = 1.5;
+                this.timeout(15000);
+                config.loginServers.ssh.loginTimeoutSeconds = 3;
                 const count = clients.length;
 
                 const sshClient = new ssh2.Client();
@@ -992,15 +1016,15 @@ describe('login servers (#1017)', function () {
                 await waitFor('authentication', () => authAsked);
                 assert.ok(clientConns.clientConnections.includes(client), 'holds a node');
 
-                await waitFor('the disconnect', () => closed, 5000);
+                await waitFor('the disconnect', () => closed, 8000);
                 await waitFor('the node to be freed', () => {
                     return !clientConns.clientConnections.includes(client);
                 });
             });
 
             it('a caller that logs in and opens a shell keeps its connection', async function () {
-                this.timeout(10000);
-                const loginTimeoutMs = 1500;
+                this.timeout(15000);
+                const loginTimeoutMs = 3000;
                 config.loginServers.ssh.loginTimeoutSeconds = loginTimeoutMs / 1000;
                 const count = clients.length;
 

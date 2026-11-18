@@ -564,7 +564,12 @@ SSHClient.EndCloseGraceMs = 2000;
 //  else that is not a positive number gets the default, as OpenSSH's
 //  LoginGraceTime.
 //
+//  A Node timer holds at most 2^31 - 1 ms (about 24.8 days); a longer one
+//  fires after 1 ms instead, which would end every connection at once. A
+//  larger value is therefore held to that.
+//
 SSHClient.DefaultLoginTimeoutSeconds = 120;
+SSHClient.MaxLoginTimeoutSeconds = Math.floor((2 ** 31 - 1) / 1000); //  2147483
 
 SSHClient.getLoginTimeoutMs = function () {
     const seconds = _.get(Config(), 'loginServers.ssh.loginTimeoutSeconds');
@@ -572,7 +577,8 @@ SSHClient.getLoginTimeoutMs = function () {
         return 0;
     }
     if (_.isFinite(seconds) && seconds > 0) {
-        return Math.round(seconds * 1000);
+        const clamped = Math.min(seconds, SSHClient.MaxLoginTimeoutSeconds);
+        return Math.max(1, Math.round(clamped * 1000));
     }
     return SSHClient.DefaultLoginTimeoutSeconds * 1000;
 };
