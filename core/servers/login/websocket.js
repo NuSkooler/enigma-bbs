@@ -16,7 +16,8 @@ const {
 
 //  deps
 const _ = require('lodash');
-const WebSocketServer = require('ws').Server;
+const WebSocket = require('ws');
+const WebSocketServer = WebSocket.Server;
 const http = require('http');
 const https = require('https');
 const fs = require('graceful-fs');
@@ -128,8 +129,29 @@ class WebSocketClient extends TelnetClient {
             //  it (#1017).
             //
             _final(cb) {
-                this.ws.close(this.closeCode || 1000, this.closeReason);
+                this._closeWebSocket();
                 return cb();
+            }
+
+            //
+            //  And if the stream fails or is destroyed before it gets to
+            //  _final() (a write after the end, say), close the WebSocket
+            //  anyway: it must never be left open behind an ended session.
+            //
+            _destroy(err, cb) {
+                this._closeWebSocket();
+                return cb(err);
+            }
+
+            _closeWebSocket() {
+                if (WebSocket.OPEN !== this.ws.readyState) {
+                    return; //  closing or closed already
+                }
+                try {
+                    this.ws.close(this.closeCode || 1000, this.closeReason);
+                } catch (e) {
+                    this.ws.terminate();
+                }
             }
 
             _data(data) {

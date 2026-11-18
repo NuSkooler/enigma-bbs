@@ -288,19 +288,51 @@ describe('login servers (#1017)', function () {
                 conn.emit('close');
             });
 
-            it('steers other methods to keyboard-interactive once, then ends', () => {
+            it('steers other methods to keyboard-interactive a few times, then ends', () => {
                 const { conn } = connectRefused();
 
-                const none = makeAuthCtx('none');
-                conn.emit('authentication', none);
-                assert.deepEqual(none.rejects, [['keyboard-interactive']]);
-                assert.equal(conn.endCount, 0);
+                ['none', 'publickey', 'password'].forEach(method => {
+                    const ctx = makeAuthCtx(method, 'somebody');
+                    conn.emit('authentication', ctx);
+                    assert.deepEqual(ctx.rejects, [['keyboard-interactive']], method);
+                    assert.equal(conn.endCount, 0, method);
+                });
+
+                //  ...and keyboard-interactive after those still shows it
+                const kbd = makeAuthCtx('keyboard-interactive');
+                conn.emit('authentication', kbd);
+                assert.equal(kbd.prompts.length, 1);
 
                 const password = makeAuthCtx('password', 'somebody');
                 conn.emit('authentication', password);
                 assert.equal(password.rejects.length, 1);
-                assert.equal(conn.endCount, 1);
+                assert.ok(conn.endCount > 0);
                 conn.emit('close');
+            });
+
+            it('closes the socket outright if the caller has not closed it after the end', async () => {
+                ssh.SSHClient.RefusalTimeoutMs = 5;
+                ssh.SSHClient.RefusalCloseGraceMs = 5;
+                const { conn } = connectRefused();
+                conn._sock.destroyed = false;
+                conn._sock.destroy = () => {
+                    conn._sock.destroyed = true;
+                    conn.emit('close');
+                };
+                await tick(40);
+                assert.equal(conn._sock.destroyed, true);
+            });
+
+            it('leaves the socket alone if the caller closes it in the grace time', async () => {
+                ssh.SSHClient.RefusalTimeoutMs = 5;
+                ssh.SSHClient.RefusalCloseGraceMs = 30;
+                const { conn } = connectRefused();
+                let destroyed = 0;
+                conn._sock.destroy = () => (destroyed += 1);
+                await tick(15);
+                conn.emit('close');
+                await tick(40);
+                assert.equal(destroyed, 0);
             });
 
             it('does not accept a new user on an open system', () => {
@@ -367,43 +399,87 @@ describe('login servers (#1017)', function () {
         });
 
         describe('telnet', () => {
-            function makeRawSocket() {
-                const rawSocket = new EventEmitter();
-                rawSocket.written = [];
-                rawSocket.ended = 0;
-                rawSocket.remoteAddress = '192.0.2.11';
-                rawSocket.write = data => {
-                    rawSocket.written.push(Buffer.from(data));
-                    return true;
-                };
-                rawSocket.end = () => (rawSocket.ended += 1);
-                return rawSocket;
+            let server;
+            let port;
+
+            before(done => {
+                const net = require('net');
+                server = net.createServer(socket => {
+                    const client = new telnet.TelnetClient(socket);
+                    client.banner();
+                    new LoginServerModule().handleNewClient(
+                        client,
+                        socket,
+                        telnet.moduleInfo
+                    );
+                    server.emit('enigma client', client);
+                });
+                server.listen(0, '127.0.0.1', () => {
+                    port = server.address().port;
+                    return done();
+                });
+            });
+
+            after(done => {
+                server.close(() => done());
+            });
+
+            //  a real telnet caller: everything it received, up to the FIN
+            function call() {
+                const net = require('net');
+                return new Promise(resolve => {
+                    const sock = net.connect(port, '127.0.0.1');
+                    const got = { data: [] };
+                    got.ended = new Promise(onEnd => {
+                        sock.on('end', () => {
+                            got.text = Buffer.concat(got.data).toString('latin1');
+                            return onEnd(got);
+                        });
+                    });
+                    sock.on('data', d => got.data.push(d));
+                    server.once('enigma client', client => {
+                        got.client = client;
+                        return resolve(got);
+                    });
+                });
             }
 
-            it('writes the message, ends the connection, and tracks nothing', () => {
+            function withTimeout(promise, what) {
+                return Promise.race([
+                    promise,
+                    tick(2000).then(() => {
+                        throw new Error(`${what}: no FIN`);
+                    }),
+                ]);
+            }
+
+            it('writes the message, ends the connection, and tracks nothing', async () => {
                 fillBoard();
                 const listenersBefore = themeListeners();
-                const rawSocket = makeRawSocket();
-                const client = new telnet.TelnetClient(rawSocket);
-                client.banner();
+                const got = await call();
+                const ended = await withTimeout(got.ended, 'refused');
 
-                const mod = new LoginServerModule();
-                assert.doesNotThrow(() =>
-                    mod.handleNewClient(client, rawSocket, telnet.moduleInfo)
-                );
-
-                const output = Buffer.concat(rawSocket.written).toString('latin1');
-                assert.ok(output.includes(BusyMessage), output);
-                assert.ok(rawSocket.ended > 0);
-                assert.equal(client.clientEnded, true);
-                assert.ok(!clientConns.clientConnections.includes(client));
+                assert.ok(ended.text.includes(BusyMessage), ended.text);
+                assert.equal(got.client.clientEnded, true);
+                assert.ok(!clientConns.clientConnections.includes(got.client));
                 assert.ok(refusedLogged());
 
                 //  for what still arrives from the caller (a terminal type
                 //  answering the negotiation, say) before the socket closes
-                assert.ok(client.log, 'client.log');
+                assert.ok(got.client.log, 'client.log');
                 assert.equal(themeListeners(), listenersBefore, 'client released');
-                rawSocket.emit('close');
+            });
+
+            it('several writes and then the end: all of it arrives before the FIN', async () => {
+                const got = await call();
+                const term = got.client.term;
+                term.write('one ');
+                term.write('two ');
+                term.write('three ');
+                term.write('Goodbye!');
+                got.client.end();
+                const ended = await withTimeout(got.ended, 'ended');
+                assert.ok(ended.text.endsWith('one two three Goodbye!'), ended.text);
             });
         });
 
@@ -504,6 +580,26 @@ describe('login servers (#1017)', function () {
                     !clientConns.clientConnections.includes(got.client),
                     'removed once closed'
                 );
+            });
+
+            it('several writes and then the end: all of it arrives, then the close', async () => {
+                const got = await call();
+                const term = got.client.term;
+                term.write('one ');
+                term.write('two ');
+                term.write('three ');
+                term.write('Goodbye!');
+                got.client.end();
+                const closed = await withTimeout(got.closed, 'ended');
+                assert.ok(closed.text.endsWith('one two three Goodbye!'), closed.text);
+                assert.equal(closed.code, 1000);
+            });
+
+            it('a stream that fails before the end still closes the WebSocket', async () => {
+                const got = await call();
+                got.client.socket.rawSocket.destroy(new Error('stream failed'));
+                const closed = await withTimeout(got.closed, 'destroyed');
+                assert.equal(closed.code, 1000);
             });
 
             it('the same behind a reverse proxy', async () => {

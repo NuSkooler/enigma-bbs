@@ -220,8 +220,20 @@ class TelnetClient {
     }
 
     disconnect() {
+        //
+        //  End the TelnetSocket, not the socket under it. It sends a write
+        //  only once the one before has gone out, so it may still hold the
+        //  last few (a goodbye message written just before the end); ending
+        //  it lets those go first, then it ends the socket under it (see
+        //  telnet-socket's _final()). Ending the raw socket directly lost
+        //  them, as "write after end" (#1017). A TelnetSocket that has failed
+        //  will never get there, so its socket is ended directly.
+        //
         try {
-            return this.socket.rawSocket.end();
+            if (this.socket.destroyed || this.socket.errored) {
+                return this.socket.rawSocket.end();
+            }
+            return this.socket.end();
         } catch (e) {
             //  ignored
         }
