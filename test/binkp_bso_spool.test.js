@@ -2847,13 +2847,21 @@ describe('BsoSpool — every directive, read the way other mailers read it', () 
         assert.equal(entries[0].status, 'missing');
     });
 
-    it('never deletes a pre-existing zero-length flow file (a poll request)', async () => {
+    it('never deletes a pre-existing zero-length flow file (a poll request) when pruning or marking', async () => {
         const dlo = path.join(outboundDir(tmpDir), '00680001.dlo');
         await fsp.writeFile(dlo, '');
 
+        //  Nothing to send, but the node is due a call (#1047), and the
+        //  listing says why.
         assert.deepEqual(await listFiles(spool, TEST_ADDR), []);
-        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
-        assert.deepEqual(entriesFor(await spool.inspectOutbound()), []);
+        assert.deepEqual(
+            (await spool.getNodesWithPendingMail()).map(a => a.toString()),
+            ['1:104/1']
+        );
+        assert.deepEqual(
+            entriesFor(await spool.inspectOutbound()).map(e => [e.status, e.path]),
+            [['poll', dlo]]
+        );
         await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
 
         //  And sending another flavour's last entry leaves it alone.
@@ -3526,5 +3534,320 @@ describe('BsoSpool — a flow file that is a symlink', () => {
             assert.ok((await fsp.lstat(linked.link)).isSymbolicLink());
             assert.equal(await fsp.readFile(linked.target, 'utf8'), `^${linked.pkt}\n`);
         });
+    });
+});
+
+//
+//  #1047: a zero-length flow file is a poll request (FTS-5005.003 §3.2, §3.4):
+//  call the node even though nothing is queued, and remove the file after a
+//  successful session with it. Hold (.hlo, .hut) means wait for the node to
+//  call us, so an empty one is neither a reason to dial nor removed.
+//
+describe('BsoSpool — poll requests (zero-length flow files)', () => {
+    const EventEmitter = require('events');
+
+    beforeEach(cleanOutbound);
+
+    const ob = (name = '') => path.join(outboundDir(tmpDir), name);
+    const exists = p =>
+        fsp.lstat(p).then(
+            () => true,
+            () => false
+        );
+    const pending = async () =>
+        (await spool.getNodesWithPendingMail()).map(a => a.toString());
+
+    for (const ext of ['ilo', 'clo', 'dlo', 'flo', 'iut', 'cut', 'dut', 'out']) {
+        it(`an empty .${ext} makes the node due a call`, async () => {
+            await fsp.writeFile(ob(`00680001.${ext}`), '');
+            assert.deepEqual(await pending(), ['1:104/1']);
+        });
+    }
+
+    for (const ext of ['hlo', 'hut']) {
+        it(`an empty .${ext} (hold) does not`, async () => {
+            await fsp.writeFile(ob(`00680001.${ext}`), '');
+            assert.deepEqual(await pending(), []);
+            assert.deepEqual(await spool.inspectOutbound(), []);
+        });
+    }
+
+    it('upper case names count too', async () => {
+        await fsp.writeFile(ob('00680001.CLO'), '');
+        assert.deepEqual(await pending(), ['1:104/1']);
+    });
+
+    it('a symlink to an empty file is not a poll request', async () => {
+        const target = path.join(tmpDir, 'empty-target');
+        await fsp.writeFile(target, '');
+        await fsp.symlink(target, ob('00680001.clo'));
+        try {
+            assert.deepEqual(await pending(), []);
+        } finally {
+            await fsp.unlink(target);
+        }
+    });
+
+    it('resolves a point and a zone directory to the right address', async () => {
+        const pnt = ob('00680001.pnt');
+        await fsp.mkdir(pnt);
+        await fsp.writeFile(path.join(pnt, '0000002d.clo'), '');
+        const zone2 = path.join(tmpDir, 'outbound.002');
+        await fsp.mkdir(zone2);
+        try {
+            await fsp.writeFile(path.join(zone2, '00010002.flo'), '');
+            assert.deepEqual((await pending()).sort(), ['1:104/1.45', '2:1/2']);
+        } finally {
+            await fsp.rm(zone2, { recursive: true, force: true });
+        }
+    });
+
+    it('is listed by inspectOutbound() as a poll entry with its age', async () => {
+        await fsp.writeFile(ob('00680001.clo'), '');
+        const [node] = await spool.inspectOutbound();
+        assert.equal(node.address.toString(), '1:104/1');
+        assert.equal(node.entries.length, 1);
+        const e = node.entries[0];
+        assert.equal(e.kind, 'poll');
+        assert.equal(e.status, 'poll');
+        assert.equal(e.path, ob('00680001.clo'));
+        assert.equal(e.size, 0);
+        assert.ok(e.timestamp > 0);
+    });
+
+    it('getOutboundFilesForNode() reports poll requests through onPollFile, not as files to send', async () => {
+        await fsp.writeFile(ob('00680001.clo'), '');
+        await fsp.writeFile(ob('00680001.out'), '');
+        await fsp.writeFile(ob('00680001.hlo'), '');
+        const lock = spool.newLockSet();
+        try {
+            assert.ok(await spool.lockNode(TEST_ADDR, lock));
+            const polls = [];
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR, {
+                lock,
+                onPollFile: p => polls.push(p),
+            });
+            assert.deepEqual(files, []);
+            assert.deepEqual(polls.sort(), [ob('00680001.clo'), ob('00680001.out')]);
+        } finally {
+            await lock.close();
+        }
+    });
+
+    describe('removePollFiles()', () => {
+        it('removes an empty poll file while holding its lock', async () => {
+            const clo = ob('00680001.clo');
+            await fsp.writeFile(clo, '');
+            const lock = spool.newLockSet();
+            assert.ok(await spool.lockNode(TEST_ADDR, lock));
+
+            const realUnlink = fsp.unlink;
+            let heldAtUnlink = null;
+            fsp.unlink = async p => {
+                if (p === clo) heldAtUnlink = lock.holdsFlowFile(clo);
+                return realUnlink(p);
+            };
+            try {
+                assert.deepEqual(await spool.removePollFiles([clo], { lock }), [clo]);
+            } finally {
+                fsp.unlink = realUnlink;
+                await lock.close();
+            }
+            assert.equal(heldAtUnlink, true, 'the .bsy was held at the unlink');
+            assert.equal(await exists(clo), false);
+        });
+
+        it('keeps a poll file that gained content', async () => {
+            const clo = ob('00680001.clo');
+            await fsp.writeFile(clo, '');
+            const lock = spool.newLockSet();
+            assert.ok(await spool.lockNode(TEST_ADDR, lock));
+            try {
+                await fsp.writeFile(clo, '^/somewhere/mail.pkt\n');
+                assert.deepEqual(await spool.removePollFiles([clo], { lock }), []);
+            } finally {
+                await lock.close();
+            }
+            assert.equal(await fsp.readFile(clo, 'utf8'), '^/somewhere/mail.pkt\n');
+        });
+
+        it('keeps it without the lock, or once the lock is released', async () => {
+            const clo = ob('00680001.clo');
+            await fsp.writeFile(clo, '');
+            assert.deepEqual(await spool.removePollFiles([clo], {}), []);
+
+            const lock = spool.newLockSet();
+            assert.ok(await spool.lockNode(TEST_ADDR, lock));
+            await lock.close();
+            assert.deepEqual(await spool.removePollFiles([clo], { lock }), []);
+
+            //  A lock on some other node does not cover it either.
+            const other = spool.newLockSet();
+            assert.ok(await spool.lockNode({ zone: 1, net: 104, node: 2 }, other));
+            try {
+                assert.deepEqual(await spool.removePollFiles([clo], { lock: other }), []);
+            } finally {
+                await other.close();
+            }
+            assert.equal(await exists(clo), true);
+        });
+
+        it('a file already gone is not an error', async () => {
+            const lock = spool.newLockSet();
+            assert.ok(await spool.lockNode(TEST_ADDR, lock));
+            try {
+                assert.deepEqual(
+                    await spool.removePollFiles([ob('00680001.clo')], { lock }),
+                    []
+                );
+            } finally {
+                await lock.close();
+            }
+        });
+    });
+
+    describe('attachSpoolToSession()', () => {
+        async function attachedWithLock() {
+            const session = new EventEmitter();
+            session.queueFile = () => {};
+            const lock = spool.newLockSet();
+            assert.ok(await spool.lockNode(TEST_ADDR, lock));
+            const disposeMap = await attachSpoolToSession(session, spool, [TEST_ADDR], {
+                lock,
+            });
+            return { session, lock, disposeMap };
+        }
+
+        it('removes the poll file when the session ends well, before settle() resolves', async () => {
+            const clo = ob('00680001.clo');
+            await fsp.writeFile(clo, '');
+            const { session, lock, disposeMap } = await attachedWithLock();
+            try {
+                session.emit('session-end');
+                assert.equal(await disposeMap.settle(), true);
+                assert.equal(await exists(clo), false);
+            } finally {
+                await lock.close();
+            }
+        });
+
+        for (const event of ['disconnect', 'error', 'busy']) {
+            it(`keeps the poll file after '${event}'`, async () => {
+                const clo = ob('00680001.clo');
+                await fsp.writeFile(clo, '');
+                const { session, lock, disposeMap } = await attachedWithLock();
+                try {
+                    session.on('error', () => {}); //  an unhandled 'error' throws
+                    session.emit(event, new Error('gone'));
+                    await disposeMap.settle();
+                    assert.equal(await exists(clo), true);
+                } finally {
+                    await lock.close();
+                }
+            });
+        }
+
+        it('keeps a hold file, and a poll file that gained mail during the session', async () => {
+            const hlo = ob('00680001.hlo');
+            const clo = ob('00680001.clo');
+            await fsp.writeFile(hlo, '');
+            await fsp.writeFile(clo, '');
+            const { session, lock, disposeMap } = await attachedWithLock();
+            try {
+                await fsp.writeFile(clo, '^/somewhere/mail.pkt\n');
+                session.emit('session-end');
+                await disposeMap.settle();
+                assert.equal(await exists(hlo), true);
+                assert.equal(await fsp.readFile(clo, 'utf8'), '^/somewhere/mail.pkt\n');
+            } finally {
+                await lock.close();
+            }
+        });
+
+        it('a poll file created after the session read the outbound is left for the next one', async () => {
+            const clo = ob('00680001.clo');
+            const { session, lock, disposeMap } = await attachedWithLock();
+            try {
+                await fsp.writeFile(clo, '');
+                session.emit('session-end');
+                await disposeMap.settle();
+                assert.equal(await exists(clo), true);
+            } finally {
+                await lock.close();
+            }
+        });
+    });
+
+    it('a real session removes the poll file on both sides: the node we called, and the node that called us', done => {
+        const callerPoll = ob('00020002.clo'); //  1:2/2 calls in
+        const calledPoll = ob('00010001.flo'); //  1:1/1 is the node it called
+        const holdPoll = ob('00020002.hlo');
+
+        let server;
+        const finish = err => {
+            server.close();
+            done(err);
+        };
+
+        const check = async () => {
+            //  The answering side removes its poll as it releases its locks,
+            //  just after its own 'session-end'; give it a moment.
+            const deadline = Date.now() + 2000;
+            while ((await exists(callerPoll)) && Date.now() < deadline) {
+                await new Promise(r => setTimeout(r, 20));
+            }
+            assert.equal(await exists(callerPoll), false, 'answering side removed it');
+            assert.equal(await exists(calledPoll), false, 'originating side removed it');
+            assert.equal(await exists(holdPoll), true, 'hold is not a poll request');
+        };
+
+        Promise.all([
+            fsp.writeFile(callerPoll, ''),
+            fsp.writeFile(calledPoll, ''),
+            fsp.writeFile(holdPoll, ''),
+        ])
+            .then(() => {
+                server = net.createServer(serverSocket => {
+                    const serverSess = new BinkpSession(serverSocket, {
+                        role: 'answering',
+                        addresses: ['1:1/1@testnet'],
+                        getPassword: () => null,
+                        tempDir: os.tmpdir(),
+                    });
+                    attachSpoolToSession(serverSess, spool, null).then(() =>
+                        serverSess.start()
+                    );
+                });
+
+                server.listen(0, '127.0.0.1', async () => {
+                    const clientSocket = net.createConnection(
+                        server.address().port,
+                        '127.0.0.1'
+                    );
+                    const clientSess = new BinkpSession(clientSocket, {
+                        role: 'originating',
+                        addresses: ['1:2/2@testnet'],
+                        getPassword: () => null,
+                        tempDir: os.tmpdir(),
+                    });
+                    const lock = spool.newLockSet();
+                    const callee = { zone: 1, net: 1, node: 1 };
+                    assert.ok(await spool.lockNode(callee, lock));
+                    const disposeMap = await attachSpoolToSession(
+                        clientSess,
+                        spool,
+                        [callee],
+                        { lock }
+                    );
+                    clientSess.on('session-end', async () => {
+                        await disposeMap.settle();
+                        await lock.close();
+                        check().then(() => finish(), finish);
+                    });
+                    clientSess.on('error', finish);
+                    clientSess.start();
+                });
+            })
+            .catch(done);
     });
 });
