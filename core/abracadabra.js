@@ -346,7 +346,10 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
             const doorTracking = trackDoorRunBegin(this.client, this.config.name);
 
+            this.doorRunning = true;
             this.doorInstance.run(exeInfo, err => {
+                this.doorRunning = false;
+
                 if (err) {
                     Log.error(`Error running "${this.config.name}": ${err.message}`);
                 }
@@ -408,7 +411,10 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
     leave() {
         super.leave();
-        this.decrementActiveDoorNodeInstances();
+        //  a running door releases its slot when it exits; see runDoor()
+        if (!this.doorRunning) {
+            this.decrementActiveDoorNodeInstances();
+        }
     }
 
     finishedLoading() {

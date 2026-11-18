@@ -28,7 +28,10 @@ function makeClient(opts = {}) {
 
     const currentModule =
         false === opts.inModule ? null : { leave: () => (client.counts.leave += 1) };
-    client.menuStack = { getCurrentModule: currentModule, currentModule };
+    const stackEntry = currentModule
+        ? { instance: currentModule, left: false }
+        : undefined;
+    client.menuStack = { top: () => stackEntry };
 
     client.user = {
         isAuthenticated: () => false !== opts.authenticated,
@@ -110,22 +113,29 @@ describe('Client.end()', () => {
             assert.equal(client.counts.disconnect, 3);
         });
 
-        it('still disconnects when the first teardown threw', () => {
+        //  leave() is guarded in end(): a module whose cleanup throws must
+        //  not take the rest of the teardown down with it.
+        it('finishes the teardown when leave() throws', () => {
             const client = makeClient();
+            client.log = { warn: () => {} };
             client.menuStack = {
-                getCurrentModule: {
-                    leave: () => {
-                        throw new Error('module cleanup blew up');
+                top: () => ({
+                    instance: {
+                        leave: () => {
+                            throw new Error('module cleanup blew up');
+                        },
                     },
-                },
+                    left: false,
+                }),
             };
 
-            assert.throws(() => client.end(), /blew up/);
-            assert.equal(client.counts.disconnect, 0, 'the throw got there first');
-
-            //  ...and removeClient() comes along behind it
-            client.end();
-            assert.equal(client.counts.disconnect, 1, 'the socket still gets closed');
+            assert.doesNotThrow(() => client.end());
+            assert.equal(client.counts.persist, 1, 'minutes online still written');
+            assert.equal(
+                client.counts.disconnect,
+                1,
+                'the socket is closed on the first call'
+            );
         });
 
         //  "We can end up calling 'end' before TTY/etc. is established, e.g. with SSH"
@@ -192,6 +202,31 @@ describe('Client.end()', () => {
             assert.equal(client.counts.persist, 1, 'minutes online written once');
             assert.equal(client.counts.termDisconnect, 1);
             assert.equal(client.counts.disconnect, 2, 'both calls close the socket');
+        });
+    });
+
+    //
+    //  The stubs above cannot show the |left| marking working against the
+    //  real stack; a real MenuStack can.
+    //
+    describe('with a real MenuStack', () => {
+        it('a navigation after the end does not leave the module again', done => {
+            const MenuStack = require('../core/menu_stack.js');
+            const client = makeClient();
+            client.log = { debug: () => {}, warn: () => {} };
+            client.menuStack = new MenuStack(client);
+            client.menuStack.push({
+                name: 'main',
+                instance: { leave: () => (client.counts.leave += 1) },
+                menuFlags: [],
+            });
+
+            client.end();
+            client.menuStack.goto('elsewhere', err => {
+                assert.ok(err, 'an ended session goes nowhere');
+                assert.equal(client.counts.leave, 1);
+                return done();
+            });
         });
     });
 });
