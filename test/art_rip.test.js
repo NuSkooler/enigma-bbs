@@ -1445,6 +1445,50 @@ describe('RIPscrip art (.rip, #989)', function () {
             });
         });
 
+        //
+        //  A relative name is looked for from the BBS directory first. With an
+        //  extension it used to miss there: its directory was joined twice
+        //  (BBS/dir/dir/NAME.ext), whatever the depth of the install.
+        //
+        describe('a relative art path, from the BBS directory', function () {
+            const FixtureDir = 'test/fixtures/theme_art';
+            const fixturePath = paths.join(
+                __dirname,
+                'fixtures',
+                'theme_art',
+                'PATHART.ans'
+            );
+
+            it('with an extension: found in the first lookup', async function () {
+                const s = ripSessionWithTheme();
+                const info = await themeArt(s.client, `${FixtureDir}/PATHART.ans`);
+                assert.equal(info.fromPath, fixturePath);
+                assert.ok(String(info.data).includes('PATH ART'));
+            });
+
+            it('without an extension: found in the first lookup', async function () {
+                const s = ripSessionWithTheme();
+                const info = await themeArt(s.client, `${FixtureDir}/PATHART`);
+                assert.equal(info.fromPath, fixturePath);
+            });
+
+            it('a subdirectory of the theme still resolves from the theme', async function () {
+                fs.mkdirSync(paths.join(themesDir, 'ansi_one', 'sub'), {
+                    recursive: true,
+                });
+                fs.writeFileSync(
+                    paths.join(themesDir, 'ansi_one', 'sub', 'TS.ans'),
+                    'ts\r\n'
+                );
+                const s = ripSessionWithTheme();
+                const info = await themeArt(s.client, 'sub/TS.ans');
+                assert.equal(
+                    info.fromPath,
+                    paths.join(themesDir, 'ansi_one', 'sub', 'TS.ans')
+                );
+            });
+        });
+
         it('lookups that do not display (achievements, node messages): no RIP', async function () {
             const s = ripSessionWithTheme();
             const info = await themeArt(s.client, 'TM', {});
