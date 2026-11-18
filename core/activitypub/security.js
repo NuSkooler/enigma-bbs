@@ -98,11 +98,13 @@ function missingSignedHeaders(signedHeaders, method) {
 }
 exports.missingSignedHeaders = missingSignedHeaders;
 
-//  Digest algorithms (RFC 3230 names, lower-cased) we can check
-const DigestAlgorithms = {
+//  Digest algorithms (RFC 3230 / RFC 9530 names, lower-cased) we can check.
+//  No prototype: an algorithm name comes from the request, and a name such
+//  as "constructor" must look up nothing rather than an Object property.
+const DigestAlgorithms = Object.assign(Object.create(null), {
     'sha-256': 'sha256',
     'sha-512': 'sha512',
-};
+});
 
 //
 //  Verify the Digest request header against the actual request body.

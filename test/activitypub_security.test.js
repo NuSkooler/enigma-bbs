@@ -290,6 +290,13 @@ describe('verifyDigestHeader()', function () {
         assert.ok(verifyDigestHeader(CORRECT_DIGEST, BODY));
     });
 
+    it('ignores an algorithm named like an Object property', () => {
+        for (const name of ['constructor', '__proto__', 'hasownproperty']) {
+            assert.equal(verifyDigestHeader(`${name}=x`, BODY), false);
+            assert.ok(verifyDigestHeader(`${name}=x, ${CORRECT_DIGEST}`, BODY));
+        }
+    });
+
     it('returns false when the SHA-256 digest does not match the body', () => {
         const tampered = Buffer.from(
             '{"type":"Create","actor":"https://evil.example.com/users/mallory"}'

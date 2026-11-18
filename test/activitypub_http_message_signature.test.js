@@ -860,5 +860,17 @@ describe('RFC 9421 requirements (security.js)', function () {
             assert.ok(!verifyContentDigestHeader(`SHA-256=${b64('sha256')}`, body));
             assert.ok(!verifyContentDigestHeader(undefined, body));
         });
+
+        it('ignores an algorithm named like an Object property', () => {
+            for (const name of ['constructor', 'hasownproperty', 'tostring']) {
+                assert.ok(!verifyContentDigestHeader(`${name}=:AAAA:`, body));
+                assert.ok(
+                    verifyContentDigestHeader(
+                        `${name}=:AAAA:, sha-256=:${b64('sha256')}:`,
+                        body
+                    )
+                );
+            }
+        });
     });
 });
