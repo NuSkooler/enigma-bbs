@@ -25,6 +25,7 @@ Entries available under `config.loginServers.ssh`:
 | `address` | No | Sets an explicit bind address. |
 | `algorithms` | No | Configuration block for SSH algorithms. Includes keys of `kex`, `cipher`, `hmac`, and `compress`. See the algorithms section in the [ssh2-streams](https://github.com/mscdex/ssh2-streams#ssh2stream-methods) documentation for details. For defaults set by ENiGMA½, see `core/config_default.js`.
 | `traceConnections` | No | Set to `true` to enable full trace-level information on SSH connections.
+| `loginTimeoutSeconds` | No | How long, in seconds, a connection may take from connecting to reaching the shell before it is disconnected. Defaults to `120`, the same as OpenSSH's `LoginGraceTime`. `0` turns the limit off; the most it can be is `2147483` (about 24.8 days, the longest timer Node can run). See [Login Timeout](#login-timeout).
 | `untrustedTermSizeClients` | No | List of SSH client identification strings whose reported terminal size should be skipped, compared in full and case-insensitively. Defaults to `[ "SSH-2.0-cryptlib" ]`, which covers NetRunner: stock cryptlib hardcodes the terminal size as 80x48 and gives the application no way to change it. The size is established by querying the terminal instead, falling back to the usual 80x25 assumption if that query fails. Matching is deliberately exact rather than by substring: SyncTERM reports the actual size but identifies as `SSH-2.0-cryptlib(SBBS)` on 1.9rc4 and `SSH-2.0-SyncTERM_<version>` on newer builds, so a loose match on `cryptlib` would wrongly catch it. Remove an entry if a client's size reporting is fixed upstream.
 
 * *IMPORTANT* With the `privateKeyPass` option set, make sure that you verify that the config file is not readable by other users!
@@ -51,6 +52,21 @@ privateKeyPass: "@file:/run/secrets/ssh_key_pass"
 ```
 See [Configuration Files — Secret Files](../../configuration/config-files.md#secret-files) for details.
 :::
+
+### Login Timeout
+
+An SSH connection takes a node (it counts against `general.maxConnections`) as soon as it connects, before the caller has logged in. The idle timeout starts only once the caller reaches the shell, and SSH keepalives are off because some BBS terminals do not answer them. A connection that stops part way, during key exchange or at the password prompt, would otherwise keep its node until the caller closed it.
+
+So a connection that has not reached the shell within `loginTimeoutSeconds` (120 by default) is disconnected, its socket closed outright 2 seconds later if the caller has not closed it, and its node freed. The time covers key exchange, authentication (password typing and retries included) and opening the shell. A caller who has reached the shell is not affected; from there the usual idle timeout applies. It is logged at `info` level ("SSH connection did not reach a shell in time; ending it").
+
+```hjson
+loginServers: {
+    ssh: {
+        //  give callers 3 minutes to log in
+        loginTimeoutSeconds: 180
+    }
+}
+```
 
 ## Generate a SSH Private Key
 

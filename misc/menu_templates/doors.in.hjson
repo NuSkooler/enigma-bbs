@@ -171,6 +171,11 @@
                 //  memoryMb: 64      // optional, default 64
                 //  biosPath: /path/to/seabios.bin      // default: misc/v86_bios/seabios.bin
                 //  vgaBiosPath: /path/to/vgabios.bin   // default: misc/v86_bios/vgabios.bin
+                //  disconnectGraceSeconds: 30   // after a hangup or time-up, drop carrier and
+                //                               // give the door this long to save and exit
+                //                               // (0 = stop at once)
+                //  startTimeoutSeconds: 120     // end the session if the door writes nothing
+                //                               // to COM1 within this (0 = wait for ever)
             }
         }
 
@@ -239,7 +244,8 @@
                 //  persist: true                // keep the door's writes in the image;
                 //                               // false: every session starts from it as is
                 //  disconnectGraceSeconds: 35   // after a hangup, wait this long for the door
-                //                               // to finish (keep above the shim's 30)
+                //                               // to finish (keep above the shim's 30;
+                //                               // 0 = no wait, end the session at once)
                 //  amigaConsole: true           // translate Amiga console controls (default:
                 //                               // true with a Latin-1 encoding)
             }

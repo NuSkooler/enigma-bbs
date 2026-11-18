@@ -772,7 +772,9 @@ describe('ftn_bso — EchoMail export loads and flags each message once', functi
         const compressed = [];
         mod.archUtil = {
             haveArchiver: type => 'zip' === type,
-            compressTo: (type, archivePath, files, cb) => {
+            compressTo: (type, archivePath, names, workDir, cb) => {
+                //  bare names, relative to |workDir| (#1078)
+                const files = names.map(n => path.join(workDir, n));
                 compressed.push({ archivePath, files });
                 Promise.all(files.map(f => fsp.readFile(f, 'latin1')))
                     .then(contents =>

@@ -408,6 +408,7 @@ describe('config schema against config_default.js', () => {
             'loginServers.ssh.enabled',
             'loginServers.ssh.firstMenu',
             'loginServers.ssh.firstMenuNewUser',
+            'loginServers.ssh.loginTimeoutSeconds',
             'loginServers.ssh.port',
             'loginServers.ssh.privateKeyPem',
             'loginServers.telnet.enabled',

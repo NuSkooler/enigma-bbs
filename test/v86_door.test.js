@@ -94,6 +94,21 @@ function hangUp(client) {
     Events.emit(ClientDisconnected, { client });
 }
 
+//  As user_time.js does it when the day's budget is gone
+function timeUp(client) {
+    client.timeUpEmitted = true;
+    client.emit('time up');
+}
+
+//  everything written to the caller's terminal from now on
+function watchTerminal(client) {
+    const writes = [];
+    for (const k of ['write', 'rawWrite', 'passThroughWrite']) {
+        client.term[k] = data => writes.push({ k, data });
+    }
+    return writes;
+}
+
 //
 //  A worker as the door sees a real one: terminate() ends it with 'exit'
 //  (code 1) and no 'stopped' message. |holdTerminate| makes terminate()
@@ -147,8 +162,13 @@ let savedTrackEnd;
 //
 //  A door module with the live parts stubbed: the worker (FakeWorker),
 //  prevMenu() and pausePrompt(). |left| settles when it calls prevMenu().
+//  With |watchPause|, |paused| settles when the pause prompt is shown and
+//  the test calls m.dismiss() to go on.
 //
-function startDoor(config, { client = fakeClient(), holdTerminate = false } = {}) {
+function startDoor(
+    config,
+    { client = fakeClient(), holdTerminate = false, watchPause = false } = {}
+) {
     const m = new V86DoorModule({
         menuConfig: {
             config: Object.assign({ biosPath: bios, vgaBiosPath: vgaBios }, config),
@@ -162,6 +182,14 @@ function startDoor(config, { client = fakeClient(), holdTerminate = false } = {}
         m.refused = true;
         cb();
     };
+    if (watchPause) {
+        m.paused = new Promise(resolve => {
+            m.pausePrompt = cb => {
+                m.dismiss = cb;
+                resolve();
+            };
+        });
+    }
     m._newWorker = workerData => {
         const w = new FakeWorker(workerData);
         w.holdTerminate = holdTerminate;
@@ -833,10 +861,12 @@ describe('v86_door', () => {
             const input = client.term.output;
             const m = await startRunning({ name, image: img }, { client });
             assert.equal(input.listenerCount('data'), 1);
+            m.worker.emit('message', { type: 'output', data: Buffer.from('bye') });
             m.worker.guestWrite(0, 0x5a);
             m.worker.emit('message', { type: 'stopped', elapsed: 10 });
             m.worker.exit(0);
             assert.equal(await m.left, 'prevMenu');
+            assert.equal(m.refused, undefined, 'no pause');
             await settled(m);
             assert.deepEqual(listenerSnapshot(m), before);
             assert.equal(input.listenerCount('data'), 0);
@@ -1034,12 +1064,20 @@ describe('v86_door', () => {
                     client: fakeClient(),
                 });
                 m.left = new Promise(resolve => (m.prevMenu = () => resolve()));
+                let paused = false;
+                m.pausePrompt = cb => {
+                    paused = true;
+                    cb();
+                };
+                const writes = watchTerminal(m.client);
                 m._newWorker = () => {
                     throw new Error('no threads');
                 };
                 m.initSequence();
                 await m.left;
                 await settled(m);
+                assert.ok(paused, 'the caller is told, then goes back');
+                assert.ok(writes.some(w => /could not be started/.test(String(w.data))));
                 assert.equal(activeDoorInstances[name], 0);
                 assert.equal(trackEnds.length, 1);
                 assert.ok(isIdle(img), 'the image is released');
@@ -1116,6 +1154,644 @@ describe('v86_door', () => {
                 await settled(b);
             } finally {
                 opens.restore();
+            }
+        });
+
+        describe('time-up and leave (#1066)', () => {
+            //  the guest has drawn its screen: the caller is in the door
+            function guestSpeaks(m) {
+                m.worker.emit('message', { type: 'output', data: Buffer.from('LORD') });
+            }
+
+            //  the guest goes away, if it has not been ended already
+            function guestStops(m) {
+                m.worker.emit('message', { type: 'stopped', elapsed: 10 });
+                m.worker.exit(0);
+            }
+
+            it('time-up: nothing more reaches the terminal, the guest is stopped and its writes flushed', async () => {
+                const m = await startRunning({ name, image: img });
+                let wentBack = false;
+                m.prevMenu = () => (wentBack = true);
+                const input = m.client.term.output;
+                guestSpeaks(m);
+                m.worker.guestWrite(30, 0x30);
+                const writes = watchTerminal(m.client);
+                timeUp(m.client);
+                assert.equal(input.listenerCount('data'), 0, 'no key reaches the guest');
+                assert.equal(m.client.listenerCount('time up'), 0);
+                guestSpeaks(m);
+                guestStops(m);
+                await settled(m);
+                assert.deepEqual(writes, [], 'nothing written after time-up');
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(fs.readFileSync(img)[30], 0x30);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(wentBack, false, 'timeUpLogoff owns the navigation');
+                assert.equal(trackEnds.length, 1);
+                assert.equal(m._run.reason, 'timeup');
+                assert.ok(
+                    m.client.log.lines.some(l => l.obj && 'timeup' === l.obj.reason)
+                );
+            });
+
+            it('time-up then hangup: one finish, reason timeup', async () => {
+                const m = await startRunning({ name, image: img });
+                m.prevMenu = () => assert.fail('no menu');
+                guestSpeaks(m);
+                timeUp(m.client);
+                hangUp(m.client);
+                m.leave(); //  MenuStack moving on as well
+                guestStops(m);
+                await settled(m);
+                assert.equal(m._run.reason, 'timeup');
+                assert.equal(trackEnds.length, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(m.worker.terminateCalls, 1);
+            });
+
+            it('hangup then time-up: one finish, reason hangup', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                hangUp(m.client);
+                timeUp(m.client);
+                guestStops(m);
+                await settled(m);
+                assert.equal(m._run.reason, 'hangup');
+                assert.equal(trackEnds.length, 1);
+                assert.equal(activeDoorInstances[name], 0);
+            });
+
+            it('leave() ends the run without going back to a menu', async () => {
+                const m = await startRunning({ name, image: img });
+                let wentBack = false;
+                m.prevMenu = () => (wentBack = true);
+                guestSpeaks(m);
+                const writes = watchTerminal(m.client);
+                m.leave();
+                guestSpeaks(m);
+                guestStops(m);
+                await settled(m);
+                assert.equal(m._run.reason, 'leave');
+                assert.deepEqual(writes, []);
+                assert.equal(wentBack, false);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('leave() after the door ended itself changes nothing', async () => {
+                const m = await startRunning({ name, image: img });
+                guestStops(m);
+                assert.equal(await m.left, 'prevMenu');
+                m.leave(); //  the menu stack going back, as prevMenu() does
+                await settled(m);
+                assert.equal(m._run.reason, null);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('time-up while the floppy is built starts no worker', async () => {
+                let resolveFloppy;
+                const saved = FatImage.createFloppyWithFiles;
+                FatImage.createFloppyWithFiles = () =>
+                    new Promise(resolve => (resolveFloppy = resolve));
+                try {
+                    const m = startDoor({ name, image: img, runBatch: 'DOOR' });
+                    await waitFor(() => resolveFloppy, 'the floppy build');
+                    m.prevMenu = () => assert.fail('no menu');
+                    timeUp(m.client);
+                    resolveFloppy(Buffer.alloc(1474560));
+                    await settled(m);
+                    assert.equal(workers.length, 0);
+                    assert.equal(activeDoorInstances[name], 0);
+                    assert.equal(m.client.listenerCount('time up'), 0);
+                } finally {
+                    FatImage.createFloppyWithFiles = saved;
+                }
+            });
+
+            it('time-up while the image loads starts no worker and releases the image', async () => {
+                const m = startDoor({ name, image: img });
+                timeUp(m.client);
+                await settled(m);
+                assert.equal(workers.length, 0);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(trackEnds.length, 1);
+                assert.ok(isIdle(img));
+            });
+
+            it('a door entered after time-up starts nothing', async () => {
+                const client = fakeClient();
+                client.timeUpEmitted = true;
+                const m = startDoor({ name, image: img }, { client });
+                await m.left;
+                assert.equal(workers.length, 0);
+                assert.equal(m._run, undefined, 'no slot taken');
+                assert.equal(activeDoorInstances[name] || 0, 0);
+            });
+        });
+
+        describe('carrier drop and grace (#1065)', () => {
+            function guestSpeaks(m) {
+                m.worker.emit('message', { type: 'output', data: Buffer.from('TW2002') });
+            }
+
+            //  the guest powers off: the worker says so and goes
+            function guestStops(m) {
+                m.worker.emit('message', { type: 'stopped', elapsed: 10 });
+                m.worker.exit(0);
+            }
+
+            const carrierPosts = m => m.worker.posted.filter(p => 'carrier' === p.type);
+
+            it('a hangup drops carrier and holds the slot until the guest stops, then flushes', async () => {
+                const m = await startRunning({ name, image: img, nodeMax: 1 });
+                m.prevMenu = () => assert.fail('no menu for a caller who is gone');
+                guestSpeaks(m);
+                const input = m.client.term.output;
+                hangUp(m.client);
+                assert.deepEqual(carrierPosts(m), [{ type: 'carrier', present: false }]);
+                assert.equal(m.worker.terminateCalls, 0, 'the door may still be saving');
+                assert.equal(input.listenerCount('data'), 0);
+                assert.equal(activeDoorInstances[name], 1, 'slot held');
+                assert.equal(
+                    trackEnds.length,
+                    1,
+                    'door time ends when the caller leaves'
+                );
+                assert.ok(
+                    m.client.log.lines.some(l =>
+                        /carrier dropped \(hangup\); waiting up to 30 s/.test(l.msg)
+                    )
+                );
+
+                //  another caller is turned away while it saves
+                const refused = await startRunning({ name, image: img, nodeMax: 1 });
+                assert.ok(refused.refused);
+                await refused.left;
+
+                m.worker.guestWrite(40, 0x40); //  the door saves
+                guestStops(m);
+                await settled(m);
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(fs.readFileSync(img)[40], 0x40);
+                assert.equal(trackEnds.length, 1);
+                assert.ok(
+                    m.client.log.lines.some(
+                        l => /exited after carrier loss/.test(l.msg) && l.obj.ms >= 0
+                    )
+                );
+
+                const next = await startRunning({ name, image: img, nodeMax: 1 });
+                assert.ok(!next.refused, 'the slot is free again');
+                hangUp(next.client);
+                await settled(next);
+            });
+
+            it('a worker that exits during the grace ends it too', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                hangUp(m.client);
+                m.worker.exit(0);
+                await settled(m);
+                assert.equal(activeDoorInstances[name], 0);
+            });
+
+            it('a door that ignores carrier is terminated at the grace limit', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    disconnectGraceSeconds: 0.05,
+                });
+                guestSpeaks(m);
+                m.worker.guestWrite(41, 0x41);
+                const t0 = Date.now();
+                hangUp(m.client);
+                await settled(m);
+                assert.ok(Date.now() - t0 >= 40, 'waited the grace');
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(fs.readFileSync(img)[41], 0x41);
+                assert.ok(
+                    m.client.log.lines.some(l =>
+                        /did not exit within 0.05 s of carrier loss; terminating/.test(
+                            l.msg
+                        )
+                    )
+                );
+                //  late words from a worker already ended change nothing
+                guestStops(m);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('time-up drops carrier too; the guest gets its grace in the background', async () => {
+                const m = await startRunning({ name, image: img });
+                m.prevMenu = () => assert.fail('no menu');
+                guestSpeaks(m);
+                const writes = watchTerminal(m.client);
+                timeUp(m.client);
+                assert.deepEqual(carrierPosts(m), [{ type: 'carrier', present: false }]);
+                assert.equal(activeDoorInstances[name], 1);
+                guestSpeaks(m); //  "Saving..." the caller never sees
+                hangUp(m.client); //  the logoff ends the connection
+                guestStops(m);
+                await settled(m);
+                assert.deepEqual(writes, []);
+                assert.equal(m._run.reason, 'timeup');
+                assert.equal(trackEnds.length, 1);
+                assert.equal(carrierPosts(m).length, 1);
+            });
+
+            it('disconnectGraceSeconds: 0 terminates at once', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    disconnectGraceSeconds: 0,
+                });
+                guestSpeaks(m);
+                hangUp(m.client);
+                assert.deepEqual(carrierPosts(m), []);
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                await settled(m);
+            });
+
+            it('a hangup before the guest has written anything terminates at once', async () => {
+                const m = await startRunning({ name, image: img });
+                hangUp(m.client);
+                assert.deepEqual(carrierPosts(m), []);
+                assert.equal(m.worker.terminateCalls, 1);
+                await settled(m);
+            });
+
+            it('a server shutdown cuts a grace short', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                m.worker.guestWrite(42, 0x42);
+                hangUp(m.client); //  closeConnections
+                assert.equal(m.worker.terminateCalls, 0);
+                const log = quietLog();
+                const t0 = Date.now();
+                try {
+                    await new Promise(resolve =>
+                        shutdown(resolve, { timeoutMs: 2000, log })
+                    );
+                } finally {
+                    _test.resetShutdown();
+                }
+                assert.ok(Date.now() - t0 < 1000, 'did not wait out the grace');
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(fs.readFileSync(img)[42], 0x42);
+                assert.match(
+                    log.lines.find(l => /at shutdown/.test(l.msg)).msg,
+                    /1 images flushed, 0 not/
+                );
+                assert.ok(
+                    m.client.log.lines.some(l =>
+                        /without waiting for the door to exit/.test(l.msg)
+                    )
+                );
+            });
+
+            it('a hangup once the shutdown has begun gets no grace', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                const done = new Promise(resolve =>
+                    shutdown(resolve, { timeoutMs: 2000, log: quietLog() })
+                );
+                try {
+                    hangUp(m.client);
+                    await done;
+                } finally {
+                    _test.resetShutdown();
+                }
+                assert.deepEqual(carrierPosts(m), []);
+                assert.equal(m.worker.terminateCalls, 1);
+            });
+
+            it('races: hangup, then stopped, then the grace timer, then exit: one finish', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    disconnectGraceSeconds: 0.02,
+                });
+                guestSpeaks(m);
+                hangUp(m.client);
+                timeUp(m.client);
+                m.leave();
+                m.worker.emit('message', { type: 'stopped', elapsed: 1 });
+                await new Promise(resolve => setTimeout(resolve, 40));
+                m.worker.exit(0);
+                await settled(m);
+                assert.equal(m._run.reason, 'hangup');
+                assert.equal(m._run.graceExpired, false);
+                assert.equal(trackEnds.length, 1);
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(
+                    m.client.log.lines.filter(l =>
+                        /exited after carrier loss/.test(l.msg)
+                    ).length,
+                    1
+                );
+            });
+
+            for (const bad of [-1, 3601, 'thirty', null]) {
+                it(`disconnectGraceSeconds ${JSON.stringify(bad)} falls back to 30`, () => {
+                    const client = fakeClient();
+                    const m = new V86DoorModule({
+                        menuConfig: {
+                            config: { name, image: img, disconnectGraceSeconds: bad },
+                        },
+                        client,
+                    });
+                    assert.equal(m._graceMs, 30000);
+                    const warned = client.log.lines.some(
+                        l => 'warn' === l.level && /disconnectGraceSeconds/.test(l.msg)
+                    );
+                    assert.equal(warned, null !== bad, 'warned for a bad value');
+                });
+            }
+        });
+
+        describe('start-up timeout (#1067)', () => {
+            const late = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            //  a door module whose pause prompt is watched: |paused| settles
+            //  when it is shown, and the test calls m.dismiss() to go on
+            async function startSilent(config, opts) {
+                const m = await startRunning(
+                    Object.assign(
+                        { name, image: img, startTimeoutSeconds: 0.05 },
+                        config
+                    ),
+                    opts
+                );
+                m.paused = new Promise(resolve => {
+                    m.pausePrompt = cb => {
+                        m.dismiss = cb;
+                        resolve();
+                    };
+                });
+                m.writes = watchTerminal(m.client);
+                return m;
+            }
+
+            it('a guest that writes nothing in time is ended; the caller is told and goes back', async () => {
+                const m = await startSilent({ nodeMax: 1 });
+                await m.paused;
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0, 'slot free during the pause');
+                assert.equal(trackEnds.length, 1);
+                const text = m.writes.map(w => String(w.data)).join('');
+                assert.match(
+                    text,
+                    new RegExp(
+                        `${name} could not be started\\. Please let the sysop know\\.`
+                    )
+                );
+                const warns = m.client.log.lines.filter(l => 'warn' === l.level);
+                assert.equal(warns.length, 1, 'one warning');
+                assert.equal(warns[0].obj.image, img, 'naming the image');
+                assert.match(warns[0].msg, /wrote nothing to COM1 within 0.05 s/);
+                m.dismiss();
+                assert.equal(await m.left, 'prevMenu');
+                await settled(m);
+                assert.ok(isIdle(img), 'image released');
+                assert.equal(m.worker.posted.filter(p => 'carrier' === p.type).length, 0);
+            });
+
+            it('output in time cancels it', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    startTimeoutSeconds: 0.05,
+                });
+                m.worker.emit('message', { type: 'output', data: Buffer.from('hi') });
+                await late(80);
+                assert.equal(m.worker.terminateCalls, 0);
+                assert.equal(m._run.startTimer, null);
+                hangUp(m.client);
+                m.worker.exit(0);
+                await settled(m);
+            });
+
+            it('0 waits for ever: no timer is armed', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    startTimeoutSeconds: 0,
+                });
+                assert.equal(m._run.startTimer, null);
+                hangUp(m.client);
+                await settled(m);
+            });
+
+            it('the default is 120 s', async () => {
+                const m = await startRunning({ name, image: img });
+                assert.equal(m._startTimeoutMs, 120000);
+                assert.ok(m._run.startTimer, 'armed');
+                hangUp(m.client);
+                assert.equal(m._run.startTimer, null, 'cleared by the hangup');
+                await settled(m);
+            });
+
+            it('a hangup before the timer fires ends the run once, with no message', async () => {
+                const m = await startSilent({});
+                hangUp(m.client);
+                await late(80);
+                await settled(m);
+                assert.equal(m._run.timedOut, false);
+                assert.deepEqual(m.writes, []);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('the timeout, then a hangup during the pause: no menu', async () => {
+                const m = await startSilent({});
+                await m.paused;
+                let wentBack = false;
+                m.prevMenu = () => (wentBack = true);
+                m.client.clientEnded = true; //  as client.end() does
+                hangUp(m.client);
+                m.dismiss();
+                await settled(m);
+                assert.equal(wentBack, false);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('the timeout, then time-up during the pause: no menu', async () => {
+                const m = await startSilent({});
+                await m.paused;
+                let wentBack = false;
+                m.prevMenu = () => (wentBack = true);
+                timeUp(m.client);
+                m.leave(); //  timeUpLogoff takes over
+                m.dismiss();
+                await settled(m);
+                assert.equal(wentBack, false);
+            });
+
+            it('any failure before the first byte gets the message: a worker error', async () => {
+                const m = await startSilent({ startTimeoutSeconds: 0 });
+                m.worker.emit('message', { type: 'error', message: 'Cannot read BIOS' });
+                await m.paused;
+                assert.ok(
+                    m.writes.some(w => /could not be started/.test(String(w.data)))
+                );
+                m.dismiss();
+                assert.equal(await m.left, 'prevMenu');
+                await settled(m);
+            });
+
+            it('an error after the guest has spoken goes straight back, as before', async () => {
+                const m = await startSilent({});
+                m.worker.emit('message', { type: 'output', data: Buffer.from('hi') });
+                m.worker.exit(3);
+                assert.equal(await m.left, 'prevMenu');
+                await settled(m);
+                assert.equal(m.dismiss, undefined, 'no pause');
+            });
+
+            //  a door module that never runs a worker: |paused| settles when
+            //  the pause prompt is shown, |left| when it goes back
+            //  a door module whose terminal and pause prompt are watched
+            function startWatched(config, { client = fakeClient() } = {}) {
+                const writes = watchTerminal(client);
+                const m = startDoor(config, { client, watchPause: true });
+                m.writes = writes;
+                return m;
+            }
+            const told = m =>
+                m.writes.some(w =>
+                    new RegExp(`${name} could not be started`).test(String(w.data))
+                );
+            const warnings = m => m.client.log.lines.filter(l => 'warn' === l.level);
+
+            //  config validation, a missing BIOS or image: no slot is taken
+            for (const [what, cfg, re] of [
+                [
+                    'a missing image',
+                    () => ({ image: '/no/such/door.img' }),
+                    /disk image not found/,
+                ],
+                [
+                    'a missing BIOS',
+                    () => ({ biosPath: '/no/such/seabios.bin' }),
+                    /biosPath not found/,
+                ],
+                ['no image key', () => ({ image: undefined }), /image/],
+            ]) {
+                it(`${what}: the caller is told, then goes back`, async () => {
+                    const m = startWatched(Object.assign({ name, image: img }, cfg()));
+                    await m.paused;
+                    assert.ok(told(m), 'the message is shown');
+                    assert.equal(m._run, undefined, 'no slot taken');
+                    assert.equal(workers.length, 0);
+                    const warns = warnings(m);
+                    assert.equal(warns.length, 1, 'one warning');
+                    assert.match(warns[0].obj.error, re);
+                    m.dismiss();
+                    assert.equal(await m.left, 'prevMenu');
+                });
+            }
+
+            it('a BBSDEV drop file: the caller is told, then goes back', async () => {
+                const m = startWatched({ name, image: img, dropFileType: 'BBSDEV' });
+                await m.paused;
+                assert.ok(told(m));
+                assert.equal(warnings(m).length, 1);
+                assert.match(warnings(m)[0].obj.error, /BBSDEV/);
+                m.dismiss();
+                assert.equal(await m.left, 'prevMenu');
+                await settled(m);
+                assert.equal(activeDoorInstances[name], 0);
+            });
+
+            it('a failure before the run, after a hangup or time-up: no message', async () => {
+                for (const gone of ['clientEnded', 'timeUpEmitted']) {
+                    const client = fakeClient();
+                    client[gone] = true;
+                    const m = startWatched(
+                        { name, image: '/no/such/door.img' },
+                        { client }
+                    );
+                    assert.equal(await m.left, 'prevMenu', gone);
+                    assert.equal(m.dismiss, undefined, `${gone}: no pause`);
+                    assert.equal(told(m), false, `${gone}: no message`);
+                }
+            });
+
+            it('too many callers: their own message only', async () => {
+                const first = await startRunning({ name, image: img, nodeMax: 1 });
+                const m = startWatched({ name, image: img, nodeMax: 1 });
+                await m.paused;
+                assert.ok(
+                    m.writes.some(w => /Too many active instances/.test(String(w.data)))
+                );
+                m.dismiss();
+                assert.equal(await m.left, 'prevMenu');
+                assert.equal(told(m), false);
+                hangUp(first.client);
+                await settled(first);
+            });
+
+            //  a guest that halts or powers off before its first byte
+            for (const how of ['stopped', 'exit 0']) {
+                it(`a guest that ends (${how}) without writing to COM1: the caller is told`, async () => {
+                    const m = await startSilent({ startTimeoutSeconds: 0 });
+                    if ('stopped' === how) {
+                        m.worker.emit('message', { type: 'stopped', elapsed: 900 });
+                    }
+                    m.worker.exit(0);
+                    await m.paused;
+                    assert.ok(told(m));
+                    const warns = warnings(m);
+                    assert.equal(warns.length, 1, 'one warning');
+                    assert.equal(warns[0].obj.image, img);
+                    assert.match(
+                        warns[0].msg,
+                        /stopped without writing anything to COM1/
+                    );
+                    m.dismiss();
+                    assert.equal(await m.left, 'prevMenu');
+                    await settled(m);
+                });
+            }
+
+            it('a guest stopped by a hangup or leave() before its first byte: no message', async () => {
+                for (const end of ['hangup', 'leave']) {
+                    const m = await startSilent({ startTimeoutSeconds: 0 });
+                    let wentBack = false;
+                    m.prevMenu = () => (wentBack = true);
+                    if ('hangup' === end) {
+                        hangUp(m.client);
+                    } else {
+                        m.leave();
+                    }
+                    m.worker.emit('message', { type: 'stopped', elapsed: 1 });
+                    await settled(m);
+                    assert.equal(m.dismiss, undefined, `${end}: no pause`);
+                    assert.equal(wentBack, false);
+                    assert.equal(told(m), false);
+                }
+            });
+
+            for (const bad of [-5, 'soon', 7200]) {
+                it(`startTimeoutSeconds ${JSON.stringify(bad)} falls back to 120`, () => {
+                    const client = fakeClient();
+                    const m = new V86DoorModule({
+                        menuConfig: {
+                            config: { name, image: img, startTimeoutSeconds: bad },
+                        },
+                        client,
+                    });
+                    assert.equal(m._startTimeoutMs, 120000);
+                    assert.ok(
+                        client.log.lines.some(
+                            l => 'warn' === l.level && /startTimeoutSeconds/.test(l.msg)
+                        )
+                    );
+                });
             }
         });
 

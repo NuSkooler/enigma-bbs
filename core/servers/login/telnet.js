@@ -229,6 +229,8 @@ class TelnetClient {
         //  them, as "write after end" (#1017). A TelnetSocket that has failed
         //  will never get there, so its socket is ended directly.
         //
+        this._closeAfterEnd();
+
         try {
             if (this.socket.destroyed || this.socket.errored) {
                 return this.socket.rawSocket.end();
@@ -237,6 +239,51 @@ class TelnetClient {
         } catch (e) {
             //  ignored
         }
+    }
+
+    //
+    //  Once this side has ended the connection and its last output has gone
+    //  out, the socket waits for the caller to close its side too. A caller
+    //  that never does would keep the socket open (#1080), so it is closed
+    //  outright after TelnetClient.EndCloseGraceMs. By then everything
+    //  written is with the operating system, which still delivers it.
+    //
+    //  Closing it does not reset the connection for unread input (which can
+    //  throw away output the caller has not read yet): TelnetSocket reads
+    //  the socket for as long as it is open, so nothing is left unread.
+    //
+    //  Only for a TCP socket: under a WebSocket the WebSocket close has a
+    //  timeout of its own.
+    //
+    _closeAfterEnd() {
+        const rawSocket = this.socket.rawSocket;
+        if (
+            this.closeAfterEndArmed ||
+            !(rawSocket instanceof net.Socket) ||
+            rawSocket.destroyed
+        ) {
+            return;
+        }
+        this.closeAfterEndArmed = true;
+
+        const armGraceTimer = () => {
+            if (rawSocket.destroyed) {
+                return;
+            }
+            const graceTimer = setTimeout(() => {
+                if (!rawSocket.destroyed) {
+                    this._logDebug({}, 'Caller did not close after the end; closing');
+                    rawSocket.destroy();
+                }
+            }, TelnetClient.EndCloseGraceMs);
+            graceTimer.unref();
+            rawSocket.once('close', () => clearTimeout(graceTimer));
+        };
+
+        if (rawSocket.writableFinished) {
+            return armGraceTimer();
+        }
+        rawSocket.once('finish', armGraceTimer);
     }
 
     banner() {
@@ -279,6 +326,10 @@ class TelnetClient {
 }
 
 inherits(TelnetClient, Client);
+
+//  How long a caller has to close its side after this side has ended the
+//  connection; the same as the WebSocket close timeout (ws closeTimeout)
+TelnetClient.EndCloseGraceMs = 30000;
 
 //
 //  The 'ready' payload. The main listener's is exactly what it has always

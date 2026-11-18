@@ -199,8 +199,10 @@ function selectClientEmulation(client, readyOptions) {
     };
 
     if (term.emulation.name !== resolved.base) {
-        //  the outgoing decoder has not been told to expect anything yet, so
-        //  it holds nothing; dispose() just keeps it from ever doing so
+        //  the outgoing decoder may hold the start of a control sequence
+        //  that arrived before ready (#942); dispose() drops it and stops
+        //  its timer. Before any menu those bytes would only have been
+        //  stray key presses.
         const outgoing = term.emulation && term.emulation.inputDecoder;
         if (outgoing && 'function' === typeof outgoing.dispose) {
             outgoing.dispose();

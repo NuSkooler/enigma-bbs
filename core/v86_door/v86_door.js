@@ -22,6 +22,14 @@
  *     memoryMb:     number   - guest RAM in MB (default: 64)
  *     biosPath:     string   - path to SeaBIOS image (default: {enigma_root}/bios/seabios.bin)
  *     vgaBiosPath:  string   - path to VGA BIOS image (default: {enigma_root}/bios/vgabios.bin)
+ *     disconnectGraceSeconds: number - after a hangup, time-up or leave, carrier is dropped
+ *                                      on COM1 and the door gets this long to save and
+ *                                      exit before the emulator is stopped; 0 = stop at
+ *                                      once (default: 30, max 3600)
+ *     startTimeoutSeconds: number - the guest must write its first byte to COM1 within
+ *                                   this, or the session is ended and the caller told
+ *                                   the door could not be started; 0 = wait for ever
+ *                                   (default: 120, max 3600)
  *   }
  *
  * Drop file filename on A: drive:
@@ -36,7 +44,7 @@
  */
 
 const { MenuModule } = require('../menu_module.js');
-const { Errors } = require('../enig_error.js');
+const { Errors, ErrorCodes } = require('../enig_error.js');
 //  through the module objects, not destructured, so that tests can stand in
 const DoorUtil = require('../door_util.js');
 const FatImage = require('./fat_image.js');
@@ -64,6 +72,13 @@ const activeDoorInstances = {};
 //  Sessions from the slot being taken until their image has been flushed
 //  and released (see _finishRun()); what shutdown() waits for
 const runningSessions = new Set();
+
+//  per-door options, in seconds (menu entry config)
+const Defaults = {
+    disconnectGraceSeconds: 30,
+    startTimeoutSeconds: 120,
+};
+const MaxOptionSeconds = 3600;
 
 const Timeouts = {
     //  how long a worker may take to stop after terminate() before the
@@ -469,6 +484,14 @@ function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
     Promise.all([...sessions.map(s => s._run.settled), ...idleFlushes]).then(report);
 }
 
+//  _finishRun()'s log line, by why the run was stopped from our side
+const StopRunMessages = {
+    hangup: 'Client disconnected — terminating v86 worker',
+    timeup: 'Caller out of time — terminating v86 worker',
+    leave: 'Caller left the door — terminating v86 worker',
+    shutdown: 'Server shutting down — terminating v86 worker',
+};
+
 exports.moduleInfo = {
     name: 'V86Door',
     desc: 'Native x86/DOS Door Emulation via v86',
@@ -485,6 +508,35 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
         this.config.biosPath = this.config.biosPath || DEFAULT_BIOS_PATH;
         this.config.vgaBiosPath = this.config.vgaBiosPath || DEFAULT_VGA_BIOS_PATH;
+
+        this._graceMs =
+            1000 *
+            this._secondsOption(
+                'disconnectGraceSeconds',
+                Defaults.disconnectGraceSeconds
+            );
+        this._startTimeoutMs =
+            1000 *
+            this._secondsOption('startTimeoutSeconds', Defaults.startTimeoutSeconds);
+    }
+
+    //
+    //  A number of seconds from the menu entry's config, 0 to 3600
+    //  (fractions allowed); anything else is logged and the default used.
+    //
+    _secondsOption(key, defaultValue) {
+        const value = this.config[key];
+        if (undefined === value || null === value) {
+            return defaultValue;
+        }
+        if (_.isFinite(value) && value >= 0 && value <= MaxOptionSeconds) {
+            return value;
+        }
+        this.client.log.warn(
+            { name: this.config.name, [key]: value },
+            `v86 door: "${key}" must be a number of seconds from 0 to ${MaxOptionSeconds}; using ${defaultValue}`
+        );
+        return defaultValue;
     }
 
     initSequence() {
@@ -492,6 +544,14 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
         async.series(
             [
+                function notTimedUp(callback) {
+                    //  the caller is being logged off: start nothing for them
+                    if (self.client.timeUpEmitted) {
+                        return callback(Errors.General('Time is up'));
+                    }
+                    return callback(null);
+                },
+
                 function validateConfig(callback) {
                     return self.validateConfigFields(
                         { name: 'string', image: 'string' },
@@ -681,10 +741,22 @@ exports.getModule = class V86DoorModule extends MenuModule {
     }
 
     //
+    //  The menu stack is moving on while the door runs: time-up
+    //  (timeUpLogoff), an idle logoff, or anything else that takes the caller
+    //  elsewhere. Called before the next menu draws.
+    //
+    leave() {
+        super.leave();
+        this._left = true;
+        this._stopRun(this.client.timeUpEmitted ? 'timeup' : 'leave');
+    }
+
+    //
     //  The slot is taken: from here every way out goes through _finishRun().
-    //  The hangup watcher is set now, not when the worker starts, so a caller
-    //  who hangs up while the floppy is built or the image loads is noticed
-    //  and no worker is started for them.
+    //  The hangup and time-up watchers are set now, not when the worker
+    //  starts, so a caller who hangs up or runs out of time while the floppy
+    //  is built or the image loads is noticed and no worker is started for
+    //  them.
     //
     _beginRun() {
         this._incrementInstances();
@@ -693,6 +765,14 @@ exports.getModule = class V86DoorModule extends MenuModule {
             finished: false,
             hungUp: false,
             reason: null,
+            detached: false,
+            sawOutput: false,
+            graceTimer: null,
+            carrierDroppedAt: null,
+            graceExpired: false,
+            graceCutShort: false,
+            startTimer: null,
+            timedOut: false,
             worker: null,
             done: null,
             spinner: null,
@@ -715,19 +795,108 @@ exports.getModule = class V86DoorModule extends MenuModule {
             }
         };
         Events.on(Events.getSystemEvents().ClientDisconnected, run.onDisconnect);
+
+        run.onTimeUp = () => this._stopRun('timeup');
+        this.client.on('time up', run.onTimeUp);
     }
 
-    //  The caller is gone, or the server is stopping: end the run now if the
-    //  worker is going, else when the step under way calls back
+    //
+    //  The caller is gone (hangup), out of time (timeup), taken elsewhere
+    //  (leave), or the server is stopping (shutdown). The caller is detached
+    //  at once. A guest that has written to COM1 then has carrier dropped
+    //  and disconnectGraceSeconds to save and exit; any other run ends now if
+    //  the worker is going, else when the step under way calls back. The
+    //  first reason is the one kept; a shutdown cuts a grace short.
+    //
     _stopRun(reason) {
         const run = this._run;
-        if (!run || run.finished || run.hungUp) {
+        if (!run || run.finished) {
+            return;
+        }
+        if (run.hungUp) {
+            if ('shutdown' === reason && run.graceTimer) {
+                clearTimeout(run.graceTimer);
+                run.graceTimer = null;
+                run.graceCutShort = true;
+                run.done(null);
+            }
             return;
         }
         run.hungUp = true;
         run.reason = reason;
-        if (run.done) {
+        this._detachCaller();
+        if (!run.done) {
+            return;
+        }
+        //  a guest still booting has no player state to save
+        if (
+            this._graceMs > 0 &&
+            run.sawOutput &&
+            !shuttingDown &&
+            'shutdown' !== reason
+        ) {
+            return this._dropCarrier();
+        }
+        run.done(null);
+    }
+
+    //
+    //  Tell the guest the line is gone, as a modem would, and wait for the
+    //  worker to stop (the guest powered off or halted) for at most
+    //  disconnectGraceSeconds. The slot stays taken until then.
+    //
+    _dropCarrier() {
+        const run = this._run;
+        try {
+            run.worker.postMessage({ type: 'carrier', present: false });
+        } catch (e) {
+            return run.done(null); //  the worker is gone already
+        }
+        const graceSeconds = this._graceMs / 1000;
+        run.carrierDroppedAt = Date.now();
+        this.client.log.info(
+            { name: this.config.name, reason: run.reason, graceSeconds },
+            `v86 door: carrier dropped (${run.reason}); waiting up to ${graceSeconds} s for the door to exit`
+        );
+        run.graceTimer = setTimeout(() => {
+            run.graceTimer = null;
+            run.graceExpired = true;
+            this.client.log.info(
+                { name: this.config.name, reason: run.reason, graceSeconds },
+                `v86 door did not exit within ${graceSeconds} s of carrier loss; terminating`
+            );
             run.done(null);
+        }, this._graceMs);
+    }
+
+    //
+    //  From here nothing of the run reaches the caller's terminal and nothing
+    //  the caller types reaches the guest. Synchronous, once, and writes
+    //  nothing: on time-up with no logoff art the caller has just been sent a
+    //  goodbye and ended, and a write queued behind it would cost them it.
+    //
+    _detachCaller() {
+        const run = this._run;
+        if (!run || run.detached) {
+            return;
+        }
+        run.detached = true;
+
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            run.onDisconnect
+        );
+        this.client.removeListener('time up', run.onTimeUp);
+        clearInterval(run.spinner);
+        clearTimeout(run.startTimer);
+        run.startTimer = null;
+        if (run.inputSource) {
+            run.inputSource.removeListener('data', run.onClientData);
+        }
+        //  the caller's time in the door ends here
+        if (run.doorTracking) {
+            DoorUtil.trackDoorRunEnd(run.doorTracking);
+            run.doorTracking = null;
         }
     }
 
@@ -780,8 +949,25 @@ exports.getModule = class V86DoorModule extends MenuModule {
             if (!firstOutput) return;
             firstOutput = false;
             clearInterval(run.spinner);
+            clearTimeout(run.startTimer);
+            run.startTimer = null;
             self.client.term.write(ansi.resetScreen());
         };
+
+        //  A guest that never writes to COM1 (a bad image, a BIOS that does
+        //  not work, a RUN.BAT that hangs first) would leave the caller
+        //  watching the spinner for ever. Timed from the worker's start, so
+        //  a worker that never gets the emulator going is covered too.
+        if (self._startTimeoutMs > 0) {
+            const startSeconds = self._startTimeoutMs / 1000;
+            run.startTimer = setTimeout(() => {
+                run.startTimer = null;
+                run.timedOut = true;
+                run.done(
+                    Errors.Timeout(`wrote nothing to COM1 within ${startSeconds} s`)
+                );
+            }, self._startTimeoutMs);
+        }
 
         //  Client → COM1. The stream is kept: client.end() clears
         //  term.output before ClientDisconnected reaches us.
@@ -800,6 +986,10 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     break;
 
                 case 'output':
+                    run.sawOutput = true;
+                    if (run.detached) {
+                        break; //  the caller is gone or elsewhere
+                    }
                     stopSpinner();
                     self.client.term.passThroughWrite(Buffer.from(msg.data));
                     break;
@@ -852,16 +1042,27 @@ exports.getModule = class V86DoorModule extends MenuModule {
     //  The single way out once the slot is taken (the series' final callback),
     //  whatever ended the run. It stops the worker, frees the slot at once, and
     //  then, once the thread is gone, writes the image to disk and lets go of
-    //  it. A hangup ends the worker at once: what the guest wrote is already in
-    //  the shared image, and the worker's own 'stop' saves nothing more.
+    //  it. On a hangup this runs once the guest has had its grace (see
+    //  _stopRun()): what the guest wrote is already in the shared image, and
+    //  the worker's own 'stop' saves nothing more.
     //
     _finishRun(err) {
         const run = this._run;
 
         if (!run) {
-            //  ended before a slot was taken (bad config, too many callers)
+            //  ended before a slot was taken (bad config, a missing BIOS or
+            //  image, too many callers, time-up)
             if (err) {
                 this.client.log.warn({ error: err.message }, 'v86_door error');
+                //  a caller refused for too many callers has been told so
+                if (
+                    ErrorCodes.AccessDenied !== err.code &&
+                    !this._left &&
+                    !this.client.clientEnded &&
+                    !this.client.timeUpEmitted
+                ) {
+                    return this._cannotStart();
+                }
             }
             return this.prevMenu();
         }
@@ -871,14 +1072,11 @@ exports.getModule = class V86DoorModule extends MenuModule {
         }
         run.finished = true;
 
-        Events.removeListener(
-            Events.getSystemEvents().ClientDisconnected,
-            run.onDisconnect
-        );
-        clearInterval(run.spinner);
-        if (run.inputSource) {
-            run.inputSource.removeListener('data', run.onClientData);
-        }
+        this._detachCaller();
+        clearTimeout(run.graceTimer);
+        run.graceTimer = null;
+        clearTimeout(run.startTimer);
+        run.startTimer = null;
 
         let stopped = Promise.resolve(true);
         if (run.worker) {
@@ -893,20 +1091,40 @@ exports.getModule = class V86DoorModule extends MenuModule {
             stopped = terminateWorker(worker, Timeouts.terminateMs);
         }
 
-        if (run.doorTracking) {
-            DoorUtil.trackDoorRunEnd(run.doorTracking);
-            run.doorTracking = null;
-        }
         this._decrementInstances();
 
         if (err) {
-            this.client.log.warn({ error: err.message }, 'v86_door error');
+            this.client.log.warn(
+                { name: this.config.name, image: this.config.image, error: err.message },
+                run.timedOut
+                    ? `v86 door wrote nothing to COM1 within ${this._startTimeoutMs / 1000} s; ending it`
+                    : 'v86_door error'
+            );
+        } else if (run.graceCutShort) {
+            this.client.log.info(
+                { name: this.config.name, reason: run.reason },
+                'Server shutting down — terminating v86 worker without waiting for the door to exit'
+            );
+        } else if (run.carrierDroppedAt) {
+            if (!run.graceExpired) {
+                this.client.log.info(
+                    {
+                        name: this.config.name,
+                        reason: run.reason,
+                        ms: Date.now() - run.carrierDroppedAt,
+                    },
+                    'v86 door exited after carrier loss'
+                );
+            }
         } else if (run.hungUp) {
             this.client.log.info(
                 { name: this.config.name, reason: run.reason },
-                'shutdown' === run.reason
-                    ? 'Server shutting down — terminating v86 worker'
-                    : 'Client disconnected — terminating v86 worker'
+                StopRunMessages[run.reason] || StopRunMessages.hangup
+            );
+        } else if (!run.sawOutput) {
+            this.client.log.warn(
+                { name: this.config.name, image: this.config.image },
+                'v86 door stopped without writing anything to COM1'
             );
         }
 
@@ -938,9 +1156,34 @@ exports.getModule = class V86DoorModule extends MenuModule {
                 run.settle();
             });
 
-        if (!run.hungUp) {
+        //  ended by the door itself (or an error): back to the menu, unless
+        //  the menu stack has moved on already
+        if (!run.hungUp && !this._left) {
+            //  an error, or a guest that halted or powered off, before the
+            //  first byte
+            if (!run.sawOutput) {
+                return this._cannotStart();
+            }
             this.prevMenu();
         }
+    }
+
+    //
+    //  The door failed before the guest wrote anything, or could not be run
+    //  at all: say so rather than drop the caller back at the menu with no
+    //  word. The slot, if one was taken, is already free during the pause.
+    //
+    _cannotStart() {
+        this.client.term.write(ansi.resetScreen());
+        this.client.term.write(
+            `\r\n  ${this.config.name} could not be started. Please let the sysop know.\r\n`
+        );
+        this.pausePrompt(() => {
+            //  not if a time-up, a hangup or anything else moved on meanwhile
+            if (!this._left && !this.client.clientEnded) {
+                this.prevMenu();
+            }
+        });
     }
 
     _incrementInstances() {
@@ -965,6 +1208,7 @@ exports.shutdown = shutdown;
 exports._test = {
     imageRegistry,
     resetShutdown: () => (shuttingDown = false),
+    Defaults,
     activeDoorInstances,
     runningSessions,
     Timeouts,

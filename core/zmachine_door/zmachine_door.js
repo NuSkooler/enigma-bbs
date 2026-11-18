@@ -74,6 +74,14 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
 
         async.series(
             [
+                function notTimedUp(callback) {
+                    //  the caller is being logged off: start nothing for them
+                    if (self.client.timeUpEmitted) {
+                        return callback(Errors.General('Time is up'));
+                    }
+                    return callback(null);
+                },
+
                 function validateConfig(callback) {
                     return self.validateConfigFields(
                         { name: 'string', game_path: 'string' },
@@ -177,9 +185,20 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
     }
 
     //
+    //  The menu stack is moving on while the game runs: time-up
+    //  (timeUpLogoff), an idle logoff, or anything else that takes the caller
+    //  elsewhere. Called before the next menu draws.
+    //
+    leave() {
+        super.leave();
+        this._left = true;
+        this._stopRun(this.client.timeUpEmitted ? 'timeup' : 'leave');
+    }
+
+    //
     //  The slot is taken: from here every way out goes through _finishRun().
-    //  The hangup watcher is set now, so a caller who is gone before the
-    //  worker would start never gets one.
+    //  The hangup and time-up watchers are set now, so a caller who is gone
+    //  before the worker would start never gets one.
     //
     _beginRun() {
         this._incrementInstances();
@@ -187,6 +206,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         const run = {
             finished: false,
             hungUp: false,
+            reason: null,
             worker: null,
             done: null,
             spinner: null,
@@ -201,18 +221,28 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
                 _.get(evt, 'client.session.uniqueId') ===
                 _.get(this.client, 'session.uniqueId')
             ) {
-                this._stopRun();
+                this._stopRun('hangup');
             }
         };
         Events.on(Events.getSystemEvents().ClientDisconnected, run.onDisconnect);
+
+        run.onTimeUp = () => this._stopRun('timeup');
+        this.client.on('time up', run.onTimeUp);
     }
 
-    _stopRun() {
+    //
+    //  The caller is gone (hangup), out of time (timeup) or taken elsewhere
+    //  (leave): end the run now if the worker is going, else when the step
+    //  under way calls back. The first reason is the one kept. A time-up
+    //  ends the game as a hangup does: the VM keeps no state yet.
+    //
+    _stopRun(reason) {
         const run = this._run;
         if (!run || run.finished || run.hungUp) {
             return;
         }
         run.hungUp = true;
+        run.reason = reason;
         if (run.done) {
             run.done(null);
         }
@@ -242,6 +272,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
             Events.getSystemEvents().ClientDisconnected,
             run.onDisconnect
         );
+        this.client.removeListener('time up', run.onTimeUp);
         clearInterval(run.spinner);
         if (run.inputSource) {
             run.inputSource.removeListener('data', run.onClientData);
@@ -276,12 +307,16 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
             this.client.log.warn({ error: err.message }, 'zmachine_door error');
         } else if (run.hungUp) {
             this.client.log.info(
-                { name: this.config.name },
-                'Client disconnected — terminating zmachine worker'
+                { name: this.config.name, reason: run.reason },
+                'hangup' === run.reason
+                    ? 'Client disconnected — terminating zmachine worker'
+                    : `Caller ${'timeup' === run.reason ? 'out of time' : 'left the game'} — terminating zmachine worker`
             );
         }
 
-        if (!run.hungUp) {
+        //  ended by the game itself (or an error): back to the menu, unless
+        //  the menu stack has moved on already
+        if (!run.hungUp && !this._left) {
             this.prevMenu();
         }
     }

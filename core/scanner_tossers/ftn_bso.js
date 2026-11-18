@@ -135,6 +135,10 @@ function FTNMessageScanTossModule() {
     //  progress; see getOutgoingBundleFileName()
     this.claimedBundleNames = new Set();
 
+    //  how often a running export is reported as still running; see
+    //  performExport() (tests shorten it)
+    this.exportWatchdogMs = EXPORT_WATCHDOG_MS;
+
     const config = Config();
     if (_.has(config, 'scannerTossers.ftn_bso')) {
         this.moduleConfig = config.scannerTossers.ftn_bso;
@@ -1192,9 +1196,8 @@ function FTNMessageScanTossModule() {
     //  completes.
     //
     //  A per-destination temp subdirectory would also keep the temp names
-    //  apart, but not the outbound ones, and an archiver such as Info-ZIP
-    //  stores the directory part of each path it is given -- so it would
-    //  change what goes into a bundle.
+    //  apart, but not the outbound ones; and bundles are built from the temp
+    //  area itself, with bare packet names (see deliverEchoMailPackets()).
     //
     this.allocateEchoMailPacketPath = function (dest, messageId, claimed) {
         const proposed = self.getOutgoingPacketFileName(
@@ -1720,8 +1723,9 @@ function FTNMessageScanTossModule() {
 
                                 claimedBundlePath = bundlePath;
 
-                                //  adjust back to temp path
-                                tempBundlePath = paths.join(
+                                //  adjust back to temp path (absolute: the
+                                //  archiver runs from the temp area)
+                                tempBundlePath = paths.resolve(
                                     self.exportTempDir,
                                     paths.basename(bundlePath)
                                 );
@@ -1737,11 +1741,21 @@ function FTNMessageScanTossModule() {
                                     //  cannot be used, say) would otherwise
                                     //  leave this export, and its claim on
                                     //  the name, unfinished for good.
+                                    //
+                                    //  Packets are named relative to the
+                                    //  temp area they are in, and the
+                                    //  archiver run from there: most store
+                                    //  the path of each file they are
+                                    //  given, and a bundle must hold bare
+                                    //  packet names. (Blue Wave and QWK
+                                    //  packets are built the same way.)
+                                    //
                                     try {
                                         self.archUtil.compressTo(
                                             exportOpts.nodeConfig.archiveType,
                                             tempBundlePath,
-                                            exportedFileNames,
+                                            exportedFileNames.map(f => paths.basename(f)),
+                                            self.exportTempDir,
                                             err => {
                                                 callback(err, [tempBundlePath]);
                                             }
@@ -5225,21 +5239,29 @@ function FTNMessageScanTossModule() {
         //
         //  Select all messages with a |message_id| > |lastScanId|.
         //  Additionally exclude messages with the System state_flags0 which will be present for
-        //  imported or already exported messages
+        //  imported or already exported messages. A new StateFlags0 bit needs a
+        //  decision here: does it, on its own, keep a message from the echo?
         //
-        //  NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
+        //  The one flag that does not exclude a message is ActivityPubExported
+        //  on its own: a local post in an area that is both federated and an
+        //  FTN echo, which the ActivityPub tosser delivered before this scan
+        //  came round. It still has to reach the echo (#1032). Exported, which
+        //  this exporter writes with the MSGID, keeps it from going twice.
         //
-        //  Other tossers write state_flags0 too (ActivityPub marks a post it
-        //  exported, email a failure), so this also passes over a message one
-        //  of them got to first. That is long-standing behaviour and is kept
-        //  as is; see test/ftn_export_retry.test.js.
+        //  Other tossers' flags still exclude a message (email's failure, a
+        //  message ActivityPub flagged Exported before it had a bit of its
+        //  own). That is long-standing behaviour and is kept as is; see
+        //  test/ftn_export_retry.test.js.
         //
         const getNewUuidsSql = `SELECT message_id, message_uuid
             FROM message m
             WHERE area_tag = ? AND message_id > ? AND
-                (SELECT COUNT(message_id)
-                FROM message_meta
-                WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
+                NOT EXISTS (
+                    SELECT 1 FROM message_meta
+                    WHERE message_id = m.message_id AND meta_category = 'System'
+                      AND meta_name = 'state_flags0'
+                      AND CAST(meta_value AS INTEGER) <> ${Message.StateFlags0.ActivityPubExported}
+                )
             ORDER BY message_id;`;
 
         //  we shouldn't, but be sure we don't try to pick up private mail here
@@ -5538,10 +5560,11 @@ function FTNMessageScanTossModule() {
     //  EchoMail we imported, offered on to the area's other uplinks.
     //
     //  performEchoMailExport() cannot do this: it excludes any message carrying
-    //  a System/state_flags0 row, and import always writes one. So a second
-    //  uplink on an area -- a downstream point, or a sub-hub -- has until now
-    //  only ever received messages composed by a user at a terminal on this
-    //  system, never the echomail that flowed in from the area's own source.
+    //  a System/state_flags0 row other than ActivityPubExported alone (#1032),
+    //  and import always writes one, with Imported. So a second uplink on an
+    //  area -- a downstream point, or a sub-hub -- has until now only ever
+    //  received messages composed by a user at a terminal on this system,
+    //  never the echomail that flowed in from the area's own source.
     //
     //  Opt-in per area via `relay: true`, because relaying is outwardly visible
     //  on the network: a board that configured a second uplink for some other
@@ -7164,6 +7187,56 @@ function guardedCall(watchdogMs, label, fn, cb) {
     }
 }
 
+//
+//  Watchdog that only watches: runs |fn(done)| and calls |cb| exactly once,
+//  when |done| is invoked (or |fn| throws) -- never before. Every |watchdogMs|
+//  until then it logs that |label| is still running.
+//
+//  For work that cannot be interrupted. guardedCall() gives up on such work
+//  and lets the caller carry on as if it had ended, while it is in fact still
+//  running; anything the caller then starts runs alongside it (#1079).
+//
+function watchedCall(watchdogMs, label, fn, cb) {
+    const startedAt = Date.now();
+    const minutesRunning = () => Math.round((Date.now() - startedAt) / 60000);
+    let finished = false;
+    let warned = false;
+
+    const timer = setInterval(() => {
+        warned = true;
+        Log.error(
+            { label, watchdogMs, minutesRunning: minutesRunning() },
+            'FTN watchdog: still running; another will not start until it finishes'
+        );
+    }, watchdogMs);
+    //  this timer alone must not keep the process up
+    timer.unref();
+
+    const finish = err => {
+        if (finished) return;
+        finished = true;
+        clearInterval(timer);
+        if (warned) {
+            Log.info(
+                { label, minutesRunning: minutesRunning() },
+                'FTN watchdog: finished after running long'
+            );
+        }
+        return cb(err);
+    };
+
+    try {
+        fn(finish);
+    } catch (e) {
+        //  A throw from |cb| itself (finish ran synchronously) is not the
+        //  work failing: let it propagate rather than swallow it.
+        if (finished) {
+            throw e;
+        }
+        finish(e);
+    }
+}
+
 //  Unlink any orphan enigma.bsy files left by a crashed prior run.  Safe because
 //  only one BBS instance writes to these directories; anything we find is stale.
 function sweepOrphanBsyFiles(dirs) {
@@ -7856,11 +7929,16 @@ FTNMessageScanTossModule.prototype.performExport = function (cb) {
     const self = this;
     const outboundDir = self.moduleConfig.paths.outbound;
 
+    //
+    //  Watched, not guarded: nothing in an export can be interrupted, so it
+    //  is not abandoned when it runs long. Its callback, and so the export
+    //  block and the .bsy flag, wait for the work to end (#1079).
+    //
     withFtnBsyFlag(
         outboundDir,
         done => {
-            guardedCall(
-                EXPORT_WATCHDOG_MS,
+            watchedCall(
+                self.exportWatchdogMs,
                 'FTN export',
                 innerDone => {
                     async.eachSeries(

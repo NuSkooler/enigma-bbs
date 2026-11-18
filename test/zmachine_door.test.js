@@ -57,6 +57,12 @@ function hangUp(client) {
     Events.emit(ClientDisconnected, { client });
 }
 
+//  As user_time.js does it when the day's budget is gone
+function timeUp(client) {
+    client.timeUpEmitted = true;
+    client.emit('time up');
+}
+
 //  terminate() gives 'exit' (code 1) and no 'stopped', as a real worker does
 class FakeWorker extends EventEmitter {
     constructor(workerData) {
@@ -260,6 +266,59 @@ describe('zmachine_door sessions', () => {
         const next = startDoor({ nodeMax: 1 });
         assert.ok(next.worker);
         hangUp(next.client);
+    });
+
+    it('time-up ends the game at once: nothing more is written, no menu, no listeners', () => {
+        const client = fakeClient();
+        const disconnectBefore = Events.listenerCount(ClientDisconnected);
+        const input = client.term.output;
+        const m = startDoor({}, { client });
+        m.worker.emit('message', { type: 'output', data: 'West of House\n' });
+        const writes = [];
+        client.term.write = client.term.rawWrite = d => writes.push(d);
+        timeUp(client);
+        assert.equal(m.worker.terminateCalls, 1);
+        assert.equal(activeDoorInstances[name], 0);
+        assert.equal(client.listenerCount('time up'), 0);
+        assert.equal(Events.listenerCount(ClientDisconnected), disconnectBefore);
+        assert.equal(input.listenerCount('data'), 0);
+        m.worker.emit('message', { type: 'output', data: 'You are eaten by a grue.\n' });
+        assert.deepEqual(writes, [], 'nothing written after time-up');
+        assert.equal(m.wentBack, 0, 'timeUpLogoff owns the navigation');
+        assert.equal(trackEnds.length, 1);
+        assert.equal(m._run.reason, 'timeup');
+    });
+
+    it('leave() ends the game the same way', () => {
+        const m = startDoor({});
+        m.leave();
+        assert.equal(m.worker.terminateCalls, 1);
+        assert.equal(activeDoorInstances[name], 0);
+        assert.equal(m._run.reason, 'leave');
+        m.worker.emit('message', { type: 'stopped', elapsed: 1 });
+        assert.equal(m.wentBack, 0);
+    });
+
+    it('time-up then hangup then leave(): one finish', () => {
+        const m = startDoor({});
+        timeUp(m.client);
+        hangUp(m.client);
+        m.leave();
+        m.worker.exit(1);
+        assert.equal(m._run.reason, 'timeup');
+        assert.equal(trackEnds.length, 1);
+        assert.equal(m.worker.terminateCalls, 1);
+        assert.equal(activeDoorInstances[name], 0);
+        assert.equal(m.wentBack, 0);
+    });
+
+    it('a game entered after time-up starts nothing', async () => {
+        const client = fakeClient();
+        client.timeUpEmitted = true;
+        const m = startDoor({}, { client });
+        await m.left;
+        assert.equal(workers.length, 0);
+        assert.equal(m._run, undefined);
     });
 
     it('a caller gone before the worker would start gets none', () => {

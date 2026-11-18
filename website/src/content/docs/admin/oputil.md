@@ -405,11 +405,17 @@ offline. `bso status` is how you find them:
 oputil.js bso status
 ```
 ```
-Node                    Queued  Missing  Oldest
------------------------------------------------
+Node                    Queued  Missing  Oldest  Poll
+-----------------------------------------------------
 1:218/701                    2        1     36s
 1:218/702                    1        1       -
+1:218/703                    0               2h   yes
 ```
+
+`Poll` marks a node with a poll request: a zero-length flow file asking for it to be called even
+though nothing is queued. It is not counted as queued, and the mailer removes it after the next
+successful session with that node (see [BinkP: Poll requests](../messageareas/binkp.md#poll-requests)).
+`bso list` shows the file as `POLL`.
 
 Note that a node whose queued entries have *all* gone missing still appears here, even
 though the mailer correctly stops polling it — that node is exactly the one you need to

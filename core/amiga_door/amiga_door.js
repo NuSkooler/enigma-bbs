@@ -130,7 +130,7 @@
  *     disconnectGraceSeconds: number - after a hangup, time-up or break, how long to wait for
  *                                    the door to finish and the shim to say X before the
  *                                    worker is dropped unsaved (default: 35; the shim's own
- *                                    grace is 30)
+ *                                    grace is 30); 0 = no wait, end the session at once
  *     inputTimeoutSeconds:number   - a door waiting this long for a key gives up
  *                                    (default: users.idleLogoutSeconds, or the shim's 300)
  *     crlf:               boolean  - LF in door output goes out as CR LF (default: true)
@@ -789,7 +789,7 @@ function normalizeConfig(raw) {
     }
     for (const [key, min, max] of [
         ['warpBootSeconds', 0, 3600],
-        ['disconnectGraceSeconds', 1, 3600],
+        ['disconnectGraceSeconds', 0, 3600],
         ['regTimeoutSeconds', 0, 86400],
     ]) {
         if (undefined === c[key]) {
@@ -1048,7 +1048,9 @@ class AmigaDoorSession extends EventEmitter {
                 ready: ReadyTimeoutMs,
                 exitAfterDisconnect:
                     1000 *
-                    (config.disconnectGraceSeconds || Defaults.disconnectGraceSeconds),
+                    (_.isNumber(config.disconnectGraceSeconds)
+                        ? config.disconnectGraceSeconds
+                        : Defaults.disconnectGraceSeconds),
                 stop: StopTimeoutMs,
                 terminate: TerminateTimeoutMs,
             },
@@ -1435,7 +1437,8 @@ class AmigaDoorSession extends EventEmitter {
             `Ending Amiga door session (d reason=${reason})`
         );
 
-        if (!this.ready) {
+        //  0: no grace, the session ends now
+        if (!this.ready || this.timeouts.exitAfterDisconnect <= 0) {
             return this.finish({ reason });
         }
 
@@ -2263,6 +2266,14 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                 { name: this.config.name, error: result.error, code: result.code },
                 'Amiga door error'
             );
+        }
+
+        //  Time-up: timeUpLogoff has the terminal. With no grace (or before
+        //  the emulator was ready) the session ends inside the 'time up'
+        //  emit, before leave(); nothing is written and nothing navigates.
+        //  leave() puts the screen back if the caller is taken to a menu.
+        if ('timeup' === result.reason) {
+            return;
         }
 
         //  The caller hung up (no terminal), or time-up took them elsewhere
