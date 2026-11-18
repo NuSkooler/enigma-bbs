@@ -135,6 +135,10 @@ function FTNMessageScanTossModule() {
     //  progress; see getOutgoingBundleFileName()
     this.claimedBundleNames = new Set();
 
+    //  how often a running export is reported as still running; see
+    //  performExport() (tests shorten it)
+    this.exportWatchdogMs = EXPORT_WATCHDOG_MS;
+
     const config = Config();
     if (_.has(config, 'scannerTossers.ftn_bso')) {
         this.moduleConfig = config.scannerTossers.ftn_bso;
@@ -7183,6 +7187,56 @@ function guardedCall(watchdogMs, label, fn, cb) {
     }
 }
 
+//
+//  Watchdog that only watches: runs |fn(done)| and calls |cb| exactly once,
+//  when |done| is invoked (or |fn| throws) -- never before. Every |watchdogMs|
+//  until then it logs that |label| is still running.
+//
+//  For work that cannot be interrupted. guardedCall() gives up on such work
+//  and lets the caller carry on as if it had ended, while it is in fact still
+//  running; anything the caller then starts runs alongside it (#1079).
+//
+function watchedCall(watchdogMs, label, fn, cb) {
+    const startedAt = Date.now();
+    const minutesRunning = () => Math.round((Date.now() - startedAt) / 60000);
+    let finished = false;
+    let warned = false;
+
+    const timer = setInterval(() => {
+        warned = true;
+        Log.error(
+            { label, watchdogMs, minutesRunning: minutesRunning() },
+            'FTN watchdog: still running; another will not start until it finishes'
+        );
+    }, watchdogMs);
+    //  this timer alone must not keep the process up
+    timer.unref();
+
+    const finish = err => {
+        if (finished) return;
+        finished = true;
+        clearInterval(timer);
+        if (warned) {
+            Log.info(
+                { label, minutesRunning: minutesRunning() },
+                'FTN watchdog: finished after running long'
+            );
+        }
+        return cb(err);
+    };
+
+    try {
+        fn(finish);
+    } catch (e) {
+        //  A throw from |cb| itself (finish ran synchronously) is not the
+        //  work failing: let it propagate rather than swallow it.
+        if (finished) {
+            throw e;
+        }
+        finish(e);
+    }
+}
+
 //  Unlink any orphan enigma.bsy files left by a crashed prior run.  Safe because
 //  only one BBS instance writes to these directories; anything we find is stale.
 function sweepOrphanBsyFiles(dirs) {
@@ -7875,11 +7929,16 @@ FTNMessageScanTossModule.prototype.performExport = function (cb) {
     const self = this;
     const outboundDir = self.moduleConfig.paths.outbound;
 
+    //
+    //  Watched, not guarded: nothing in an export can be interrupted, so it
+    //  is not abandoned when it runs long. Its callback, and so the export
+    //  block and the .bsy flag, wait for the work to end (#1079).
+    //
     withFtnBsyFlag(
         outboundDir,
         done => {
-            guardedCall(
-                EXPORT_WATCHDOG_MS,
+            watchedCall(
+                self.exportWatchdogMs,
                 'FTN export',
                 innerDone => {
                     async.eachSeries(
