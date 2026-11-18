@@ -323,6 +323,15 @@ module.exports = () => {
                 firstMenuNewUser: 'sshConnectedNewUser',
 
                 //
+                //  How long a connection may take to get from connecting to the
+                //  shell (key exchange, then authentication, password typing included),
+                //  in seconds, after which it is disconnected. Until it gets there it
+                //  holds a node, and the idle timeout does not apply yet. The same
+                //  default as OpenSSH's LoginGraceTime. 0 disables the limit.
+                //
+                loginTimeoutSeconds: 120,
+
+                //
                 //  SSH clients whose reported terminal size cannot be believed, matched
                 //  against the full client identification string, case-insensitively.
                 //

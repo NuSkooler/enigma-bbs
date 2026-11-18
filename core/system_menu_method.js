@@ -30,6 +30,11 @@ exports.sendForgotPasswordEmail = sendForgotPasswordEmail;
 exports.optimizeDatabases = optimizeDatabases;
 
 const handleAuthFailures = (callingMenu, err, cb) => {
+    //  the caller has gone (logged by userLogin()); there is nobody to answer
+    if (ErrorReasons.ClientEnded === err.reasonCode) {
+        return cb(null);
+    }
+
     //  already logged in with this user?
     if (
         ErrorReasons.AlreadyLoggedIn === err.reasonCode &&
