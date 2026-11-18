@@ -243,36 +243,9 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     );
                 },
                 (activity, callback) => {
-                    // mark exported
-                    return message.persistMetaValue(
-                        Message.WellKnownMetaCategories.System,
-                        Message.SystemMetaNames.StateFlags0,
-                        Message.StateFlags0.Exported.toString(),
-                        err => {
-                            return callback(err, activity);
-                        }
-                    );
-                },
-                (activity, callback) => {
-                    // message -> Activity ID relation
-                    return message.persistMetaValue(
-                        Message.WellKnownMetaCategories.ActivityPub,
-                        Message.ActivityPubPropertyNames.ActivityId,
-                        activity.id,
-                        err => {
-                            return callback(err, activity);
-                        }
-                    );
-                },
-                (activity, callback) => {
-                    return message.persistMetaValue(
-                        Message.WellKnownMetaCategories.ActivityPub,
-                        Message.ActivityPubPropertyNames.NoteId,
-                        activity.object.id,
-                        err => {
-                            return callback(err, activity);
-                        }
-                    );
+                    return this._markExported(message, activity, err => {
+                        return callback(err, activity);
+                    });
                 },
             ],
             (err, activity) => {
@@ -293,6 +266,45 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     );
                 }
             }
+        );
+    }
+
+    //
+    //  Record that |message| went out as |activity|: the state flag and the
+    //  message -> Activity / Note IDs, in one transaction.
+    //
+    //  The flag is ORed in, not inserted. FTN export may have flagged the
+    //  message already (an area can be both), and message_meta's UNIQUE key
+    //  includes meta_value, so a plain INSERT of the same value fails and one
+    //  of a different value leaves a second row.
+    //
+    //  ActivityPubExported, not Exported: the FTN EchoMail export scan reads
+    //  Exported as "FTN has sent this" and would never send a post we got to
+    //  first. Private mail keeps Exported too, which is what the sent-mail
+    //  trim (message_area.js) looks for; it is never FTN EchoMail.
+    //
+    _markExported(message, activity, cb) {
+        let bit = Message.StateFlags0.ActivityPubExported;
+        if (message.isPrivate()) {
+            bit |= Message.StateFlags0.Exported;
+        }
+
+        const category = Message.WellKnownMetaCategories.ActivityPub;
+        return message.setStateFlags0BitAndMeta(
+            bit,
+            [
+                {
+                    category,
+                    name: Message.ActivityPubPropertyNames.ActivityId,
+                    value: activity.id,
+                },
+                {
+                    category,
+                    name: Message.ActivityPubPropertyNames.NoteId,
+                    value: activity.object.id,
+                },
+            ],
+            cb
         );
     }
 

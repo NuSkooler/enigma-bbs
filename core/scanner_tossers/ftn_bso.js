@@ -5229,17 +5229,26 @@ function FTNMessageScanTossModule() {
         //
         //  NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
         //
-        //  Other tossers write state_flags0 too (ActivityPub marks a post it
-        //  exported, email a failure), so this also passes over a message one
-        //  of them got to first. That is long-standing behaviour and is kept
-        //  as is; see test/ftn_export_retry.test.js.
+        //  The one flag that does not exclude a message is ActivityPubExported
+        //  on its own: a local post in an area that is both federated and an
+        //  FTN echo, which the ActivityPub tosser delivered before this scan
+        //  came round. It still has to reach the echo (#1032). Exported, which
+        //  this exporter writes with the MSGID, keeps it from going twice.
+        //
+        //  Other tossers' flags still exclude a message (email's failure, a
+        //  message ActivityPub flagged Exported before it had a bit of its
+        //  own). That is long-standing behaviour and is kept as is; see
+        //  test/ftn_export_retry.test.js.
         //
         const getNewUuidsSql = `SELECT message_id, message_uuid
             FROM message m
             WHERE area_tag = ? AND message_id > ? AND
-                (SELECT COUNT(message_id)
-                FROM message_meta
-                WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
+                NOT EXISTS (
+                    SELECT 1 FROM message_meta
+                    WHERE message_id = m.message_id AND meta_category = 'System'
+                      AND meta_name = 'state_flags0'
+                      AND CAST(meta_value AS INTEGER) <> ${Message.StateFlags0.ActivityPubExported}
+                )
             ORDER BY message_id;`;
 
         //  we shouldn't, but be sure we don't try to pick up private mail here

@@ -57,6 +57,10 @@ const StateFlags0 = {
     Imported: 0x00000001, //  imported from foreign system
     Exported: 0x00000002, //  exported to foreign system
     ExportFailed: 0x00000004, //  export permanently failed (e.g. unroutable); will not be retried
+    //  Delivered by the ActivityPub tosser. A bit of its own, not Exported:
+    //  the FTN EchoMail export scan takes Exported to mean FTN already sent
+    //  the message, and an area can be both federated and an FTN echo
+    ActivityPubExported: 0x00000008,
 };
 exports.StateFlags0 = StateFlags0;
 
