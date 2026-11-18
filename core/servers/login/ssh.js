@@ -79,6 +79,8 @@ function SSHClient(clientConn, connInfo) {
             );
             return self.endAndClose();
         }, loginTimeoutMs);
+        //  this timer alone must not keep the process up
+        self.loginTimer.unref();
     }
 
     this.clearLoginTimer = function () {
