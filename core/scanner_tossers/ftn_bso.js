@@ -547,11 +547,12 @@ function FTNMessageScanTossModule() {
         //  Exports run in parallel (one per area in the export scan), so two
         //  can look for a name for the same destination before either bundle
         //  exists. The claim is what keeps them apart: it is checked and taken
-        //  in one synchronous step, after the last stat, so nothing can run in
-        //  between. Claims are by basename alone because the temp area is
-        //  shared by every destination, and two destinations can have the same
-        //  basename. The caller releases the claim with releaseBundleName()
-        //  once the bundle is in outbound or has failed to get there.
+        //  in one synchronous step, before the stats, so no other export here
+        //  can take the name while we look. Claims are by basename alone
+        //  because the temp area is shared by every destination, and two
+        //  destinations can have the same basename. The caller releases the
+        //  claim with releaseBundleName() once the bundle is in outbound or
+        //  has failed to get there.
         //
         const EXT_SUFFIXES = '0123456789abcdefghijklmnopqrstuvwxyz'.split('');
         let fileName = `${basename}.${moment().format('dd').toLowerCase()}`;
@@ -561,6 +562,14 @@ function FTNMessageScanTossModule() {
             EXT_SUFFIXES,
             (suffix, callback) => {
                 const checkFileName = fileName + suffix;
+                const key = checkFileName.toLowerCase();
+                if (self.claimedBundleNames.has(key)) {
+                    return callback(null, false);
+                }
+                //  Claimed before looking, and given back if the name turns
+                //  out to be taken: while we hold it, no other export here
+                //  can take it and put a bundle in outbound under it.
+                self.claimedBundleNames.add(key);
                 const candidates = [
                     paths.join(basePath, checkFileName),
                     paths.join(basePath, checkFileName.toUpperCase()),
@@ -572,12 +581,10 @@ function FTNMessageScanTossModule() {
                     candidates,
                     (p, nextCandidate) => absent(p, free => nextCandidate(null, free)),
                     (err, allAbsent) => {
-                        const key = checkFileName.toLowerCase();
-                        if (!allAbsent || self.claimedBundleNames.has(key)) {
-                            return callback(null, false);
+                        if (!allAbsent) {
+                            self.claimedBundleNames.delete(key);
                         }
-                        self.claimedBundleNames.add(key);
-                        return callback(null, true);
+                        return callback(null, allAbsent);
                     }
                 );
             },
@@ -1726,14 +1733,22 @@ function FTNMessageScanTossModule() {
                                     if (err) {
                                         return callback(err);
                                     }
-                                    self.archUtil.compressTo(
-                                        exportOpts.nodeConfig.archiveType,
-                                        tempBundlePath,
-                                        exportedFileNames,
-                                        err => {
-                                            callback(err, [tempBundlePath]);
-                                        }
-                                    );
+                                    //  A throw here (an archiver entry that
+                                    //  cannot be used, say) would otherwise
+                                    //  leave this export, and its claim on
+                                    //  the name, unfinished for good.
+                                    try {
+                                        self.archUtil.compressTo(
+                                            exportOpts.nodeConfig.archiveType,
+                                            tempBundlePath,
+                                            exportedFileNames,
+                                            err => {
+                                                callback(err, [tempBundlePath]);
+                                            }
+                                        );
+                                    } catch (e) {
+                                        return callback(e);
+                                    }
                                 });
                             }
                         );

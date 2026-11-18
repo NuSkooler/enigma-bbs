@@ -255,6 +255,39 @@ describe('ftn_bso — EchoMail bundle names (#1027)', function () {
             assert.equal(new Set(names).size, 3);
         });
 
+        it('a name another export delivers while this one is checking is not handed out', async () => {
+            //  While this pick is checking a name, another export in the
+            //  same process takes the first name it can, delivers a bundle
+            //  under it into outbound and releases it -- all before this
+            //  pick has finished checking.
+            const mod = h.makeModule();
+            const gfs = require('graceful-fs');
+            const savedStat = gfs.stat;
+            let other = null;
+            gfs.stat = function (p, cb) {
+                if (null === other && p.startsWith(tempDir())) {
+                    other = 'running';
+                    gfs.stat = savedStat;
+                    return pick(mod).then(name => {
+                        fs.writeFileSync(name, 'delivered by the other export');
+                        mod.releaseBundleName(name);
+                        other = name;
+                        savedStat.call(gfs, p, cb);
+                    }, cb);
+                }
+                return savedStat.call(gfs, p, cb);
+            };
+            let mine;
+            try {
+                mine = await pick(mod);
+            } finally {
+                gfs.stat = savedStat;
+            }
+            assert.ok(other && 'running' !== other, 'the other export ran');
+            assert.notEqual(mine, other, 'not the name the other export delivered');
+            assert.equal(fs.existsSync(mine), false, 'not a name already in outbound');
+        });
+
         it('passes over a name in outbound in upper case, or left in the temp area', async () => {
             const mod = h.makeModule();
             const base = await firstBundleName();
@@ -264,6 +297,11 @@ describe('ftn_bso — EchoMail bundle names (#1027)', function () {
             await fsp.writeFile(path.join(tempDir(), `${stem}1`), 'x');
 
             assert.equal(path.basename(await pick(mod)), `${stem}2`);
+            assert.deepEqual(
+                Array.from(mod.claimedBundleNames),
+                [`${stem}2`],
+                'names found taken are not left claimed'
+            );
         });
     });
 
@@ -285,6 +323,20 @@ describe('ftn_bso — EchoMail bundle names (#1027)', function () {
         const bundle = await fsp.readFile(refs[0], 'latin1');
         assert.ok(bundle.includes('fresh bundle'));
         assert.ok(!bundle.includes('LEFTOVER'), 'nothing from the leftover');
+    });
+
+    it('an archiver that throws ends the export with an error and releases the name', async () => {
+        const { mod } = makeBundlingModule();
+        mod.archUtil.compressTo = () => {
+            throw new Error('unusable archiver entry');
+        };
+        const a = await h.addLocal({ subject: 'archiver throws' });
+
+        const { err } = await h.runLiveExport(mod, a);
+        assert.ok(err, 'the export finishes, and reports the failure');
+        assert.equal(mod.claimedBundleNames.size, 0, 'claim released');
+        assert.deepEqual(await u1Refs(), [], 'nothing sent to U1');
+        assert.equal(pendingRows() > 0, true, 'still owed to U1');
     });
 
     it('a failed compress removes the temp bundle and releases the name', async () => {
