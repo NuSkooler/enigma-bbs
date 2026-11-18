@@ -214,7 +214,7 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `wordWrap` | No | C-Net ARexx doors: break the door's text between words at the caller's width, as C-Net did. Default: `true`. |
 | `warpBootSeconds` | No | How long the first boot runs flat out, 0 to 3600. Default: `30`. |
 | `regTimeoutSeconds` | No | XIM doors: the door must register with the shim within this many seconds (Paragon doors: send their first request), 0 to 86400; `0` waits for ever. Default: `30`. |
-| `disconnectGraceSeconds` | No | After a hangup, time-up or break, how long ENiGMA½ waits for the door to finish and the shim to report its exit, 1 to 3600. The shim itself gives a door 30 seconds and then reports it gone, so keep this above 30. With no report in time the session is ended anyway; what the door wrote until then stays in the image. Default: `35`. |
+| `disconnectGraceSeconds` | No | After a hangup, time-up or break, how long ENiGMA½ waits for the door to finish and the shim to report its exit, 0 to 3600. The shim itself gives a door 30 seconds and then reports it gone, so keep this above 30. With no report in time the session is ended anyway; what the door wrote until then stays in the image. `0` means no wait: the session is ended at once, without telling the door the carrier is gone. Default: `35`. |
 | `inputTimeoutSeconds` | No | A door waiting this long for a key gives up, 1 to 86400. Default: `users.idleLogoutSeconds`, or the shim's 300 seconds. |
 | `crlf` | No | A line feed in the door's output goes out as CR LF, as /X does. Default: `true`. |
 | `timezoneMinutes` | No | Minutes east of UTC for the Amiga clock, -720 to 840. Default: the server's. |

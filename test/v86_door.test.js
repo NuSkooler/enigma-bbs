@@ -1166,13 +1166,9 @@ describe('v86_door', () => {
                 assert.equal(activeDoorInstances[name], 0);
                 assert.equal(wentBack, false, 'timeUpLogoff owns the navigation');
                 assert.equal(trackEnds.length, 1);
+                assert.equal(m._run.reason, 'timeup');
                 assert.ok(
-                    m.client.log.lines.some(
-                        l =>
-                            l.obj &&
-                            'timeup' === l.obj.reason &&
-                            /out of time/.test(l.msg)
-                    )
+                    m.client.log.lines.some(l => l.obj && 'timeup' === l.obj.reason)
                 );
             });
 
@@ -1269,6 +1265,230 @@ describe('v86_door', () => {
                 assert.equal(m._run, undefined, 'no slot taken');
                 assert.equal(activeDoorInstances[name] || 0, 0);
             });
+        });
+
+        describe('carrier drop and grace (#1065)', () => {
+            function guestSpeaks(m) {
+                m.worker.emit('message', { type: 'output', data: Buffer.from('TW2002') });
+            }
+
+            //  the guest powers off: the worker says so and goes
+            function guestStops(m) {
+                m.worker.emit('message', { type: 'stopped', elapsed: 10 });
+                m.worker.exit(0);
+            }
+
+            const carrierPosts = m => m.worker.posted.filter(p => 'carrier' === p.type);
+
+            it('a hangup drops carrier and holds the slot until the guest stops, then flushes', async () => {
+                const m = await startRunning({ name, image: img, nodeMax: 1 });
+                m.prevMenu = () => assert.fail('no menu for a caller who is gone');
+                guestSpeaks(m);
+                const input = m.client.term.output;
+                hangUp(m.client);
+                assert.deepEqual(carrierPosts(m), [{ type: 'carrier', present: false }]);
+                assert.equal(m.worker.terminateCalls, 0, 'the door may still be saving');
+                assert.equal(input.listenerCount('data'), 0);
+                assert.equal(activeDoorInstances[name], 1, 'slot held');
+                assert.equal(
+                    trackEnds.length,
+                    1,
+                    'door time ends when the caller leaves'
+                );
+                assert.ok(
+                    m.client.log.lines.some(l =>
+                        /carrier dropped \(hangup\); waiting up to 30 s/.test(l.msg)
+                    )
+                );
+
+                //  another caller is turned away while it saves
+                const refused = await startRunning({ name, image: img, nodeMax: 1 });
+                assert.ok(refused.refused);
+                await refused.left;
+
+                m.worker.guestWrite(40, 0x40); //  the door saves
+                guestStops(m);
+                await settled(m);
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(fs.readFileSync(img)[40], 0x40);
+                assert.equal(trackEnds.length, 1);
+                assert.ok(
+                    m.client.log.lines.some(
+                        l => /exited after carrier loss/.test(l.msg) && l.obj.ms >= 0
+                    )
+                );
+
+                const next = await startRunning({ name, image: img, nodeMax: 1 });
+                assert.ok(!next.refused, 'the slot is free again');
+                hangUp(next.client);
+                await settled(next);
+            });
+
+            it('a worker that exits during the grace ends it too', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                hangUp(m.client);
+                m.worker.exit(0);
+                await settled(m);
+                assert.equal(activeDoorInstances[name], 0);
+            });
+
+            it('a door that ignores carrier is terminated at the grace limit', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    disconnectGraceSeconds: 0.05,
+                });
+                guestSpeaks(m);
+                m.worker.guestWrite(41, 0x41);
+                const t0 = Date.now();
+                hangUp(m.client);
+                await settled(m);
+                assert.ok(Date.now() - t0 >= 40, 'waited the grace');
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(fs.readFileSync(img)[41], 0x41);
+                assert.ok(
+                    m.client.log.lines.some(l =>
+                        /did not exit within 0.05 s of carrier loss; terminating/.test(
+                            l.msg
+                        )
+                    )
+                );
+                //  late words from a worker already ended change nothing
+                guestStops(m);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('time-up drops carrier too; the guest gets its grace in the background', async () => {
+                const m = await startRunning({ name, image: img });
+                m.prevMenu = () => assert.fail('no menu');
+                guestSpeaks(m);
+                const writes = watchTerminal(m.client);
+                timeUp(m.client);
+                assert.deepEqual(carrierPosts(m), [{ type: 'carrier', present: false }]);
+                assert.equal(activeDoorInstances[name], 1);
+                guestSpeaks(m); //  "Saving..." the caller never sees
+                hangUp(m.client); //  the logoff ends the connection
+                guestStops(m);
+                await settled(m);
+                assert.deepEqual(writes, []);
+                assert.equal(m._run.reason, 'timeup');
+                assert.equal(trackEnds.length, 1);
+                assert.equal(carrierPosts(m).length, 1);
+            });
+
+            it('disconnectGraceSeconds: 0 terminates at once', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    disconnectGraceSeconds: 0,
+                });
+                guestSpeaks(m);
+                hangUp(m.client);
+                assert.deepEqual(carrierPosts(m), []);
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                await settled(m);
+            });
+
+            it('a hangup before the guest has written anything terminates at once', async () => {
+                const m = await startRunning({ name, image: img });
+                hangUp(m.client);
+                assert.deepEqual(carrierPosts(m), []);
+                assert.equal(m.worker.terminateCalls, 1);
+                await settled(m);
+            });
+
+            it('a server shutdown cuts a grace short', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                m.worker.guestWrite(42, 0x42);
+                hangUp(m.client); //  closeConnections
+                assert.equal(m.worker.terminateCalls, 0);
+                const log = quietLog();
+                const t0 = Date.now();
+                try {
+                    await new Promise(resolve =>
+                        shutdown(resolve, { timeoutMs: 2000, log })
+                    );
+                } finally {
+                    _test.resetShutdown();
+                }
+                assert.ok(Date.now() - t0 < 1000, 'did not wait out the grace');
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(fs.readFileSync(img)[42], 0x42);
+                assert.match(
+                    log.lines.find(l => /at shutdown/.test(l.msg)).msg,
+                    /1 images flushed, 0 not/
+                );
+                assert.ok(
+                    m.client.log.lines.some(l =>
+                        /without waiting for the door to exit/.test(l.msg)
+                    )
+                );
+            });
+
+            it('a hangup once the shutdown has begun gets no grace', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                const done = new Promise(resolve =>
+                    shutdown(resolve, { timeoutMs: 2000, log: quietLog() })
+                );
+                try {
+                    hangUp(m.client);
+                    await done;
+                } finally {
+                    _test.resetShutdown();
+                }
+                assert.deepEqual(carrierPosts(m), []);
+                assert.equal(m.worker.terminateCalls, 1);
+            });
+
+            it('races: hangup, then stopped, then the grace timer, then exit: one finish', async () => {
+                const m = await startRunning({
+                    name,
+                    image: img,
+                    disconnectGraceSeconds: 0.02,
+                });
+                guestSpeaks(m);
+                hangUp(m.client);
+                timeUp(m.client);
+                m.leave();
+                m.worker.emit('message', { type: 'stopped', elapsed: 1 });
+                await new Promise(resolve => setTimeout(resolve, 40));
+                m.worker.exit(0);
+                await settled(m);
+                assert.equal(m._run.reason, 'hangup');
+                assert.equal(m._run.graceExpired, false);
+                assert.equal(trackEnds.length, 1);
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(
+                    m.client.log.lines.filter(l =>
+                        /exited after carrier loss/.test(l.msg)
+                    ).length,
+                    1
+                );
+            });
+
+            for (const bad of [-1, 3601, 'thirty', null]) {
+                it(`disconnectGraceSeconds ${JSON.stringify(bad)} falls back to 30`, () => {
+                    const client = fakeClient();
+                    const m = new V86DoorModule({
+                        menuConfig: {
+                            config: { name, image: img, disconnectGraceSeconds: bad },
+                        },
+                        client,
+                    });
+                    assert.equal(m._graceMs, 30000);
+                    const warned = client.log.lines.some(
+                        l => 'warn' === l.level && /disconnectGraceSeconds/.test(l.msg)
+                    );
+                    assert.equal(warned, null !== bad, 'warned for a bad value');
+                });
+            }
         });
 
         describe('server shutdown', () => {

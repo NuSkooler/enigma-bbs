@@ -1423,11 +1423,39 @@ describe('amiga_door session', () => {
             sessionKeys: null,
         });
         assert.equal(longer.timeouts.exitAfterDisconnect, 90000);
-        assert.ok(
-            problemsOf({ disconnectGraceSeconds: 0 }).some(p =>
-                p.includes('"disconnectGraceSeconds"')
-            )
+        for (const bad of [-1, 3601, 1.5, '35']) {
+            assert.ok(
+                problemsOf({ disconnectGraceSeconds: bad }).some(p =>
+                    p.includes('"disconnectGraceSeconds"')
+                ),
+                `${bad} refused`
+            );
+        }
+    });
+
+    it('disconnectGraceSeconds: 0 is no wait: the session ends at once', async () => {
+        assert.deepEqual(problemsOf({ disconnectGraceSeconds: 0 }), []);
+        const none = new AmigaDoorSession({
+            client: fakeClient(),
+            config: config({ disconnectGraceSeconds: 0 }),
+            worker: new FakeWorker(),
+            sessionKeys: null,
+        });
+        assert.equal(none.timeouts.exitAfterDisconnect, 0, 'not the default');
+
+        const s = makeSession(
+            { disconnectGraceSeconds: 0 },
+            { timeouts: { exitAfterDisconnect: 0 } }
         );
+        const closed = closedOf(s);
+        s.session.disconnect('hangup');
+        assert.equal(s.session.finished, true, 'ended in the same tick');
+        assert.deepEqual(s.worker.frames('d'), [], 'no wait for an X');
+        const result = await s.done;
+        assert.equal(result.reason, 'hangup');
+        assert.equal(s.worker.sent('stop').length, 1, 'stopped with a sync');
+        await closed;
+        assert.ok(s.worker.terminated);
     });
 
     for (const rc of ['0', '-1']) {
