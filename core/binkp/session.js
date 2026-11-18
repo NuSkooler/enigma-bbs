@@ -1660,7 +1660,9 @@ class BinkpSession extends EventEmitter {
         const handOff = () => {
             //  Torn down by _destroy while the flush or the truncate was in
             //  flight: the session is over and the temp file already gone.
-            if (this._destroyed) {
+            //  Settled: a write error postponed it meanwhile, and one file
+            //  gets one answer.
+            if (this._destroyed || cr._settled) {
                 return;
             }
             cr._settled = true;
@@ -1715,19 +1717,25 @@ class BinkpSession extends EventEmitter {
                     { name: cr.name, got: cr.bytesReceived, want: cr.size },
                     '[BinkP] Inbound file longer than announced; truncating'
                 );
-                return fsp
-                    .truncate(cr.tempPath, cr.size)
-                    .then(handOff)
-                    .catch(err => {
+                //  Only the truncate's own failure postpones the file: once
+                //  handOff() has sent M_GOT the file is the consumer's, and
+                //  postponing it then would unlink it and send M_SKIP too.
+                return fsp.truncate(cr.tempPath, cr.size).then(
+                    () => handOff(),
+                    err => {
                         Log.warn(
                             { name: cr.name, error: err.message },
                             '[BinkP] Could not truncate oversized inbound file'
                         );
+                        if (this._destroyed || cr._settled) {
+                            return;
+                        }
                         this._postponeReceive(
                             cr,
                             '[BinkP] Oversized inbound file left with the sender'
                         );
-                    });
+                    }
+                );
             }
 
             handOff();
