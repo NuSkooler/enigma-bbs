@@ -218,6 +218,11 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         }
 
         if (this._isInstanceActorResource(resource)) {
+            //  as the actor itself does until its key exists (a moment
+            //  after the first start), so nobody caches a link to a 503
+            if (!InstanceActor.getKey()) {
+                return this.webServer.serviceUnavailable(resp, 10);
+            }
             return this._instanceActorResponse(resp);
         }
 

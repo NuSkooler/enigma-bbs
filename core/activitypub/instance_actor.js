@@ -33,11 +33,19 @@ const { Errors } = require('../enig_error');
 const Endpoints = require('./endpoint');
 const { InstanceActorSignMarker } = require('./const');
 
-//  read through the module each time: tests swap the database and config
+//  read through the module each time: tests swap the database, config and logger
 const apDb = () => require('../database').dbs.activitypub;
 const Config = () => require('../config').get();
+const Log = () => require('../logger').log;
 
 const KeyName = 'main';
+
+//  After a failed attempt to make the key, the next is made no sooner than
+//  this, from the next call that wants the key (a signed fetch, a request
+//  for the actor)
+const RetryAfterFailureMs = 60 * 1000;
+//  "There is no key yet" is believed this long before the table is read again
+const MissingRecheckMs = 5 * 1000;
 
 exports.InstanceActorSignMarker = InstanceActorSignMarker;
 exports.actorId = actorId;
@@ -50,9 +58,18 @@ exports.ensureKey = ensureKey;
 exports.fetchSignOptions = fetchSignOptions;
 exports.toDocument = toDocument;
 exports.emptyOutbox = emptyOutbox;
-exports._resetForTests = () => {
+exports._resetForTests = (options = {}) => {
     loaded = null;
     waiting = null;
+    missingUntil = 0;
+    nextAttemptAt = 0;
+    makesKeys = false;
+    keyPairGenerator = options.generator || generateActorKeyPair;
+    retryAfterFailureMs = options.retryAfterFailureMs || RetryAfterFailureMs;
+    missingRecheckMs =
+        undefined === options.missingRecheckMs
+            ? MissingRecheckMs
+            : options.missingRecheckMs;
 };
 
 function actorId() {
@@ -75,22 +92,55 @@ function isInstanceActorId(id) {
     return typeof id === 'string' && id === actorId();
 }
 
+let loaded = null; // the key pair, once read
+let missingUntil = 0; // no key: not read again before this
+let nextAttemptAt = 0; // after a failed attempt to make it: not before this
+let makesKeys = false; // only a process that called ensureKey() makes one
+let keyPairGenerator = generateActorKeyPair;
+let retryAfterFailureMs = RetryAfterFailureMs;
+let missingRecheckMs = MissingRecheckMs;
+
 //
 //  The stored key pair, { publicKey, privateKey } (PEM), or null when there
 //  is none yet (or no table: a database this module never saw). Once read
-//  it is kept: the row does not change while the board runs.
+//  it is kept: the row does not change while the board runs. A missing key
+//  is believed for a few seconds, so signing does not read the table every
+//  time.
 //
-let loaded = null;
+//  In the server (which called ensureKey() at startup), a missing key is
+//  made again in the background when the last attempt failed and its
+//  wait is over; this call still answers null. Any other process (oputil)
+//  never makes one.
+//
 function getKey() {
     if (loaded) {
         return loaded;
+    }
+    const now = Date.now();
+    if (now < missingUntil) {
+        return null;
     }
     try {
         loaded = _readKey();
     } catch {
         loaded = null;
     }
-    return loaded;
+    if (loaded) {
+        return loaded;
+    }
+    missingUntil = now + missingRecheckMs;
+    if (makesKeys && !waiting && now >= nextAttemptAt) {
+        ensureKey(() => {});
+    }
+    return null;
+}
+
+function _readKeyQuietly() {
+    try {
+        return _readKey();
+    } catch {
+        return null;
+    }
 }
 
 function _readKey() {
@@ -110,12 +160,20 @@ function _readKey() {
 //  cb(err, key): the stored key pair, made and stored first if there is
 //  none. Calls made while one is being made wait for it. Two processes on
 //  one database (the server and another one) both end up with the row that
-//  was stored first: INSERT OR IGNORE, then read back.
+//  was stored first: INSERT OR IGNORE, then read back. A failure is logged
+//  (once per attempt) and the next attempt waits RetryAfterFailureMs (see
+//  getKey()). Called by the ActivityPub web handler at startup; from then
+//  on this process makes the key when it is missing.
 //
 let waiting = null;
 function ensureKey(cb) {
-    const key = getKey();
+    makesKeys = true;
+    if (!loaded) {
+        missingUntil = 0; // read the table now
+    }
+    const key = loaded || _readKeyQuietly();
     if (key) {
+        loaded = key;
         return cb(null, key);
     }
     if (waiting) {
@@ -124,7 +182,7 @@ function ensureKey(cb) {
     }
     waiting = [cb];
 
-    generateActorKeyPair((err, keys) => {
+    keyPairGenerator((err, keys) => {
         if (!err) {
             try {
                 apDb()
@@ -145,6 +203,19 @@ function ensureKey(cb) {
                 }
             } catch (e) {
                 err = e;
+            }
+        }
+
+        if (err) {
+            loaded = null;
+            nextAttemptAt = Date.now() + retryAfterFailureMs;
+            try {
+                Log().error(
+                    { error: err.message, retryInSecs: retryAfterFailureMs / 1000 },
+                    'Could not make or store the ActivityPub instance actor key; fetches it would sign go unsigned until it exists'
+                );
+            } catch {
+                //  no logger (a test)
             }
         }
 

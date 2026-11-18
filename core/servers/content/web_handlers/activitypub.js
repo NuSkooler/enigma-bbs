@@ -146,15 +146,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         //  The instance actor's key (#966), made at the first start. Not
         //  waited for: until it exists, GETs go unsigned as before and the
-        //  instance actor answers 503.
-        InstanceActor.ensureKey(err => {
-            if (err) {
-                this.sysLog.error(
-                    { error: err.message },
-                    'Could not load or create the ActivityPub instance actor key; GETs ENiGMA makes for itself stay unsigned'
-                );
-            }
-        });
+        //  instance actor answers 503. A failure is logged there, and the
+        //  key is tried again later, when something wants it.
+        InstanceActor.ensureKey(() => {});
 
         this.webServer.addRoute({
             method: 'GET',
@@ -1546,11 +1540,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     //
     //  The local user the inbox's own GETs are signed as, for origins that
-    //  refuse unsigned fetches; cb(null, user) or cb(null, null) for an
-    //  unsigned GET. A personal inbox: its own user, whom the sender is
-    //  writing to. The shared inbox has no user, and there is no instance
-    //  actor to sign as, so: a local user who follows |remoteActorId|. That
-    //  server already knows of the follow, so signing tells it nothing new.
+    //  refuse unsigned fetches; cb(null, user), or cb(null, null) when no
+    //  user has a reason to, and the GET is signed as the instance actor
+    //  instead (fetchSignOptions(), #966). A personal inbox: its own user,
+    //  whom the sender is writing to. The shared inbox has no user, so: a
+    //  local user who follows |remoteActorId|. That server already knows of
+    //  the follow, so signing tells it nothing new, and a user's signature
+    //  can see what the instance actor's cannot (a followers-only Note).
     //
     _fetchAsUser(inboxActorId, remoteActorId, cb) {
         if (inboxActorId) {
@@ -1574,7 +1570,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     //  A Note from its origin, the GET signed as a user who may sign to
-    //  |actorId|'s host (see _fetchAsUser)
+    //  |actorId|'s host (see _fetchAsUser), or else as the instance actor
     _fetchNoteAs(auth, actorId, noteId, cb) {
         const fetchAs = (auth && auth.fetchAs) || ((id, next) => next(null, null));
         fetchAs(actorId, (err, fetchUser) =>

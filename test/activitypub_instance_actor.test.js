@@ -212,6 +212,111 @@ describe('ActivityPub instance actor (#966)', function () {
                 1
             );
         });
+
+        describe('when making it fails', function () {
+            const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+            //  fails the first |failures| calls, then gives the test key at once
+            const generator = failures => {
+                const g = cb => {
+                    g.calls += 1;
+                    setImmediate(() =>
+                        g.calls <= failures
+                            ? cb(new Error('no entropy today'))
+                            : cb(null, testKey)
+                    );
+                };
+                g.calls = 0;
+                return g;
+            };
+            const ensure = () =>
+                new Promise(resolve =>
+                    InstanceActor.ensureKey((err, key) => resolve({ err, key }))
+                );
+
+            it('tries again once the wait after a failure is over, and signing starts', async () => {
+                const gen = generator(1);
+                InstanceActor._resetForTests({
+                    generator: gen,
+                    retryAfterFailureMs: 60,
+                    missingRecheckMs: 0,
+                });
+
+                const first = await ensure();
+                assert.match(first.err.message, /no entropy today/);
+                assert.equal(gen.calls, 1);
+
+                //  within the wait: not tried again, still unsigned
+                assert.equal(InstanceActor.fetchSignOptions(), null);
+                assert.equal(InstanceActor.toDocument(), null);
+                assert.equal(gen.calls, 1);
+
+                await wait(80);
+                //  this call starts the attempt and still answers null
+                assert.equal(InstanceActor.fetchSignOptions(), null);
+                assert.equal(gen.calls, 2);
+                await wait(5);
+
+                const sign = InstanceActor.fetchSignOptions();
+                assert.equal(sign && sign.keyId, `${ACTOR_ID}#main-key`);
+                assert.equal(
+                    apDb.prepare('SELECT public_key_pem FROM instance_key;').get()
+                        .public_key_pem,
+                    testKey.publicKey
+                );
+            });
+
+            it('waits again after another failure', async () => {
+                const gen = generator(2);
+                InstanceActor._resetForTests({
+                    generator: gen,
+                    retryAfterFailureMs: 60,
+                    missingRecheckMs: 0,
+                });
+                await ensure();
+                await wait(80);
+                InstanceActor.getKey(); // second attempt, which fails
+                await wait(5);
+                assert.equal(gen.calls, 2);
+                InstanceActor.getKey();
+                assert.equal(gen.calls, 2, 'not before the wait is over');
+                await wait(80);
+                InstanceActor.getKey();
+                await wait(5);
+                assert.equal(gen.calls, 3);
+                assert.ok(InstanceActor.getKey());
+            });
+
+            it('never makes a key in a process that did not ask for one (oputil)', async () => {
+                const gen = generator(0);
+                InstanceActor._resetForTests({ generator: gen, missingRecheckMs: 0 });
+                assert.equal(InstanceActor.getKey(), null);
+                assert.equal(InstanceActor.fetchSignOptions(), null);
+                await wait(5);
+                assert.equal(gen.calls, 0);
+                assert.equal(
+                    apDb.prepare('SELECT COUNT(*) AS n FROM instance_key;').get().n,
+                    0
+                );
+            });
+
+            it('believes a missing key for a while instead of reading the table on every call', async () => {
+                const gen = generator(0);
+                InstanceActor._resetForTests({ generator: gen, missingRecheckMs: 60000 });
+                assert.equal(InstanceActor.getKey(), null);
+                apDb.prepare('INSERT INTO instance_key VALUES (?, ?, ?, ?);').run(
+                    'main',
+                    testKey.publicKey,
+                    testKey.privateKey,
+                    'now'
+                );
+                assert.equal(InstanceActor.getKey(), null, 'not read again yet');
+                //  ensureKey() reads it at once, and makes nothing
+                const { err, key } = await ensure();
+                assert.ifError(err);
+                assert.equal(key.publicKey, testKey.publicKey);
+                assert.equal(gen.calls, 0);
+            });
+        });
     });
 
     describe('document', function () {
@@ -485,6 +590,35 @@ describe('ActivityPub instance actor (#966)', function () {
             );
         });
 
+        it('charges a redirected instance-signed GET to the fetch budget once, plus its hop', async () => {
+            const FetchBudget = require('../core/activitypub/fetch_budget.js');
+            FetchBudget._reset();
+            FetchBudget._setClock(() => 1000000); // no refill while it runs
+            try {
+                routes.set('/a', { status: 302, location: '/b' });
+                routes.set('/b', { status: 200, doc: { id: 'b' } });
+                const { err, body } = await new Promise(resolve =>
+                    FetchBudget.run(() =>
+                        HttpUtil.getJson(
+                            url('/a'),
+                            { sign: InstanceActor.fetchSignOptions() },
+                            (e, b) => resolve({ err: e, body: b })
+                        )
+                    )
+                );
+                assert.ifError(err);
+                assert.deepEqual(body, { id: 'b' });
+                const bucket = FetchBudget._state().hosts.get('127.0.0.1');
+                const perMinute = FetchBudget.DefaultLimits.perHostPerMinute;
+                //  /a once (not again for its unsigned repeat), and the hop to /b
+                assert.equal(perMinute - bucket.tokens, 2);
+                assert.equal(bucket.inFlight, 0, 'the slot is given back once done');
+            } finally {
+                FetchBudget._setClock(null);
+                FetchBudget._reset();
+            }
+        });
+
         it('leaves a user-signed GET that is redirected as it was: an error, not followed', async () => {
             routes.set('/a', { status: 302, location: '/b' });
             const sign = Object.assign({}, InstanceActor.fetchSignOptions(), {
@@ -581,7 +715,9 @@ describe('ActivityPub instance actor (#966)', function () {
             handler.webServer = {
                 resourceNotFound: resp => resp.end({ status: 404 }),
                 respondWithError: (resp, status) => resp.end({ status }),
+                serviceUnavailable: (resp, secs) => resp.end({ status: 503, secs }),
             };
+            storeTestKey();
         });
 
         const finger = resource =>
@@ -612,6 +748,13 @@ describe('ActivityPub instance actor (#966)', function () {
                 JSON.parse((await finger('acct:BBS.example.com@bbs.EXAMPLE.com')).body),
                 instanceJrd
             );
+        });
+
+        it('answers 503, as the actor does, while there is no key yet', async () => {
+            apDb.exec('DELETE FROM instance_key;');
+            InstanceActor._resetForTests();
+            const out = await finger('acct:bbs.example.com@bbs.example.com');
+            assert.deepEqual(out.body, { status: 503, secs: 10 });
         });
 
         it('does not exist while ActivityPub is off', async () => {
