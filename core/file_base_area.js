@@ -17,6 +17,7 @@ const StatLog = require('./stat_log.js');
 const SysProps = require('./system_property.js');
 const SAUCE = require('./sauce.js');
 const { wildcardMatch } = require('./string_util');
+const FileScanner = require('./file_scanner.js');
 
 //  deps
 const _ = require('lodash');
@@ -857,6 +858,20 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
 
 const HASH_NAMES = ['sha1', 'sha256', 'md5', 'crc32'];
 
+//
+//  options (all optional): areaTag, meta, hashTags, storageTag, relPath,
+//  sha256 (when already known), and for file scanning (#291):
+//
+//    scanSource:   a file_scanner ScanSources value. When set, the file goes
+//                  through file_scanner.scanFile() after hashing and before
+//                  anything looks inside it, and a rejection calls back
+//                  Errors.FileRejected (with |verdict| and |scanContext|).
+//                  The iterator sees 'virus_scan_start' and
+//                  'virus_scan_finish' (stepInfo.scanResult) when scanning is
+//                  enabled.
+//    scanContext:  extra scan ctx: user, ticInfo, fileName (the real name
+//                  when |filePath| is a temp name), ...
+//
 function scanFile(filePath, options, iterator, cb) {
     if (3 === arguments.length && _.isFunction(iterator)) {
         cb = iterator;
@@ -1038,6 +1053,72 @@ function scanFile(filePath, options, iterator, cb) {
                     };
 
                     nextChunk();
+                });
+            },
+            function scanForThreats(callback) {
+                //
+                //  File scanning (#291) gates everything below: archive
+                //  extraction, description files and info extract tools all
+                //  look inside the file, so they wait for a verdict. Only the
+                //  hashing above, which just reads bytes, comes first.
+                //
+                //  Callers opt in with |scanSource|; without one this step
+                //  does nothing at all.
+                //
+                if (!options.scanSource) {
+                    return callback(null);
+                }
+
+                const scanCtx = Object.assign(
+                    {
+                        fileName: stepInfo.fileName,
+                        areaTag: options.areaTag,
+                    },
+                    options.scanContext,
+                    {
+                        source: options.scanSource,
+                        sha256: fileEntry.fileSha256,
+                        byteSize: fileEntry.meta.byte_size,
+                    }
+                );
+
+                const scanning = FileScanner.isEnabled();
+                const runScan = () => {
+                    FileScanner.scanFile(filePath, scanCtx, (err, verdict) => {
+                        if (
+                            verdict &&
+                            FileScanner.Verdicts.NotScanned !== verdict.result
+                        ) {
+                            fileEntry.meta.scan_result = verdict.result;
+                            fileEntry.meta.scanned_at = new Date().toISOString();
+                            fileEntry.meta.scanner = _.uniq(
+                                verdict.results.map(r => r.scanner)
+                            ).join(',');
+                        }
+
+                        if (!scanning) {
+                            return callback(err);
+                        }
+
+                        stepInfo.step = 'virus_scan_finish';
+                        stepInfo.scanResult = verdict ? verdict.result : 'error';
+                        stepInfo.scanVerdict = verdict;
+                        callIter(iterErr => {
+                            return callback(err || iterErr);
+                        });
+                    });
+                };
+
+                if (!scanning) {
+                    return runScan();
+                }
+
+                stepInfo.step = 'virus_scan_start';
+                callIter(err => {
+                    if (err) {
+                        return callback(err);
+                    }
+                    return runScan();
                 });
             },
             function processPhysicalFileByType(callback) {
