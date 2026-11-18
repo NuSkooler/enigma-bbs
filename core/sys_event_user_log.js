@@ -33,6 +33,7 @@ module.exports = function systemEventUserLogInit(statLog) {
             [systemEvents.NewUser]: e => {
                 append(e, LogNames.NewUser, 1);
                 statLog.incrementNonPersistentSystemStat(SysProps.NewUsersTodayCount, 1);
+                statLog.incrementNonPersistentSystemStat(SysProps.TotalUserCount, 1);
             },
             [systemEvents.UserLogin]: e => {
                 append(e, LogNames.Login, 1);
