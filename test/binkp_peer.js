@@ -54,6 +54,10 @@ class ScriptedPeer {
     //    secure     : boolean   — M_OK argument
     //    dupeNames  : string[]  — answer M_FILE for these with M_GOT (binkd inb_test)
     //    skipNames  : string[]  — answer M_FILE for these with M_SKIP
+    //    alsoGot    : (name) => string[] — M_GOT arguments ('name size ts') to
+    //                             send the moment |name| is offered, before it
+    //                             is answered: a receiver acknowledging a file
+    //                             the sender has queued but not yet offered
     //    getOffset  : (name, size) => number — offset to answer an M_FILE "-1" with
     //    onComplete : (peer, file) => 'got'|'get'|'skip'|'none'
     //                             — what to answer a fully received file with
@@ -210,6 +214,10 @@ class ScriptedPeer {
         const timestamp = parseInt(tsStr, 10);
         const offset = parseInt(offsetStr, 10);
         const gz = parts.slice(4).includes('GZ');
+
+        for (const got of this.opts.alsoGot ? this.opts.alsoGot(name) : []) {
+            this._send(Commands.M_GOT, got);
+        }
 
         if ((this.opts.dupeNames || []).includes(name)) {
             //  binkd's inb_test path: acknowledge without ever receiving.
