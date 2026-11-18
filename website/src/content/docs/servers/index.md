@@ -40,8 +40,9 @@ the board is full is not given a node, and is turned away with
   (*Try Again Later*).
 
 Each refusal is logged at `info` level ("All nodes are busy; refusing
-connection"). An SSH caller takes a node as soon as it connects, before it has
-logged in.
+connection"). A caller who is turned away never takes a node, not even while
+the SSH message is being shown. A caller who is let in takes one as soon as it
+connects; over SSH that is before it has logged in.
 
 ```hjson
 general: {
