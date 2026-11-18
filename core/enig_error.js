@@ -63,6 +63,10 @@ exports.Errors = {
         new EnigError('Duplicate', -32017, reason, reasonCode),
     ValidationFailed: (reason, reasonCode) =>
         new EnigError('Validation failed', -32018, reason, reasonCode),
+    //  a file scanner rejected the file; see core/file_scanner.js. The error
+    //  also carries |verdict|.
+    FileRejected: (reason, reasonCode) =>
+        new EnigError('File rejected', -32019, reason, reasonCode),
 };
 
 exports.ErrorCodes = {
@@ -86,6 +90,7 @@ exports.ErrorCodes = {
     BadFormData: -32016,
     Duplicate: -32017,
     ValidationFailed: -32018,
+    FileRejected: -32019,
 };
 
 exports.ErrorReasons = {
@@ -115,4 +120,9 @@ exports.ErrorReasons = {
     BlockedAddress: 'EBLOCKEDADDR',
     //  an inbox-triggered outbound fetch refused by the fetch budget
     FetchBudget: 'EFETCHBUDGET',
+
+    //  file scanning (FileRejected): a scanner found something, or a scanner
+    //  failed and its entry holds the file rather than accepting it
+    Infected: 'INFECTED',
+    Held: 'HELD',
 };

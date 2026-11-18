@@ -2250,6 +2250,71 @@
                     },
                     "additionalProperties": false
                 },
+                "scanning": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "description": "Scan untrusted files (uploads, TIC imports) before anything looks inside them.",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "failAction": {
+                            "description": "What happens to a file a scanner finds something in. A file held because a scanner failed is always quarantined.",
+                            "type": "string",
+                            "enum": [
+                                "quarantine",
+                                "delete"
+                            ],
+                            "default": "quarantine"
+                        },
+                        "quarantinePath": {
+                            "description": "Where rejected files go, each with a JSON sidecar. Relative paths resolve against areaStoragePrefix.",
+                            "type": "string",
+                            "default": ".quarantine"
+                        },
+                        "notifyUserIds": {
+                            "description": "User IDs sent a private message about rejected files.",
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "default": [
+                                1
+                            ]
+                        },
+                        "defangExtensions": {
+                            "description": "Extensions renamed DOS style in quarantine (.exe becomes .ex_), without the dot.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "default": [
+                                "exe",
+                                "com",
+                                "bat",
+                                "cmd",
+                                "scr",
+                                "pif",
+                                "ps1",
+                                "vbs",
+                                "js",
+                                "sh"
+                            ]
+                        },
+                        "scanners": {
+                            "description": "Scanners run in order: { scanner, sources, fileTypes, timeout, onError, ... }. The first to find something rejects the file.",
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            },
+                            "default": []
+                        }
+                    },
+                    "patternProperties": {
+                        "^_": true
+                    },
+                    "additionalProperties": false
+                },
                 "storageTags": {
                     "description": "Maps a storage tag to a directory holding that area's files.",
                     "type": "object",

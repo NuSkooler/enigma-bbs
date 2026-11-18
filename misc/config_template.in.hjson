@@ -601,6 +601,42 @@
             //      }
             //  }
         }
+
+        //
+        //  File (virus) scanning of uploads and TIC imports, before anything
+        //  looks inside them. Off by default. Scanners run in order; the
+        //  first to find something rejects the file. "command" is built in,
+        //  others (e.g. ClamAV's clamd) come from mods.
+        //
+        //  scanning: {
+        //      enabled: true
+        //      //  quarantine | delete
+        //      failAction: quarantine
+        //      //  inbox recipients for rejection notices
+        //      notifyUserIds: [ 1 ]
+        //      scanners: [
+        //          {
+        //              scanner: command
+        //              cmd: clamscan
+        //              args: [
+        //                  "--no-summary"
+        //                  "{filePath}"
+        //              ]
+        //              //  any other exit code is an error
+        //              exitCodes: {
+        //                  clean: [ 0 ]
+        //                  infected: [ 1 ]
+        //              }
+        //              signatureRegex: "^.*: (.+) FOUND$"
+        //              //  upload | web | tic | oputil | rescan
+        //              sources: [ "upload", "web", "tic" ]
+        //              fileTypes: "*"
+        //              timeout: 60000
+        //              //  hold (quarantine the file) | accept
+        //              onError: hold
+        //          }
+        //      ]
+        //  }
     }
 
     //  General user configuration

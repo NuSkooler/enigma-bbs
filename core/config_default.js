@@ -1689,6 +1689,46 @@ module.exports = () => {
             },
 
             //
+            //  File scanning (virus scanning) of untrusted files -- uploads,
+            //  TIC imports -- before anything looks inside them. Off by
+            //  default. See core/file_scanner.js.
+            //
+            scanning: {
+                enabled: false,
+
+                //  What happens to a file a scanner finds something in:
+                //  'quarantine' or 'delete'. A file held because a scanner
+                //  failed is always quarantined, never deleted.
+                failAction: 'quarantine',
+
+                //  Relative paths are relative to |areaStoragePrefix|.
+                quarantinePath: '.quarantine',
+
+                //  Who gets the private mail about a rejected file
+                notifyUserIds: [1],
+
+                //  Renamed DOS style in quarantine: .exe -> .ex_
+                defangExtensions: [
+                    'exe',
+                    'com',
+                    'bat',
+                    'cmd',
+                    'scr',
+                    'pif',
+                    'ps1',
+                    'vbs',
+                    'js',
+                    'sh',
+                ],
+
+                //
+                //  Run in order. Each entry: { scanner, sources, fileTypes,
+                //  timeout, onError, ... scanner specific options }.
+                //
+                scanners: [],
+            },
+
+            //
             //  File area storage location tag/value pairs.
             //  Non-absolute paths are relative to |areaStoragePrefix|.
             //
