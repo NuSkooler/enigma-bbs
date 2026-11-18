@@ -165,6 +165,9 @@ describe('ANSI input split across reads (#942)', () => {
             'ctrl + right arrow': '\x1b[1;5C',
             f12: '\x1b[24~',
             'shift + tab': '\x1b[Z',
+            //  rxvt: $ is an intermediate byte to ECMA-48, but ends these keys
+            'shift + insert (rxvt)': '\x1b[2$',
+            'shift + end (rxvt)': '\x1b[8$',
         };
 
         for (const [name, seq] of Object.entries(KEYS)) {
@@ -226,6 +229,14 @@ describe('ANSI input split across reads (#942)', () => {
             assert.deepEqual(d.events, [['key press', '\x1b', 'escape']]);
             d.decode('x');
             assert.deepEqual(d.events, decodedApart('\x1b', 'x'));
+        });
+
+        it('a bare ESC [ (Alt + [) and a key after it within the hold decode as when whole', () => {
+            const d = makeDecoder();
+            d.decode('\x1b[');
+            assert.deepEqual(d.events, []);
+            d.decode('a');
+            assert.deepEqual(d.events, decodedWhole('\x1b[a'));
         });
 
         it('ESC ESC [ split after the [ keeps the meta of the whole', () => {

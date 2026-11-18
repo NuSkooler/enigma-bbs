@@ -410,6 +410,11 @@ const ESC = 0x1b;
 const isCsiParamOrIntermediate = byte => byte >= 0x20 && byte <= 0x3f;
 const canContinueCsi = byte => byte >= 0x20 && byte <= 0x7e;
 
+//  rxvt ends its shifted Insert/Delete/Page/Home/End keys in $ (ESC [ 2 $),
+//  a byte that is an intermediate to ECMA-48; decode() reads digits then $
+//  as a complete key, so it is not held. |params| is what follows ESC [.
+const isRxvtDollarKey = params => /^\d+(?:;\d+)?\$$/.test(params);
+
 //  Where an unfinished CSI that ends |buf| starts, or -1
 function unfinishedCsiStart(buf) {
     let at = buf.length - 1;
@@ -417,6 +422,9 @@ function unfinishedCsiStart(buf) {
         --at;
     }
     if (at < 1 || 0x5b !== buf[at] || ESC !== buf[at - 1]) {
+        return -1;
+    }
+    if (isRxvtDollarKey(buf.toString('latin1', at + 1))) {
         return -1;
     }
     at -= 1;
