@@ -3901,33 +3901,36 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.equal(probe.opts.sign && probe.opts.sign.keyId, `${BOB}#main-key`);
         });
 
-        it('is refused when the origin answers 404, which may be transient', async () => {
+        //  Nothing is done when the origin does not say the actor is gone, but
+        //  the delivery is answered 202: a 401 had Mastodon resend the same
+        //  Delete (signed RFC 9421) and count it as failed
+        it('does nothing, answered 202, when the origin answers 404, which may be transient', async () => {
             await storeGoneActor();
             served.set(GONE, { status: 404 });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 
-        it('is refused when the 410 comes from another host after a redirect', async () => {
+        it('does nothing, answered 202, when the 410 comes from another host after a redirect', async () => {
             await storeGoneActor();
             served.set(GONE, { status: 410, responseUrl: 'https://evil.example/gone' });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 
-        it('is refused when the origin still serves the actor', async () => {
+        it('does nothing, answered 202, when the origin still serves the actor', async () => {
             await storeGoneActor();
             served.set(GONE, {
                 doc: { id: GONE, type: 'Person', inbox: `${GONE}/inbox` },
             });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 
-        it('is refused when the origin fails for another reason', async () => {
+        it('does nothing, answered 202, when the origin fails for another reason', async () => {
             await storeGoneActor();
             served.set(GONE, { status: 500 });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 

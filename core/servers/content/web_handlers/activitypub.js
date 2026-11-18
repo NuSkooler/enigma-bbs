@@ -1454,7 +1454,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     //  Only a 410 Gone from the actor's host, for the actor's own id, says
     //  the actor is gone, as in Mastodon; a 404 can be transient. Then its
     //  local state alone is removed: the cached actor and its entries in
-    //  local follow lists.
+    //  local follow lists. Otherwise nothing is done, and the delivery is
+    //  answered 202 all the same (see _goneActorProbe).
     //
     _inboxDeleteGoneActor(inboxType, resp, actorId, fetchAs) {
         (fetchAs || ((id, cb) => cb(null, null)))(actorId, (err, fetchUser) => {
@@ -1486,7 +1487,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     },
                     'Will not Delete actor: its origin does not say it is gone'
                 );
-                return this.webServer.accessDenied(resp);
+                //  Nothing is done, but the delivery is not refused: a 401
+                //  had Mastodon count it as failed and send the same Delete
+                //  again (signed RFC 9421), and retry it later, for an
+                //  answer that cannot change. Nothing was signed that we
+                //  could check, so nothing is taken from it.
+                return this.webServer.accepted(resp);
             }
 
             async.eachSeries(
