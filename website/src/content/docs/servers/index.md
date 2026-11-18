@@ -33,9 +33,13 @@ the board is full is not given a node, and is turned away with
 - **Telnet:** the message, then the connection is closed.
 - **SSH:** there is no terminal before login, so the message is shown at the
   login stage (keyboard-interactive, with no prompt), then the connection is
-  closed. A client that does not offer keyboard-interactive, or has no terminal
-  to show it on (OpenSSH in batch mode), is disconnected without it. A refused
-  connection is closed after 10 seconds whatever it is doing.
+  closed. Whether the caller sees it is up to the client. OpenSSH shows it
+  only when it has a terminal: run without one (`ssh host command`, a script,
+  `BatchMode`) it hides the text unless run with `-v`, and the caller sees only
+  the disconnect or "Permission denied". A client that does not do
+  keyboard-interactive is disconnected without the message. A refused
+  connection is ended after 10 seconds whatever it is doing, and its socket
+  closed outright 2 seconds after that if the caller has not closed it.
 - **WebSocket:** the message, then the WebSocket is closed with code 1013
   (*Try Again Later*).
 
