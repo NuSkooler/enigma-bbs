@@ -427,18 +427,17 @@ Client.prototype.end = function () {
             this.themeChangedListener
         );
 
-        //  :TODO: getCurrentModule does not exist (the getter is
-        //  menuStack.currentModule), so this never finds a module and no
-        //  module's leave() runs here. Fixing it starts every module's leave()
-        //  running on disconnect, which wants its own review; it must then
-        //  mark the top stack entry |left| so MenuStack._refuseEnded() does
-        //  not leave() it a second time.
-        const currentModule = this.menuStack.getCurrentModule;
+        //  Run the current module's leave(): it is a module's one chance
+        //  to clean up on disconnect (a door's node count, an upload's temp
+        //  files, ...). Mark the top entry |left| first, so nothing can
+        //  leave() it a second time; see MenuStack._refuseEnded().
+        const currentModuleInfo = this.menuStack.top();
 
-        if (currentModule) {
-            currentModule.leave();
+        if (currentModuleInfo && !currentModuleInfo.left) {
+            currentModuleInfo.left = true;
+            currentModuleInfo.instance.leave();
         }
-
+        
         //  persist time online for authenticated users
         if (this.user.isAuthenticated()) {
             this.user.persistProperty(
