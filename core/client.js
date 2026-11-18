@@ -430,7 +430,7 @@ Client.prototype.end = function () {
         //  Run the current module's leave(): it is a module's one chance
         //  to clean up on disconnect (a door's node count, an upload's temp
         //  files, ...). Mark the top entry |left| first, so nothing can
-//  leave() it a second time; see MenuStack._refuseEnded().
+        //  leave() it a second time; see MenuStack._refuseEnded().
         //
         //  Guard the call itself: a leave() that throws (a third party mod
         //  writing to |term.output|, which is null by now, say) must not
