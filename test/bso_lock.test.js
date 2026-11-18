@@ -735,7 +735,7 @@ describe('BSO .bsy flow file lock', function () {
                         await bsoLock.acquire(bsyPath, {
                             log,
                             staleMaxAgeMs: 200, //  given up after 100 ms
-                            refreshMs: 60 * 1000, //  ticks driven by hand
+                            refreshMs: 40,
                             onLost: () => lost++,
                         })
                     );
@@ -759,12 +759,155 @@ describe('BSO .bsy flow file lock', function () {
             );
         });
 
+        it('is not given up when the wall clock jumps forward', async () => {
+            let lost = 0;
+            assert.ok(
+                await bsoLock.acquire(bsyPath, {
+                    staleMaxAgeMs: 200,
+                    refreshMs: 40,
+                    onLost: () => lost++,
+                })
+            );
+            const realNow = Date.now;
+            Date.now = () => realNow() + 60 * 60 * 1000; //  an NTP step, a resume
+            try {
+                await bsoLock._refreshHeldNow();
+            } finally {
+                Date.now = realNow;
+            }
+            assert.equal(lost, 0);
+            assert.equal(bsoLock.heldCount(), 1);
+            await bsoLock.release(bsyPath);
+        });
+
+        it('a tiny stale age does not give up a healthy lock', async () => {
+            let lost = 0;
+            assert.ok(
+                await bsoLock.acquire(bsyPath, { staleMaxAgeMs: 0, onLost: () => lost++ })
+            );
+            for (let i = 0; i < 5; i++) {
+                await new Promise(r => setTimeout(r, 10));
+                await bsoLock._refreshHeldNow();
+            }
+            assert.equal(lost, 0);
+            assert.equal(bsoLock.heldCount(), 1);
+            await bsoLock.release(bsyPath);
+        });
+
+        it('finishes a refresh that the filesystem writes in pieces', async () => {
+            assert.ok(await bsoLock.acquire(bsyPath));
+            const content = await fsp.readFile(bsyPath, 'utf8');
+            const realOpen = fsp.open;
+            let writes = 0;
+            fsp.open = async (file, flags, ...rest) => {
+                const fh = await realOpen.call(fsp, file, flags, ...rest);
+                if (file === bsyPath && 'r+' === flags) {
+                    const write = fh.write.bind(fh);
+                    //  At most 5 bytes per call.
+                    fh.write = (buf, off, len, pos) => {
+                        writes++;
+                        return write(buf, off, Math.min(len, 5), pos);
+                    };
+                }
+                return fh;
+            };
+            try {
+                await bsoLock._refreshHeldNow();
+            } finally {
+                fsp.open = realOpen;
+            }
+            assert.equal(await fsp.readFile(bsyPath, 'utf8'), content);
+            //  The same bytes go back, so a short write would leave the line
+            //  intact; what matters is that all of it was written.
+            assert.equal(
+                writes,
+                Math.ceil(Buffer.byteLength(content) / 5),
+                'all of it written'
+            );
+            await bsoLock._refreshHeldNow();
+            assert.equal(bsoLock.heldCount(), 1, 'not taken for replaced');
+            await bsoLock.release(bsyPath);
+            assert.ok(!fs.existsSync(bsyPath));
+        });
+
+        describe('a lock given up because it could not be refreshed', () => {
+            const giveUp = async (opts = {}) => {
+                const realOpen = fsp.open;
+                fsp.open = async (file, flags, ...rest) => {
+                    if (file === bsyPath && 'r+' === flags) {
+                        throw Object.assign(new Error('EIO'), { code: 'EIO' });
+                    }
+                    return realOpen.call(fsp, file, flags, ...rest);
+                };
+                try {
+                    await new Promise(r => setTimeout(r, 150));
+                    await bsoLock._refreshHeldNow();
+                } finally {
+                    fsp.open = realOpen;
+                }
+                assert.equal(bsoLock.heldCount(), 0, 'given up');
+                return opts;
+            };
+            const opts = { staleMaxAgeMs: 200, refreshMs: 1000 }; //  gives up after 2.5 s...
+            const fast = { staleMaxAgeMs: 200, refreshMs: 40 }; //  ...or after 100 ms
+
+            it('is still removed by release() while it holds our line', async () => {
+                assert.ok(await bsoLock.acquire(bsyPath, fast));
+                await giveUp();
+                assert.ok(fs.existsSync(bsyPath));
+                await bsoLock.release(bsyPath);
+                assert.ok(!fs.existsSync(bsyPath));
+            });
+
+            it('is left by release() once another holder has replaced it', async () => {
+                assert.ok(await bsoLock.acquire(bsyPath, fast));
+                await giveUp();
+                await fsp.unlink(bsyPath);
+                await fsp.writeFile(bsyPath, '4242');
+                await bsoLock.release(bsyPath);
+                assert.equal(await fsp.readFile(bsyPath, 'utf8'), '4242');
+            });
+
+            it('is removed on exit, and by its lock set when closed', async () => {
+                assert.ok(await bsoLock.acquire(bsyPath, fast));
+                await giveUp();
+                bsoLock._releaseHeldSync();
+                assert.ok(!fs.existsSync(bsyPath), 'removed on exit');
+
+                const lock = new bsoLock.FlowLockSet(fast);
+                assert.ok(await lock.acquire([bsyPath]));
+                await giveUp();
+                assert.ok(!lock.holds(bsyPath));
+                await lock.close();
+                assert.ok(!fs.existsSync(bsyPath), 'removed by close()');
+            });
+
+            it('is not given up before 2.5 refresh intervals, whatever the stale age', async () => {
+                assert.ok(await bsoLock.acquire(bsyPath, opts));
+                const realOpen = fsp.open;
+                fsp.open = async (file, flags, ...rest) => {
+                    if (file === bsyPath && 'r+' === flags) {
+                        throw Object.assign(new Error('EIO'), { code: 'EIO' });
+                    }
+                    return realOpen.call(fsp, file, flags, ...rest);
+                };
+                try {
+                    await new Promise(r => setTimeout(r, 150));
+                    await bsoLock._refreshHeldNow();
+                } finally {
+                    fsp.open = realOpen;
+                }
+                assert.equal(bsoLock.heldCount(), 1);
+                await bsoLock.release(bsyPath);
+            });
+        });
+
         it('gives up a lock whose touch hangs', async () => {
             let lost = 0;
             assert.ok(
                 await bsoLock.acquire(bsyPath, {
                     staleMaxAgeMs: 200,
-                    refreshMs: 60 * 1000,
+                    refreshMs: 40,
                     onLost: () => lost++,
                 })
             );

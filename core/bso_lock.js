@@ -149,6 +149,25 @@ const REFRESH_MAX_INTERVAL_MS = 60 * 1000;
 const NOT_REFRESHED_MAX_AGE_MS = 5 * 60 * 1000;
 const MIN_REFRESH_INTERVAL_MS = 10;
 
+//  The shortest refresh interval worked out from the stale age; a tiny (or
+//  zero) staleLockMaxAgeMs must not mean rewriting every lock many times a
+//  second. Tests pass |refreshMs| to go below it.
+const MIN_DERIVED_REFRESH_INTERVAL_MS = 1000;
+
+//
+//  How many refresh intervals a lock may miss before it is given up (see
+//  refreshGiveUpMs()). More than two, so one late timer tick is not taken
+//  for a failure.
+//
+const GIVE_UP_REFRESH_INTERVALS = 2.5;
+
+//  Milliseconds on a clock that only moves forward: refresh bookkeeping must
+//  not be fooled by the wall clock being stepped (NTP, a VM or laptop
+//  resuming). Lock ages on disk are wall-clock times and are compared as such.
+function monotonicMs() {
+    return performance.now();
+}
+
 //  How long release() waits before reading a lock it could not read again.
 const RELEASE_RETRY_MS = 50;
 
@@ -239,11 +258,16 @@ function notRefreshedMaxAgeMs(staleMaxAgeMs) {
 
 //
 //  How long a held lock may go without a successful refresh before this
-//  process stops counting on it: half the age at which others reap it, so
-//  it is given up well before anyone else could take it.
+//  process stops counting on it: half the age at which others reap it, so it
+//  is given up well before anyone else could take it -- but never fewer than
+//  GIVE_UP_REFRESH_INTERVALS refreshes, so a short stale age cannot give up a
+//  healthy lock.
 //
-function refreshGiveUpMs(staleMaxAgeMs) {
-    return Math.floor(notRefreshedMaxAgeMs(staleMaxAgeMs) / 2);
+function refreshGiveUpMs(staleMaxAgeMs, refreshMs) {
+    return Math.max(
+        Math.floor(notRefreshedMaxAgeMs(staleMaxAgeMs) / 2),
+        Math.ceil(refreshMs * GIVE_UP_REFRESH_INTERVALS)
+    );
 }
 
 function refreshIntervalMs(options) {
@@ -252,7 +276,7 @@ function refreshIntervalMs(options) {
         return Math.max(MIN_REFRESH_INTERVAL_MS, explicit);
     }
     return Math.max(
-        MIN_REFRESH_INTERVAL_MS,
+        MIN_DERIVED_REFRESH_INTERVAL_MS,
         Math.min(
             REFRESH_MAX_INTERVAL_MS,
             Math.floor(notRefreshedMaxAgeMs(_staleMaxAgeMs(options)) / 5)
@@ -271,7 +295,8 @@ function refreshIntervalMs(options) {
 //  process may take or reap it.
 //
 //  |created| once our exclusive create has succeeded (the file is ours even
-//  before it is written); |refreshedAt| when it was last written or touched.
+//  before it is written); |refreshedAt| when it was last written or touched,
+//  on monotonicMs().
 //
 //  The registry is per instance of this module: loading it twice in one
 //  process (two copies of the file, or worker threads, which each get their
@@ -285,6 +310,13 @@ function refreshIntervalMs(options) {
 //  fresh for everyone else.
 //
 const heldLocks = new Map();
+
+//
+//  Locks this process gave up because it could not refresh them: lockKey ->
+//  entry. Nothing relies on them any more, but the file is still ours, so
+//  release() and the exit hook still remove it while it holds our line.
+//
+const givenUpLocks = new Map();
 let refreshTimer = null;
 let refreshTimerMs = 0;
 let exitHookInstalled = false;
@@ -331,11 +363,14 @@ function scheduleRefresh() {
 //  holder. Forget it, so nothing goes on believing it holds it (a FlowLockSet
 //  drops it, and its flow files are then refused), and say so.
 //
-function lockLost(entry, why) {
+function lockLost(entry, why, { stillOurs = false } = {}) {
     if (heldLocks.get(entry.key) !== entry) {
         return;
     }
     heldLocks.delete(entry.key);
+    if (stillOurs) {
+        givenUpLocks.set(entry.key, entry);
+    }
     entry.log &&
         entry.log.warn(
             { path: entry.path, reason: why },
@@ -384,8 +419,14 @@ async function refreshOne(entry) {
             return lockLost(entry, 'replaced');
         }
         const bytes = Buffer.from(entry.content);
-        await fh.write(bytes, 0, bytes.length, 0);
-        entry.refreshedAt = Date.now();
+        for (let at = 0; at < bytes.length;) {
+            const { bytesWritten } = await fh.write(bytes, at, bytes.length - at, at);
+            if (!(bytesWritten > 0)) {
+                throw new Error('Refresh wrote nothing');
+            }
+            at += bytesWritten;
+        }
+        entry.refreshedAt = monotonicMs();
     } catch (err) {
         entry.log &&
             entry.log.warn(
@@ -410,8 +451,8 @@ function refreshHeldNow() {
         }
         //  Not refreshed for too long (a touch that hangs, or fails every
         //  time): soon anyone may reap it, so stop relying on it now.
-        if (Date.now() - entry.refreshedAt > entry.giveUpMs) {
-            lockLost(entry, 'could not be refreshed');
+        if (monotonicMs() - entry.refreshedAt > entry.giveUpMs) {
+            lockLost(entry, 'could not be refreshed', { stillOurs: true });
             continue;
         }
         if (!entry.refreshing) {
@@ -434,8 +475,9 @@ function refreshHeldNow() {
 //  reapIfStale() handles those.
 //
 function releaseHeldSync() {
-    for (const entry of Array.from(heldLocks.values())) {
+    for (const entry of [...heldLocks.values(), ...givenUpLocks.values()]) {
         heldLocks.delete(entry.key);
+        givenUpLocks.delete(entry.key);
         if (entry.pending && !entry.created) {
             continue; //  not created by us (yet): whatever is there is not ours
         }
@@ -684,11 +726,12 @@ async function acquire(bsyPath, options = {}) {
             pending: true,
             created: false,
             refreshMs: refreshIntervalMs(options),
-            giveUpMs: refreshGiveUpMs(staleMaxAgeMs),
-            refreshedAt: Date.now(),
+            giveUpMs: 0, //  set below, from refreshMs
+            refreshedAt: monotonicMs(),
             onLost: options.onLost,
             log,
         };
+        entry.giveUpMs = refreshGiveUpMs(staleMaxAgeMs, entry.refreshMs);
         heldLocks.set(key, entry);
 
         let fh;
@@ -713,7 +756,8 @@ async function acquire(bsyPath, options = {}) {
             }
         }
         entry.pending = false;
-        entry.refreshedAt = Date.now();
+        entry.refreshedAt = monotonicMs();
+        givenUpLocks.delete(key);
         installExitHook();
         heldChanged();
         return true;
@@ -763,8 +807,16 @@ async function acquire(bsyPath, options = {}) {
 //
 async function release(bsyPath) {
     const key = lockKey(bsyPath);
-    const entry = heldLocks.get(key);
-    if (!entry || entry.pending || entry.releasing) {
+    let entry = heldLocks.get(key);
+    if (!entry) {
+        //  Given up, but still ours to remove if it holds our line.
+        entry = givenUpLocks.get(key);
+        if (!entry) {
+            return;
+        }
+        givenUpLocks.delete(key);
+    }
+    if (entry.pending || entry.releasing) {
         return;
     }
     //  Still ours (and still counted, for whenNoneHeld()) until the file is
@@ -860,6 +912,7 @@ class FlowLockSet {
     constructor(options = {}) {
         this._options = options;
         this._held = new Map(); //  lockKey -> path as created
+        this._lost = new Set(); //  paths lost while held; see acquire()
         //  acquire() calls on one set run one at a time, so two of them
         //  reaching the same lock do not race each other for it.
         this._acquiring = Promise.resolve();
@@ -928,7 +981,12 @@ class FlowLockSet {
                     //  Gone from under us (removed, or reaped and taken by
                     //  someone else): no longer held, so rewriteFlowFile()
                     //  refuses its flow files from now on.
-                    onLost: () => this._held.delete(lockKey(bsyPath)),
+                    onLost: () => {
+                        this._held.delete(lockKey(bsyPath));
+                        //  release() still removes it if it was only given
+                        //  up and still holds our line.
+                        this._lost.add(bsyPath);
+                    },
                 });
             } catch (err) {
                 if ('ENOENT' === err.code && false === opts.createDir) {
@@ -948,6 +1006,7 @@ class FlowLockSet {
                 return false;
             }
             this._held.set(lockKey(bsyPath), bsyPath);
+            this._lost.delete(bsyPath);
             taken.push(bsyPath);
         }
         return true;
@@ -981,7 +1040,12 @@ class FlowLockSet {
 
     //  Release every lock the set holds. Never throws.
     async releaseAll() {
-        await Promise.all(this.paths.map(p => this._drop(p)));
+        const lost = Array.from(this._lost);
+        this._lost.clear();
+        await Promise.all([
+            ...this.paths.map(p => this._drop(p)),
+            ...lost.map(p => release(p)),
+        ]);
     }
 
     //  Release every lock the set holds and end the set: nothing can be
