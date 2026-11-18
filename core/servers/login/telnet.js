@@ -248,9 +248,9 @@ class TelnetClient {
     //  outright after TelnetClient.EndCloseGraceMs. By then everything
     //  written is with the operating system, which still delivers it.
     //
-    //  Anything the caller sends after the end is read and dropped: closing
-    //  a socket with unread input makes the OS reset the connection, and a
-    //  reset can throw away output the caller has not read yet.
+    //  Closing it does not reset the connection for unread input (which can
+    //  throw away output the caller has not read yet): TelnetSocket reads
+    //  the socket for as long as it is open, so nothing is left unread.
     //
     //  Only for a TCP socket: under a WebSocket the WebSocket close has a
     //  timeout of its own.
@@ -265,9 +265,6 @@ class TelnetClient {
             return;
         }
         this.closeAfterEndArmed = true;
-
-        rawSocket.on('data', () => {});
-        rawSocket.resume();
 
         const armGraceTimer = () => {
             if (rawSocket.destroyed) {

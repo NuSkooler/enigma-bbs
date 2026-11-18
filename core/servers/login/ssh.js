@@ -451,7 +451,6 @@ function SSHClient(clientConn, connInfo) {
     let endEmitted = false;
     const emitEnd = () => {
         self.clearLoginTimer();
-        clearTimeout(self.closeGraceTimer);
         if (!endEmitted) {
             endEmitted = true;
             self.emit('end'); //  remove client connection/tracking
@@ -459,7 +458,15 @@ function SSHClient(clientConn, connInfo) {
     };
 
     clientConn.on('end', emitEnd);
-    clientConn.on('close', emitEnd); //  fired on abrupt disconnects where 'end' is not emitted
+    clientConn.on('close', () => {
+        //
+        //  Only once the socket has closed is endAndClose()'s timer no longer
+        //  needed: 'end' is the caller's FIN alone, and a socket can stay
+        //  half open after it.
+        //
+        clearTimeout(self.closeGraceTimer);
+        return emitEnd(); //  'close' alone on abrupt disconnects where 'end' is not emitted
+    });
 
     clientConn.on('error', err => {
         (self.log || Log).warn(
@@ -489,7 +496,9 @@ function SSHClient(clientConn, connInfo) {
             if (self.rawSocket && !self.rawSocket.destroyed) {
                 self.rawSocket.destroy();
             }
-        }, SSHClient.RefusalCloseGraceMs);
+        }, SSHClient.EndCloseGraceMs);
+        //  this timer alone must not keep the process up
+        self.closeGraceTimer.unref();
     };
 
     //
@@ -527,12 +536,14 @@ util.inherits(SSHClient, baseClient.Client);
 
 SSHClient.ValidAuthMethods = ['password', 'keyboard-interactive', 'publickey'];
 
-//  How long a refused connection may stay open to be shown why, how long
-//  after that it is closed outright if the caller has not closed it, and how
-//  many other authentication methods it may try before keyboard-interactive
+//  How long a refused connection may stay open to be shown why, and how many
+//  other authentication methods it may try before keyboard-interactive
 SSHClient.RefusalTimeoutMs = 10000;
-SSHClient.RefusalCloseGraceMs = 2000;
 SSHClient.RefusalSteerAttempts = 3;
+
+//  How long a caller has to close its side after endAndClose() (a refusal or
+//  the login timeout) before the socket is closed outright
+SSHClient.EndCloseGraceMs = 2000;
 
 //
 //  How long a connection may take to reach the shell (key exchange,

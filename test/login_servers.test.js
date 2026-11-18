@@ -53,6 +53,23 @@ function makeConfig(overrides) {
 
 const tick = (ms = 0) => new Promise(resolve => setTimeout(resolve, ms));
 
+//  poll for a condition, rather than sleep for a guess at how long it takes
+function waitFor(what, test, ms = 3000) {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+        const check = () => {
+            if (test()) {
+                return resolve();
+            }
+            if (Date.now() - start > ms) {
+                return reject(new Error(`timed out waiting for: ${what}`));
+            }
+            setTimeout(check, 10);
+        };
+        check();
+    });
+}
+
 describe('login servers (#1017)', function () {
     let saved;
     let previousConfig;
@@ -316,7 +333,7 @@ describe('login servers (#1017)', function () {
 
             it('closes the socket outright if the caller has not closed it after the end', async () => {
                 ssh.SSHClient.RefusalTimeoutMs = 5;
-                ssh.SSHClient.RefusalCloseGraceMs = 5;
+                ssh.SSHClient.EndCloseGraceMs = 5;
                 const { conn } = connectRefused();
                 conn._sock.destroyed = false;
                 conn._sock.destroy = () => {
@@ -329,7 +346,7 @@ describe('login servers (#1017)', function () {
 
             it('leaves the socket alone if the caller closes it in the grace time', async () => {
                 ssh.SSHClient.RefusalTimeoutMs = 5;
-                ssh.SSHClient.RefusalCloseGraceMs = 30;
+                ssh.SSHClient.EndCloseGraceMs = 30;
                 const { conn } = connectRefused();
                 let destroyed = 0;
                 conn._sock.destroy = () => (destroyed += 1);
@@ -633,13 +650,13 @@ describe('login servers (#1017)', function () {
         beforeEach(() => {
             saved1080 = {
                 loginTimeoutSeconds: config.loginServers.ssh.loginTimeoutSeconds,
-                closeGraceMs: ssh.SSHClient.RefusalCloseGraceMs,
+                closeGraceMs: ssh.SSHClient.EndCloseGraceMs,
             };
         });
 
         afterEach(() => {
             config.loginServers.ssh.loginTimeoutSeconds = saved1080.loginTimeoutSeconds;
-            ssh.SSHClient.RefusalCloseGraceMs = saved1080.closeGraceMs;
+            ssh.SSHClient.EndCloseGraceMs = saved1080.closeGraceMs;
 
             //  a test that fails must not leave the one node taken for the next
             clientConns.clientConnections
@@ -662,8 +679,14 @@ describe('login servers (#1017)', function () {
             });
         });
 
+        //  |conn.endedAt| and |conn._sock.destroyedAt| say when each happened
         function connectTracked() {
             const conn = makeSshConn();
+            const end = conn.end;
+            conn.end = () => {
+                conn.endedAt = conn.endedAt || Date.now();
+                return end();
+            };
             const client = new ssh.SSHClient(conn, {
                 header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
             });
@@ -671,6 +694,7 @@ describe('login servers (#1017)', function () {
             conn._sock.destroyed = false;
             conn._sock.destroy = () => {
                 conn._sock.destroyed = true;
+                conn._sock.destroyedAt = Date.now();
                 conn.emit('close');
             };
             return { conn, client };
@@ -678,18 +702,53 @@ describe('login servers (#1017)', function () {
 
         it('ends a connection that has not reached the shell, then frees its node', async () => {
             config.loginServers.ssh.loginTimeoutSeconds = 0.01;
-            ssh.SSHClient.RefusalCloseGraceMs = 50;
+            const graceMs = 100;
+            ssh.SSHClient.EndCloseGraceMs = graceMs;
             const { conn, client } = connectTracked();
+            const connectedAt = Date.now();
             assert.ok(clientConns.clientConnections.includes(client));
 
-            await tick(30);
-            assert.equal(conn.endCount, 1, 'ended');
+            await waitFor('the end', () => conn.endCount > 0);
+            assert.equal(conn.endCount, 1, 'ended once');
             assert.equal(client.clientEnded, true);
-            assert.equal(conn._sock.destroyed, false, 'given the grace time');
+            assert.ok(conn.endedAt - connectedAt >= 5, 'not before the timeout');
 
-            await tick(60);
-            assert.equal(conn._sock.destroyed, true, 'closed outright');
+            await waitFor('the socket to be closed outright', () => conn._sock.destroyed);
+            //  timers do not fire early (a millisecond of rounding aside)
+            assert.ok(
+                conn._sock.destroyedAt - conn.endedAt >= graceMs - 2,
+                'given the grace time'
+            );
             assert.ok(!clientConns.clientConnections.includes(client), 'node freed');
+        });
+
+        //
+        //  'end' is the caller's FIN alone: the socket can stay half open
+        //  after it, so only 'close' says the grace timer is not needed
+        //
+        it('after endAndClose(), the caller ending its side alone does not stop the close', async () => {
+            config.loginServers.ssh.loginTimeoutSeconds = 0;
+            ssh.SSHClient.EndCloseGraceMs = 20;
+            const { conn, client } = connectTracked();
+
+            client.endAndClose();
+            conn.emit('end');
+            assert.ok(!clientConns.clientConnections.includes(client), 'node freed');
+            await waitFor('the socket to be closed outright', () => conn._sock.destroyed);
+        });
+
+        it('after endAndClose(), the socket closing stops the close', async () => {
+            config.loginServers.ssh.loginTimeoutSeconds = 0;
+            ssh.SSHClient.EndCloseGraceMs = 20;
+            const { conn, client } = connectTracked();
+            let destroyed = 0;
+            conn._sock.destroy = () => (destroyed += 1);
+
+            client.endAndClose();
+            conn.emit('close');
+            //  the timer would be due long before this one
+            await tick(100);
+            assert.equal(destroyed, 0);
         });
 
         it('does nothing to a connection that closes first', async () => {
@@ -772,7 +831,19 @@ describe('login servers (#1017)', function () {
                 clients = [];
                 sockets = [];
                 const handleNewClient = mod.handleNewClient.bind(mod);
+                //
+                //  When each connection is handed over, when this side ends
+                //  it, and when its socket closes. Set up here, as it is
+                //  handed over, so a slow test cannot miss them.
+                //
                 mod.handleNewClient = (client, sock, modInfo) => {
+                    client.trackedAt = Date.now();
+                    const end = client.end.bind(client);
+                    client.end = () => {
+                        client.endedAt = client.endedAt || Date.now();
+                        return end();
+                    };
+                    sock.once('close', () => (client.closedAt = Date.now()));
                     clients.push(client);
                     return handleNewClient(client, sock, modInfo);
                 };
@@ -797,30 +868,17 @@ describe('login servers (#1017)', function () {
                 mod.server.close(() => done());
             });
 
-            function waitFor(what, test, ms = 3000) {
-                const start = Date.now();
-                return new Promise((resolve, reject) => {
-                    const check = () => {
-                        if (test()) {
-                            return resolve();
-                        }
-                        if (Date.now() - start > ms) {
-                            return reject(new Error(`timed out waiting for: ${what}`));
-                        }
-                        setTimeout(check, 10);
-                    };
-                    check();
-                });
-            }
-
             //
             //  ssh2 hands a connection over (and it takes a node) once the
             //  caller has sent its identification line; this one then stops,
             //  before key exchange, and never closes its side either.
             //
             it('a caller that stalls before key exchange is disconnected and its node freed', async () => {
-                config.loginServers.ssh.loginTimeoutSeconds = 0.2;
-                ssh.SSHClient.RefusalCloseGraceMs = 100;
+                const loginTimeoutMs = 300;
+                const graceMs = 200;
+                config.loginServers.ssh.loginTimeoutSeconds = loginTimeoutMs / 1000;
+                ssh.SSHClient.EndCloseGraceMs = graceMs;
+                const startedAt = Date.now();
 
                 const sock = net.connect({
                     port,
@@ -840,14 +898,17 @@ describe('login servers (#1017)', function () {
                 const client = clients[clients.length - 1];
                 assert.ok(clientConns.clientConnections.includes(client), 'holds a node');
 
-                await tick(100);
-                assert.equal(closed, false, 'not before the timeout');
-
                 await waitFor('the disconnect', () => fin);
+                assert.ok(
+                    client.endedAt - startedAt >= loginTimeoutMs - 2,
+                    'not before the timeout'
+                );
                 assert.equal(closed, false, 'the caller has not closed its side');
-                await waitFor('the socket to be closed outright', () => {
-                    return client.rawSocket.destroyed;
-                });
+                await waitFor('the socket to be closed outright', () => client.closedAt);
+                assert.ok(
+                    client.closedAt - client.endedAt >= graceMs - 2,
+                    'given the grace time'
+                );
                 await waitFor('the node to be freed', () => {
                     return !clientConns.clientConnections.includes(client);
                 });
@@ -894,7 +955,6 @@ describe('login servers (#1017)', function () {
                 const loginTimeoutMs = 1500;
                 config.loginServers.ssh.loginTimeoutSeconds = loginTimeoutMs / 1000;
                 const count = clients.length;
-                const connectedAt = Date.now();
 
                 const sshClient = new ssh2.Client();
                 let closed = false;
@@ -928,8 +988,11 @@ describe('login servers (#1017)', function () {
                 await waitFor('the shell', () => Boolean(client.input));
                 assert.equal(client.loginTimer, undefined, 'timer cleared');
 
-                //  well past the point where the timer would have fired
-                await tick(Math.max(0, connectedAt + loginTimeoutMs + 500 - Date.now()));
+                //  past the point where the timer would have fired: it was
+                //  set no later than the connection was handed over
+                await tick(
+                    Math.max(0, client.trackedAt + loginTimeoutMs + 300 - Date.now())
+                );
                 assert.equal(closed, false, 'still connected');
                 assert.equal(client.clientEnded, false);
                 assert.ok(clientConns.clientConnections.includes(client));
@@ -995,31 +1058,36 @@ describe('login servers (#1017)', function () {
         }
 
         it('closes the socket once the grace time has passed, after the last output', async () => {
-            telnet.TelnetClient.EndCloseGraceMs = 100;
+            const graceMs = 200;
+            telnet.TelnetClient.EndCloseGraceMs = graceMs;
             const got = await call();
+            let closedAt;
+            got.client.rawSocket.once('close', () => (closedAt = Date.now()));
+
             got.client.term.write('Goodbye!');
+            const endedAt = Date.now();
             got.client.end();
 
-            await tick(50);
-            assert.equal(got.fin, true, 'FIN sent');
-            assert.equal(got.client.rawSocket.destroyed, false, 'waiting for the caller');
-
-            await tick(200);
-            assert.equal(got.client.rawSocket.destroyed, true, 'closed outright');
+            //  this side's socket: the caller, its side still open, does
+            //  not hear of the close until it writes
+            await waitFor('the socket to be closed outright', () => closedAt);
+            assert.equal(got.fin, true, 'FIN sent first');
+            //  the timer starts once the last output has gone out, after the
+            //  end; timers do not fire early (a millisecond of rounding aside)
+            assert.ok(closedAt - endedAt >= graceMs - 2, 'waited for the caller');
+            assert.equal(got.client.rawSocket.destroyed, true);
             const text = Buffer.concat(got.data).toString('latin1');
             assert.ok(text.endsWith('Goodbye!'), text);
             assert.ok(!clientConns.clientConnections.includes(got.client), 'node freed');
         });
 
         it('a caller that closes its side in time is closed as before', async () => {
-            telnet.TelnetClient.EndCloseGraceMs = 5000;
+            telnet.TelnetClient.EndCloseGraceMs = 60000; //  unref()'d
             const got = await call();
             got.client.end();
-            await tick(50);
-            assert.equal(got.fin, true);
+            await waitFor('the FIN', () => got.fin);
             got.sock.end();
-            await tick(50);
-            assert.equal(got.closed, true);
+            await waitFor('the close', () => got.closed);
             assert.equal(got.client.rawSocket.destroyed, true);
         });
     });
