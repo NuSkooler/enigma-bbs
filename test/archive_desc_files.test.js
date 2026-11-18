@@ -529,5 +529,50 @@ describe('Description files in uploaded archives', function () {
                 );
             });
         });
+
+        it('a lone description file it would not read gets a description from the file name', function (done) {
+            if (!installed('unzip')) {
+                return this.skip();
+            }
+            const archive = writeArchive(
+                'lonelink.zip',
+                makeZip([{ name: 'FILE_ID.DIZ', data: outsideFile, mode: 0o120777 }])
+            );
+            scan(archive, done, fileEntry => {
+                assertNotRead(fileEntry);
+                assert.equal(fileEntry.descSrc, 'fileName');
+                assert.ok(fileEntry.desc, 'has a description');
+            });
+        });
+    });
+
+    describe('fileNamePatterns that are not lists', () => {
+        let patterns;
+        let saved;
+        beforeEach(() => {
+            patterns = configModule.get().fileBase.fileNamePatterns;
+            saved = { desc: patterns.desc, descLong: patterns.descLong };
+        });
+        afterEach(() => Object.assign(patterns, saved));
+
+        //  unset, new RegExp(undefined) would match every name
+        it('descLong unset: a lone entry still goes to its info extractor', done => {
+            delete patterns.descLong;
+            const archive = writeFlat([{ name: 'docs/manual.pdf', data: 'Manual text' }]);
+            scan(archive, done, fileEntry => {
+                assert.equal(fileEntry.desc, 'Manual text');
+            });
+        });
+
+        it('descLong set to null: a FILE_ID.DIZ among other files is still read', done => {
+            patterns.descLong = null;
+            const archive = writeFlat([
+                { name: 'FILE_ID.DIZ', data: 'From the DIZ' },
+                { name: 'a.txt', data: 'other' },
+            ]);
+            scan(archive, done, fileEntry => {
+                assert.equal(fileEntry.desc, 'From the DIZ');
+            });
+        });
     });
 });

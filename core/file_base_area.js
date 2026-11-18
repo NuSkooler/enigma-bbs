@@ -393,16 +393,23 @@ function cleanupExtractTempSession(temptmp) {
     });
 }
 
+//  A pattern list from config; anything that is not an array (null, unset)
+//  is no patterns at all, never a RegExp of undefined, which matches anything
+const patternList = patterns => (Array.isArray(patterns) ? patterns : []);
+
 //  The first archive entry whose full path matches one of |patterns|
 function findEntryByPatterns(entries, patterns) {
     //  :TODO: would be nice if these RegExp's were cached
-    return entries.find(e => patterns.some(pat => new RegExp(pat, 'i').test(e.fileName)));
+    const list = patternList(patterns);
+    return entries.find(e => list.some(pat => new RegExp(pat, 'i').test(e.fileName)));
 }
 
 //  Whether |entry| is one of the description files fileBase.fileNamePatterns name
 function isDescFileEntry(entry) {
-    const { desc, descLong } = Config().fileBase.fileNamePatterns;
-    return Boolean(findEntryByPatterns([entry], desc.concat(descLong)));
+    const { desc, descLong } = _.get(Config(), 'fileBase.fileNamePatterns', {});
+    return Boolean(
+        findEntryByPatterns([entry], patternList(desc).concat(patternList(descLong)))
+    );
 }
 
 function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
@@ -678,8 +685,31 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
                 //  and README.1ST -- including when one is the only entry, as in
                 //  a ZIP that holds nothing but its FILE_ID.DIZ.
                 //
+                if (1 === entries.length && isDescFileEntry(entries[0])) {
+                    return extractAndProcessDescFiles(
+                        fileEntry,
+                        filePath,
+                        entries,
+                        err => {
+                            if (err || fileEntry.desc || fileEntry.descLong) {
+                                return callback(err);
+                            }
+                            //  It could not be read (not found after extraction,
+                            //  outside the temp directory, empty): go on as for any
+                            //  other lone entry, which ends in a description made
+                            //  from the file name.
+                            return extractAndProcessSingleArchiveEntry(
+                                fileEntry,
+                                filePath,
+                                entries,
+                                err => callback(err)
+                            );
+                        }
+                    );
+                }
+
                 const archDescHandler =
-                    1 === entries.length && !isDescFileEntry(entries[0])
+                    1 === entries.length
                         ? extractAndProcessSingleArchiveEntry
                         : extractAndProcessDescFiles;
                 archDescHandler(fileEntry, filePath, entries, err => {
