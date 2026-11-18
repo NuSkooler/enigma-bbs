@@ -70,7 +70,9 @@ describe('ftn_bso — EchoMail bundle names (#1027)', function () {
 
         mod.archUtil = {
             haveArchiver: type => 'zip' === type,
-            compressTo: (type, archivePath, files, cb) => {
+            compressTo: (type, archivePath, names, workDir, cb) => {
+                //  bare names, relative to |workDir| (#1078)
+                const files = names.map(n => path.join(workDir, n));
                 calls.push({ archivePath, files });
                 const run = () => {
                     let existing = '';
