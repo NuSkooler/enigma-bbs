@@ -894,23 +894,25 @@ function getThemeArt(options, cb) {
         [
             function fromPath(callback) {
                 //
-                //  We allow relative (to enigma-bbs) or full paths
+                //  We allow relative (to enigma-bbs) or full paths. A
+                //  relative one is made absolute first: getArt() reads a name
+                //  with an extension as basePath + name, so handing it the
+                //  relative name with basePath already holding its directory
+                //  joined the directory twice, and the lookup missed.
                 //
+                let fullName;
                 if ('/' === options.name.charAt(0)) {
                     //  just take the path as-is
-                    options.basePath = paths.dirname(options.name);
+                    fullName = options.name;
                 } else if (options.name.indexOf('/') > -1) {
                     //  make relative to base BBS dir
-                    options.basePath = paths.join(
-                        __dirname,
-                        '../',
-                        paths.dirname(options.name)
-                    );
+                    fullName = paths.join(__dirname, '../', options.name);
                 } else {
                     return callback(null, null);
                 }
 
-                art.getArt(options.name, options, (err, artInfo) => {
+                options.basePath = paths.dirname(fullName);
+                art.getArt(fullName, options, (err, artInfo) => {
                     return callback(null, artInfo);
                 });
             },
