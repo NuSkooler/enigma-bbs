@@ -345,11 +345,18 @@ function _splitReqContent(text) {
 //
 //  attachFreqToSession — wire FREQ handling onto an answering BinkpSession.
 //
-//  Uses two events:
-//    'incoming-file' — fires when M_FILE is received; calls holdEOB() for .req
-//                      files so M_EOB is blocked while resolution is in-flight.
-//    'file-received' — fires when the file is written; reads content, resolves
-//                      names, queues responses, then calls releaseEOB().
+//  Uses three events:
+//    'incoming-file'  — fires when M_FILE is received; calls holdEOB() for .req
+//                       files so M_EOB is blocked while resolution is in-flight.
+//    'file-received'  — fires when the file is written; reads content, resolves
+//                       names, queues responses, then calls releaseEOB().
+//    'file-abandoned' — fires when the receive ends without the file being
+//                       handed on (postponed, asked for again in the clear,
+//                       or the session torn down); calls releaseEOB() at once.
+//
+//  The session answers each 'incoming-file' with exactly one of the other
+//  two, so every hold taken here is given back. Holds are counted per file
+//  (name, size, timestamp), and only a hold this handler took is released.
 //
 //  Must be called BEFORE other 'file-received' listeners so readReqFileSync
 //  runs while the temp file is still in place.
@@ -359,17 +366,50 @@ function _splitReqContent(text) {
 //    isSecure  : () => boolean — checked when incoming-file fires
 //
 function attachFreqToSession(session, resolver, opts = {}) {
-    session.on('incoming-file', name => {
+    //  Holds taken and not yet given back, by file. A count rather than a
+    //  flag: nothing stops a sender offering the same file twice.
+    const holds = new Map();
+    const keyOf = (name, size, ts) => `${name}\0${size}\0${ts}`;
+
+    //  Drop one hold's bookkeeping for this file; true if there was one.
+    const takeHold = (name, size, ts) => {
+        const key = keyOf(name, size, ts);
+        const count = holds.get(key) || 0;
+        if (0 === count) {
+            return false;
+        }
+        if (1 === count) {
+            holds.delete(key);
+        } else {
+            holds.set(key, count - 1);
+        }
+        return true;
+    };
+
+    session.on('incoming-file', (name, size, ts) => {
         if (!REQ_FILE_RE.test(name)) return;
         if (opts.requirePwd && !opts.isSecure()) return;
+        const key = keyOf(name, size, ts);
+        holds.set(key, (holds.get(key) || 0) + 1);
         session.holdEOB();
+    });
+
+    //  Postponed, abandoned or asked for again: there is nothing to resolve,
+    //  so give the hold back now. A file asked for again is announced again,
+    //  and that announcement takes a hold of its own.
+    session.on('file-abandoned', (name, size, ts) => {
+        if (!REQ_FILE_RE.test(name)) return;
+        if (takeHold(name, size, ts)) {
+            session.releaseEOB();
+        }
     });
 
     session.on('file-received', (name, size, ts, tempPath) => {
         if (!REQ_FILE_RE.test(name)) return;
 
-        if (opts.requirePwd && !opts.isSecure()) {
-            session.releaseEOB();
+        //  The hold passes to the resolution below, which releases it.
+        if (!takeHold(name, size, ts)) {
+            //  Not ours: a non-secure session with requirePwd set.
             return;
         }
 
