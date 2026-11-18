@@ -356,7 +356,19 @@ describe('Description files in uploaded archives', function () {
                 scan(archive, done, fileEntry => {
                     assert.equal(fileEntry.descLong, 'Only the README');
                     assert.equal(fileEntry.descLongSrc, 'descFile');
+                    //  not every caller fills it in, so the scan does
+                    assert.ok(fileEntry.desc, 'a short description');
+                    assert.equal(fileEntry.descSrc, 'fileName');
                 });
+            });
+        });
+
+        it('a lone FILE_ID.DIZ that is only blank space gives way to the file name', done => {
+            const archive = writeFlat([{ name: 'FILE_ID.DIZ', data: '   \r\n  \n' }]);
+            scan(archive, done, fileEntry => {
+                assert.equal(fileEntry.descSrc, 'fileName');
+                assert.ok(String(fileEntry.desc).trim(), 'a description with text');
+                assert.ok(!fileEntry.descLong);
             });
         });
 

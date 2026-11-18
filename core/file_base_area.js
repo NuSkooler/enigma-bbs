@@ -691,13 +691,28 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
                         filePath,
                         entries,
                         err => {
-                            if (err || fileEntry.desc || fileEntry.descLong) {
+                            if (err) {
                                 return callback(err);
                             }
-                            //  It could not be read (not found after extraction,
-                            //  outside the temp directory, empty): go on as for any
-                            //  other lone entry, which ends in a description made
-                            //  from the file name.
+                            const hasText = s => _.isString(s) && s.trim().length > 0;
+                            if (hasText(fileEntry.desc) || hasText(fileEntry.descLong)) {
+                                //  A lone README or .NFO gives only the long
+                                //  description. Not every caller fills in the
+                                //  short one (REST upload, TIC hatch), and this
+                                //  archive got one from its file name before.
+                                if (!hasText(fileEntry.desc)) {
+                                    fileEntry.desc = getDescFromFileName(filePath);
+                                    fileEntry.descSrc = 'fileName';
+                                }
+                                return callback(null);
+                            }
+                            //  Nothing usable (not found after extraction,
+                            //  outside the temp directory, empty or blank): go
+                            //  on as for any other lone entry, which ends in a
+                            //  description made from the file name.
+                            ['desc', 'descSrc', 'descLong', 'descLongSrc'].forEach(k => {
+                                delete fileEntry[k];
+                            });
                             return extractAndProcessSingleArchiveEntry(
                                 fileEntry,
                                 filePath,
