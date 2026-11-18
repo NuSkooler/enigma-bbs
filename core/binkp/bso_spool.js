@@ -134,6 +134,7 @@ class BsoSpool {
         return bsoLock.acquire(this._bsyPath(addr), this._lockOpts());
     }
 
+    //  Removes the lock only if it is still the one acquireLock() took.
     async releaseLock(addr) {
         await bsoLock.release(this._bsyPath(addr));
     }
@@ -215,7 +216,9 @@ class BsoSpool {
 
     // Sweep every outbound directory for orphaned .bsy lock files. Returns the
     // number of files reaped. Intended for startup so a crashed prior run
-    // doesn't leave nodes permanently un-pollable.
+    // doesn't leave nodes un-pollable: see bsoLock.reapIfStale() for what
+    // counts as orphaned (a lock from this machine whose process is gone is
+    // reaped at once, whatever its age).
     async reapStaleLocks() {
         const dirs = await this._allOutboundDirs();
         let reaped = 0;
@@ -251,9 +254,9 @@ class BsoSpool {
         return reaped;
     }
 
-    // Returns true if the .bsy at |bsyPath| was older than staleLockMaxAgeMs
-    // and has been removed (or was already gone). Returns false when the file
-    // is still fresh, or when stat/unlink errors prevent a confident reap.
+    // Returns true if the .bsy at |bsyPath| was orphaned (bsoLock.reapIfStale())
+    // and has been removed (or was already gone). Returns false when it is
+    // still in use, or when stat/unlink errors prevent a confident reap.
     async _reapIfStale(bsyPath) {
         return bsoLock.reapIfStale(bsyPath, this._staleLockMaxAgeMs, Log);
     }

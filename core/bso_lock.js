@@ -4,6 +4,8 @@
 const Errors = require('./enig_error.js').Errors;
 
 //  deps
+const crypto = require('crypto');
+const fs = require('fs');
 const fsp = require('fs/promises');
 const paths = require('path');
 
@@ -113,11 +115,388 @@ async function resolveExisting(bsyPath) {
 }
 
 //
-//  True when the lock at |bsyPath| was older than |staleMaxAgeMs| and has been
-//  removed -- or was already gone, since either way the slot is now free.
-//  False when it is still fresh, or when we could not confidently reap it.
+//  What a lock says, and who wrote it.
+//
+//  FTS-5005.003 §5.1: a bsy "may contain one line of PID information". Ours
+//  is one line that starts with the PID, so anything reading it as a number
+//  still gets the PID:
+//
+//      <pid> ENiGMA <hostId> <token>
+//
+//  |token| is new for every lock taken, so a holder can tell its own lock
+//  from one that replaced it at the same path (release() and the refresh
+//  check it). |hostId| names this kernel boot and this PID namespace, the
+//  only scope in which the PID can be checked: see lockHostId().
+//
+//  binkd and other mailers only test whether a bsy exists; none of them
+//  reads what is in it. A lock that is not in exactly this form -- an older
+//  ENiGMA's bare PID, binkd's, an empty file -- is a foreign lock, and is
+//  only ever reaped by age.
+//
+const LOCK_CONTENT_RE = /^(\d+) ENiGMA ([0-9a-f]{12}|-) ([0-9a-f]{16})\r?\n?$/;
+
+//  The longest content worth reading: §5.1 keeps the line short.
+const LOCK_CONTENT_MAX_BYTES = 256;
+
+//
+//  A lock in our form is touched at least this often while held (more often
+//  with a short stale age), and is treated as orphaned once it has gone
+//  untouched for min(stale age, NOT_REFRESHED_MAX_AGE_MS): several missed
+//  touches. Foreign locks keep the full stale age; nothing promises they are
+//  refreshed. binkd touches its own every 60 s as well.
+//
+const REFRESH_MAX_INTERVAL_MS = 60 * 1000;
+const NOT_REFRESHED_MAX_AGE_MS = 5 * 60 * 1000;
+const MIN_REFRESH_INTERVAL_MS = 10;
+
+let hostIdCache = null;
+
+//
+//  This kernel boot and this PID namespace, hashed, or '-' when either cannot
+//  be read (anything but Linux, or a sandbox that hides them).
+//
+//  A PID in a lock can only be checked with kill(pid, 0) by a process on the
+//  same boot in the same PID namespace. A hostname cannot say that: two
+//  containers sharing an outbound can have the same one, each with its own
+//  PID 1. The hash keeps the line short and says nothing about the machine.
+//
+function lockHostId() {
+    if (null === hostIdCache) {
+        try {
+            const bootId = fs
+                .readFileSync('/proc/sys/kernel/random/boot_id', 'utf8')
+                .trim();
+            const pidNs = fs.readlinkSync('/proc/self/ns/pid');
+            hostIdCache =
+                bootId && pidNs
+                    ? crypto
+                          .createHash('sha256')
+                          .update(`${bootId}\n${pidNs}`)
+                          .digest('hex')
+                          .slice(0, 12)
+                    : '-';
+        } catch (err) {
+            hostIdCache = '-';
+        }
+    }
+    return hostIdCache;
+}
+
+function newLockContent() {
+    return `${process.pid} ENiGMA ${lockHostId()} ${crypto
+        .randomBytes(8)
+        .toString('hex')}\n`;
+}
+
+//  { pid, hostId, token } for a lock in our form, else null.
+function parseLockContent(content) {
+    const m = 'string' === typeof content ? LOCK_CONTENT_RE.exec(content) : null;
+    return m ? { pid: parseInt(m[1], 10), hostId: m[2], token: m[3] } : null;
+}
+
+//  The lock's content, or null when it cannot be read (ENOENT included).
+async function readLockContent(bsyPath) {
+    let fh;
+    try {
+        fh = await fsp.open(bsyPath, 'r');
+        const buf = Buffer.alloc(LOCK_CONTENT_MAX_BYTES);
+        const { bytesRead } = await fh.read(buf, 0, buf.length, 0);
+        return buf.toString('utf8', 0, bytesRead);
+    } catch (err) {
+        return null;
+    } finally {
+        if (fh) {
+            await fh.close().catch(() => {});
+        }
+    }
+}
+
+//  False only when |pid| is certainly not running. EPERM means it runs as
+//  someone else.
+function pidRunning(pid) {
+    //  0 and negative PIDs name process groups; never ask about those.
+    if (!Number.isInteger(pid) || pid < 1) {
+        return true;
+    }
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (err) {
+        return 'ESRCH' !== err.code;
+    }
+}
+
+function notRefreshedMaxAgeMs(staleMaxAgeMs) {
+    return Math.min(staleMaxAgeMs, NOT_REFRESHED_MAX_AGE_MS);
+}
+
+function refreshIntervalMs(options) {
+    const explicit = options.refreshMs;
+    if ('number' === typeof explicit && isFinite(explicit) && explicit > 0) {
+        return Math.max(MIN_REFRESH_INTERVAL_MS, explicit);
+    }
+    return Math.max(
+        MIN_REFRESH_INTERVAL_MS,
+        Math.min(
+            REFRESH_MAX_INTERVAL_MS,
+            Math.floor(notRefreshedMaxAgeMs(_staleMaxAgeMs(options)) / 5)
+        )
+    );
+}
+
+//
+//  Every lock this process holds: lockKey -> entry
+//
+//      { key, path, content, pending, releasing, refreshing, refreshMs,
+//        onLost, log }
+//
+//  |pending| while the lock file is being created and written, |releasing|
+//  while it is being removed: it is ours throughout, so nothing else in the
+//  process may take or reap it.
+//
+//  This is what makes a lock ours. A second holder in this process is refused
+//  without looking at the lock's age; release() only removes a file whose
+//  content is still what we wrote; and the refresh keeps every lock here
+//  fresh for everyone else.
+//
+const heldLocks = new Map();
+let refreshTimer = null;
+let refreshTimerMs = 0;
+let exitHookInstalled = false;
+const noneHeldWaiters = new Set();
+
+function heldChanged() {
+    scheduleRefresh();
+    if (0 === heldLocks.size) {
+        for (const resolve of noneHeldWaiters) {
+            resolve(true);
+        }
+        noneHeldWaiters.clear();
+    }
+}
+
+//  One timer for the whole process, at the shortest interval any held lock
+//  needs. unref()'d: a held lock never keeps the process alive.
+function scheduleRefresh() {
+    let wantMs = 0;
+    for (const entry of heldLocks.values()) {
+        if (!wantMs || entry.refreshMs < wantMs) {
+            wantMs = entry.refreshMs;
+        }
+    }
+    if (refreshTimer && wantMs === refreshTimerMs) {
+        return;
+    }
+    if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+        refreshTimerMs = 0;
+    }
+    if (wantMs) {
+        refreshTimer = setInterval(() => {
+            refreshHeldNow().catch(() => {});
+        }, wantMs);
+        refreshTimer.unref();
+        refreshTimerMs = wantMs;
+    }
+}
+
+//
+//  The lock in |entry| is no longer ours: deleted, or replaced by another
+//  holder. Forget it, so nothing goes on believing it holds it (a FlowLockSet
+//  drops it, and its flow files are then refused), and say so.
+//
+function lockLost(entry, why) {
+    if (heldLocks.get(entry.key) !== entry) {
+        return;
+    }
+    heldLocks.delete(entry.key);
+    entry.log &&
+        entry.log.warn(
+            { path: entry.path, reason: why },
+            'Held .bsy lock is no longer ours; its flow files will not be changed'
+        );
+    try {
+        entry.onLost && entry.onLost();
+    } catch (err) {
+        //  a holder's callback must not stop the others
+    }
+    heldChanged();
+}
+
+//  Touch one held lock, through a handle on the file we checked, so a file
+//  that replaced ours in between is never the one touched.
+async function refreshOne(entry) {
+    let fh;
+    try {
+        fh = await fsp.open(entry.path, 'r+');
+    } catch (err) {
+        if ('ENOENT' === err.code) {
+            return lockLost(entry, 'removed');
+        }
+        entry.log &&
+            entry.log.warn(
+                { path: entry.path, error: err.message },
+                'Could not refresh held .bsy lock'
+            );
+        return;
+    }
+    try {
+        const buf = Buffer.alloc(LOCK_CONTENT_MAX_BYTES);
+        const { bytesRead } = await fh.read(buf, 0, buf.length, 0);
+        if (heldLocks.get(entry.key) !== entry || entry.releasing) {
+            return; //  being released meanwhile
+        }
+        if (buf.toString('utf8', 0, bytesRead) !== entry.content) {
+            return lockLost(entry, 'replaced');
+        }
+        const now = new Date();
+        await fh.utimes(now, now);
+    } catch (err) {
+        entry.log &&
+            entry.log.warn(
+                { path: entry.path, error: err.message },
+                'Could not refresh held .bsy lock'
+            );
+    } finally {
+        await fh.close().catch(() => {});
+    }
+}
+
+//
+//  Touch every lock this process holds, now. A lock whose last touch is still
+//  running (a slow filesystem) is not touched twice; one that hangs holds up
+//  only itself. Resolves when every touch started or joined here is done.
+//
+function refreshHeldNow() {
+    const running = [];
+    for (const entry of Array.from(heldLocks.values())) {
+        if (entry.pending || entry.releasing) {
+            continue;
+        }
+        if (!entry.refreshing) {
+            entry.refreshing = refreshOne(entry)
+                .catch(() => {})
+                .then(() => {
+                    entry.refreshing = null;
+                });
+        }
+        running.push(entry.refreshing);
+    }
+    return Promise.all(running).then(() => {});
+}
+
+//
+//  Remove every lock this process still holds, synchronously, as it exits.
+//  A process that is exiting holds nothing, so this is always right; only
+//  files still carrying our content are removed. Covers process.exit() from
+//  anywhere, including the shutdown safety timer. Not a crash or SIGKILL:
+//  reapIfStale() handles those.
+//
+function releaseHeldSync() {
+    for (const entry of Array.from(heldLocks.values())) {
+        heldLocks.delete(entry.key);
+        if (entry.pending) {
+            continue;
+        }
+        try {
+            if (fs.readFileSync(entry.path, 'utf8') === entry.content) {
+                fs.unlinkSync(entry.path);
+            }
+        } catch (err) {
+            //  gone already, or not ours to remove
+        }
+    }
+    heldChanged();
+}
+
+function installExitHook() {
+    if (!exitHookInstalled) {
+        exitHookInstalled = true;
+        process.on('exit', releaseHeldSync);
+    }
+}
+
+//  How many locks this process holds.
+function heldCount() {
+    return heldLocks.size;
+}
+
+//
+//  Resolves true once this process holds no lock, or false after |timeoutMs|.
+//  Held locks that have gone (removed or replaced underneath us) are dropped
+//  first, so they cannot hold this up. Never rejects.
+//
+async function whenNoneHeld(timeoutMs) {
+    //  Drops what has gone. Not awaited: a touch stuck on a slow filesystem
+    //  must not hold this past its timeout.
+    refreshHeldNow().catch(() => {});
+    if (0 === heldLocks.size) {
+        return true;
+    }
+    return new Promise(resolve => {
+        let timer = null;
+        const done = result => {
+            clearTimeout(timer);
+            noneHeldWaiters.delete(done);
+            resolve(result);
+        };
+        noneHeldWaiters.add(done);
+        timer = setTimeout(() => done(false), Math.max(0, timeoutMs));
+    });
+}
+
+//
+//  Why the lock at |bsyPath| may be reaped, or null when it must be left.
+//
+//    * one this process holds: never.
+//    * ours, written on this boot in this PID namespace (lockHostId()), by a
+//      process that is not running -- or that had our own PID, which in the
+//      same namespace means a process before us: at once.
+//    * ours, untouched for min(stale age, NOT_REFRESHED_MAX_AGE_MS): its
+//      holder stopped refreshing it.
+//    * any lock, untouched for the stale age (FTS-5005.003 §5.1).
+//
+//  Foreign locks are never judged by their PID: their writer may be on
+//  another machine or in another namespace, and nothing promises they are
+//  refreshed.
+//
+function reapReason(content, ageMs, staleMaxAgeMs) {
+    const lock = parseLockContent(content);
+    if (lock) {
+        const hostId = lockHostId();
+        if ('-' !== hostId && lock.hostId === hostId) {
+            if (lock.pid === process.pid) {
+                return 'written by an earlier process with this PID';
+            }
+            if (!pidRunning(lock.pid)) {
+                return 'holder process is not running';
+            }
+        }
+        if (ageMs > notRefreshedMaxAgeMs(staleMaxAgeMs)) {
+            return 'not refreshed by its holder';
+        }
+    }
+    return ageMs > staleMaxAgeMs ? 'older than the stale age' : null;
+}
+
+//
+//  True when the lock at |bsyPath| has been removed as orphaned -- or was
+//  already gone, since either way the slot is now free. False when it is
+//  still in use (see reapReason()), or when we could not confidently reap it.
 //
 async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
+    const entry = heldLocks.get(lockKey(bsyPath));
+    if (entry) {
+        if (entry.pending || entry.releasing) {
+            return false;
+        }
+        if ((await readLockContent(entry.path)) === entry.content) {
+            return false; //  ours, and in use
+        }
+        lockLost(entry, 'replaced');
+    }
+
     let stat;
     try {
         stat = await fsp.stat(bsyPath);
@@ -125,14 +504,26 @@ async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
         return 'ENOENT' === err.code;
     }
 
+    const content = await readLockContent(bsyPath);
     const ageMs = Date.now() - stat.mtimeMs;
-    if (ageMs <= staleMaxAgeMs) {
+    const reason = reapReason(content, ageMs, staleMaxAgeMs);
+    if (!reason) {
+        return false;
+    }
+
+    //  Someone may have reaped and replaced it since we looked; then it is
+    //  not the lock we judged.
+    const now = await readLockContent(bsyPath);
+    if (null === now) {
+        return true;
+    }
+    if (now !== content) {
         return false;
     }
 
     try {
         await fsp.unlink(bsyPath);
-        log && log.info({ path: bsyPath, ageMs }, 'Reaped stale .bsy lock');
+        log && log.info({ path: bsyPath, ageMs, reason }, 'Reaped orphaned .bsy lock');
         return true;
     } catch (err) {
         if ('ENOENT' === err.code) {
@@ -149,7 +540,8 @@ async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
 
 //
 //  Take the lock at |bsyPath|. Resolves true on success, false when it is held
-//  by someone else; rejects only on unexpected filesystem errors.
+//  by someone else -- including by anything else in this process; rejects only
+//  on unexpected filesystem errors.
 //
 //  §5.1 warns specifically about this:
 //
@@ -163,28 +555,77 @@ async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
 //  With |options.createDir| false the lock's directory is not created, and a
 //  missing one rejects with ENOENT.
 //
+//  While held, the lock is touched every |options.refreshMs| (by default a
+//  minute, or less with a short stale age). |options.onLost| is called if it
+//  is found removed or replaced while held; it is then no longer held.
+//
 async function acquire(bsyPath, options = {}) {
     const staleMaxAgeMs = _staleMaxAgeMs(options);
     const log = options.log;
+    const key = lockKey(bsyPath);
+
+    //  Held in this process already: by whom does not matter, it is in use.
+    //  Unless it has gone from under us, in which case it is not held at all.
+    const mine = heldLocks.get(key);
+    if (mine) {
+        if (
+            mine.pending ||
+            mine.releasing ||
+            (await readLockContent(mine.path)) === mine.content
+        ) {
+            return false;
+        }
+        lockLost(mine, 'replaced');
+    }
 
     if (false !== options.createDir) {
         await fsp.mkdir(paths.dirname(bsyPath), { recursive: true });
     }
 
-    //  A lock created but not written is removed again: an error here
-    //  rejects, and nobody would release it.
+    //  Resolves false when something else in this process got there first.
+    //  The entry goes in before the file is created, so nothing else here can
+    //  see the file without seeing that it is ours. A lock created but not
+    //  written is removed again: an error here rejects, and nobody would
+    //  release it.
     const tryCreate = async () => {
-        const fh = await fsp.open(bsyPath, 'wx');
+        if (heldLocks.has(key)) {
+            return false;
+        }
+        const entry = {
+            key,
+            path: bsyPath,
+            content: newLockContent(),
+            pending: true,
+            refreshMs: refreshIntervalMs(options),
+            onLost: options.onLost,
+            log,
+        };
+        heldLocks.set(key, entry);
+
+        let fh;
+        try {
+            fh = await fsp.open(bsyPath, 'wx');
+        } catch (err) {
+            heldLocks.delete(key);
+            heldChanged();
+            throw err;
+        }
         let written = false;
         try {
-            await fh.writeFile(String(process.pid)); //  §5.1: "may contain one line of PID information"
+            await fh.writeFile(entry.content);
             written = true;
         } finally {
             await fh.close().catch(() => {});
             if (!written) {
                 await fsp.unlink(bsyPath).catch(() => {});
+                heldLocks.delete(key);
+                heldChanged();
             }
         }
+        entry.pending = false;
+        installExitHook();
+        heldChanged();
+        return true;
     };
 
     //  Someone else's spelling of the same lock counts as held.
@@ -198,8 +639,7 @@ async function acquire(bsyPath, options = {}) {
     }
 
     try {
-        await tryCreate();
-        return true;
+        return await tryCreate();
     } catch (err) {
         if ('EEXIST' !== err.code) {
             throw err;
@@ -212,8 +652,7 @@ async function acquire(bsyPath, options = {}) {
     }
 
     try {
-        await tryCreate();
-        return true;
+        return await tryCreate();
     } catch (err) {
         if ('EEXIST' === err.code) {
             return false;
@@ -222,10 +661,41 @@ async function acquire(bsyPath, options = {}) {
     }
 }
 
-//  Release the lock. Never throws: a lock we cannot remove is reaped later by
-//  age, and failing a completed job over it would be worse.
+//
+//  Release a lock this process took with acquire(). Only a file still holding
+//  what we wrote is removed: if the lock was reaped and taken by another
+//  holder meanwhile, that holder's lock stays. Releasing a lock this process
+//  does not hold does nothing.
+//
+//  Never throws: a lock we cannot remove is reaped later, and failing a
+//  completed job over it would be worse.
+//
 async function release(bsyPath) {
-    await fsp.unlink(bsyPath).catch(() => {});
+    const key = lockKey(bsyPath);
+    const entry = heldLocks.get(key);
+    if (!entry || entry.pending || entry.releasing) {
+        return;
+    }
+    //  Still ours (and still counted, for whenNoneHeld()) until the file is
+    //  gone; the refresh leaves it alone meanwhile.
+    entry.releasing = true;
+    try {
+        const content = await readLockContent(entry.path);
+        if (null !== content && content !== entry.content) {
+            entry.log &&
+                entry.log.info(
+                    { path: entry.path },
+                    '.bsy lock was replaced by another holder; leaving it in place'
+                );
+        } else if (null !== content) {
+            await fsp.unlink(entry.path).catch(() => {});
+        }
+    } finally {
+        if (heldLocks.get(key) === entry) {
+            heldLocks.delete(key);
+            heldChanged();
+        }
+    }
 }
 
 //
@@ -344,7 +814,13 @@ class FlowLockSet {
             }
             let got;
             try {
-                got = await acquire(bsyPath, opts);
+                got = await acquire(bsyPath, {
+                    ...opts,
+                    //  Gone from under us (removed, or reaped and taken by
+                    //  someone else): no longer held, so rewriteFlowFile()
+                    //  refuses its flow files from now on.
+                    onLost: () => this._held.delete(lockKey(bsyPath)),
+                });
             } catch (err) {
                 if ('ENOENT' === err.code && false === opts.createDir) {
                     continue;
@@ -512,6 +988,12 @@ module.exports = {
     acquire,
     acquireWithRetry,
     release,
+    heldCount,
+    whenNoneHeld,
+    lockHostId,
+    parseLockContent,
+    _refreshHeldNow: refreshHeldNow,
+    _releaseHeldSync: releaseHeldSync,
     lockKey,
     FlowLockSet,
     isFlowLockSet,
