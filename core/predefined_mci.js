@@ -14,7 +14,6 @@ const PipeCodes = require('./pipe_codes.js');
 const UserProps = require('./user_property.js');
 const UserTime = require('./user_time.js');
 const SysProps = require('./system_property.js');
-const { getTotalUserCount } = require('./user_count.js');
 const SysLogKeys = require('./system_log.js');
 const ActivityPubSettings = require('./activitypub/settings');
 const { userNameToSubject } = require('./activitypub/util');
@@ -524,7 +523,7 @@ const PREDEFINED_MCI_GENERATORS = {
     //  :TODO: ?? - Total users on system
 
     TU: function totalSystemUsers() {
-        return getTotalUserCount() || 1;
+        return StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1;
     },
 
     LC: function lastCallerUserName() {

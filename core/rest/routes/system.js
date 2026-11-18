@@ -4,7 +4,7 @@ const { jsonResponse, problemDetail, applyCorsHeaders, API_BASE } = require('../
 const { resolveAuthenticatedUser } = require('../auth');
 
 const StatLog = require('../../stat_log');
-const { getTotalUserCount } = require('../../user_count');
+const SysProps = require('../../system_property');
 const SysLogKeys = require('../../system_log');
 const {
     getActiveConnectionList,
@@ -149,7 +149,7 @@ function _statsHandler(req, resp) {
 
     _requirePublicOrAuth(req, resp, 'stats', () => {
         return jsonResponse(resp, 200, {
-            totalUsers: getTotalUserCount() || 0,
+            totalUsers: StatLog.getSystemStatNum(SysProps.TotalUserCount) || 0,
         });
     });
 }

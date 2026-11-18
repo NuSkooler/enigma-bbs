@@ -1,20 +1,38 @@
 'use strict';
 
 //
-//  #1049: the total user count read by |TU, the WFC and the REST stats route is
-//  counted live (cached for a short time), not read once at startup.
+//  #1049: the TotalUserCount system stat is refreshed when it is read (at most
+//  once per 30 s), not set once at startup, and a NewUser event counts at once.
 //
-//  The readers are driven as they are in production. The user database is an
-//  in-memory one swapped into dbs.user for the run; modules are required in
-//  before() so a load-time capture cannot see another file's state.
+//  The unchanged readers are driven as they are in production: |TU, the REST
+//  stats route and a theme's @sysStat:user_total_count (asset.js). The user
+//  database is an in-memory one swapped into dbs.user for the run.
+//
+//  stat_log.js and user.js capture database handles at load, and other test
+//  files evict stat_log.js, so the readers loaded earlier may hold different
+//  StatLog instances. before() therefore loads fresh copies of the modules
+//  involved and after() puts the originals back in the require cache.
 //
 
 const { strict: assert } = require('assert');
 const Database = require('better-sqlite3');
 
+const FreshModules = [
+    '../core/stat_log.js',
+    '../core/user.js',
+    '../core/asset.js',
+    '../core/predefined_mci.js',
+    '../core/rest/routes/system.js',
+    //  sys_event_user_log.test.js loads it against a stub events.js
+    '../core/sys_event_user_log.js',
+];
+
+const TTLMs = 30 * 1000;
+
 describe('live total user count (#1049)', function () {
-    let dbModule, realUserDb, db, Events, userCount, statsHandler, mci;
-    let realNow, now;
+    let dbModule, realUserDb, db, loggerModule, realLog, Events;
+    let StatLog, SysProps, User, asset, mci, statsHandler;
+    let savedCache, addedListeners, realNow, now, reads, warnings;
 
     const client = { user: { isAuthenticated: () => true }, term: {} };
 
@@ -37,6 +55,9 @@ describe('live total user count (#1049)', function () {
         return body.totalUsers;
     }
 
+    const tu = () => mci.getPredefinedMCIValue(client, 'TU');
+    const themeStat = () => asset.resolveSystemStatAsset('@sysStat:user_total_count');
+
     before(() => {
         dbModule = require('../core/database');
         realUserDb = dbModule.dbs.user;
@@ -46,8 +67,29 @@ describe('live total user count (#1049)', function () {
         );
         dbModule.dbs.user = db;
 
-        Events = require('../core/events');
-        userCount = require('../core/user_count');
+        loggerModule = require('../core/logger');
+        realLog = loggerModule.log;
+        const log = {
+            warn: (...args) => warnings.push(args),
+            info() {},
+            debug() {},
+            trace() {},
+            error() {},
+            child: () => log,
+        };
+        loggerModule.log = log;
+
+        savedCache = {};
+        for (const m of FreshModules) {
+            const p = require.resolve(m);
+            savedCache[p] = require.cache[p];
+            delete require.cache[p];
+        }
+
+        StatLog = require('../core/stat_log');
+        SysProps = require('../core/system_property');
+        User = require('../core/user');
+        asset = require('../core/asset');
         mci = require('../core/predefined_mci');
 
         const routes = [];
@@ -59,111 +101,156 @@ describe('live total user count (#1049)', function () {
             r.path.test('/_enig/api/v1/system/stats')
         ).handler;
 
+        const realGetUserCount = User.getUserCount;
+        User.getUserCount = cb => {
+            ++reads;
+            return realGetUserCount.call(User, cb);
+        };
+
+        //  the production NewUser handler, against this StatLog
+        StatLog.appendUserLogEntry = () => {};
+        Events = require('../core/events');
+        const eventNames = Object.values(Events.getSystemEvents());
+        const before = new Map(eventNames.map(n => [n, Events.listeners(n)]));
+        require('../core/sys_event_user_log')(StatLog);
+        addedListeners = [];
+        for (const n of eventNames) {
+            for (const l of Events.listeners(n)) {
+                if (!before.get(n).includes(l)) {
+                    addedListeners.push([n, l]);
+                }
+            }
+        }
+
         realNow = Date.now;
         Date.now = () => now;
     });
 
     after(() => {
         Date.now = realNow;
+        for (const [n, l] of addedListeners) {
+            Events.removeListener(n, l);
+        }
+        for (const [p, mod] of Object.entries(savedCache)) {
+            if (mod) {
+                require.cache[p] = mod;
+            } else {
+                delete require.cache[p];
+            }
+        }
+        loggerModule.log = realLog;
         dbModule.dbs.user = realUserDb;
         db.close();
-        userCount.resetUserCountCache();
     });
 
     beforeEach(() => {
         db.exec('DELETE FROM user;');
         now = 1000000;
-        userCount.resetUserCountCache();
+        reads = 0;
+        warnings = [];
+        StatLog.setNonPersistentSystemStat(SysProps.TotalUserCount, undefined);
+        StatLog.markTotalUserCountRefreshed(0);
     });
 
-    it('|TU, the REST route and the helper agree on the live count', () => {
+    it('|TU, the REST route and a theme @sysStat agree on the live count', () => {
         addUser('a');
         addUser('b');
-        assert.equal(mci.getPredefinedMCIValue(client, 'TU'), 2);
+        assert.equal(tu(), 2);
         assert.equal(restTotal(), 2);
-        assert.equal(userCount.getTotalUserCount(), 2);
+        assert.equal(themeStat(), 2);
+        assert.equal(reads, 1);
     });
 
     it('a new user is counted at once when NewUser is emitted', () => {
-        userCount.watchNewUsers();
         addUser('a');
-        assert.equal(mci.getPredefinedMCIValue(client, 'TU'), 1);
+        assert.equal(themeStat(), 1);
 
         addUser('b');
         Events.emit(Events.getSystemEvents().NewUser, { user: {} });
-        assert.equal(mci.getPredefinedMCIValue(client, 'TU'), 2);
+        assert.equal(tu(), 2);
         assert.equal(restTotal(), 2);
-        Events.removeAllListeners(Events.getSystemEvents().NewUser);
+        assert.equal(themeStat(), 2);
+        assert.equal(reads, 1, 'counted by the event, not a re-read');
     });
 
-    it('a removed user drops from the count once the cache expires', () => {
+    it('a user removed by oputil drops from the count once the window expires', () => {
         addUser('a');
         addUser('b');
         addUser('c');
         assert.equal(restTotal(), 3);
 
         db.prepare("DELETE FROM user WHERE user_name = 'c';").run(); //  as oputil does
-        now += userCount.CacheMs - 1;
+        now += TTLMs - 1;
         assert.equal(restTotal(), 3, 'cached inside the window');
+        assert.equal(themeStat(), 3, 'cached inside the window');
         now += 1;
+        assert.equal(themeStat(), 2);
         assert.equal(restTotal(), 2);
-        assert.equal(mci.getPredefinedMCIValue(client, 'TU'), 2);
+        assert.equal(tu(), 2);
     });
 
-    it('the cache is not re-read inside its window', () => {
+    it('the count is not re-read inside its window', () => {
         addUser('a');
-        assert.equal(userCount.getTotalUserCount(), 1);
+        assert.equal(themeStat(), 1);
         addUser('b');
-        assert.equal(userCount.getTotalUserCount(), 1);
+        assert.equal(themeStat(), 1);
+        assert.equal(tu(), 1);
+        assert.equal(restTotal(), 1);
+        assert.equal(reads, 1);
     });
 
     it('|TU shows 1 for an empty user table, the REST route 0', () => {
-        assert.equal(mci.getPredefinedMCIValue(client, 'TU'), 1);
+        assert.equal(tu(), 1);
         assert.equal(restTotal(), 0);
+        //  resolveSystemStatAsset() falls back to the spec for a falsy stat
+        assert.equal(themeStat(), '@sysStat:user_total_count');
+        assert.equal(reads, 1);
     });
 
-    it('a failed read keeps the last count', () => {
+    it('a failed read keeps the last count and logs a warning', () => {
         addUser('a');
-        assert.equal(userCount.getTotalUserCount(), 1);
+        assert.equal(themeStat(), 1);
         db.exec('ALTER TABLE user RENAME TO user_gone;');
         try {
-            now += userCount.CacheMs;
-            assert.equal(userCount.getTotalUserCount(), 1);
+            now += TTLMs;
+            assert.equal(themeStat(), 1);
+            assert.equal(tu(), 1);
+            assert.equal(restTotal(), 1);
+            assert.equal(warnings.length, 1);
         } finally {
             db.exec('ALTER TABLE user_gone RENAME TO user;');
         }
     });
 
-    it('a failed first read is retried once per cache window, not on every call', () => {
-        const realPrepare = db.prepare;
-        let reads = 0;
-        db.prepare = function (sql) {
-            if (/COUNT\(\*\)/.test(sql)) {
-                ++reads;
-            }
-            return realPrepare.call(this, sql);
-        };
+    it('a failed first read is retried once per window, not on every read', () => {
         db.exec('ALTER TABLE user RENAME TO user_gone;');
         try {
-            assert.equal(userCount.getTotalUserCount(), 0);
-            assert.equal(userCount.getTotalUserCount(), 0);
-            assert.equal(mci.getPredefinedMCIValue(client, 'TU'), 1);
+            assert.equal(restTotal(), 0);
+            assert.equal(restTotal(), 0);
+            assert.equal(tu(), 1);
+            assert.equal(themeStat(), '@sysStat:user_total_count', 'nothing to show');
             assert.equal(reads, 1);
 
-            now += userCount.CacheMs;
-            userCount.getTotalUserCount();
+            now += TTLMs;
+            restTotal();
             assert.equal(reads, 2);
         } finally {
-            db.prepare = realPrepare;
             db.exec('ALTER TABLE user_gone RENAME TO user;');
         }
     });
 
-    it('a count primed at startup is served without another read', () => {
+    it('the startup seed is served without another read', () => {
         addUser('a');
-        userCount.primeTotalUserCount(7);
-        assert.equal(userCount.getTotalUserCount(), 7);
-        now += userCount.CacheMs;
-        assert.equal(userCount.getTotalUserCount(), 1);
+
+        //  as bbs.js initUserCount does
+        StatLog.setNonPersistentSystemStat(SysProps.TotalUserCount, 7);
+        StatLog.markTotalUserCountRefreshed();
+
+        assert.equal(themeStat(), 7);
+        assert.equal(tu(), 7);
+        assert.equal(reads, 0);
+        now += TTLMs;
+        assert.equal(themeStat(), 1);
+        assert.equal(reads, 1);
     });
 });
