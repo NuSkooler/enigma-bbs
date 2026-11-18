@@ -67,6 +67,10 @@ class ScriptedPeer {
     //    pipeline   : boolean   — offer every file back to back without
     //                             waiting for M_GOT, the way binkd does
     //                             whenever ND mode is not in play
+    //    eobWithoutGots: boolean — send M_EOB once the queue is empty, without
+    //                             waiting for the files to be acknowledged,
+    //                             the way an ENiGMA sender does (issue #1043).
+    //                             The batch still only closes once they are.
     constructor(socket, opts = {}) {
         this.opts = opts;
         this.socket = socket;
@@ -341,6 +345,11 @@ class ScriptedPeer {
         if (!this.eobSent || !this.remoteEOB || this.currentSend || this.inFile) {
             return;
         }
+        //  binkd's batch end also wants sent_fls at zero (protocol.c:3265).
+        //  Only |eobWithoutGots| can get here with files still unanswered.
+        if (this.awaitingGot > 0) {
+            return;
+        }
         this.batchClosed = true;
         this.batches.push(this.msgsInBatch);
         if (this.msgsInBatch > 2 && !this.opts.singleBatch) {
@@ -476,6 +485,7 @@ class ScriptedPeer {
         }
         this.currentSend = null;
         this._sendNext();
+        this._endOfBatch();
     }
 
     //  FTS-1026 non-destructive skip: the receiver is postponing the file,
@@ -492,14 +502,16 @@ class ScriptedPeer {
             this.currentSend = null;
         }
         this._sendNext();
+        this._endOfBatch();
     }
 
     _maybeEob() {
         if (this.eobSent || this.currentSend || this.sendQueue.length) {
             return;
         }
-        //  Nothing may be outstanding either -- see |awaitingGot|.
-        if (this.awaitingGot > 0) {
+        //  Nothing may be outstanding either -- see |awaitingGot| -- unless
+        //  this peer is modelling a sender that does not wait for that.
+        if (this.awaitingGot > 0 && !this.opts.eobWithoutGots) {
             return;
         }
         //  The answering side holds its M_EOB until the caller's arrives;

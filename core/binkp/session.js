@@ -204,6 +204,18 @@ class BinkpSession extends EventEmitter {
         //  time is a partial that the peer dropped on us.
         this._inboundTempPaths = new Set();
 
+        //  Every receive that has not yet answered for itself: added when it
+        //  begins, removed when it is acknowledged (M_GOT), postponed or
+        //  given up on (M_SKIP, an NZ request) -- the same places that set
+        //  its |_settled| flag. |_currentRecv| is only the newest of them: a
+        //  compressed file is still being flushed when the next M_FILE
+        //  replaces it there, and a batch must not close, nor the next one
+        //  open, while that older file's M_GOT is still to come (#1043).
+        //  The current receive, when there is one, is always in here too.
+        this._unsettledRecvs = new Set();
+        //  Set once _destroy has run; nothing inbound is handed on after it.
+        this._destroyed = false;
+
         this._localEOBSent = false;
         this._localEOB = false;
         this._remoteEOB = false;
@@ -1360,6 +1372,7 @@ class BinkpSession extends EventEmitter {
             // GZ: collect raw compressed wire-bytes; decompress all at once on EOF
             compressedChunks: useGZ ? [] : null,
         };
+        this._unsettledRecvs.add(this._currentRecv);
 
         //  Notify listeners that an inbound transfer is starting. The FREQ
         //  handler uses this to call holdEOB() before the async file write
@@ -1564,6 +1577,7 @@ class BinkpSession extends EventEmitter {
     //  Drop a partial receive and everything holding on to it.
     _abandonReceive(cr) {
         cr._settled = true;
+        this._unsettledRecvs.delete(cr);
         for (const key of ['inflate', 'writeStream']) {
             const stream = cr[key];
             if (!stream) continue;
@@ -1603,7 +1617,13 @@ class BinkpSession extends EventEmitter {
         //  tracking entry so _destroy() doesn't unlink it from under
         //  the consumer.
         const handOff = () => {
+            //  Torn down by _destroy while the flush or the truncate was in
+            //  flight: the session is over and the temp file already gone.
+            if (this._destroyed) {
+                return;
+            }
             cr._settled = true;
+            this._unsettledRecvs.delete(cr);
             this._inboundTempPaths.delete(cr.tempPath);
             this._sendCmd(Commands.M_GOT, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
             this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
@@ -1611,6 +1631,12 @@ class BinkpSession extends EventEmitter {
         };
 
         const finish = () => {
+            //  Destroying a write stream still calls the callback given to
+            //  its end(), with ERR_STREAM_DESTROYED, so a clear file being
+            //  flushed when the session is torn down lands here anyway.
+            if (this._destroyed) {
+                return;
+            }
             if (this._currentRecv === cr) {
                 this._currentRecv = null;
             }
@@ -1669,7 +1695,12 @@ class BinkpSession extends EventEmitter {
             fsp.writeFile(cr.tempPath, Buffer.alloc(0))
                 .then(finish)
                 .catch(err => {
-                    this._currentRecv = null;
+                    //  Only if it is still ours to clear: the batch may have
+                    //  moved on to the next file while the write was pending.
+                    if (this._currentRecv === cr) {
+                        this._currentRecv = null;
+                    }
+                    this._unsettledRecvs.delete(cr);
                     this._inboundTempPaths.delete(cr.tempPath);
                     Log.warn(
                         { name: cr.name, error: err.message },
@@ -1757,7 +1788,8 @@ class BinkpSession extends EventEmitter {
             this._remoteEOB &&
             this._pendingGots.size === 0 &&
             !this._currentSend &&
-            !this._currentRecv
+            !this._currentRecv &&
+            this._unsettledRecvs.size === 0
         ) {
             this._onBatchComplete();
         }
@@ -1926,6 +1958,7 @@ class BinkpSession extends EventEmitter {
     }
 
     _destroy(graceful = false) {
+        this._destroyed = true;
         if (this._timeoutHandle) clearTimeout(this._timeoutHandle);
         if (this._currentSend?.deflateStream) {
             this._currentSend.deflateStream.destroy();
@@ -1933,11 +1966,19 @@ class BinkpSession extends EventEmitter {
         if (this._currentSend?.readStream) {
             this._currentSend.readStream.destroy();
         }
-        if (this._currentRecv?.inflate) {
-            this._currentRecv.inflate.destroy();
-        }
-        if (this._currentRecv?.writeStream) {
-            this._currentRecv.writeStream.destroy();
+        //  Every receive still open, not just the current one: an older
+        //  compressed file still being flushed would otherwise go on to
+        //  send M_GOT and emit 'file-received' for a temp file unlinked
+        //  just below. They stay in |_unsettledRecvs| -- none of them was
+        //  answered for -- so _onSocketClose still sees what was in flight.
+        for (const cr of this._unsettledRecvs) {
+            for (const key of ['inflate', 'writeStream']) {
+                const stream = cr[key];
+                if (!stream) continue;
+                stream.removeAllListeners();
+                stream.on('error', () => {});
+                stream.destroy();
+            }
         }
         //  Unlink any inbound temp files we never finished receiving. The
         //  set is empty in the happy path; entries here mean the peer
@@ -1985,7 +2026,8 @@ class BinkpSession extends EventEmitter {
             //  A receive is "done enough" for a clean end if it's in the
             //  finalizing state: EOF was received and we're just waiting for
             //  the async writeStream flush. The file was fully transferred.
-            const recvDone = !this._currentRecv || this._currentRecv._finalizing;
+            //  Every receive still open counts, not just the current one.
+            const recvDone = Array.from(this._unsettledRecvs).every(cr => cr._finalizing);
             //  A close between batches counts too: the peer decided the
             //  session was over one batch sooner than we did, and with
             //  nothing outstanding there is nothing to report.
