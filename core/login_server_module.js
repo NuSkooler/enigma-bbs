@@ -13,6 +13,8 @@ const { selectClientEmulation } = require('./term/select.js');
 const _ = require('lodash');
 const moment = require('moment');
 
+const AllNodesBusyMessage = 'All nodes are busy. Try again later...';
+
 module.exports = class LoginServerModule extends ServerModule {
     constructor() {
         super();
@@ -63,9 +65,22 @@ module.exports = class LoginServerModule extends ServerModule {
         client.rawSocket = clientSock;
 
         if (maxConnections > 0 && numConnections >= maxConnections) {
-            client.term.write('\nAll nodes are busy. Try again later...\n');
-            client.end();
-            return;
+            //
+            //  The client is not tracked, so it never gets the node logger
+            //  addNewClient() gives it. Transport code that runs while it is
+            //  turned away (SSH authentication, a terminal type arriving)
+            //  still logs through client.log.
+            //
+            client.log = logger.log.child({
+                server: modInfo.name,
+                remoteAddress: clientSock.remoteAddress,
+                refused: true,
+            });
+            client.log.info(
+                { maxConnections, numConnections },
+                'All nodes are busy; refusing connection'
+            );
+            return client.refuseConnection(AllNodesBusyMessage);
         }
 
         client.session.serverName = modInfo.name;
@@ -205,3 +220,4 @@ function timeUpLogoff(client, cb) {
 }
 
 module.exports.timeUpLogoff = timeUpLogoff;
+module.exports.AllNodesBusyMessage = AllNodesBusyMessage;

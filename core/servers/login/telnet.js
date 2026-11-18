@@ -4,7 +4,7 @@ const { Client } = require('../../client');
 const Config = require('../../config').get;
 const { log: Log } = require('../../logger');
 const { Errors } = require('../../enig_error');
-const { listenServer } = require('../../server_listen');
+const { listenServer, closeServer } = require('../../server_listen');
 
 //  deps
 const net = require('net');
@@ -220,8 +220,20 @@ class TelnetClient {
     }
 
     disconnect() {
+        //
+        //  End the TelnetSocket, not the socket under it. It sends a write
+        //  only once the one before has gone out, so it may still hold the
+        //  last few (a goodbye message written just before the end); ending
+        //  it lets those go first, then it ends the socket under it (see
+        //  telnet-socket's _final()). Ending the raw socket directly lost
+        //  them, as "write after end" (#1017). A TelnetSocket that has failed
+        //  will never get there, so its socket is ended directly.
+        //
         try {
-            return this.socket.rawSocket.end();
+            if (this.socket.destroyed || this.socket.errored) {
+                return this.socket.rawSocket.end();
+            }
+            return this.socket.end();
         } catch (e) {
             //  ignored
         }
@@ -400,35 +412,6 @@ function resolveListeners(telnetConfig) {
     return result;
 }
 
-//
-//  close() stops a server accepting at once; its callback waits for open
-//  connections, so a server no longer listening counts as stopped. Mirrors
-//  closeServer() in core/listening_server.js.
-//
-function closeServer(server, cb) {
-    let called = false;
-    const done = () => {
-        if (!called) {
-            called = true;
-            return cb();
-        }
-    };
-
-    try {
-        server.close(() => done());
-    } catch (err) {
-        Log.warn(
-            { err, server: ModuleInfo.name },
-            'Failed to stop listening; continuing'
-        );
-        return done();
-    }
-
-    if (false === server.listening) {
-        return done();
-    }
-}
-
 exports.getModule = class TelnetServerModule extends LoginServerModule {
     constructor() {
         super();
@@ -567,7 +550,7 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
         }
 
         servers.forEach(server =>
-            closeServer(server, () => {
+            closeServer(server, Log, ModuleInfo.name, () => {
                 if (0 === --left) {
                     return cb(null);
                 }

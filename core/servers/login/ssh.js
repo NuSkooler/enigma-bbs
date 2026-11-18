@@ -85,6 +85,29 @@ function SSHClient(clientConn, connInfo) {
             return clientConn.end();
         };
 
+        //
+        //  A caller refused at connect time (see refuseConnection()) is shown
+        //  why during authentication, the only point before a shell where an
+        //  SSH server can put text in front of the user: keyboard-interactive
+        //  with no prompts, the message as its instruction, then a disconnect.
+        //  Other methods are steered to keyboard-interactive (a client may
+        //  try a few before it gets there), then ended.
+        //  Checked before anything else, so a refused new user is not
+        //  accepted either.
+        //
+        if (self.refusalMessage) {
+            if ('keyboard-interactive' === ctx.method) {
+                return ctx.prompt([], '', self.refusalMessage, () => clientConn.end());
+            }
+
+            self.refusalAttempts = (self.refusalAttempts || 0) + 1;
+            if (self.refusalAttempts <= SSHClient.RefusalSteerAttempts) {
+                return safeContextReject(['keyboard-interactive']);
+            }
+
+            return terminateConnection();
+        }
+
         //  slow version to thwart brute force attacks
         const slowTerminateConnection = () => {
             setTimeout(() => {
@@ -321,6 +344,16 @@ function SSHClient(clientConn, connInfo) {
         }
     };
 
+    //
+    //  Until the shell is open there is no terminal to apply pty or
+    //  window-change info to, so it is kept for then. Merged, not replaced: a
+    //  window-change carries only the size, and must not throw away the
+    //  terminal type an earlier pty request brought (#1017).
+    //
+    this.cacheTermInfo = function (info) {
+        self.cachedTermInfo = Object.assign({}, self.cachedTermInfo, info);
+    };
+
     clientConn.once('ready', function clientReady() {
         self.log.info('SSH authentication success');
 
@@ -338,7 +371,7 @@ function SSHClient(clientConn, connInfo) {
                     //  do we have I/O?
                     self.updateTermInfo(info);
                 } else {
-                    self.cachedTermInfo = info;
+                    self.cacheTermInfo(info);
                 }
             });
 
@@ -377,7 +410,7 @@ function SSHClient(clientConn, connInfo) {
                 if (self.input) {
                     self.updateTermInfo(info);
                 } else {
-                    self.cachedTermInfo = info;
+                    self.cacheTermInfo(info);
                 }
             });
         });
@@ -396,18 +429,67 @@ function SSHClient(clientConn, connInfo) {
     clientConn.on('close', emitEnd); //  fired on abrupt disconnects where 'end' is not emitted
 
     clientConn.on('error', err => {
-        self.log.warn({ error: err.message, code: err.code }, 'SSH connection error');
+        (self.log || Log).warn(
+            { error: err.message, code: err.code },
+            'SSH connection error'
+        );
         emitEnd();
     });
 
     this.disconnect = function () {
         return clientConn.end();
     };
+
+    //
+    //  Called instead of tracking the client when every node is busy. There
+    //  is no terminal yet (that comes with the shell), so the message waits
+    //  for the authentication request; see the 'authentication' handler. The
+    //  timer ends the connection whatever state it is in, and closes the
+    //  socket outright shortly after if the caller has not closed its side,
+    //  so a refused caller cannot hold a socket open.
+    //
+    //  The client's own teardown (Client.prototype.end(), which releases
+    //  what the constructor registered) runs when the connection closes, or
+    //  when the timer fires, whichever comes first; end() does it once.
+    //  Not before: ending the client is what disconnects it.
+    //
+    this.refuseConnection = function (message) {
+        self.refusalMessage = message;
+
+        let graceTimer;
+        const refusalTimer = setTimeout(() => {
+            self.log.debug('Refused SSH connection still open; ending it');
+            self.end();
+
+            //  end() sends a disconnect and a FIN; a caller that never closes
+            //  its side would leave the socket half closed
+            graceTimer = setTimeout(() => {
+                if (self.rawSocket && !self.rawSocket.destroyed) {
+                    self.rawSocket.destroy();
+                }
+            }, SSHClient.RefusalCloseGraceMs);
+        }, SSHClient.RefusalTimeoutMs);
+
+        clientConn.once('close', () => {
+            clearTimeout(refusalTimer);
+            clearTimeout(graceTimer);
+            self.end();
+        });
+    };
 }
 
 util.inherits(SSHClient, baseClient.Client);
 
 SSHClient.ValidAuthMethods = ['password', 'keyboard-interactive', 'publickey'];
+
+//  How long a refused connection may stay open to be shown why, how long
+//  after that it is closed outright if the caller has not closed it, and how
+//  many other authentication methods it may try before keyboard-interactive
+SSHClient.RefusalTimeoutMs = 10000;
+SSHClient.RefusalCloseGraceMs = 2000;
+SSHClient.RefusalSteerAttempts = 3;
+
+exports.SSHClient = SSHClient; //  for tests
 
 exports.getModule = class SSHServerModule extends LoginServerModule {
     constructor() {

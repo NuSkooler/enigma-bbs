@@ -429,6 +429,30 @@ describe('BinkpSession — file transfer', () => {
         );
     });
 
+    //  #1052/#1053 review: the session's lock was lost (removed, or reaped
+    //  and taken by another holder) before the remote acknowledged the file.
+    it('keeps a sent file whose lock is no longer held', async () => {
+        const tmpFile = await makeTempFile('KEEP_ME');
+        const { clientSess, serverSess } = await makeSessionPair();
+
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            fsp.unlink(tempPath).catch(() => {});
+        });
+
+        clientSess.queueFile(
+            tmpFile.filePath,
+            'keep_me.pkt',
+            tmpFile.size,
+            tmpFile.timestamp,
+            'delete',
+            { allowed: true, stillLocked: () => false }
+        );
+
+        await runToEnd(clientSess, serverSess);
+
+        assert.equal(await fsp.readFile(tmpFile.filePath, 'utf8'), 'KEEP_ME');
+    });
+
     it('truncates the outbound file when disposition is truncate', async () => {
         const tmpFile = await makeTempFile('TRUNCATE_ME');
         const { clientSess, serverSess } = await makeSessionPair();
