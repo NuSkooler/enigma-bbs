@@ -110,6 +110,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none. Delivery to followers is not interrupted: when a post, boost or like goes out, followers in the cache get it at once, and a follower that is not in the cache is fetched again in the background (four at a time across the board, once however many posts are waiting on it) and gets it once found, if it still follows. On a board with many followers, the first posts after the upgrade reach most followers a little later than usual, and expect more outbound fetching for a while. A follower that cannot be fetched is not tried again for six hours (this is kept in memory, so a restart tries it again).
 
+* **ActivityPub: the board has an instance actor** ([#966](https://github.com/NuSkooler/enigma-bbs/issues/966)). Fetches the board makes for itself are now signed as an `Application` actor at `/_enig/ap/actor`, so servers that answer only signed fetches answer them. Its key is made at the first start and stored in `db/activitypub.sqlite3`. WebFinger finds it as `acct:<domain>@<domain>`, so a local user named exactly like your web domain is no longer found through WebFinger; the log warns at startup if you have one.
+
+  **Action:** none, unless that warning appears. Behind a reverse proxy, nothing new needs forwarding: it is under `/_enig/` like every other ActivityPub URL. See [Instance Actor](website/src/content/docs/servers/contentservers/activitypub-handler.md#instance-actor).
+
 * **ActivityPub: a fediverse server on your own network needs `allowedPrivateAddresses`** ([#966](https://github.com/NuSkooler/enigma-bbs/issues/966)). Outbound requests now refuse a name that resolves to a private address, so a server on your LAN whose name resolves privately can no longer federate until it is listed. Your board's own URLs are exempt and need nothing.
 
   **Action:** if you federate with such a server, add its address or range to `contentServers.web.handlers.activityPub.allowedPrivateAddresses`; see [ActivityPub Web Handler](website/src/content/docs/servers/contentservers/activitypub-handler.md#servers-on-your-own-network).

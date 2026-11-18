@@ -5,7 +5,12 @@
 const { Errors } = require('../enig_error.js');
 const UserProps = require('../user_property');
 const Endpoints = require('./endpoint');
-const { handleFromSubject, isValidLink, signedFetchOptions } = require('./util');
+const {
+    handleFromSubject,
+    isValidLink,
+    signedFetchOptions,
+    fetchSignOptions,
+} = require('./util');
 const Log = require('../logger').log;
 const Logger = require('../logger');
 
@@ -276,11 +281,12 @@ module.exports = class Actor extends ActivityPubObject {
         //  by everything that changes what is fetched or accepted: a
         //  failure for one keyId must not block a plain fromId(id) or
         //  another keyId, and an unsigned fetch a strict server refuses
-        //  must not block a signed one.
+        //  must not block a signed one (who signs: a user, the instance
+        //  actor, or nobody while the instance key does not exist yet).
         const failureKey = JSON.stringify([
             id,
             keyId || null,
-            !!fromUser,
+            Actor._signerKind(fromUser),
             !!options.alias,
         ]);
         //  taken before anything is looked up, so a refusal made under a
@@ -461,6 +467,14 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
+    //  Who a remote lookup for |fromUser| is signed as (see fetchSignOptions)
+    static _signerKind(fromUser) {
+        if (signedFetchOptions(fromUser)) {
+            return 'user';
+        }
+        return fetchSignOptions(null) ? 'instance' : 'none';
+    }
+
     static _fromRemoteQuery(id, fromUser, keyId, cb) {
         const reqOpts = {
             headers: {
@@ -468,9 +482,11 @@ module.exports = class Actor extends ActivityPubObject {
             },
         };
 
-        //  Sign the GET if a local user was provided — required by strict servers
-        //  such as GoToSocial that reject unsigned actor fetch requests.
-        const sign = signedFetchOptions(fromUser);
+        //  Signed, as strict servers (GoToSocial, Mastodon with authorized
+        //  fetch, and Mastodon 5.0 for actor documents by default) refuse an
+        //  unsigned actor fetch: as the local user when one was given,
+        //  otherwise as the instance actor (#966)
+        const sign = fetchSignOptions(fromUser);
         if (sign) {
             reqOpts.sign = sign;
         }

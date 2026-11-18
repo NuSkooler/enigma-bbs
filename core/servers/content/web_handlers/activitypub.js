@@ -6,7 +6,9 @@ const {
     getActorId,
     prepareLocalUserAsActor,
     signedFetchOptions,
+    fetchSignOptions,
 } = require('../../../activitypub/util');
+const InstanceActor = require('../../../activitypub/instance_actor');
 const { acceptFollowRequest } = require('../../../activitypub/follow_util');
 const {
     fetchAnnouncedNote,
@@ -140,6 +142,30 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         Events.addListener(Events.getSystemEvents().NewUserPrePersist, eventInfo => {
             const { user, callback } = eventInfo;
             return this._prepareNewUserAsActor(user, callback);
+        });
+
+        //  The instance actor's key (#966), made at the first start. Not
+        //  waited for: until it exists, GETs go unsigned as before and the
+        //  instance actor answers 503.
+        InstanceActor.ensureKey(err => {
+            if (err) {
+                this.sysLog.error(
+                    { error: err.message },
+                    'Could not load or create the ActivityPub instance actor key; GETs ENiGMA makes for itself stay unsigned'
+                );
+            }
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/actor(\?[^#]*)?$/,
+            handler: this._instanceActorGetHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/actor\/outbox(\?[^#]*)?$/,
+            handler: this._instanceActorOutboxGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
@@ -1465,7 +1491,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _goneActorProbe(inboxType, resp, actorId, fetchUser) {
         const opts = { headers: { Accept: ActivityStreamMediaType } };
-        const sign = signedFetchOptions(fetchUser);
+        const sign = fetchSignOptions(fetchUser);
         if (sign) {
             opts.sign = sign;
         }
@@ -1605,7 +1631,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         'application/ld+json',
                     ],
                 };
-                const sign = signedFetchOptions(viewer);
+                //  as the viewer, or else as the instance actor (#966); only a
+                //  viewer's signature makes a 404 mean "gone": the instance
+                //  actor follows nobody, so a 404 to it can still mean "not
+                //  permitted"
+                const signedAsViewer = !!signedFetchOptions(viewer);
+                const sign = fetchSignOptions(viewer);
                 if (sign) {
                     opts.sign = sign;
                 }
@@ -1621,7 +1652,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     if (err) {
                         gone =
                             err.statusCode === 410 ||
-                            (err.statusCode === 404 && (isPublic || !!sign));
+                            (err.statusCode === 404 && (isPublic || signedAsViewer));
                     } else {
                         gone =
                             _.get(doc, 'type') === 'Tombstone' &&
@@ -2364,6 +2395,33 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 });
             });
         });
+    }
+
+    //
+    //  The instance actor (#966): an Application actor for the board, whose
+    //  key signs the GETs ENiGMA makes for itself. Served to anyone, as
+    //  JSON whatever the Accept header; 503 until its key exists.
+    //
+    _instanceActorGetHandler(req, resp) {
+        const doc = InstanceActor.toDocument();
+        if (!doc) {
+            return this.webServer.serviceUnavailable(resp, 10);
+        }
+        return this._sendInstanceActorJson(resp, doc);
+    }
+
+    _instanceActorOutboxGetHandler(req, resp) {
+        return this._sendInstanceActorJson(resp, InstanceActor.emptyOutbox());
+    }
+
+    _sendInstanceActorJson(resp, doc) {
+        const body = JSON.stringify(doc);
+        resp.writeHead(200, {
+            'Content-Type': ActivityStreamMediaType,
+            'Content-Length': Buffer.from(body).length,
+            'Cache-Control': 'public, max-age=600',
+        });
+        return resp.end(body);
     }
 
     _selfAsActorHandler(localUser, localActor, req, resp) {

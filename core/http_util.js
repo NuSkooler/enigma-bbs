@@ -2,6 +2,7 @@ const { Errors, ErrorReasons } = require('./enig_error.js');
 const Security = require('./activitypub/security.js');
 const FetchBudget = require('./activitypub/fetch_budget.js');
 const { isSafeOutboundUrl } = Security;
+const { InstanceActorSignMarker } = require('./activitypub/const.js');
 //  read through the module each time: tests swap config.get and the logger
 const Config = () => require('./config').get();
 const Log = () => require('./logger.js').log;
@@ -360,6 +361,18 @@ function _makeRequest(url, options, cb) {
     options = Object.assign({}, { timeout: DefaultTimeoutMilliseconds }, options);
     ConnectionTargetOptions.forEach(k => delete options[k]);
 
+    //  The instance actor's key signs GETs only (activitypub/instance_actor.js):
+    //  it must never sign a delivery or anything else said for a user.
+    let instanceSigned = false;
+    if (isObject(options.sign) && options.sign[InstanceActorSignMarker]) {
+        if (options.method !== 'GET') {
+            return cb(Errors.Invalid('The instance actor key signs GET requests only'));
+        }
+        instanceSigned = true;
+        options.sign = Object.assign({}, options.sign);
+        delete options.sign[InstanceActorSignMarker];
+    }
+
     //  SSRF protection: reject private/loopback/reserved URLs before connecting.
     const { reason: ssrfReason, agents } = _checkUrl(url);
     if (ssrfReason) {
@@ -469,6 +482,28 @@ function _makeRequest(url, options, cb) {
 
             res.on('end', () => {
                 body = Buffer.concat(body).toString();
+
+                //  A signed GET does not follow redirects. Before the
+                //  instance actor (#966) this GET went unsigned, and followed
+                //  them, so it is made again that way: unsigned, through the
+                //  redirect-following path with its per-hop checks. This
+                //  request's budget slot is released first.
+                if (instanceSigned && res.statusCode >= 300 && res.statusCode <= 399) {
+                    if (cbCalled) {
+                        return;
+                    }
+                    cbCalled = true;
+                    clearTimeout(deadline);
+                    release();
+                    Log().debug(
+                        { url, statusCode: res.statusCode },
+                        'Redirect answered to a GET signed as the instance actor; repeating it unsigned'
+                    );
+                    const unsigned = Object.assign({}, options);
+                    delete unsigned.sign;
+                    delete unsigned.agent;
+                    return _makeRequest(url, unsigned, cb);
+                }
 
                 if (res.statusCode < 200 || res.statusCode > 299) {
                     const err = Errors.HttpError(

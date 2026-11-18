@@ -33,6 +33,7 @@ exports.userNameFromSubject = userNameFromSubject;
 exports.userNameToSubject = userNameToSubject;
 exports.handleFromSubject = handleFromSubject;
 exports.signedFetchOptions = signedFetchOptions;
+exports.fetchSignOptions = fetchSignOptions;
 exports.stripDisplayControls = stripDisplayControls;
 exports.extractMessageMetadata = extractMessageMetadata;
 exports.recipientIdsFromObject = recipientIdsFromObject;
@@ -572,6 +573,17 @@ function signedFetchOptions(user) {
         authorizationHeaderName: 'Signature',
         headers: ['(request-target)', 'host', 'date'],
     };
+}
+
+//
+//  HTTP signature options for a GET ENiGMA makes: as local |user| when one
+//  is given and has a key (as signedFetchOptions()), otherwise as the
+//  instance actor (#966), or null while the instance key does not exist
+//  yet. A GET that was signed as a user is still signed as that user; one
+//  that had nobody to sign it is now signed by the board.
+//
+function fetchSignOptions(user) {
+    return signedFetchOptions(user) || require('./instance_actor').fetchSignOptions();
 }
 
 function userNameToSubject(userName) {

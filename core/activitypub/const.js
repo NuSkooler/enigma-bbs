@@ -44,3 +44,8 @@ const Collections = {
     Actors: 'actors',
 };
 exports.Collections = Collections;
+
+//  Marks HTTP signature options as the instance actor's (instance_actor.js);
+//  http_util refuses them on anything but a GET and removes the marker
+//  before signing.
+exports.InstanceActorSignMarker = 'instanceActor';
