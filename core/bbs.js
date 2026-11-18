@@ -675,6 +675,7 @@ function initialize(cb) {
 
                     const StatLog = require('./stat_log');
                     StatLog.setNonPersistentSystemStat(SysProps.TotalUserCount, count);
+                    StatLog.markTotalUserCountRefreshed(); //  fresh; no re-read on first use
                     return callback(null);
                 });
             },
