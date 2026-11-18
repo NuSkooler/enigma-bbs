@@ -8,6 +8,7 @@
 const crypto = require('crypto');
 const net = require('net');
 const { readBody } = require('../http_body');
+const { parseDictionary } = require('./http_message_signature');
 
 //
 //  Read an inbox POST body up to maxBytes. A thin name over the shared reader
@@ -146,6 +147,117 @@ function verifyDigestHeader(digestHeader, rawBody) {
     return checked > 0;
 }
 exports.verifyDigestHeader = verifyDigestHeader;
+
+//
+//  Verify a Content-Digest header (RFC 9530) against the request body: a
+//  Dictionary of byte sequences keyed by algorithm. As with Digest above,
+//  true only when at least one supported algorithm (sha-256, sha-512) is
+//  listed and every supported one matches; others are ignored.
+//
+//  contentDigestHeader — value of the Content-Digest header (string or falsy)
+//  rawBody             — Buffer or string containing the raw request body
+//
+function verifyContentDigestHeader(contentDigestHeader, rawBody) {
+    if (!contentDigestHeader || typeof contentDigestHeader !== 'string') {
+        return false;
+    }
+
+    let dict;
+    try {
+        dict = parseDictionary(contentDigestHeader);
+    } catch {
+        return false;
+    }
+
+    let checked = 0;
+    for (const [algorithm, member] of dict) {
+        const hashName = DigestAlgorithms[algorithm];
+        if (!hashName) {
+            continue;
+        }
+        if (!Buffer.isBuffer(member.value)) {
+            return false;
+        }
+        const actualDigest = crypto.createHash(hashName).update(rawBody).digest();
+        if (!actualDigest.equals(member.value)) {
+            return false;
+        }
+        ++checked;
+    }
+
+    return checked > 0;
+}
+exports.verifyContentDigestHeader = verifyContentDigestHeader;
+
+//
+//  The minimum an RFC 9421 signature must cover, the draft-cavage
+//  RequiredSignedHeaders above mapped onto 9421 components:
+//    (request-target) -> @method, and one of @target-uri, @request-target, @path
+//    host             -> @authority, or @target-uri (which holds it). Mastodon
+//                        signs only @target-uri
+//    date             -> the created parameter (see validateSignatureTimes)
+//    digest (POST)    -> content-digest (RFC 9530), or a legacy digest
+//  Each entry lists the components any one of which satisfies it.
+//
+const RequiredSignedComponents = [
+    ['@method'],
+    ['@target-uri', '@request-target', '@path'],
+    ['@authority', '@target-uri'],
+];
+exports.RequiredSignedComponents = RequiredSignedComponents;
+
+//  Header fields that bind the body of an RFC 9421 signed request
+const DigestComponents = ['content-digest', 'digest'];
+exports.DigestComponents = DigestComponents;
+
+//
+//  Return what an RFC 9421 signature's covered components are missing, one
+//  entry per unmet requirement, alternatives joined with " or " (an empty
+//  array when the set is complete).
+//
+//  components — covered component names, in order
+//  method     — request method; a POST must also cover a digest field
+//
+function missingSignedComponents(components, method) {
+    const covered = new Set(Array.isArray(components) ? components : []);
+    const required = [...RequiredSignedComponents];
+    if (String(method || '').toUpperCase() === 'POST') {
+        required.push(DigestComponents);
+    }
+    return required
+        .filter(anyOf => !anyOf.some(c => covered.has(c)))
+        .map(anyOf => anyOf.join(' or '));
+}
+exports.missingSignedComponents = missingSignedComponents;
+
+//
+//  Validate the created / expires parameters of an RFC 9421 signature.
+//  created is required and must be within ±maxAgeSecs of now; expires, when
+//  present, must not be past. Returns null when acceptable, or a reason.
+//
+//  params     — parsed signature parameters ({ created, expires, ... })
+//  maxAgeSecs — the window (default: MaxRequestAgeSecs, as for Date)
+//  nowSecs    — the current time in seconds (for tests)
+//
+function validateSignatureTimes(
+    params,
+    maxAgeSecs = MaxRequestAgeSecs,
+    nowSecs = Math.floor(Date.now() / 1000)
+) {
+    const { created, expires } = params || {};
+    if (!Number.isInteger(created)) {
+        return 'missing created parameter';
+    }
+    const age = nowSecs - created;
+    if (Math.abs(age) > maxAgeSecs) {
+        return `created age ${age}s exceeds ±${maxAgeSecs}s window`;
+    }
+    if (expires !== undefined && (!Number.isInteger(expires) || expires < nowSecs)) {
+        return `signature expired at ${expires}`;
+    }
+    return null;
+}
+exports.validateSignatureTimes = validateSignatureTimes;
 
 //
 //  Normalize HTTP Signature algorithm names for compatibility with servers

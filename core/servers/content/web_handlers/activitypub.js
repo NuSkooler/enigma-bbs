@@ -44,7 +44,11 @@ const { getFullUrl } = require('../../../web_util');
 const {
     validateRequestDate,
     verifyDigestHeader,
+    verifyContentDigestHeader,
     missingSignedHeaders,
+    missingSignedComponents,
+    validateSignatureTimes,
+    DigestComponents,
     normalizeHttpSigHeader,
     actorIdFromKeyId,
     hostsMatch,
@@ -60,6 +64,7 @@ const {
     isPublicAddressed,
     addressedIds,
 } = require('../../../activitypub/security');
+const HttpMessageSignature = require('../../../activitypub/http_message_signature');
 
 // deps
 const _ = require('lodash');
@@ -277,6 +282,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _parseAndValidateSignature(req) {
+        //  A Signature-Input header means RFC 9421, and only RFC 9421: both
+        //  schemes use the Signature header name, and a request that fails
+        //  the 9421 checks is not tried again as draft-cavage.
+        if (req.headers['signature-input'] !== undefined) {
+            return this._parseAndValidateRfc9421Signature(req);
+        }
+
         //  Normalize hs2019 → rsa-sha256 before parsing.
         //  hs2019 is a draft-spec algorithm alias used by GoToSocial (and others);
         //  it is functionally rsa-sha256 for RSA keys.
@@ -334,6 +346,96 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
 
         return signature;
+    }
+
+    //
+    //  RFC 9421 HTTP Message Signatures. Returns
+    //  { scheme: 'rfc9421', keyId, digestFields, parsed, base }, or null.
+    //  The signature itself is verified later, in _validateActorSignature,
+    //  once the signer's key has been fetched.
+    //
+    _parseAndValidateRfc9421Signature(req) {
+        const logCtx = { url: req.url, method: req.method, scheme: 'rfc9421' };
+
+        let parsed;
+        try {
+            parsed = HttpMessageSignature.parseRequestSignature(req);
+        } catch (e) {
+            this.log.warn(
+                Object.assign({ error: e.message }, logCtx),
+                'Failed to parse RFC 9421 HTTP signature'
+            );
+            return null;
+        }
+
+        //  The minimum matches the draft-cavage one: method and target, host,
+        //  time, and on a POST the body (see RequiredSignedComponents)
+        const covered = parsed.components.map(c => c.name);
+        const missing = missingSignedComponents(covered, req.method);
+        if (missing.length > 0) {
+            this.log.warn(
+                Object.assign({ keyId: parsed.params.keyid, covered, missing }, logCtx),
+                'Rejected RFC 9421 signed request: required components are not covered'
+            );
+            return null;
+        }
+
+        const keyId = parsed.params.keyid;
+        if (!keyId || !/^https?:\/\//i.test(keyId)) {
+            this.log.warn(
+                Object.assign({ keyId }, logCtx),
+                'Rejected RFC 9421 signed request: keyid is missing or not a URL'
+            );
+            return null;
+        }
+
+        const timeReason = validateSignatureTimes(parsed.params);
+        if (timeReason) {
+            this.log.warn(
+                Object.assign({ keyId, reason: timeReason }, logCtx),
+                'Rejected RFC 9421 signed request: created / expires outside the window'
+            );
+            return null;
+        }
+
+        //  @target-uri and @authority come from the configured base URL plus
+        //  req.url, never from Host or X-Forwarded-*: the sender signed the
+        //  URL we published, whatever a reverse proxy did on the way
+        let base;
+        try {
+            base = HttpMessageSignature.signatureBase(req, parsed, getFullUrl(req));
+        } catch (e) {
+            this.log.warn(
+                Object.assign({ keyId, error: e.message }, logCtx),
+                'Rejected RFC 9421 signed request: the signature base cannot be built'
+            );
+            return null;
+        }
+
+        return {
+            scheme: 'rfc9421',
+            keyId,
+            digestFields: DigestComponents.filter(f => covered.includes(f)),
+            parsed,
+            base,
+        };
+    }
+
+    //  Does the body match the digest the signature covers? draft-cavage:
+    //  the Digest header. RFC 9421: every covered digest field.
+    _verifyBodyDigest(req, signature, rawBody) {
+        if (signature.scheme !== 'rfc9421') {
+            return verifyDigestHeader(req.headers['digest'], rawBody);
+        }
+        return (
+            signature.digestFields.length > 0 &&
+            signature.digestFields.every(field => {
+                const value = HttpMessageSignature.fieldValue(req, field);
+                return 'content-digest' === field
+                    ? verifyContentDigestHeader(value, rawBody)
+                    : verifyDigestHeader(value, rawBody);
+            })
+        );
     }
 
     _selfUrlRequestHandler(req, resp) {
@@ -523,9 +625,16 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             //  The signature covers the Digest header (a POST must sign it, see
             //  _parseAndValidateSignature); the Digest must also be present, use
             //  a supported algorithm and match the body actually received.
-            if (!verifyDigestHeader(req.headers['digest'], rawBody)) {
+            //  An RFC 9421 signature covers Content-Digest or Digest instead.
+            if (!this._verifyBodyDigest(req, signature, rawBody)) {
                 this.log.warn(
-                    { url: req.url, inboxType, digest: req.headers['digest'] },
+                    {
+                        url: req.url,
+                        inboxType,
+                        scheme: signature.scheme || 'draft-cavage',
+                        digest: req.headers['digest'],
+                        contentDigest: req.headers['content-digest'],
+                    },
                     'Digest header missing, unsupported or not matching the body — rejected'
                 );
                 return this.webServer.badRequest(resp);
@@ -1891,12 +2000,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return false;
         }
 
-        if (!httpSignature.verifySignature(signature, pubKey.publicKeyPem)) {
+        const verified =
+            'rfc9421' === signature.scheme
+                ? HttpMessageSignature.verify(
+                      signature.parsed,
+                      signature.base,
+                      pubKey.publicKeyPem
+                  )
+                : httpSignature.verifySignature(signature, pubKey.publicKeyPem);
+        if (!verified) {
             this.log.warn(
                 {
                     actorId: actor.id,
                     keyId: signature.keyId,
                     actorPubKeyId: pubKey.id,
+                    scheme: signature.scheme || 'draft-cavage',
                 },
                 'Actor signature verification failed'
             );

@@ -2923,6 +2923,448 @@ describe('Actor fetch: the id must belong to the URL fetched', function () {
                 assert.equal(cachedJson(EVIL).id, EVIL);
             });
         });
+
+        //  RFC 9421 HTTP Message Signatures (#1025), through the same inbox.
+        //  The signer below builds its own signature base, as a remote
+        //  server would; it shares no code with the verifier.
+        describe('RFC 9421 signatures (#1025)', function () {
+            const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+            const INBOX_PATH = '/_enig/ap/shared-inbox';
+            const OUR_INBOX = `https://test.example.com${INBOX_PATH}`;
+            const KEY_ID = `${VICTIM}#main-key`;
+            const edKey = crypto.generateKeyPairSync('ed25519');
+
+            const createOf = content => ({
+                id: `${GOOD}/activities/c-${Math.random()}`,
+                type: 'Create',
+                actor: VICTIM,
+                to: [PUBLIC],
+                object: noteJson(content),
+            });
+            const storedFrom = () =>
+                _msgDb
+                    .prepare(
+                        `SELECT meta_value FROM message_meta WHERE meta_name = 'remote_from_user';`
+                    )
+                    .all()
+                    .map(r => r.meta_value);
+            const nowSecs = () => Math.floor(Date.now() / 1000);
+            const contentDigest = body =>
+                `sha-256=:${crypto.createHash('sha256').update(body).digest('base64')}:`;
+
+            //  Mastodon: no alg, created and keyid, rsa-v1_5-sha256
+            const MASTODON = ['@method', '@target-uri', 'content-digest'];
+            //  Fedify's defaults, plus content-digest on a body
+            const FEDIFY = [
+                '@method',
+                '@target-uri',
+                '@authority',
+                'host',
+                'date',
+                'content-digest',
+            ];
+
+            //
+            //  A POST signed per RFC 9421. opts:
+            //    components — covered component names (default: MASTODON)
+            //    params     — the signature parameters, serialized
+            //                 (default: ;created=<now>;keyid="<keyId>")
+            //    target     — the URL the sender posts to (default: OUR_INBOX)
+            //    url        — req.url as ENiGMA sees it (default: target's path)
+            //    headers    — headers sent and signed (merged over defaults)
+            //    after      — headers changed after signing
+            //    input      — replaces the inner list sent, after signing
+            //
+            function rfc9421Request(activity, keyId, privateKey, opts = {}) {
+                const body = Buffer.from(JSON.stringify(activity));
+                const target = new URL(opts.target || OUR_INBOX);
+                const headers = Object.assign(
+                    {
+                        host: target.host,
+                        date: new Date().toUTCString(),
+                        'content-type': 'application/activity+json',
+                        'content-digest': contentDigest(body),
+                    },
+                    opts.headers
+                );
+                const components = opts.components || MASTODON;
+                const params =
+                    opts.params !== undefined
+                        ? opts.params
+                        : `;created=${nowSecs()};keyid="${keyId}"`;
+                const input = `(${components.map(c => `"${c}"`).join(' ')})${params}`;
+                const valueOf = c =>
+                    ({
+                        '@method': 'POST',
+                        '@target-uri': target.href,
+                        '@authority': target.host,
+                        '@path': target.pathname,
+                    })[c] || headers[c];
+                const base = components
+                    .map(c => `"${c}": ${valueOf(c)}`)
+                    .concat(`"@signature-params": ${input}`)
+                    .join('\n');
+                const hash = 'ed25519' === privateKey.asymmetricKeyType ? null : 'sha256';
+                const sig = crypto.sign(hash, Buffer.from(base), privateKey);
+
+                const req = Readable.from([body]);
+                req.headers = Object.assign({}, headers, opts.after, {
+                    'signature-input': `sig1=${opts.input || input}`,
+                    signature: `sig1=:${sig.toString('base64')}:`,
+                });
+                req.url = opts.url || target.pathname + target.search;
+                req.method = 'POST';
+                return req;
+            }
+
+            //  -> { result, warnings, signature }; result 'refused' when the
+            //  signature is turned away before the body is read
+            function post9421(req) {
+                const warnings = [];
+                const handler = new ActivityPubWebHandler();
+                const noop = () => {};
+                handler.log = {
+                    trace: noop,
+                    debug: noop,
+                    info: noop,
+                    warn: (obj, msg) => warnings.push({ obj, msg }),
+                    error: noop,
+                };
+                handler.sysLog = handler.log;
+                return new Promise(resolve => {
+                    const signature = handler._parseAndValidateSignature(req);
+                    const done = result => resolve({ result, warnings, signature });
+                    if (!signature) {
+                        return done('refused');
+                    }
+                    const respond = name => () => done(name);
+                    handler.webServer = {
+                        accepted: respond('accepted'),
+                        accessDenied: respond('accessDenied'),
+                        resourceNotFound: respond('resourceNotFound'),
+                        badRequest: respond('badRequest'),
+                        notImplemented: respond('notImplemented'),
+                        internalServerError: respond('internalServerError'),
+                        serviceUnavailable: respond('serviceUnavailable'),
+                    };
+                    handler._inboxPostHandler(req, {}, signature, 'sharedInbox');
+                });
+            }
+
+            const warned = (got, re) => got.warnings.some(w => re.test(w.msg));
+
+            beforeEach(() => {
+                served.set(VICTIM, { doc: actorDoc(VICTIM) });
+            });
+
+            describe('accepted', function () {
+                it('Mastodon: ("@method" "@target-uri" "content-digest");created;keyid, no alg, rsa-v1_5-sha256', async () => {
+                    const got = await post9421(
+                        rfc9421Request(createOf('<p>m</p>'), KEY_ID, realKey.privateKey)
+                    );
+                    assert.equal(got.result, 'accepted');
+                    assert.equal(got.signature.scheme, 'rfc9421');
+                    assert.deepEqual(storedFrom(), [VICTIM]);
+                });
+
+                it('Fedify: @method @target-uri @authority host date content-digest', async () => {
+                    const got = await post9421(
+                        rfc9421Request(createOf('<p>f</p>'), KEY_ID, realKey.privateKey, {
+                            components: FEDIFY,
+                        })
+                    );
+                    assert.equal(got.result, 'accepted');
+                    assert.deepEqual(storedFrom(), [VICTIM]);
+                });
+
+                it('Ed25519: a key published as an Ed25519 publicKeyPem', async () => {
+                    served.set(VICTIM, {
+                        doc: actorDoc(VICTIM, { publicKeyPem: pem(edKey.publicKey) }),
+                    });
+                    const got = await post9421(
+                        rfc9421Request(createOf('<p>e</p>'), KEY_ID, edKey.privateKey)
+                    );
+                    assert.equal(got.result, 'accepted');
+                    assert.deepEqual(storedFrom(), [VICTIM]);
+                });
+
+                it('a covered legacy Digest in place of Content-Digest', async () => {
+                    const activity = createOf('<p>d</p>');
+                    const got = await post9421(
+                        rfc9421Request(activity, KEY_ID, realKey.privateKey, {
+                            components: ['@method', '@target-uri', 'digest'],
+                            headers: { digest: digestOf(JSON.stringify(activity)) },
+                        })
+                    );
+                    assert.equal(got.result, 'accepted');
+                });
+
+                it('both schemes on one request: verified once, by RFC 9421', async () => {
+                    const activity = createOf('<p>both</p>');
+                    const req = rfc9421Request(activity, KEY_ID, realKey.privateKey);
+                    const cavage = signedRequest(activity, KEY_ID, realKey.privateKey);
+                    req.headers.authorization = cavage.headers.authorization;
+                    const got = await post9421(req);
+                    assert.equal(got.result, 'accepted');
+                    assert.equal(got.signature.scheme, 'rfc9421');
+                });
+            });
+
+            describe('behind a reverse proxy: the target comes from config, not Host', function () {
+                let savedWeb;
+                beforeEach(() => {
+                    savedWeb = TEST_CONFIG.contentServers.web;
+                });
+                afterEach(() => {
+                    TEST_CONFIG.contentServers.web = savedWeb;
+                });
+
+                it('a TLS-terminating proxy: ENiGMA on plain http, the signer signed https', async () => {
+                    TEST_CONFIG.contentServers.web = {
+                        domain: 'localhost',
+                        http: { port: 8080 },
+                        https: { enabled: false },
+                        overrideUrlPrefix: 'https://bbs.example',
+                    };
+                    const got = await post9421(
+                        rfc9421Request(createOf('<p>p</p>'), KEY_ID, realKey.privateKey, {
+                            components: [
+                                '@method',
+                                '@target-uri',
+                                '@authority',
+                                'content-digest',
+                            ],
+                            target: `https://bbs.example${INBOX_PATH}`,
+                            //  what the proxy passed on; none of it is read
+                            after: {
+                                host: 'localhost:8080',
+                                'x-forwarded-host': 'elsewhere.example',
+                                'x-forwarded-proto': 'http',
+                            },
+                        })
+                    );
+                    assert.equal(got.result, 'accepted');
+                    assert.deepEqual(storedFrom(), [VICTIM]);
+                });
+
+                it('a path prefix the proxy strips, in overrideUrlPrefix', async () => {
+                    TEST_CONFIG.contentServers.web = Object.assign({}, savedWeb, {
+                        overrideUrlPrefix: 'https://example.org/bbs',
+                    });
+                    const got = await post9421(
+                        rfc9421Request(createOf('<p>x</p>'), KEY_ID, realKey.privateKey, {
+                            components: [
+                                '@method',
+                                '@target-uri',
+                                '@path',
+                                'content-digest',
+                            ],
+                            target: `https://example.org/bbs${INBOX_PATH}`,
+                            url: INBOX_PATH,
+                        })
+                    );
+                    assert.equal(got.result, 'accepted');
+                });
+
+                it('refuses a target that names another host', async () => {
+                    const got = await post9421(
+                        rfc9421Request(createOf('<p>o</p>'), KEY_ID, realKey.privateKey, {
+                            target: `https://other.example${INBOX_PATH}`,
+                            after: { host: 'test.example.com' },
+                        })
+                    );
+                    assert.equal(got.result, 'accessDenied');
+                    assert.deepEqual(storedFrom(), []);
+                });
+            });
+
+            describe('refused', function () {
+                const refusedWith = async (opts, re, privateKey = realKey.privateKey) => {
+                    const got = await post9421(
+                        rfc9421Request(createOf('<p>no</p>'), KEY_ID, privateKey, opts)
+                    );
+                    assert.notEqual(got.result, 'accepted');
+                    assert.ok(warned(got, re), `warned ${re}`);
+                    assert.deepEqual(storedFrom(), []);
+                    return got;
+                };
+
+                it('a missing @method, named in the warning', async () => {
+                    const got = await refusedWith(
+                        { components: ['@target-uri', 'content-digest'] },
+                        /required components are not covered/
+                    );
+                    assert.equal(got.result, 'refused');
+                    const w = got.warnings.find(w => /not covered/.test(w.msg));
+                    assert.deepEqual(w.obj.missing, ['@method']);
+                });
+
+                it('no target or authority component', async () => {
+                    await refusedWith(
+                        { components: ['@method', 'content-digest'] },
+                        /required components are not covered/
+                    );
+                });
+
+                it('a POST that covers no digest', async () => {
+                    await refusedWith(
+                        { components: ['@method', '@target-uri'] },
+                        /required components are not covered/
+                    );
+                });
+
+                it('no created', async () => {
+                    await refusedWith(
+                        { params: `;keyid="${KEY_ID}"` },
+                        /created \/ expires outside the window/
+                    );
+                });
+
+                it('a stale created', async () => {
+                    await refusedWith(
+                        { params: `;created=${nowSecs() - 301};keyid="${KEY_ID}"` },
+                        /created \/ expires outside the window/
+                    );
+                });
+
+                it('a created in the future', async () => {
+                    await refusedWith(
+                        { params: `;created=${nowSecs() + 301};keyid="${KEY_ID}"` },
+                        /created \/ expires outside the window/
+                    );
+                });
+
+                it('a past expires', async () => {
+                    await refusedWith(
+                        {
+                            params: `;created=${nowSecs()};expires=${nowSecs() - 1};keyid="${KEY_ID}"`,
+                        },
+                        /created \/ expires outside the window/
+                    );
+                });
+
+                it('no keyid, or one that is not a URL', async () => {
+                    await refusedWith(
+                        { params: `;created=${nowSecs()}` },
+                        /keyid is missing or not a URL/
+                    );
+                    await refusedWith(
+                        { params: `;created=${nowSecs()};keyid="main-key"` },
+                        /keyid is missing or not a URL/
+                    );
+                });
+
+                it('a Content-Digest that does not match the body', async () => {
+                    const got = await refusedWith(
+                        { headers: { 'content-digest': contentDigest('{"other":1}') } },
+                        /^Digest header missing, unsupported/
+                    );
+                    assert.equal(got.result, 'badRequest');
+                });
+
+                it('a Content-Digest in an unsupported algorithm only', async () => {
+                    const got = await refusedWith(
+                        {
+                            headers: {
+                                'content-digest': 'md5=:rL0Y20zC+Fzt72VPzMSk2A==:',
+                            },
+                        },
+                        /^Digest header missing, unsupported/
+                    );
+                    assert.equal(got.result, 'badRequest');
+                });
+
+                it('a wrong digest in one of two covered digest fields', async () => {
+                    const got = await refusedWith(
+                        {
+                            components: [
+                                '@method',
+                                '@target-uri',
+                                'content-digest',
+                                'digest',
+                            ],
+                            headers: { digest: digestOf('{"other":1}') },
+                        },
+                        /^Digest header missing, unsupported/
+                    );
+                    assert.equal(got.result, 'badRequest');
+                });
+
+                it("a bad signature: another key under the author's keyid", async () => {
+                    const got = await refusedWith(
+                        {},
+                        /Actor signature verification failed/,
+                        attackerKey.privateKey
+                    );
+                    assert.equal(got.result, 'accessDenied');
+                });
+
+                it('a covered header changed after signing', async () => {
+                    const got = await refusedWith(
+                        {
+                            components: FEDIFY,
+                            after: { date: new Date(Date.now() - 1000).toUTCString() },
+                        },
+                        /Actor signature verification failed/
+                    );
+                    assert.equal(got.result, 'accessDenied');
+                });
+
+                it('an alg that does not match the key', async () => {
+                    const got = await refusedWith(
+                        {
+                            params: `;created=${nowSecs()};keyid="${KEY_ID}";alg="ed25519"`,
+                        },
+                        /Actor signature verification failed/
+                    );
+                    assert.equal(got.result, 'accessDenied');
+                });
+
+                it('an unknown component parameter', async () => {
+                    await refusedWith(
+                        {
+                            input: `("@method" "@target-uri" "content-digest";sf);created=${nowSecs()};keyid="${KEY_ID}"`,
+                        },
+                        /Failed to parse RFC 9421 HTTP signature/
+                    );
+                });
+
+                it('@query-param', async () => {
+                    await refusedWith(
+                        {
+                            input: `("@method" "@target-uri" "content-digest" "@query-param";name="a");created=${nowSecs()};keyid="${KEY_ID}"`,
+                        },
+                        /Failed to parse RFC 9421 HTTP signature/
+                    );
+                });
+
+                it('a failing RFC 9421 signature is not tried again as draft-cavage, even one that would pass', async () => {
+                    const activity = createOf('<p>fallback</p>');
+                    const req = rfc9421Request(activity, KEY_ID, realKey.privateKey, {
+                        params: `;created=${nowSecs() - 301};keyid="${KEY_ID}"`,
+                    });
+                    //  a valid draft-cavage signature over the same request
+                    const cavage = signedRequest(activity, KEY_ID, realKey.privateKey);
+                    Object.assign(req.headers, {
+                        host: cavage.headers.host,
+                        date: cavage.headers.date,
+                        digest: cavage.headers.digest,
+                        authorization: cavage.headers.authorization,
+                    });
+                    req.url = cavage.url;
+                    const got = await post9421(req);
+                    assert.equal(got.result, 'refused');
+                    assert.ok(warned(got, /created \/ expires outside the window/));
+                    assert.deepEqual(storedFrom(), []);
+
+                    //  the draft-cavage signature alone passes
+                    const cavageOnly = await post9421(
+                        signedRequest(activity, KEY_ID, realKey.privateKey)
+                    );
+                    assert.equal(cavageOnly.result, 'accepted');
+                });
+            });
+        });
     });
 });
 

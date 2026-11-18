@@ -71,6 +71,14 @@ Settings applied to new users or users first enabling ActivityPub are found with
 | `hideSocialGraph` | Hide users social graph? (followers, following, ...) | `false` |
 | `showRealName` | Show real name? | `true` |
 
+## Signatures
+Every activity delivered to an inbox must be signed, and ENiGMA½ checks the signature with the key the sender's actor publishes. Two signature schemes are accepted:
+
+* **HTTP Signatures (draft-cavage)**, which nearly every server sends. The signature must cover `(request-target)`, `host` and `date`, and on a POST also `digest`; the `Date` header must be within 5 minutes of the board's clock, and the `Digest` must match the body (SHA-256 or SHA-512).
+* **HTTP Message Signatures ([RFC 9421](https://www.rfc-editor.org/rfc/rfc9421))**, which Fedify-based servers (Ghost, Hollo) send first and Mastodon sends when a server has refused its first attempt. The signature must cover `@method`; the target, as `@target-uri`, or `@request-target` or `@path`; the host, as `@authority` or `@target-uri`; and on a POST, `content-digest` ([RFC 9530](https://www.rfc-editor.org/rfc/rfc9530)) or `digest`. Every digest it covers must match the body. Its `created` parameter is required and must be within 5 minutes of the board's clock (no `Date` header is needed), an `expires` parameter must not be past, and `keyid` must be the key's URL. RSA (`rsa-v1_5-sha256`, `rsa-pss-sha512`), Ed25519 and ECDSA P-256 keys are accepted, with the algorithm taken from `alg` or, without it, from the key. Only the first signature on a request is checked.
+
+A request with a `Signature-Input` header is checked as RFC 9421 only, and is not tried again as draft-cavage if that fails. The URL an RFC 9421 signature covers is built from your base URL (`overrideUrlPrefix`, or `domain` and the web server's port) and the request path, never from the `Host` or `X-Forwarded-*` headers. Behind a reverse proxy, including one that handles TLS or serves the board under a path prefix, it matches the URL the sender posted to, as long as `overrideUrlPrefix` names the public URL. A signature that covers the `host` header (Fedify's does, as draft-cavage signatures do) still needs the proxy to pass `Host` on unchanged.
+
 ## Outbound Requests and Limits
 ENiGMA½ contacts remote servers to look up actors (including the key that signed an incoming request), to resolve handles with WebFinger, to fetch Notes, and to deliver activities.
 
