@@ -441,25 +441,45 @@ class EditTextView extends TextView {
         super.setFocus(focused); //  → redraw → _positionCursor (virtual, resolved above)
     }
 
-    //  Override setText to seed lineBuffer from the raw (pre-pipeline) text.
-    //  Called by TextView constructor with ('', false) — lineBuffer guard required.
+    //  The text is what the field edits, and is drawn the way every later
+    //  redraw draws it: as typed, or with an itemFormat as the live colour
+    //  preview. Pipe codes are not converted and MCI codes (|UN, {UN}) are not
+    //  resolved: getData() returns the text as given, and a caller that wants
+    //  a resolved value resolves it first. Line breaks are dropped (one line),
+    //  and the text is held to maxLength characters, as typing is.
+    //  TextView's constructor calls this with ('', false) before lineBuffer
+    //  exists.
     setText(text, redraw) {
-        super.setText(text, redraw);
+        redraw = _.isBoolean(redraw) ? redraw : true; //  match TextView's default
+
+        let raw = strUtil.stripAllLineFeeds(text == null ? '' : String(text));
+        if (this.maxLength > 0 && raw.length > this.maxLength) {
+            raw = raw.slice(0, this.maxLength);
+        }
+
+        this.text = raw;
 
         if (this.lineBuffer) {
-            let raw = text == null ? '' : String(text);
-            if (this.maxLength > 0 && raw.length > this.maxLength) {
-                raw = raw.slice(0, this.maxLength);
-            }
             this.lineBuffer.lines[0] = {
                 chars: raw,
                 attrs: new Uint32Array(raw.length),
                 eol: true,
                 initialAttr: 0,
             };
-            this.text = raw;
             this.cursorPos.col = raw.length;
+            //  a code shown as typed (and its collapse timer) belonged to the
+            //  old text
+            this._ensureCollapsed();
             this._scrollOffset = this._computeScrollOffset();
+        }
+
+        if (redraw) {
+            this.redraw();
+            //  The redraw leaves the terminal cursor past the field; a focused
+            //  field's next key must echo at its edit cursor.
+            if (this.hasFocus && this.lineBuffer) {
+                this._positionCursor(true);
+            }
         }
     }
 

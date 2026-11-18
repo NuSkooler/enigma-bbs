@@ -30,6 +30,14 @@ See [MCI](../mci.md) for general information on how to use views and common conf
 | `fillChar` | Specifies a character to fill extra space in the text entry with. Defaults to an empty space |
 | `prefixFormat` | Optional prefix displayed before the typed text. Supports pipe color codes (e.g. `"\|15{userName}\|07> "`). The `{userName}` token is substituted at init time by modules that support it (e.g. `sysopChat`). The prefix is purely visual — `getData()` returns only what the user typed. Cursor position and horizontal scroll account for the prefix width automatically. |
 
+## Pipe codes and MCI codes in the text
+
+An edit text view shows the text it edits. A pipe colour code such as `|04` in the text, whether the user typed it or the field was given it (a value the user saved earlier, such as their location, or a `text` set in the menu), is shown as typed: `|04` takes three columns. The value saved is the text as shown.
+
+MCI codes in the text (`|UN`, `{UN}`) are not replaced either: they are part of the value being edited. To fill a field with a value from the system, use a reference in the menu, for example `text: @sysStat:sysop_username`.
+
+Sysop chat's input line is the exception: it previews colour codes as colour while you type. See [Sysop Chat](../../modules/sysop-chat.md).
+
 ## Example
 
 ![Example](../../assets/images/edit_text_view_example1.gif "Edit Text View")
