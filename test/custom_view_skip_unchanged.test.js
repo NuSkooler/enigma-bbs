@@ -37,9 +37,12 @@ const CLASSES = {
 
 //  measured on origin/master 27e47fc9 (1600 bytes), less the 3 columns of
 //  padding the EditTextView drew past its width: it shows "|04Bob" as typed,
-//  and views now pad what they draw, so "|04" is 3 columns, not 0 (#1022)
-const MASTER_NO_OPTION_LENGTH = 1594;
-const MASTER_NO_OPTION_MD5 = '4a30957ce9afe60e3a055187d49b7ef2';
+//  and views now pad what they draw, so "|04" is 3 columns, not 0 (#1022).
+//  Less 8 more: the EditTextView's first call drew a red "Bob" and every
+//  later call "|04Bob" as typed; now the first call draws what the others do
+//  (#1034). Every other byte is unchanged.
+const MASTER_NO_OPTION_LENGTH = 1586;
+const MASTER_NO_OPTION_MD5 = '4198c8e69779bdf535dd6d29b2fdd821';
 
 const md5 = s => crypto.createHash('md5').update(s).digest('hex');
 

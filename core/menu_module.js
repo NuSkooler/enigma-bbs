@@ -1186,9 +1186,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
     //
     //  A view whose setText(text, false) followed by redraw() draws what
     //  setText(text) would, and whose getData() is the text it draws.
-    //  EditTextView and MaskEditTextView keep the caller's raw text after the
-    //  first draw, so a later redraw() is not the same picture; a ButtonView's
-    //  getData() is not its text at all.
+    //  EditTextView and MaskEditTextView are left out: their getData() is the
+    //  text being edited, not what is drawn (an itemFormat previews its colour
+    //  codes, a mask adds its literals); a ButtonView's getData() is not its
+    //  text at all.
     //
     static canSkipUnchangedText(view) {
         return (

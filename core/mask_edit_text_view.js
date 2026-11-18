@@ -184,10 +184,11 @@ class MaskEditTextView extends TextView {
 
     //  ── Overrides ────────────────────────────────────────────────────────────
 
+    //  The slot characters are stored first and then drawn, so the first paint
+    //  is what every later redraw draws (TextView's setText() would draw the
+    //  text as given, literals and pipe codes included).
     setText(text, redraw) {
         redraw = _.isBoolean(redraw) ? redraw : true; //  match TextView's default
-
-        super.setText(text, redraw); //  pass through redraw; TextView ctor calls with false
 
         if (this.lineBuffer) {
             //  Bounded by the pattern, so no separate maxLength truncation.
@@ -199,6 +200,9 @@ class MaskEditTextView extends TextView {
                 initialAttr: 0,
             };
             this.text = raw;
+        } else {
+            //  TextView's constructor: no pattern yet; ours replays the text
+            this.text = '';
         }
 
         //  Must follow the text actually stored: clearText() would otherwise
@@ -207,6 +211,10 @@ class MaskEditTextView extends TextView {
             this.patternArrayPos = this._patternPosForLength(
                 this.lineBuffer ? this.lineBuffer.lines[0].chars.length : 0
             );
+        }
+
+        if (redraw) {
+            this.redraw();
         }
 
         //  A redraw leaves the terminal cursor past the end of the field, which
