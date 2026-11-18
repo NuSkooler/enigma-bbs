@@ -119,6 +119,12 @@ const FormIds = {
         messageId
 */
 
+//  Prefixed to the subject of a message whose body is ANSI art
+const ANSI_SUBJECT_TAG = '[ANSI] ';
+//  A subject that already carries the tag, also after a reply's "RE: " (any
+//  case, as initHeaderReplyEditMode() matches it)
+const ANSI_SUBJECT_TAG_RE = /^(?:[Rr][Ee]:\s+)?\[ANSI\] /;
+
 exports.MciViewIds = MciViewIds;
 exports.FormIds = FormIds;
 
@@ -477,6 +483,7 @@ exports.FullScreenEditorModule =
                 headerFrom: hdr.from ?? '',
                 headerTo: hdr.to ?? '',
                 headerSubject: hdr.subject ?? '',
+                ansiTagAdded: !!this._ansiTagAdded,
                 tempUploadDir: this._pendingTempUploadDir || null,
             };
         }
@@ -488,18 +495,37 @@ exports.FullScreenEditorModule =
 
         //  Add or remove the '[ANSI] ' prefix on the subject field to reflect
         //  whether the message body is (or will be) rendered as ANSI art.
+        //
+        //  The tag is a hint for readers; the subject is the user's text. So
+        //  the tag is added only when the whole subject still fits the field,
+        //  and only a tag added here is taken off again (nothing was cut, so
+        //  that restores the subject exactly). A subject already carrying the
+        //  tag, including after a leading "RE: ", is left as it is.
         _syncAnsiSubjectTag(isAnsi) {
             const subjView = this.viewControllers.header?.getView(
                 MciViewIds.header.subject
             );
             if (!subjView) return;
-            const ANSI_TAG = '[ANSI] ';
             const current = subjView.getData() || '';
-            const hasTag = current.startsWith(ANSI_TAG);
-            if (isAnsi && !hasTag) {
-                subjView.setText(ANSI_TAG + current);
-            } else if (!isAnsi && hasTag) {
-                subjView.setText(current.slice(ANSI_TAG.length));
+            if (isAnsi) {
+                if (ANSI_SUBJECT_TAG_RE.test(current)) {
+                    return;
+                }
+                const tagged = ANSI_SUBJECT_TAG + current;
+                if (subjView.maxLength > 0 && tagged.length > subjView.maxLength) {
+                    this.client.log.debug(
+                        { subjectLength: current.length, maxLength: subjView.maxLength },
+                        'FSE: subject too long for the [ANSI] tag; left untagged'
+                    );
+                    return;
+                }
+                subjView.setText(tagged);
+                this._ansiTagAdded = true;
+            } else if (this._ansiTagAdded) {
+                this._ansiTagAdded = false;
+                if (current.startsWith(ANSI_SUBJECT_TAG)) {
+                    subjView.setText(current.slice(ANSI_SUBJECT_TAG.length));
+                }
             }
         }
 
@@ -1265,6 +1291,7 @@ exports.FullScreenEditorModule =
             if (subjView && saved.headerSubject) subjView.setText(saved.headerSubject);
 
             this.replyIsAnsi = saved.replyIsAnsi;
+            this._ansiTagAdded = !!saved.ansiTagAdded;
 
             const bodyView = this._bodyView;
 
