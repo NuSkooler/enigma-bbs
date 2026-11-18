@@ -668,13 +668,14 @@ function initialize(cb) {
             },
             function initUserCount(callback) {
                 const User = require('./user.js');
-                User.getUserCount((err, count) => {
+                User.getUserCount((err, _count) => {
                     if (err) {
                         return callback(err);
                     }
 
-                    const StatLog = require('./stat_log');
-                    StatLog.setNonPersistentSystemStat(SysProps.TotalUserCount, count);
+                    const userCount = require('./user_count');
+                    userCount.refreshTotalUserCount();
+                    userCount.watchNewUsers();
                     return callback(null);
                 });
             },

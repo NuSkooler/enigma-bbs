@@ -16,6 +16,7 @@ const {
 } = require('./client_connections');
 const StatLog = require('./stat_log');
 const SysProps = require('./system_property');
+const { getTotalUserCount } = require('./user_count');
 const UserProps = require('./user_property');
 const Log = require('./logger');
 const Config = require('./config.js').get;
@@ -1277,7 +1278,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             //  Totals
             totalCalls: StatLog.getSystemStatNum(SysProps.LoginCount),
             totalPosts: StatLog.getSystemStatNum(SysProps.MessageTotalCount),
-            totalUsers: StatLog.getSystemStatNum(SysProps.TotalUserCount),
+            totalUsers: getTotalUserCount(),
             totalFiles: fileAreaStats.totalFiles || 0,
             totalFileBytes: fileAreaStats.totalBytes || 0,
 
