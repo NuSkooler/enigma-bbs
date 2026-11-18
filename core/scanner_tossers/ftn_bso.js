@@ -5556,10 +5556,11 @@ function FTNMessageScanTossModule() {
     //  EchoMail we imported, offered on to the area's other uplinks.
     //
     //  performEchoMailExport() cannot do this: it excludes any message carrying
-    //  a System/state_flags0 row, and import always writes one. So a second
-    //  uplink on an area -- a downstream point, or a sub-hub -- has until now
-    //  only ever received messages composed by a user at a terminal on this
-    //  system, never the echomail that flowed in from the area's own source.
+    //  a System/state_flags0 row other than ActivityPubExported alone (#1032),
+    //  and import always writes one, with Imported. So a second uplink on an
+    //  area -- a downstream point, or a sub-hub -- has until now only ever
+    //  received messages composed by a user at a terminal on this system,
+    //  never the echomail that flowed in from the area's own source.
     //
     //  Opt-in per area via `relay: true`, because relaying is outwardly visible
     //  on the network: a board that configured a second uplink for some other
