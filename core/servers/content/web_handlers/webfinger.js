@@ -7,6 +7,7 @@ const {
     DefaultProfileTemplate,
 } = require('../../../activitypub/util');
 const Endpoints = require('../../../activitypub/endpoint');
+const InstanceActor = require('../../../activitypub/instance_actor');
 const EngiAssert = require('../../../enigma_assert');
 const User = require('../../../user');
 const UserProps = require('../../../user_property');
@@ -72,7 +73,70 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
             handler: this._profileRequestHandler.bind(this),
         });
 
+        this._warnOnInstanceActorNameCollision(domain);
+
         return cb(null);
+    }
+
+    //  ActivityPub on: the instance actor (#966) is found here as well
+    _activityPubEnabled() {
+        return (
+            true ===
+            _.get(Config(), 'contentServers.web.handlers.activityPub.enabled', false)
+        );
+    }
+
+    //
+    //  acct:<domain>@<domain> and the instance actor's own URL name the
+    //  instance actor, as in Mastodon. They are checked before any user, so a
+    //  local user named exactly like the web domain is not found through
+    //  WebFinger; say so once, at startup.
+    //
+    _isInstanceActorResource(resource) {
+        if (!this._activityPubEnabled()) {
+            return false;
+        }
+        const domain = InstanceActor.preferredUsername();
+        return (
+            InstanceActor.isInstanceActorId(resource) ||
+            resource.toLowerCase() === `acct:${domain}@${domain}`.toLowerCase()
+        );
+    }
+
+    _warnOnInstanceActorNameCollision(domain) {
+        if (!this._activityPubEnabled()) {
+            return;
+        }
+        User.getUserIdAndName(domain, (err, userId, userName) => {
+            if (!err && userId) {
+                this.log.warn(
+                    { userId, userName, domain },
+                    'A local user is named like the web domain: WebFinger for that name finds the ActivityPub instance actor, not the user'
+                );
+            }
+        });
+    }
+
+    _instanceActorResponse(resp) {
+        const domain = InstanceActor.preferredUsername();
+        const actorId = InstanceActor.actorId();
+        const body = JSON.stringify({
+            subject: `acct:${domain}@${domain}`,
+            aliases: [actorId],
+            links: [
+                {
+                    rel: 'self',
+                    type: 'application/activity+json',
+                    href: actorId,
+                },
+            ],
+        });
+
+        resp.writeHead(200, {
+            'Content-Type': 'application/jrd+json',
+            'Content-Length': Buffer.from(body).length,
+        });
+        return resp.end(body);
     }
 
     _profileRequestHandler(req, resp) {
@@ -151,6 +215,15 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 '"resource" is required',
                 'Missing "resource"'
             );
+        }
+
+        if (this._isInstanceActorResource(resource)) {
+            //  as the actor itself does until its key exists (a moment
+            //  after the first start), so nobody caches a link to a 503
+            if (!InstanceActor.getKey()) {
+                return this.webServer.serviceUnavailable(resp, 10);
+            }
+            return this._instanceActorResponse(resp);
         }
 
         const accountName = this._getAccountName(resource);

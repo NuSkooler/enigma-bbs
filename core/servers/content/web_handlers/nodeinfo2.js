@@ -6,6 +6,7 @@ const packageJson = require('../../../../package.json');
 const { countActiveUsers } = require('../../../active_users');
 const { getBaseUrl, getWebDomain } = require('../../../web_util');
 const Collection = require('../../../activitypub/collection');
+const InstanceActor = require('../../../activitypub/instance_actor');
 
 // deps
 const { get: _get, pick: _pick } = require('lodash');
@@ -45,6 +46,8 @@ function _buildProtocols(config) {
 }
 
 const NodeInfoSchemaBase = 'http://nodeinfo.diaspora.software/ns/schema';
+//  FEP-2677: the link to the server's own (instance) actor
+const InstanceActorLinkRel = 'https://www.w3.org/ns/activitystreams#Application';
 
 //  How long a computed NodeInfo document is served before it is built again.
 //  Its counts come from several queries; peers poll it, so they get the
@@ -106,18 +109,24 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         this.log.info('Serving NodeInfo discovery request');
 
         const base = getBaseUrl();
-        const body = JSON.stringify({
-            links: [
-                {
-                    rel: `${NodeInfoSchemaBase}/2.1`,
-                    href: `${base}/_enig/nodeinfo/2.1`,
-                },
-                {
-                    rel: `${NodeInfoSchemaBase}/2.0`,
-                    href: `${base}/_enig/nodeinfo/2.0`,
-                },
-            ],
-        });
+        const links = [
+            {
+                rel: `${NodeInfoSchemaBase}/2.1`,
+                href: `${base}/_enig/nodeinfo/2.1`,
+            },
+            {
+                rel: `${NodeInfoSchemaBase}/2.0`,
+                href: `${base}/_enig/nodeinfo/2.0`,
+            },
+        ];
+        //  FEP-2677: where the instance actor (#966) is, when ActivityPub is on
+        if (_get(Config(), 'contentServers.web.handlers.activityPub.enabled') === true) {
+            links.push({
+                rel: InstanceActorLinkRel,
+                href: InstanceActor.actorId(),
+            });
+        }
+        const body = JSON.stringify({ links });
 
         const headers = {
             'Content-Type': 'application/json',

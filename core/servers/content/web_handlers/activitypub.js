@@ -6,7 +6,9 @@ const {
     getActorId,
     prepareLocalUserAsActor,
     signedFetchOptions,
+    fetchSignOptions,
 } = require('../../../activitypub/util');
+const InstanceActor = require('../../../activitypub/instance_actor');
 const { acceptFollowRequest } = require('../../../activitypub/follow_util');
 const {
     fetchAnnouncedNote,
@@ -140,6 +142,24 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         Events.addListener(Events.getSystemEvents().NewUserPrePersist, eventInfo => {
             const { user, callback } = eventInfo;
             return this._prepareNewUserAsActor(user, callback);
+        });
+
+        //  The instance actor's key (#966), made at the first start. Not
+        //  waited for: until it exists, GETs go unsigned as before and the
+        //  instance actor answers 503. A failure is logged there, and the
+        //  key is tried again later, when something wants it.
+        InstanceActor.ensureKey(() => {});
+
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/actor(\?[^#]*)?$/,
+            handler: this._instanceActorGetHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/actor\/outbox(\?[^#]*)?$/,
+            handler: this._instanceActorOutboxGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
@@ -1454,7 +1474,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     //  Only a 410 Gone from the actor's host, for the actor's own id, says
     //  the actor is gone, as in Mastodon; a 404 can be transient. Then its
     //  local state alone is removed: the cached actor and its entries in
-    //  local follow lists.
+    //  local follow lists. Otherwise nothing is done, and the delivery is
+    //  answered 202 all the same (see _goneActorProbe).
     //
     _inboxDeleteGoneActor(inboxType, resp, actorId, fetchAs) {
         (fetchAs || ((id, cb) => cb(null, null)))(actorId, (err, fetchUser) => {
@@ -1464,7 +1485,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _goneActorProbe(inboxType, resp, actorId, fetchUser) {
         const opts = { headers: { Accept: ActivityStreamMediaType } };
-        const sign = signedFetchOptions(fetchUser);
+        const sign = fetchSignOptions(fetchUser);
         if (sign) {
             opts.sign = sign;
         }
@@ -1486,7 +1507,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     },
                     'Will not Delete actor: its origin does not say it is gone'
                 );
-                return this.webServer.accessDenied(resp);
+                //  Nothing is done, but the delivery is not refused: a 401
+                //  had Mastodon count it as failed and send the same Delete
+                //  again (signed RFC 9421), and retry it later, for an
+                //  answer that cannot change. Nothing was signed that we
+                //  could check, so nothing is taken from it.
+                return this.webServer.accepted(resp);
             }
 
             async.eachSeries(
@@ -1514,11 +1540,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     //
     //  The local user the inbox's own GETs are signed as, for origins that
-    //  refuse unsigned fetches; cb(null, user) or cb(null, null) for an
-    //  unsigned GET. A personal inbox: its own user, whom the sender is
-    //  writing to. The shared inbox has no user, and there is no instance
-    //  actor to sign as, so: a local user who follows |remoteActorId|. That
-    //  server already knows of the follow, so signing tells it nothing new.
+    //  refuse unsigned fetches; cb(null, user), or cb(null, null) when no
+    //  user has a reason to, and the GET is signed as the instance actor
+    //  instead (fetchSignOptions(), #966). A personal inbox: its own user,
+    //  whom the sender is writing to. The shared inbox has no user, so: a
+    //  local user who follows |remoteActorId|. That server already knows of
+    //  the follow, so signing tells it nothing new, and a user's signature
+    //  can see what the instance actor's cannot (a followers-only Note).
     //
     _fetchAsUser(inboxActorId, remoteActorId, cb) {
         if (inboxActorId) {
@@ -1542,7 +1570,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     //  A Note from its origin, the GET signed as a user who may sign to
-    //  |actorId|'s host (see _fetchAsUser)
+    //  |actorId|'s host (see _fetchAsUser), or else as the instance actor
     _fetchNoteAs(auth, actorId, noteId, cb) {
         const fetchAs = (auth && auth.fetchAs) || ((id, next) => next(null, null));
         fetchAs(actorId, (err, fetchUser) =>
@@ -1599,7 +1627,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         'application/ld+json',
                     ],
                 };
-                const sign = signedFetchOptions(viewer);
+                //  as the viewer, or else as the instance actor (#966); only a
+                //  viewer's signature makes a 404 mean "gone": the instance
+                //  actor follows nobody, so a 404 to it can still mean "not
+                //  permitted"
+                const signedAsViewer = !!signedFetchOptions(viewer);
+                const sign = fetchSignOptions(viewer);
                 if (sign) {
                     opts.sign = sign;
                 }
@@ -1615,7 +1648,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     if (err) {
                         gone =
                             err.statusCode === 410 ||
-                            (err.statusCode === 404 && (isPublic || !!sign));
+                            (err.statusCode === 404 && (isPublic || signedAsViewer));
                     } else {
                         gone =
                             _.get(doc, 'type') === 'Tombstone' &&
@@ -2358,6 +2391,33 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 });
             });
         });
+    }
+
+    //
+    //  The instance actor (#966): an Application actor for the board, whose
+    //  key signs the GETs ENiGMA makes for itself. Served to anyone, as
+    //  JSON whatever the Accept header; 503 until its key exists.
+    //
+    _instanceActorGetHandler(req, resp) {
+        const doc = InstanceActor.toDocument();
+        if (!doc) {
+            return this.webServer.serviceUnavailable(resp, 10);
+        }
+        return this._sendInstanceActorJson(resp, doc);
+    }
+
+    _instanceActorOutboxGetHandler(req, resp) {
+        return this._sendInstanceActorJson(resp, InstanceActor.emptyOutbox());
+    }
+
+    _sendInstanceActorJson(resp, doc) {
+        const body = JSON.stringify(doc);
+        resp.writeHead(200, {
+            'Content-Type': ActivityStreamMediaType,
+            'Content-Length': Buffer.from(body).length,
+            'Cache-Control': 'public, max-age=600',
+        });
+        return resp.end(body);
     }
 
     _selfAsActorHandler(localUser, localActor, req, resp) {

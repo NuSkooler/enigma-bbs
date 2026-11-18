@@ -1,4 +1,4 @@
-const { parseTimestampOrNow } = require('./util');
+const { parseTimestampOrNow, fetchSignOptions } = require('./util');
 const Endpoints = require('./endpoint');
 const ActivityPubObject = require('./object');
 const apDb = require('../database').dbs.activitypub;
@@ -33,29 +33,33 @@ module.exports = class Collection extends ActivityPubObject {
             Accept: ActivityStreamMediaType,
         };
 
-        getJson(
-            collectionUrl,
-            { headers, validContentTypes: [ActivityStreamMediaType] },
-            (err, collection) => {
-                if (err) {
-                    return cb(err);
-                }
+        //  signed as the instance actor (#966): servers with authorized
+        //  fetch answer an unsigned GET of a collection with 401
+        const opts = { headers, validContentTypes: [ActivityStreamMediaType] };
+        const sign = fetchSignOptions(null);
+        if (sign) {
+            opts.sign = sign;
+        }
 
-                collection = new Collection(collection);
-                if (!collection.isValid()) {
-                    return cb(Errors.Invalid('Invalid Collection'));
-                }
-
-                const { totalItems, type, id, summary } = collection;
-
-                return cb(null, {
-                    totalItems,
-                    type,
-                    id,
-                    summary,
-                });
+        getJson(collectionUrl, opts, (err, collection) => {
+            if (err) {
+                return cb(err);
             }
-        );
+
+            collection = new Collection(collection);
+            if (!collection.isValid()) {
+                return cb(Errors.Invalid('Invalid Collection'));
+            }
+
+            const { totalItems, type, id, summary } = collection;
+
+            return cb(null, {
+                totalItems,
+                type,
+                id,
+                summary,
+            });
+        });
     }
 
     static followers(collectionId, page, cb) {

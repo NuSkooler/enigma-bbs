@@ -75,6 +75,58 @@ const ActivityPubWebHandler =
 //  dependencies with theirs
 const ScannerTosser = require('../core/scanner_tossers/activitypub.js').getModule;
 
+//
+//  The instance actor (#966): a stored key makes GETs that have no local user
+//  to sign them signed as the instance actor. Tests that want that store one
+//  and remove it afterwards. The module is loaded at that point, with this
+//  file's config and database (by then other test files have replaced both
+//  in the shared modules), and it reads and keeps the key there and then.
+//
+const instanceKeyPem = (() => {
+    const { publicKey, privateKey } = require('crypto').generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+    });
+    return {
+        publicKey: publicKey.export({ type: 'spki', format: 'pem' }),
+        privateKey: privateKey.export({ type: 'pkcs8', format: 'pem' }),
+    };
+})();
+const InstanceActorModules = [
+    '../core/web_util.js',
+    '../core/activitypub/endpoint.js',
+    '../core/activitypub/instance_actor.js',
+];
+const dropInstanceActorModules = () =>
+    InstanceActorModules.forEach(m => delete require.cache[require.resolve(m)]);
+let instanceKeyId = null;
+function storeInstanceKey() {
+    _apDb.exec(`CREATE TABLE IF NOT EXISTS instance_key (
+        key_name VARCHAR PRIMARY KEY NOT NULL, public_key_pem VARCHAR NOT NULL,
+        private_key_pem VARCHAR NOT NULL, created_timestamp DATETIME NOT NULL);`);
+    _apDb
+        .prepare('INSERT OR REPLACE INTO instance_key VALUES (?, ?, ?, ?);')
+        .run('main', instanceKeyPem.publicKey, instanceKeyPem.privateKey, 'now');
+
+    const savedGet = configModule.get;
+    const savedDb = dbModule.dbs.activitypub;
+    configModule.get = () => TEST_CONFIG;
+    dbModule.dbs.activitypub = _apDb;
+    try {
+        dropInstanceActorModules();
+        const InstanceActor = require('../core/activitypub/instance_actor.js');
+        assert.ok(InstanceActor.getKey(), 'the instance key is read');
+        instanceKeyId = InstanceActor.keyId();
+    } finally {
+        configModule.get = savedGet;
+        dbModule.dbs.activitypub = savedDb;
+    }
+}
+function removeInstanceKey() {
+    _apDb.exec('DROP TABLE IF EXISTS instance_key;');
+    dropInstanceActorModules();
+    instanceKeyId = null;
+}
+
 //  Digest header value for a request body
 const digestOf = body =>
     'SHA-256=' + require('crypto').createHash('sha256').update(body).digest('base64');
@@ -3480,6 +3532,45 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
                 });
             }
 
+            describe('with the instance actor (#966)', function () {
+                beforeEach(storeInstanceKey);
+                afterEach(removeInstanceKey);
+
+                it('asks as the instance actor when no local user could see the Note, and still refuses a followers-only Note', async () => {
+                    await storeNote({ to: [FOLLOWERS] });
+                    served.set(NOTE, { status: 404 });
+                    assert.equal(
+                        await post(deleteOf(NOTE), FORWARDER, { users }),
+                        'accessDenied'
+                    );
+                    //  a 404 to the instance actor may still mean "not permitted"
+                    assert.equal(signedAs(NOTE), instanceKeyId);
+                    assert.equal(messages().length, 1, 'the message stays');
+                });
+
+                it('removes a public Note, asked as the instance actor', async () => {
+                    await storeNote();
+                    served.set(NOTE, { status: 404 });
+                    assert.equal(
+                        await post(deleteOf(NOTE), FORWARDER, { users }),
+                        'accepted'
+                    );
+                    assert.equal(signedAs(NOTE), instanceKeyId);
+                    assert.deepEqual(messages(), []);
+                });
+
+                it('still asks as the local follower when there is one', async () => {
+                    await storeNote({ to: [FOLLOWERS] });
+                    await bobFollowsVictim();
+                    served.set(NOTE, { status: 404 });
+                    assert.equal(
+                        await post(deleteOf(NOTE), FORWARDER, { users }),
+                        'accepted'
+                    );
+                    assert.equal(signedAs(NOTE), `${BOB}#main-key`);
+                });
+            });
+
             it("refuses for a Note off the actor's host", async () => {
                 const offHost = 'https://third.example/notes/1';
                 await storeNote({ id: offHost });
@@ -3879,6 +3970,20 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.equal(storedRows().length, 1, "others' rows are untouched");
         });
 
+        it('signs the probe as the instance actor on the shared inbox (#966)', async () => {
+            storeInstanceKey();
+            try {
+                await storeGoneActor();
+                served.set(GONE, { status: 410 });
+                assert.equal(await postUnfetchable(selfDelete()), 'accepted');
+                const probe = requests.find(r => r.url === GONE);
+                assert.equal(probe.opts.sign && probe.opts.sign.keyId, instanceKeyId);
+                assert.deepEqual(rowsFor(GONE), []);
+            } finally {
+                removeInstanceKey();
+            }
+        });
+
         it('signs the probe as the personal inbox user', async () => {
             const UserProps = require('../core/user_property.js');
             const BOB = 'https://test.example.com/_enig/ap/users/bob';
@@ -3901,33 +4006,36 @@ describe('ActivityPub inbox: Create comes from the Note author', function () {
             assert.equal(probe.opts.sign && probe.opts.sign.keyId, `${BOB}#main-key`);
         });
 
-        it('is refused when the origin answers 404, which may be transient', async () => {
+        //  Nothing is done when the origin does not say the actor is gone, but
+        //  the delivery is answered 202: a 401 had Mastodon resend the same
+        //  Delete (signed RFC 9421) and count it as failed
+        it('does nothing, answered 202, when the origin answers 404, which may be transient', async () => {
             await storeGoneActor();
             served.set(GONE, { status: 404 });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 
-        it('is refused when the 410 comes from another host after a redirect', async () => {
+        it('does nothing, answered 202, when the 410 comes from another host after a redirect', async () => {
             await storeGoneActor();
             served.set(GONE, { status: 410, responseUrl: 'https://evil.example/gone' });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 
-        it('is refused when the origin still serves the actor', async () => {
+        it('does nothing, answered 202, when the origin still serves the actor', async () => {
             await storeGoneActor();
             served.set(GONE, {
                 doc: { id: GONE, type: 'Person', inbox: `${GONE}/inbox` },
             });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 
-        it('is refused when the origin fails for another reason', async () => {
+        it('does nothing, answered 202, when the origin fails for another reason', async () => {
             await storeGoneActor();
             served.set(GONE, { status: 500 });
-            assert.equal(await postUnfetchable(selfDelete()), 'accessDenied');
+            assert.equal(await postUnfetchable(selfDelete()), 'accepted');
             assert.deepEqual(rowsFor(GONE), ['actors', 'followers']);
         });
 

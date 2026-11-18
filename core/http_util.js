@@ -2,6 +2,7 @@ const { Errors, ErrorReasons } = require('./enig_error.js');
 const Security = require('./activitypub/security.js');
 const FetchBudget = require('./activitypub/fetch_budget.js');
 const { isSafeOutboundUrl } = Security;
+const { InstanceActorSignMarker } = require('./activitypub/const.js');
 //  read through the module each time: tests swap config.get and the logger
 const Config = () => require('./config').get();
 const Log = () => require('./logger.js').log;
@@ -356,13 +357,30 @@ const ConnectionTargetOptions = [
     'createConnection',
 ];
 
-function _makeRequest(url, options, cb) {
+//  |budgetSlot| (internal): a fetch budget slot this GET already holds, from
+//  the instance-signed attempt it repeats (see below), so it is charged once
+function _makeRequest(url, options, cb, budgetSlot) {
     options = Object.assign({}, { timeout: DefaultTimeoutMilliseconds }, options);
     ConnectionTargetOptions.forEach(k => delete options[k]);
+
+    //  The instance actor's key signs GETs only (activitypub/instance_actor.js):
+    //  it must never sign a delivery or anything else said for a user.
+    let instanceSigned = false;
+    if (isObject(options.sign) && options.sign[InstanceActorSignMarker]) {
+        if (options.method !== 'GET') {
+            return cb(Errors.Invalid('The instance actor key signs GET requests only'));
+        }
+        instanceSigned = true;
+        options.sign = Object.assign({}, options.sign);
+        delete options.sign[InstanceActorSignMarker];
+    }
 
     //  SSRF protection: reject private/loopback/reserved URLs before connecting.
     const { reason: ssrfReason, agents } = _checkUrl(url);
     if (ssrfReason) {
+        if (budgetSlot) {
+            budgetSlot.release(); // the slot handed over is given back
+        }
         return cb(Errors.AccessDenied(`Outbound request blocked: ${ssrfReason}`));
     }
 
@@ -390,7 +408,9 @@ function _makeRequest(url, options, cb) {
     //  activitypub/fetch_budget.js. Outside one this admits everything.
     //  POSTs (deliveries, Accept, ...) are never budgeted.
     let release = () => {};
-    if (options.method === 'GET') {
+    if (budgetSlot) {
+        release = budgetSlot.release;
+    } else if (options.method === 'GET') {
         const slot = FetchBudget.acquire(url);
         if (slot.error) {
             return cb(slot.error);
@@ -469,6 +489,28 @@ function _makeRequest(url, options, cb) {
 
             res.on('end', () => {
                 body = Buffer.concat(body).toString();
+
+                //  A signed GET does not follow redirects. Before the
+                //  instance actor (#966) this GET went unsigned, and followed
+                //  them, so it is made again that way: unsigned, through the
+                //  redirect-following path with its per-hop checks. It keeps
+                //  this request's budget slot, so the URL is charged once;
+                //  each redirect hop is charged as usual.
+                if (instanceSigned && res.statusCode >= 300 && res.statusCode <= 399) {
+                    if (cbCalled) {
+                        return;
+                    }
+                    cbCalled = true;
+                    clearTimeout(deadline);
+                    Log().debug(
+                        { url, statusCode: res.statusCode },
+                        'Redirect answered to a GET signed as the instance actor; repeating it unsigned'
+                    );
+                    const unsigned = Object.assign({}, options);
+                    delete unsigned.sign;
+                    delete unsigned.agent;
+                    return _makeRequest(url, unsigned, cb, { release });
+                }
 
                 if (res.statusCode < 200 || res.statusCode > 299) {
                     const err = Errors.HttpError(

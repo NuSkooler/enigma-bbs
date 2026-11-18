@@ -35,7 +35,7 @@ const StatLog = require('../stat_log');
 const Log = require('../logger').log;
 const Message = require('../message');
 const { collectFollowerInboxes } = require('./follow_util');
-const { signedFetchOptions } = require('./util');
+const { fetchSignOptions } = require('./util');
 
 // deps
 const async = require('async');
@@ -162,7 +162,9 @@ function fetchAnnouncedNote(objectOrId, fromActorId, fetchAs, cb) {
 //  response size cap, a timeout, and the content type.
 //
 //  fetchAs (optional) — local user the GET is signed as, for origins that
-//  refuse unsigned fetches; signed GETs do not follow redirects.
+//  refuse unsigned fetches; without one it is signed as the instance actor
+//  (#966). A signed GET does not follow redirects (one signed as the
+//  instance actor is repeated unsigned on a redirect, see http_util).
 //
 function fetchNoteFromOrigin(noteId, timeoutMs, fetchAs, cb) {
     if (typeof timeoutMs === 'function') {
@@ -184,7 +186,7 @@ function fetchNoteFromOrigin(noteId, timeoutMs, fetchAs, cb) {
             'application/ld+json',
         ],
     };
-    const sign = signedFetchOptions(fetchAs);
+    const sign = fetchSignOptions(fetchAs);
     if (sign) {
         fetchOpts.sign = sign;
     }

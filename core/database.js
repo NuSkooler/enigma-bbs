@@ -1045,6 +1045,18 @@ const DB_INIT_TABLE = {
                 ON note_reactions (actor_id, reaction_type);
 
             --
+            --  The instance actor's key pair (activitypub/instance_actor.js).
+            --  One row, 'main', created at the first start with ActivityPub
+            --  enabled. Delete it to have a new key made at the next start.
+            --
+            CREATE TABLE IF NOT EXISTS instance_key (
+                key_name            VARCHAR PRIMARY KEY NOT NULL,
+                public_key_pem      VARCHAR NOT NULL,
+                private_key_pem     VARCHAR NOT NULL,
+                created_timestamp   DATETIME NOT NULL
+            );
+
+            --
             --  FTS5 virtual table for full-text search of actors and sharedInbox notes.
             --
             --  coll_name   : 'actors' or 'sharedInbox' — UNINDEXED, used as a post-filter

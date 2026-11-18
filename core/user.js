@@ -11,6 +11,7 @@ const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const Log = require('./logger.js').log;
 const StatLog = require('./stat_log.js');
+const { generateActorKeyPair } = require('./activitypub/key_pair.js');
 
 //  deps
 const crypto = require('crypto');
@@ -770,27 +771,13 @@ module.exports = class User {
     }
 
     updateActivityPubKeyPairProperties(cb) {
-        crypto.generateKeyPair(
-            'rsa',
-            {
-                modulusLength: 4096,
-                publicKeyEncoding: {
-                    type: 'spki',
-                    format: 'pem',
-                },
-                privateKeyEncoding: {
-                    type: 'pkcs8',
-                    format: 'pem',
-                },
-            },
-            (err, publicKey, privateKey) => {
-                if (!err) {
-                    this.setProperty(UserProps.PrivateActivityPubSigningKey, privateKey);
-                    this.setProperty(UserProps.PublicActivityPubSigningKey, publicKey);
-                }
-                return cb(err);
+        generateActorKeyPair((err, keys) => {
+            if (!err) {
+                this.setProperty(UserProps.PrivateActivityPubSigningKey, keys.privateKey);
+                this.setProperty(UserProps.PublicActivityPubSigningKey, keys.publicKey);
             }
-        );
+            return cb(err);
+        });
     }
 
     generateNewRandomAvatar(cb) {
