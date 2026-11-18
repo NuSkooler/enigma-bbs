@@ -649,6 +649,208 @@ describe('BSO .bsy flow file lock', function () {
             assert.equal(bsoLock.heldCount(), 0);
         });
 
+        it('refreshes by writing its own line back: same content, same file, new mtime', async () => {
+            assert.ok(await bsoLock.acquire(bsyPath));
+            const before = await fsp.readFile(bsyPath, 'utf8');
+            const { ino } = await fsp.stat(bsyPath);
+            await backdate(bsyPath, 60 * 60 * 1000);
+            await bsoLock._refreshHeldNow();
+            const st = await fsp.stat(bsyPath);
+            assert.equal(await fsp.readFile(bsyPath, 'utf8'), before);
+            assert.equal(st.ino, ino, 'written in place');
+            assert.ok(Date.now() - st.mtimeMs < 5000, 'mtime moved');
+            await bsoLock.release(bsyPath);
+        });
+
+        describe('a lock that cannot be read', () => {
+            //  Root reads anything; the mode below would not stop it.
+            const canDeny =
+                'function' === typeof process.getuid && 0 !== process.getuid();
+            const denyIt = canDeny ? it : it.skip;
+            const logged = [];
+            const log = {
+                info: (o, m) => logged.push(['info', m]),
+                warn: (o, m) => logged.push(['warn', m]),
+            };
+            beforeEach(() => (logged.length = 0));
+            afterEach(async () => {
+                await fsp.chmod(bsyPath, 0o644).catch(() => {});
+            });
+
+            denyIt('is still held when this process tries to take it again', async () => {
+                let lost = 0;
+                assert.ok(await bsoLock.acquire(bsyPath, { log, onLost: () => lost++ }));
+                await fsp.chmod(bsyPath, 0o000);
+                assert.equal(await bsoLock.acquire(bsyPath, { log }), false);
+                assert.equal(await bsoLock.reapIfStale(bsyPath, 0, log), false);
+                assert.equal(lost, 0, 'not counted as lost');
+                assert.equal(bsoLock.heldCount(), 1);
+                await fsp.chmod(bsyPath, 0o644);
+                await bsoLock.release(bsyPath);
+                assert.ok(!fs.existsSync(bsyPath));
+            });
+
+            denyIt(
+                'is left in place, with a warning, when it cannot be read to release it',
+                async () => {
+                    assert.ok(await bsoLock.acquire(bsyPath, { log }));
+                    await fsp.chmod(bsyPath, 0o000);
+                    await bsoLock.release(bsyPath);
+                    assert.ok(fs.existsSync(bsyPath), 'not removed unread');
+                    assert.equal(bsoLock.heldCount(), 0);
+                    assert.ok(
+                        logged.some(
+                            ([lvl, m]) => 'warn' === lvl && /Could not read/.test(m)
+                        )
+                    );
+                }
+            );
+
+            denyIt("is judged by age only when it is someone else's", async () => {
+                await fsp.writeFile(
+                    bsyPath,
+                    `${process.pid} ENiGMA ${ourHostId} 0123456789abcdef\n`
+                );
+                await fsp.chmod(bsyPath, 0o000);
+                assert.equal(
+                    await bsoLock.reapIfStale(bsyPath, 60 * 1000, log),
+                    false,
+                    'fresh'
+                );
+                assert.ok(fs.existsSync(bsyPath));
+                await backdate(bsyPath, 2 * 60 * 1000);
+                assert.equal(
+                    await bsoLock.reapIfStale(bsyPath, 60 * 1000, log),
+                    true,
+                    'stale'
+                );
+                assert.ok(!fs.existsSync(bsyPath));
+            });
+
+            denyIt(
+                'is given up once it has not been refreshed for half the reap age',
+                async () => {
+                    let lost = 0;
+                    assert.ok(
+                        await bsoLock.acquire(bsyPath, {
+                            log,
+                            staleMaxAgeMs: 200, //  given up after 100 ms
+                            refreshMs: 60 * 1000, //  ticks driven by hand
+                            onLost: () => lost++,
+                        })
+                    );
+                    await fsp.chmod(bsyPath, 0o000);
+                    await bsoLock._refreshHeldNow();
+                    assert.equal(
+                        bsoLock.heldCount(),
+                        1,
+                        'one failed touch is not enough'
+                    );
+                    await new Promise(r => setTimeout(r, 150));
+                    await bsoLock._refreshHeldNow();
+                    assert.equal(lost, 1);
+                    assert.equal(bsoLock.heldCount(), 0);
+                    assert.ok(
+                        logged.some(
+                            ([lvl, m]) => 'warn' === lvl && /no longer ours/.test(m)
+                        )
+                    );
+                }
+            );
+        });
+
+        it('gives up a lock whose touch hangs', async () => {
+            let lost = 0;
+            assert.ok(
+                await bsoLock.acquire(bsyPath, {
+                    staleMaxAgeMs: 200,
+                    refreshMs: 60 * 1000,
+                    onLost: () => lost++,
+                })
+            );
+            const realOpen = fsp.open;
+            let release;
+            const gate = new Promise(r => (release = r));
+            fsp.open = async (file, flags, ...rest) => {
+                if (file === bsyPath && 'r+' === flags) {
+                    await gate;
+                }
+                return realOpen.call(fsp, file, flags, ...rest);
+            };
+            try {
+                bsoLock._refreshHeldNow(); //  hangs
+                await new Promise(r => setTimeout(r, 150));
+                await Promise.race([
+                    bsoLock._refreshHeldNow(),
+                    new Promise(r => setTimeout(r, 50)),
+                ]);
+                assert.equal(lost, 1);
+                assert.equal(bsoLock.heldCount(), 0);
+            } finally {
+                fsp.open = realOpen;
+                release();
+            }
+        });
+
+        it('on exit removes a lock created but not yet written, and leaves one it did not create', async () => {
+            const realOpen = fsp.open;
+            let reached;
+            const atGate = new Promise(r => (reached = r));
+            let release;
+            const gate = new Promise(r => (release = r));
+            fsp.open = async (file, flags, ...rest) => {
+                const fh = await realOpen.call(fsp, file, flags, ...rest);
+                if (file === bsyPath && 'wx' === flags) {
+                    const write = fh.writeFile.bind(fh);
+                    fh.writeFile = async data => {
+                        reached();
+                        await gate;
+                        return write(data);
+                    };
+                }
+                return fh;
+            };
+            try {
+                const taking = bsoLock.acquire(bsyPath);
+                await atGate;
+                assert.equal(fs.readFileSync(bsyPath, 'utf8'), '', 'created, empty');
+                bsoLock._releaseHeldSync();
+                assert.ok(!fs.existsSync(bsyPath), 'ours, so removed');
+                release();
+                await taking;
+            } finally {
+                fsp.open = realOpen;
+                release();
+            }
+
+            //  Not created by us: an exit while our create is still pending
+            //  must leave whatever is there.
+            const other = paths.join(tmpDir, '00da02bd.bsy');
+            let openGate;
+            const createGate = new Promise(r => (openGate = r));
+            let atCreate;
+            const reachedCreate = new Promise(r => (atCreate = r));
+            fsp.open = async (file, flags, ...rest) => {
+                if (file === other && 'wx' === flags) {
+                    atCreate();
+                    await createGate;
+                }
+                return realOpen.call(fsp, file, flags, ...rest);
+            };
+            try {
+                const taking = bsoLock.acquire(other);
+                await reachedCreate;
+                fs.writeFileSync(other, ''); //  someone else's, empty
+                bsoLock._releaseHeldSync();
+                assert.ok(fs.existsSync(other), 'not ours');
+                openGate();
+                assert.equal(await taking, false);
+            } finally {
+                fsp.open = realOpen;
+                openGate();
+            }
+        });
+
         it('whenNoneHeld() resolves once the last lock is released, or false at its timeout', async () => {
             assert.ok(await bsoLock.acquire(bsyPath));
             assert.equal(await bsoLock.whenNoneHeld(30), false);

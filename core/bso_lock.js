@@ -149,6 +149,9 @@ const REFRESH_MAX_INTERVAL_MS = 60 * 1000;
 const NOT_REFRESHED_MAX_AGE_MS = 5 * 60 * 1000;
 const MIN_REFRESH_INTERVAL_MS = 10;
 
+//  How long release() waits before reading a lock it could not read again.
+const RELEASE_RETRY_MS = 50;
+
 let hostIdCache = null;
 
 //
@@ -194,7 +197,8 @@ function parseLockContent(content) {
     return m ? { pid: parseInt(m[1], 10), hostId: m[2], token: m[3] } : null;
 }
 
-//  The lock's content, or null when it cannot be read (ENOENT included).
+//  The lock's content, or null when there is no lock (ENOENT). Rejects when it
+//  cannot be read: that says nothing about whose it is.
 async function readLockContent(bsyPath) {
     let fh;
     try {
@@ -203,7 +207,10 @@ async function readLockContent(bsyPath) {
         const { bytesRead } = await fh.read(buf, 0, buf.length, 0);
         return buf.toString('utf8', 0, bytesRead);
     } catch (err) {
-        return null;
+        if ('ENOENT' === err.code) {
+            return null;
+        }
+        throw err;
     } finally {
         if (fh) {
             await fh.close().catch(() => {});
@@ -230,6 +237,15 @@ function notRefreshedMaxAgeMs(staleMaxAgeMs) {
     return Math.min(staleMaxAgeMs, NOT_REFRESHED_MAX_AGE_MS);
 }
 
+//
+//  How long a held lock may go without a successful refresh before this
+//  process stops counting on it: half the age at which others reap it, so
+//  it is given up well before anyone else could take it.
+//
+function refreshGiveUpMs(staleMaxAgeMs) {
+    return Math.floor(notRefreshedMaxAgeMs(staleMaxAgeMs) / 2);
+}
+
 function refreshIntervalMs(options) {
     const explicit = options.refreshMs;
     if ('number' === typeof explicit && isFinite(explicit) && explicit > 0) {
@@ -247,12 +263,21 @@ function refreshIntervalMs(options) {
 //
 //  Every lock this process holds: lockKey -> entry
 //
-//      { key, path, content, pending, releasing, refreshing, refreshMs,
-//        onLost, log }
+//      { key, path, content, pending, created, releasing, refreshing,
+//        refreshMs, refreshedAt, giveUpMs, onLost, log }
 //
 //  |pending| while the lock file is being created and written, |releasing|
 //  while it is being removed: it is ours throughout, so nothing else in the
 //  process may take or reap it.
+//
+//  |created| once our exclusive create has succeeded (the file is ours even
+//  before it is written); |refreshedAt| when it was last written or touched.
+//
+//  The registry is per instance of this module: loading it twice in one
+//  process (two copies of the file, or worker threads, which each get their
+//  own) makes two registries that do not know each other's locks, and the
+//  same-PID rule in reapReason() would then reap a live lock. Use it from the
+//  main thread only, through one require().
 //
 //  This is what makes a lock ours. A second holder in this process is refused
 //  without looking at the lock's age; release() only removes a file whose
@@ -324,8 +349,16 @@ function lockLost(entry, why) {
     heldChanged();
 }
 
+//
 //  Touch one held lock, through a handle on the file we checked, so a file
 //  that replaced ours in between is never the one touched.
+//
+//  The touch writes the lock's own bytes back over themselves rather than
+//  setting a time: the content never changes (a reader sees the same line
+//  before, during and after), and the new mtime is the one the filesystem
+//  assigns -- on NFS the server's clock, as when the lock was created -- so
+//  only the reaper's clock against the server's matters, not ours.
+//
 async function refreshOne(entry) {
     let fh;
     try {
@@ -350,8 +383,9 @@ async function refreshOne(entry) {
         if (buf.toString('utf8', 0, bytesRead) !== entry.content) {
             return lockLost(entry, 'replaced');
         }
-        const now = new Date();
-        await fh.utimes(now, now);
+        const bytes = Buffer.from(entry.content);
+        await fh.write(bytes, 0, bytes.length, 0);
+        entry.refreshedAt = Date.now();
     } catch (err) {
         entry.log &&
             entry.log.warn(
@@ -372,6 +406,12 @@ function refreshHeldNow() {
     const running = [];
     for (const entry of Array.from(heldLocks.values())) {
         if (entry.pending || entry.releasing) {
+            continue;
+        }
+        //  Not refreshed for too long (a touch that hangs, or fails every
+        //  time): soon anyone may reap it, so stop relying on it now.
+        if (Date.now() - entry.refreshedAt > entry.giveUpMs) {
+            lockLost(entry, 'could not be refreshed');
             continue;
         }
         if (!entry.refreshing) {
@@ -396,15 +436,20 @@ function refreshHeldNow() {
 function releaseHeldSync() {
     for (const entry of Array.from(heldLocks.values())) {
         heldLocks.delete(entry.key);
-        if (entry.pending) {
-            continue;
+        if (entry.pending && !entry.created) {
+            continue; //  not created by us (yet): whatever is there is not ours
         }
         try {
-            if (fs.readFileSync(entry.path, 'utf8') === entry.content) {
+            const content = fs.readFileSync(entry.path, 'utf8');
+            //  Created but not (fully) written yet: still ours.
+            const ours = entry.pending
+                ? entry.content.startsWith(content)
+                : content === entry.content;
+            if (ours) {
                 fs.unlinkSync(entry.path);
             }
         } catch (err) {
-            //  gone already, or not ours to remove
+            //  gone already, or cannot be read and so not known to be ours
         }
     }
     heldChanged();
@@ -467,6 +512,9 @@ function reapReason(content, ageMs, staleMaxAgeMs) {
         const hostId = lockHostId();
         if ('-' !== hostId && lock.hostId === hostId) {
             if (lock.pid === process.pid) {
+                //  Not in our registry (reapIfStale() checked), so not ours:
+                //  true only while this module is loaded once per process.
+                //  See heldLocks.
                 return 'written by an earlier process with this PID';
             }
             if (!pidRunning(lock.pid)) {
@@ -491,10 +539,16 @@ async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
         if (entry.pending || entry.releasing) {
             return false;
         }
-        if ((await readLockContent(entry.path)) === entry.content) {
+        let mine;
+        try {
+            mine = await readLockContent(entry.path);
+        } catch (err) {
+            return false; //  cannot tell; ours as far as we know
+        }
+        if (mine === entry.content) {
             return false; //  ours, and in use
         }
-        lockLost(entry, 'replaced');
+        lockLost(entry, null === mine ? 'removed' : 'replaced');
     }
 
     let stat;
@@ -504,7 +558,17 @@ async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
         return 'ENOENT' === err.code;
     }
 
-    const content = await readLockContent(bsyPath);
+    //  A lock that cannot be read is judged as a foreign one: by age alone.
+    let content = null;
+    let unreadable = false;
+    try {
+        content = await readLockContent(bsyPath);
+        if (null === content) {
+            return true; //  gone since the stat
+        }
+    } catch (err) {
+        unreadable = true;
+    }
     const ageMs = Date.now() - stat.mtimeMs;
     const reason = reapReason(content, ageMs, staleMaxAgeMs);
     if (!reason) {
@@ -513,12 +577,29 @@ async function reapIfStale(bsyPath, staleMaxAgeMs, log) {
 
     //  Someone may have reaped and replaced it since we looked; then it is
     //  not the lock we judged.
-    const now = await readLockContent(bsyPath);
-    if (null === now) {
-        return true;
-    }
-    if (now !== content) {
-        return false;
+    if (unreadable) {
+        let now;
+        try {
+            now = await fsp.stat(bsyPath);
+        } catch (err) {
+            return 'ENOENT' === err.code;
+        }
+        if (now.ino !== stat.ino || now.mtimeMs !== stat.mtimeMs) {
+            return false;
+        }
+    } else {
+        let now;
+        try {
+            now = await readLockContent(bsyPath);
+        } catch (err) {
+            return false;
+        }
+        if (null === now) {
+            return true;
+        }
+        if (now !== content) {
+            return false;
+        }
     }
 
     try {
@@ -568,14 +649,19 @@ async function acquire(bsyPath, options = {}) {
     //  Unless it has gone from under us, in which case it is not held at all.
     const mine = heldLocks.get(key);
     if (mine) {
-        if (
-            mine.pending ||
-            mine.releasing ||
-            (await readLockContent(mine.path)) === mine.content
-        ) {
+        if (mine.pending || mine.releasing) {
             return false;
         }
-        lockLost(mine, 'replaced');
+        let onDisk;
+        try {
+            onDisk = await readLockContent(mine.path);
+        } catch (err) {
+            return false; //  cannot tell: still ours as far as we know
+        }
+        if (onDisk === mine.content) {
+            return false;
+        }
+        lockLost(mine, null === onDisk ? 'removed' : 'replaced');
     }
 
     if (false !== options.createDir) {
@@ -596,7 +682,10 @@ async function acquire(bsyPath, options = {}) {
             path: bsyPath,
             content: newLockContent(),
             pending: true,
+            created: false,
             refreshMs: refreshIntervalMs(options),
+            giveUpMs: refreshGiveUpMs(staleMaxAgeMs),
+            refreshedAt: Date.now(),
             onLost: options.onLost,
             log,
         };
@@ -610,6 +699,7 @@ async function acquire(bsyPath, options = {}) {
             heldChanged();
             throw err;
         }
+        entry.created = true;
         let written = false;
         try {
             await fh.writeFile(entry.content);
@@ -623,6 +713,7 @@ async function acquire(bsyPath, options = {}) {
             }
         }
         entry.pending = false;
+        entry.refreshedAt = Date.now();
         installExitHook();
         heldChanged();
         return true;
@@ -680,7 +771,25 @@ async function release(bsyPath) {
     //  gone; the refresh leaves it alone meanwhile.
     entry.releasing = true;
     try {
-        const content = await readLockContent(entry.path);
+        let content;
+        try {
+            content = await readLockContent(entry.path);
+        } catch (err) {
+            //  Once more, in case it was passing (EMFILE, a network
+            //  filesystem hiccup); never removed unread, since it might be
+            //  another holder's by now.
+            await new Promise(r => setTimeout(r, RELEASE_RETRY_MS));
+            try {
+                content = await readLockContent(entry.path);
+            } catch (err2) {
+                entry.log &&
+                    entry.log.warn(
+                        { path: entry.path, error: err2.message },
+                        'Could not read our .bsy lock to release it; leaving it to be reaped'
+                    );
+                return;
+            }
+        }
         if (null !== content && content !== entry.content) {
             entry.log &&
                 entry.log.info(
