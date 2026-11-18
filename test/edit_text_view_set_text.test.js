@@ -55,6 +55,7 @@ function makeClient() {
         },
         log: { trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {} },
         writes,
+        cursor,
         //  what row |row| shows from |col|, |n| columns
         shown(row, col, n) {
             let out = '';
@@ -178,6 +179,56 @@ describe('EditTextView setText(): first paint and repaint agree', function () {
         const first = paint(v, client, () => v.setText('ab\r\ncd\nefghij'));
         assert.equal(v.getData(), 'abcdefgh');
         assert.equal(first.cells.trimEnd(), 'abcdefgh', 'setText() draws by default');
+    });
+
+    it('a focused field: the cursor goes to the edit position, where typing echoes', function () {
+        const { v, client } = makeEtv();
+        v.setFocus(true);
+        v.setText('ab');
+        assert.deepEqual(client.cursor, { row: ROW, col: COL + 2 });
+        v.onKeyPress('c');
+        assert.equal(client.shown(ROW, COL, 3), 'abc');
+        assert.equal(v.getData(), 'abc');
+    });
+
+    it('setText(text, false) stores the text and writes nothing', function () {
+        const { v, client } = makeEtv();
+        client.clear();
+        v.setText('|04abc', false);
+        assert.equal(client.writes.length, 0);
+        assert.equal(v.getData(), '|04abc');
+        assert.equal(v.text, '|04abc');
+    });
+
+    it('a code shown as typed, and its collapse timer, end with the old text', function () {
+        const pending = new Map();
+        let next = 1;
+        const saved = {
+            setTimeout: global.setTimeout,
+            clearTimeout: global.clearTimeout,
+        };
+        global.setTimeout = fn => {
+            pending.set(next, fn);
+            return next++;
+        };
+        global.clearTimeout = id => pending.delete(id);
+        try {
+            const { v } = makeEtv({ itemFormat: '{text}' });
+            v.setFocus(true);
+            for (const ch of 'ab|04x') {
+                v.onKeyPress(ch);
+            }
+            assert.ok(v._pipeExpanded, 'the |04 is shown as typed');
+            assert.equal(pending.size, 1, 'and its collapse is pending');
+
+            v.setText('zz', false); //  not drawn: setText() itself ends them
+            assert.equal(v._pipeExpanded, false);
+            assert.equal(v._pipeTimer, null);
+            assert.equal(pending.size, 0);
+        } finally {
+            global.setTimeout = saved.setTimeout;
+            global.clearTimeout = saved.clearTimeout;
+        }
     });
 
     describe('MaskEditTextView', function () {

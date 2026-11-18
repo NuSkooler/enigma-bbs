@@ -475,6 +475,11 @@ class EditTextView extends TextView {
 
         if (redraw) {
             this.redraw();
+            //  The redraw leaves the terminal cursor past the field; a focused
+            //  field's next key must echo at its edit cursor.
+            if (this.hasFocus && this.lineBuffer) {
+                this._positionCursor(true);
+            }
         }
     }
 
