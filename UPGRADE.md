@@ -22,6 +22,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.1-beta to 0.6.0-beta
 
+* **An area that is both an ActivityPub area and an FTN echo** ([#1032](https://github.com/NuSkooler/enigma-bbs/issues/1032)). This applies only if you map an ActivityPub area (for example `activitypub_shared`) as an FTN echo as well.
+
+  **What changes by itself:** a local post that ActivityPub delivers before the FTN export scan reaches it is now sent to the echo too. Before, with scheduled export, such a post never reached the echo.
+
+  **Action:** none. Posts ActivityPub delivered before you upgrade are left as they were and are not sent to the echo now.
+
 * **Pipe codes are measured the way they are drawn** ([#1022](https://github.com/NuSkooler/enigma-bbs/issues/1022)). Nothing in your configuration, menus or themes needs to change, and colours look the same.
 
   **What changes by itself:** padded and truncated text that carries `||`, `|CF##`, an unknown `|XY` or a pipe-coded MCI value now takes the columns it shows, so it can sit up to one column per `||` (or a few per `|CF##`) differently than before. In message bodies, `|1A`-style text shows as typed and `|CF##` moves the cursor in ANSI messages. The REST API's `stripAnsi` (on by default) now strips pipe codes as well as ANSI, so API clients get message and file text without `|07`-style codes; pass `?stripAnsi=false` for the raw text, as before.
