@@ -3635,6 +3635,31 @@ describe('BsoSpool — poll requests (zero-length flow files)', () => {
     });
 
     describe('removePollFiles()', () => {
+        it('keeps the file if the lock is lost while its size is being checked', async () => {
+            const clo = ob('00680001.clo');
+            await fsp.writeFile(clo, '');
+            const lock = spool.newLockSet();
+            assert.ok(await spool.lockNode(TEST_ADDR, lock));
+
+            //  settle() gave up and closed the lock mid-check; another mailer
+            //  then took the node and queued mail into the file
+            const realLstat = fsp.lstat;
+            fsp.lstat = async p => {
+                const st = await realLstat(p);
+                if (p === clo) {
+                    await lock.close();
+                }
+                return st;
+            };
+            try {
+                assert.deepEqual(await spool.removePollFiles([clo], { lock }), []);
+            } finally {
+                fsp.lstat = realLstat;
+                await lock.close();
+            }
+            assert.equal(await exists(clo), true);
+        });
+
         it('removes an empty poll file while holding its lock', async () => {
             const clo = ob('00680001.clo');
             await fsp.writeFile(clo, '');
@@ -3723,6 +3748,7 @@ describe('BsoSpool — poll requests (zero-length flow files)', () => {
             await fsp.writeFile(clo, '');
             const { session, lock, disposeMap } = await attachedWithLock();
             try {
+                session.emit('addresses', ['1:104/1@fidonet']);
                 session.emit('session-end');
                 assert.equal(await disposeMap.settle(), true);
                 assert.equal(await exists(clo), false);
@@ -3761,6 +3787,41 @@ describe('BsoSpool — poll requests (zero-length flow files)', () => {
                 assert.equal(await fsp.readFile(clo, 'utf8'), '^/somewhere/mail.pkt\n');
             } finally {
                 await lock.close();
+            }
+        });
+
+        it('keeps the poll file when the system we called did not present the address we dialled', async () => {
+            const clo = ob('00680001.clo');
+            await fsp.writeFile(clo, '');
+            const { session, lock, disposeMap } = await attachedWithLock();
+            try {
+                session.emit('addresses', ['1:104/2', '2:250/1']);
+                session.emit('session-end');
+                await disposeMap.settle();
+                assert.equal(await exists(clo), true);
+            } finally {
+                await lock.close();
+            }
+        });
+
+        it('takes the dialled address in any of the forms a mailer presents it', async () => {
+            for (const presented of [
+                '1:104/1',
+                '1:104/1.0',
+                '104/1',
+                '1:104/1@fidonet',
+            ]) {
+                const clo = ob('00680001.clo');
+                await fsp.writeFile(clo, '');
+                const { session, lock, disposeMap } = await attachedWithLock();
+                try {
+                    session.emit('addresses', ['2:250/1', presented]);
+                    session.emit('session-end');
+                    await disposeMap.settle();
+                    assert.equal(await exists(clo), false, presented);
+                } finally {
+                    await lock.close();
+                }
             }
         });
 

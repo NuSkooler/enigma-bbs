@@ -803,6 +803,16 @@ class BsoSpool {
                     );
                     return;
                 }
+                //  Again, with nothing awaited between this and the unlink:
+                //  the lock can go while lstat() runs (settle() gives up and
+                //  closes it), and then another mailer may write to the file.
+                if (!lock.holdsFlowFile(pollPath)) {
+                    Log.debug(
+                        { path: pollPath },
+                        '[BinkP/BSO] Session no longer holds the lock for a poll request; leaving it'
+                    );
+                    return;
+                }
                 try {
                     await fsp.unlink(pollPath);
                     removed.push(pollPath);
@@ -2055,19 +2065,49 @@ async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
     //  |disposeMap| so that settle() waits for it, and the lock is still held
     //  while removePollFiles() checks and unlinks.
     //
+    //  On the originating side a poll is noted with the address it was read
+    //  for, and only counts as answered if the remote presented that address
+    //  (M_ADR): the host we dialled may answer as some other system. The
+    //  answering side only reads polls for addresses already authenticated.
+    //
     const pollFiles = [];
     let pollLock = null;
-    const onPollFile = p => {
-        if (!pollFiles.includes(p)) pollFiles.push(p);
+    let presented = [];
+    session.on('addresses', addrs => {
+        presented = Array.isArray(addrs) ? addrs : [];
+    });
+    const notePollFile = (p, addr) => {
+        if (!pollFiles.some(e => e.path === p)) pollFiles.push({ path: p, addr });
+    };
+    const onPollFile = p => notePollFile(p, null);
+    const answeredBy = addr => {
+        if (!addr) {
+            return true;
+        }
+        const want = addr instanceof Address ? addr : new Address(addr);
+        return presented.some(s => {
+            try {
+                return Boolean(want) && want.isEquivalent(s, { defaultZone: want.zone });
+            } catch (e) {
+                return false;
+            }
+        });
     };
     session.on('session-end', () => {
         if (0 === pollFiles.length || !pollLock) {
             return;
         }
+        const answered = pollFiles.splice(0).filter(e => answeredBy(e.addr));
+        if (0 === answered.length) {
+            return;
+        }
         disposeMap._track(
             (async () => {
                 await listing.catch(() => {});
-                await spool.removePollFiles(pollFiles.splice(0), { lock: pollLock });
+                await spool.removePollFiles(
+                    answered.map(e => e.path),
+                    { lock: pollLock }
+                );
             })()
         );
     });
@@ -2101,7 +2141,10 @@ async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
                 continue;
             }
             pollLock = lock;
-            const files = await spool.getOutboundFilesForNode(addr, { lock, onPollFile });
+            const files = await spool.getOutboundFilesForNode(addr, {
+                lock,
+                onPollFile: p => notePollFile(p, addr),
+            });
             for (const f of files) {
                 session.queueFile(f.path, f.name, f.size, f.timestamp, f.disposition, {
                     allowed: f.allowed,
