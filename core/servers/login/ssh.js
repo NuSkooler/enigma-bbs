@@ -61,6 +61,35 @@ function SSHClient(clientConn, connInfo) {
 
     self.sshClientIdent = _.get(connInfo, 'header.identRaw');
 
+    //
+    //  The connection counts against general.maxConnections from here, but
+    //  the idle monitor starts only with the shell, and SSH keepalives are
+    //  off (see createServer()). A caller that stops part way through key
+    //  exchange or authentication would hold its node until it closed the
+    //  connection itself, so it gets loginTimeoutSeconds to reach the shell
+    //  (#1080). Cleared once the shell is open, or the connection is gone.
+    //
+    const loginTimeoutMs = SSHClient.getLoginTimeoutMs();
+    if (loginTimeoutMs > 0) {
+        self.loginTimer = setTimeout(() => {
+            delete self.loginTimer;
+            (self.log || Log).info(
+                { loginTimeoutSeconds: loginTimeoutMs / 1000 },
+                'SSH connection did not reach a shell in time; ending it'
+            );
+            return self.endAndClose();
+        }, loginTimeoutMs);
+        //  this timer alone must not keep the process up
+        self.loginTimer.unref();
+    }
+
+    this.clearLoginTimer = function () {
+        if (self.loginTimer) {
+            clearTimeout(self.loginTimer);
+            delete self.loginTimer;
+        }
+    };
+
     clientConn.on('authentication', function authAttempt(ctx) {
         const username = ctx.username || '';
         const config = Config();
@@ -145,6 +174,10 @@ function SSHClient(clientConn, connInfo) {
             );
         };
 
+        //  the connection ended while the login was under way (see
+        //  userLogin()): there is nothing to answer, and nobody to answer
+        const isClientEnded = err => ErrorReasons.ClientEnded === err.reasonCode;
+
         const isSpecialHandleError = err => {
             return [
                 ErrorReasons.AlreadyLoggedIn,
@@ -178,6 +211,10 @@ function SSHClient(clientConn, connInfo) {
                 //  step 1: login/auth using PubKey
                 userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
                     if (err) {
+                        if (isClientEnded(err)) {
+                            return;
+                        }
+
                         if (isSpecialHandleError(err)) {
                             return handleSpecialError(err, username);
                         }
@@ -223,6 +260,10 @@ function SSHClient(clientConn, connInfo) {
             ctx.prompt(interactivePrompt, function retryPrompt(answers) {
                 userLogin(self, username, answers[0] || '', err => {
                     if (err) {
+                        if (isClientEnded(err)) {
+                            return;
+                        }
+
                         if (isSpecialHandleError(err)) {
                             return handleSpecialError(err, username);
                         }
@@ -386,6 +427,8 @@ function SSHClient(clientConn, connInfo) {
             session.on('shell', accept => {
                 self.log.debug('SSH shell event');
 
+                self.clearLoginTimer();
+
                 const channel = accept();
 
                 self.setInputOutput(channel.stdin, channel.stdout);
@@ -419,6 +462,7 @@ function SSHClient(clientConn, connInfo) {
     //  Guard against both 'end' and 'close' firing for the same disconnect
     let endEmitted = false;
     const emitEnd = () => {
+        self.clearLoginTimer();
         if (!endEmitted) {
             endEmitted = true;
             self.emit('end'); //  remove client connection/tracking
@@ -426,7 +470,15 @@ function SSHClient(clientConn, connInfo) {
     };
 
     clientConn.on('end', emitEnd);
-    clientConn.on('close', emitEnd); //  fired on abrupt disconnects where 'end' is not emitted
+    clientConn.on('close', () => {
+        //
+        //  Only once the socket has closed is endAndClose()'s timer no longer
+        //  needed: 'end' is the caller's FIN alone, and a socket can stay
+        //  half open after it.
+        //
+        clearTimeout(self.closeGraceTimer);
+        return emitEnd(); //  'close' alone on abrupt disconnects where 'end' is not emitted
+    });
 
     clientConn.on('error', err => {
         (self.log || Log).warn(
@@ -438,6 +490,27 @@ function SSHClient(clientConn, connInfo) {
 
     this.disconnect = function () {
         return clientConn.end();
+    };
+
+    //
+    //  End the client (Client.prototype.end(): its teardown, then a
+    //  disconnect), and close the socket outright shortly after if the
+    //  caller has not closed its side: ending sends a disconnect and a FIN,
+    //  and a caller that never answers would leave the socket half closed.
+    //  Used where this side gives up on a connection that has not reached a
+    //  shell: a refusal (see refuseConnection()) and the login timeout.
+    //
+    this.endAndClose = function () {
+        self.end();
+
+        clearTimeout(self.closeGraceTimer);
+        self.closeGraceTimer = setTimeout(() => {
+            if (self.rawSocket && !self.rawSocket.destroyed) {
+                self.rawSocket.destroy();
+            }
+        }, SSHClient.EndCloseGraceMs);
+        //  this timer alone must not keep the process up
+        self.closeGraceTimer.unref();
     };
 
     //
@@ -456,23 +529,16 @@ function SSHClient(clientConn, connInfo) {
     this.refuseConnection = function (message) {
         self.refusalMessage = message;
 
-        let graceTimer;
+        //  the refusal has its own, shorter, timer
+        self.clearLoginTimer();
+
         const refusalTimer = setTimeout(() => {
             self.log.debug('Refused SSH connection still open; ending it');
-            self.end();
-
-            //  end() sends a disconnect and a FIN; a caller that never closes
-            //  its side would leave the socket half closed
-            graceTimer = setTimeout(() => {
-                if (self.rawSocket && !self.rawSocket.destroyed) {
-                    self.rawSocket.destroy();
-                }
-            }, SSHClient.RefusalCloseGraceMs);
+            return self.endAndClose();
         }, SSHClient.RefusalTimeoutMs);
 
         clientConn.once('close', () => {
             clearTimeout(refusalTimer);
-            clearTimeout(graceTimer);
             self.end();
         });
     };
@@ -482,12 +548,40 @@ util.inherits(SSHClient, baseClient.Client);
 
 SSHClient.ValidAuthMethods = ['password', 'keyboard-interactive', 'publickey'];
 
-//  How long a refused connection may stay open to be shown why, how long
-//  after that it is closed outright if the caller has not closed it, and how
-//  many other authentication methods it may try before keyboard-interactive
+//  How long a refused connection may stay open to be shown why, and how many
+//  other authentication methods it may try before keyboard-interactive
 SSHClient.RefusalTimeoutMs = 10000;
-SSHClient.RefusalCloseGraceMs = 2000;
 SSHClient.RefusalSteerAttempts = 3;
+
+//  How long a caller has to close its side after endAndClose() (a refusal or
+//  the login timeout) before the socket is closed outright
+SSHClient.EndCloseGraceMs = 2000;
+
+//
+//  How long a connection may take to reach the shell (key exchange,
+//  authentication, the session and shell requests), from
+//  loginServers.ssh.loginTimeoutSeconds. 0 turns the limit off; anything
+//  else that is not a positive number gets the default, as OpenSSH's
+//  LoginGraceTime.
+//
+//  A Node timer holds at most 2^31 - 1 ms (about 24.8 days); a longer one
+//  fires after 1 ms instead, which would end every connection at once. A
+//  larger value is therefore held to that.
+//
+SSHClient.DefaultLoginTimeoutSeconds = 120;
+SSHClient.MaxLoginTimeoutSeconds = Math.floor((2 ** 31 - 1) / 1000); //  2147483
+
+SSHClient.getLoginTimeoutMs = function () {
+    const seconds = _.get(Config(), 'loginServers.ssh.loginTimeoutSeconds');
+    if (0 === seconds) {
+        return 0;
+    }
+    if (_.isFinite(seconds) && seconds > 0) {
+        const clamped = Math.min(seconds, SSHClient.MaxLoginTimeoutSeconds);
+        return Math.max(1, Math.round(clamped * 1000));
+    }
+    return SSHClient.DefaultLoginTimeoutSeconds * 1000;
+};
 
 exports.SSHClient = SSHClient; //  for tests
 
