@@ -346,6 +346,9 @@ class BsoSpool {
                         //  unlinks/truncates per the queued disposition. Nothing
                         //  for the spool layer to do post-send.
                         disposeFn: null,
+                        //  The session deletes it only while it still holds the
+                        //  lock covering it: see stillLocked below.
+                        stillLocked: () => lock.holdsFlowFile(filePath),
                     });
                 } catch (err) {
                     if (err.code !== 'ENOENT') {
@@ -1207,6 +1210,13 @@ class BsoSpool {
                 //  above is still marked sent correctly.
                 disposeFn: () =>
                     this._applyFlowDisposition(flowPath, lineIdx, captured, policy, lock),
+                //  Whether the session still holds the lock covering this flow
+                //  file. Once it has lost it (removed or replaced underneath
+                //  it), another holder may be sending the same file, and the
+                //  flow file can no longer be marked: the sent file is left in
+                //  place, and sent again next session, rather than deleted or
+                //  truncated with its line still pointing at it.
+                stillLocked: () => lock.holdsFlowFile(flowPath),
             });
         }
 
@@ -1945,6 +1955,7 @@ async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
                 session.queueFile(f.path, f.name, f.size, f.timestamp, f.disposition, {
                     allowed: f.allowed,
                     checkTarget: f.checkTarget,
+                    stillLocked: f.stillLocked,
                 });
                 registerDispose(f);
             }
@@ -2108,7 +2119,11 @@ async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
                             f.size,
                             f.timestamp,
                             f.disposition,
-                            { allowed: f.allowed, checkTarget: f.checkTarget }
+                            {
+                                allowed: f.allowed,
+                                checkTarget: f.checkTarget,
+                                stillLocked: f.stillLocked,
+                            }
                         );
                         registerDispose(f);
                     }

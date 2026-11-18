@@ -3069,6 +3069,37 @@ describe('BsoSpool — the session locks every directory holding the node', () =
         assert.equal(await exists(canonicalBsy()), false);
     });
 
+    //  The session deletes or truncates a sent file only while it still
+    //  holds the lock covering it (BinkpSession._applyDisposition).
+    it('reports, per file, whether the lock covering it is still held', async () => {
+        await fsp.mkdir(outboundDir(tmpDir), { recursive: true });
+        const pkt = path.join(outboundDir(tmpDir), 'queued.pkt');
+        await fsp.writeFile(pkt, 'PKT');
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.flo'), `^${pkt}\n`);
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.out'), 'NETMAIL');
+
+        const lock = spool.newLockSet();
+        assert.equal(await spool.lockNode(TEST_ADDR, lock), true);
+        try {
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR, { lock });
+            assert.equal(files.length, 2);
+            assert.ok(
+                files.every(f => f.stillLocked()),
+                'held'
+            );
+
+            //  Removed underneath the session.
+            await fsp.unlink(canonicalBsy());
+            await require('../core/bso_lock')._refreshHeldNow();
+            assert.ok(
+                files.every(f => !f.stillLocked()),
+                'no longer held'
+            );
+        } finally {
+            await lock.releaseAll();
+        }
+    });
+
     it('does not read a flow file in a directory the lock does not cover', async () => {
         await fsp.mkdir(legacyDir());
         const pkt = path.join(legacyDir(), 'legacy.pkt');

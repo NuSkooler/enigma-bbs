@@ -142,11 +142,13 @@ async function truncateSentFile(filePath, checkTarget) {
 //  API:
 //    queueFile(filePath, name, size, timestamp, disposition, guard)
 //      disposition: 'delete' | 'truncate' | 'keep'
-//      guard: { allowed, checkTarget } as decided by BsoSpool. A delete or
-//        truncate happens only with allowed === true; without a guard the
-//        file is sent and left as it is.
+//      guard: { allowed, checkTarget, stillLocked } as decided by BsoSpool.
+//        A delete or truncate happens only with allowed === true; without a
+//        guard the file is sent and left as it is.
 //        checkTarget(): re-classifies the file just before it is deleted or
 //        truncated; see core/bso_flow_paths.js.
+//        stillLocked(): false once the .bsy covering the file is no longer
+//        held; the file is then left in place.
 //    start()
 //
 class BinkpSession extends EventEmitter {
@@ -319,6 +321,9 @@ class BinkpSession extends EventEmitter {
     }
 
     start() {
+        if (this._aborted) {
+            return; //  ended (abort()) before it started
+        }
         this._socket.resume();
         this._resetTimeout();
         if (this._opts.role === 'answering') {
@@ -1141,6 +1146,18 @@ class BinkpSession extends EventEmitter {
             Log.debug(
                 { path: file.path, disposition: file.disposition },
                 '[BinkP] Leaving sent file in place'
+            );
+            return;
+        }
+
+        //  The .bsy covering it was lost (removed, or reaped and taken by
+        //  another holder) while the session ran: someone else may be sending
+        //  this file, and its flow file line cannot be marked. Keep it; it is
+        //  sent again next session.
+        if ('function' === typeof guard.stillLocked && !guard.stillLocked()) {
+            Log.warn(
+                { path: file.path, disposition: file.disposition },
+                '[BinkP] Lock covering the sent file is no longer held; leaving the file in place'
             );
             return;
         }

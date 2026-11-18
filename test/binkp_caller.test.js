@@ -689,6 +689,31 @@ describe('BinkP caller', function () {
             }
         });
 
+        it('a call still connecting when shutdown starts hangs up without a session', async () => {
+            const callerModule = require('../core/binkp/caller.js');
+            const remote = await startSilentServer();
+            const addr = Address.fromString('1:218/700');
+            const spool = makeSpool();
+            const realConnect = callerModule._connect;
+            //  Shutdown begins while the connect is under way.
+            callerModule._connect = async (...args) => {
+                setStopping(true);
+                return realConnect(...args);
+            };
+            try {
+                const before = BinkpSession.liveCount();
+                await callNode(addr, { host: '127.0.0.1', port: remote.port }, spool);
+                assert.equal(BinkpSession.liveCount(), before, 'no session started');
+                const [bsyPath] = await spool.lockPathsForNode(addr);
+                assert.ok(!(await exists(bsyPath)), 'lock released');
+                await new Promise(r => setTimeout(r, 100));
+                assert.deepEqual(remote.received, [], 'nothing sent');
+            } finally {
+                callerModule._connect = realConnect;
+                await remote.stop();
+            }
+        });
+
         it('a remote that never closes its side is cut off, and the locks still go', async () => {
             const remote = await startSilentServer({ allowHalfOpen: true });
             const addr = Address.fromString('1:218/700');

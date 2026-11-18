@@ -76,7 +76,18 @@ async function callNode(addr, nodeConf, spool) {
     let disposeMap = null;
 
     try {
-        const socket = await _connect(host, port, tlsOpts);
+        //  Through the module object so a test can stand in for it.
+        const socket = await module.exports._connect(host, port, tlsOpts);
+        if (stopping) {
+            //  The system started stopping while this call was connecting:
+            //  hang up before starting a session; the finally releases.
+            socket.destroy();
+            Log.info(
+                { addr: addrStr },
+                '[BinkP/Caller] Stopping; not starting the session'
+            );
+            return;
+        }
 
         const session = new BinkpSession(socket, {
             role: 'originating',
@@ -300,4 +311,4 @@ function _connect(host, port, tlsOpts) {
     });
 }
 
-module.exports = { callNode, pollNodes, isPollConfigured, setStopping };
+module.exports = { callNode, pollNodes, isPollConfigured, setStopping, _connect };
