@@ -64,7 +64,9 @@ function createEmulation(name = DEFAULT_EMULATION) {
 //  handed around as a term (tests, modules that build a stand-in) is treated
 //  as ANSI, which is what it was before emulations existed. Those all share
 //  one instance: use it to read ANSI's parts, never to store per-client state
-//  (a stand-in term keeps its own termCapabilities).
+//  (a stand-in term keeps its own termCapabilities). Its input decoder is
+//  disposed from the start, so it holds nothing between chunks and anything
+//  fed to it is decoded at once, as by the stateless decode().
 //
 let fallback;
 function emulationOf(term) {
@@ -73,6 +75,7 @@ function emulationOf(term) {
     }
     if (!fallback) {
         fallback = createEmulation(DEFAULT_EMULATION);
+        fallback.inputDecoder.dispose();
     }
     return fallback;
 }
