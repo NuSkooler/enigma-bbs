@@ -5,6 +5,10 @@
 //  away cleanly and tracks nothing), SSH terminal info sent before the shell,
 //  and a WebSocket session ended from this side closing the WebSocket.
 //
+//  #1080: an SSH connection that does not reach the shell in time is ended
+//  and its node freed; a telnet socket ended from this side is closed if the
+//  caller never closes its side.
+//
 
 const { strict: assert } = require('assert');
 const { EventEmitter } = require('events');
@@ -620,6 +624,394 @@ describe('login servers (#1017)', function () {
                     config.loginServers.webSocket.proxied = previous;
                 }
             });
+        });
+    });
+
+    describe('SSH login timeout (#1080)', () => {
+        let saved1080;
+
+        beforeEach(() => {
+            saved1080 = {
+                loginTimeoutSeconds: config.loginServers.ssh.loginTimeoutSeconds,
+                closeGraceMs: ssh.SSHClient.RefusalCloseGraceMs,
+            };
+        });
+
+        afterEach(() => {
+            config.loginServers.ssh.loginTimeoutSeconds = saved1080.loginTimeoutSeconds;
+            ssh.SSHClient.RefusalCloseGraceMs = saved1080.closeGraceMs;
+
+            //  a test that fails must not leave the one node taken for the next
+            clientConns.clientConnections
+                .slice()
+                .forEach(client => clientConns.removeClient(client));
+        });
+
+        it('defaults to 120 seconds, as OpenSSH LoginGraceTime', () => {
+            assert.equal(configDefault().loginServers.ssh.loginTimeoutSeconds, 120);
+            config.loginServers.ssh.loginTimeoutSeconds = 120;
+            assert.equal(ssh.SSHClient.getLoginTimeoutMs(), 120000);
+        });
+
+        it('0 turns it off; a value that is not a number gets the default', () => {
+            config.loginServers.ssh.loginTimeoutSeconds = 0;
+            assert.equal(ssh.SSHClient.getLoginTimeoutMs(), 0);
+            ['120', -5, null, NaN].forEach(value => {
+                config.loginServers.ssh.loginTimeoutSeconds = value;
+                assert.equal(ssh.SSHClient.getLoginTimeoutMs(), 120000, String(value));
+            });
+        });
+
+        function connectTracked() {
+            const conn = makeSshConn();
+            const client = new ssh.SSHClient(conn, {
+                header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
+            });
+            new LoginServerModule().handleNewClient(client, conn._sock, ssh.moduleInfo);
+            conn._sock.destroyed = false;
+            conn._sock.destroy = () => {
+                conn._sock.destroyed = true;
+                conn.emit('close');
+            };
+            return { conn, client };
+        }
+
+        it('ends a connection that has not reached the shell, then frees its node', async () => {
+            config.loginServers.ssh.loginTimeoutSeconds = 0.01;
+            ssh.SSHClient.RefusalCloseGraceMs = 50;
+            const { conn, client } = connectTracked();
+            assert.ok(clientConns.clientConnections.includes(client));
+
+            await tick(30);
+            assert.equal(conn.endCount, 1, 'ended');
+            assert.equal(client.clientEnded, true);
+            assert.equal(conn._sock.destroyed, false, 'given the grace time');
+
+            await tick(60);
+            assert.equal(conn._sock.destroyed, true, 'closed outright');
+            assert.ok(!clientConns.clientConnections.includes(client), 'node freed');
+        });
+
+        it('does nothing to a connection that closes first', async () => {
+            config.loginServers.ssh.loginTimeoutSeconds = 0.01;
+            const { conn, client } = connectTracked();
+            conn.emit('close');
+            assert.ok(!clientConns.clientConnections.includes(client));
+            const endCount = conn.endCount;
+            await tick(30);
+            assert.equal(conn.endCount, endCount, 'timer did not fire');
+        });
+
+        it('is cleared when the shell opens', async () => {
+            config.loginServers.ssh.loginTimeoutSeconds = 0.01;
+            const { conn, client } = connectTracked();
+            let ready = 0;
+            client.removeAllListeners('ready'); //  no menus here
+            client.on('ready', () => (ready += 1));
+
+            conn.emit('ready');
+            const session = new EventEmitter();
+            conn.emit('session', () => session);
+            session.emit('shell', () => ({
+                stdin: new PassThrough(),
+                stdout: new PassThrough(),
+            }));
+            assert.equal(ready, 1);
+
+            await tick(30);
+            assert.equal(conn.endCount, 0, 'not ended');
+            assert.equal(client.clientEnded, false);
+            assert.ok(clientConns.clientConnections.includes(client));
+            conn.emit('close');
+        });
+
+        it('0 leaves a connection that has not reached the shell alone', async () => {
+            config.loginServers.ssh.loginTimeoutSeconds = 0;
+            const { conn, client } = connectTracked();
+            assert.equal(client.loginTimer, undefined);
+            await tick(20);
+            assert.equal(conn.endCount, 0);
+            conn.emit('close');
+        });
+
+        describe('a real SSH server', () => {
+            const crypto = require('crypto');
+            const fs = require('fs');
+            const net = require('net');
+            const os = require('os');
+            const path = require('path');
+            const ssh2 = require('ssh2');
+
+            let tmpDir;
+            let sockets;
+            let mod;
+            let port;
+            let clients;
+            let savedKey;
+
+            before(done => {
+                tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'enigma-ssh-1080-'));
+                const { privateKey } = crypto.generateKeyPairSync('rsa', {
+                    modulusLength: 2048,
+                    privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+                    publicKeyEncoding: { type: 'pkcs1', format: 'pem' },
+                });
+                const keyPath = path.join(tmpDir, 'host_key.pem');
+                fs.writeFileSync(keyPath, privateKey);
+
+                savedKey = {
+                    enabled: config.loginServers.ssh.enabled,
+                    privateKeyPem: config.loginServers.ssh.privateKeyPem,
+                    privateKeyPass: config.loginServers.ssh.privateKeyPass,
+                };
+                config.loginServers.ssh.enabled = true;
+                config.loginServers.ssh.privateKeyPem = keyPath;
+                config.loginServers.ssh.privateKeyPass = undefined;
+
+                mod = new ssh.getModule();
+                clients = [];
+                sockets = [];
+                const handleNewClient = mod.handleNewClient.bind(mod);
+                mod.handleNewClient = (client, sock, modInfo) => {
+                    clients.push(client);
+                    return handleNewClient(client, sock, modInfo);
+                };
+                mod.prepareClient = (client, cb) => cb(null); //  no themes here
+
+                mod.createServer(err => {
+                    if (err) {
+                        return done(err);
+                    }
+                    mod.server.listen(0, '127.0.0.1', () => {
+                        port = mod.server.address().port;
+                        return done();
+                    });
+                });
+            });
+
+            after(done => {
+                Object.assign(config.loginServers.ssh, savedKey);
+                clients.forEach(c => c.end());
+                sockets.forEach(s => s.destroy());
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+                mod.server.close(() => done());
+            });
+
+            function waitFor(what, test, ms = 3000) {
+                const start = Date.now();
+                return new Promise((resolve, reject) => {
+                    const check = () => {
+                        if (test()) {
+                            return resolve();
+                        }
+                        if (Date.now() - start > ms) {
+                            return reject(new Error(`timed out waiting for: ${what}`));
+                        }
+                        setTimeout(check, 10);
+                    };
+                    check();
+                });
+            }
+
+            //
+            //  ssh2 hands a connection over (and it takes a node) once the
+            //  caller has sent its identification line; this one then stops,
+            //  before key exchange, and never closes its side either.
+            //
+            it('a caller that stalls before key exchange is disconnected and its node freed', async () => {
+                config.loginServers.ssh.loginTimeoutSeconds = 0.2;
+                ssh.SSHClient.RefusalCloseGraceMs = 100;
+
+                const sock = net.connect({
+                    port,
+                    host: '127.0.0.1',
+                    allowHalfOpen: true,
+                });
+                sockets.push(sock);
+                sock.on('connect', () => sock.write('SSH-2.0-Stalled_1.0\r\n'));
+                sock.on('data', () => {});
+                let fin = false;
+                sock.on('end', () => (fin = true));
+                let closed = false;
+                sock.on('close', () => (closed = true));
+                sock.on('error', () => {});
+
+                await waitFor('the connection', () => clients.length > 0);
+                const client = clients[clients.length - 1];
+                assert.ok(clientConns.clientConnections.includes(client), 'holds a node');
+
+                await tick(100);
+                assert.equal(closed, false, 'not before the timeout');
+
+                await waitFor('the disconnect', () => fin);
+                assert.equal(closed, false, 'the caller has not closed its side');
+                await waitFor('the socket to be closed outright', () => {
+                    return client.rawSocket.destroyed;
+                });
+                await waitFor('the node to be freed', () => {
+                    return !clientConns.clientConnections.includes(client);
+                });
+                assert.equal(client.clientEnded, true);
+            });
+
+            it('a caller that stalls during authentication is disconnected and its node freed', async () => {
+                config.loginServers.ssh.loginTimeoutSeconds = 0.3;
+                const count = clients.length;
+
+                const sshClient = new ssh2.Client();
+                let closed = false;
+                let authAsked = false;
+                sshClient.on('close', () => (closed = true));
+                sshClient.on('error', () => {});
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username: 'somebody',
+                    //  key exchange done; then never says how it will authenticate
+                    authHandler: () => {
+                        authAsked = true;
+                    },
+                });
+
+                await waitFor('the session', () => clients.length > count);
+                const client = clients[clients.length - 1];
+                await waitFor('authentication', () => authAsked);
+                assert.ok(clientConns.clientConnections.includes(client), 'holds a node');
+
+                await waitFor('the disconnect', () => closed);
+                await waitFor('the node to be freed', () => {
+                    return !clientConns.clientConnections.includes(client);
+                });
+            });
+
+            it('a caller that logs in and opens a shell keeps its connection', async () => {
+                config.loginServers.ssh.loginTimeoutSeconds = 0.2;
+                const count = clients.length;
+
+                const sshClient = new ssh2.Client();
+                let closed = false;
+                sshClient.on('close', () => (closed = true));
+                sshClient.on('error', () => {});
+
+                await new Promise((resolve, reject) => {
+                    sshClient.on('ready', () => {
+                        //  No pty request: a terminal type would go through
+                        //  ClientTerminal, which reads a Config captured by
+                        //  whichever test file loaded it first.
+                        sshClient.shell(false, (err, stream) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            stream.on('data', () => {});
+                            return resolve();
+                        });
+                    });
+                    sshClient.on('error', reject);
+                    sshClient.connect({
+                        host: '127.0.0.1',
+                        port,
+                        username: 'new',
+                        password: 'x',
+                    });
+                });
+
+                await waitFor('the session', () => clients.length > count);
+                const client = clients[clients.length - 1];
+                await waitFor('the shell', () => Boolean(client.input));
+                assert.equal(client.loginTimer, undefined, 'timer cleared');
+
+                await tick(400); //  twice the timeout
+                assert.equal(closed, false, 'still connected');
+                assert.equal(client.clientEnded, false);
+                assert.ok(clientConns.clientConnections.includes(client));
+
+                sshClient.end();
+                await waitFor('the node to be freed', () => {
+                    return !clientConns.clientConnections.includes(client);
+                });
+            });
+        });
+    });
+
+    describe('telnet socket ended from this side (#1080)', () => {
+        const net = require('net');
+        let server;
+        let port;
+        let graceMs;
+        const sockets = [];
+
+        before(done => {
+            graceMs = telnet.TelnetClient.EndCloseGraceMs;
+            server = net.createServer(socket => {
+                const client = new telnet.TelnetClient(socket);
+                client.banner();
+                new LoginServerModule().handleNewClient(
+                    client,
+                    socket,
+                    telnet.moduleInfo
+                );
+                server.emit('enigma client', client);
+            });
+            server.listen(0, '127.0.0.1', () => {
+                port = server.address().port;
+                return done();
+            });
+        });
+
+        after(done => {
+            telnet.TelnetClient.EndCloseGraceMs = graceMs;
+            sockets.forEach(s => s.destroy());
+            server.close(() => done());
+        });
+
+        //  a caller that does not close its side when this side ends
+        function call() {
+            return new Promise(resolve => {
+                const sock = net.connect({
+                    port,
+                    host: '127.0.0.1',
+                    allowHalfOpen: true,
+                });
+                sockets.push(sock);
+                const got = { data: [], sock, closed: false };
+                sock.on('data', d => got.data.push(d));
+                sock.on('end', () => (got.fin = true));
+                sock.on('close', () => (got.closed = true));
+                sock.on('error', () => {});
+                server.once('enigma client', client => {
+                    got.client = client;
+                    return resolve(got);
+                });
+            });
+        }
+
+        it('closes the socket once the grace time has passed, after the last output', async () => {
+            telnet.TelnetClient.EndCloseGraceMs = 100;
+            const got = await call();
+            got.client.term.write('Goodbye!');
+            got.client.end();
+
+            await tick(50);
+            assert.equal(got.fin, true, 'FIN sent');
+            assert.equal(got.client.rawSocket.destroyed, false, 'waiting for the caller');
+
+            await tick(200);
+            assert.equal(got.client.rawSocket.destroyed, true, 'closed outright');
+            const text = Buffer.concat(got.data).toString('latin1');
+            assert.ok(text.endsWith('Goodbye!'), text);
+            assert.ok(!clientConns.clientConnections.includes(got.client), 'node freed');
+        });
+
+        it('a caller that closes its side in time is closed as before', async () => {
+            telnet.TelnetClient.EndCloseGraceMs = 5000;
+            const got = await call();
+            got.client.end();
+            await tick(50);
+            assert.equal(got.fin, true);
+            got.sock.end();
+            await tick(50);
+            assert.equal(got.closed, true);
+            assert.equal(got.client.rawSocket.destroyed, true);
         });
     });
 });

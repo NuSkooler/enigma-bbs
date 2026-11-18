@@ -751,6 +751,12 @@ module.exports = {
         description:
             'Menu entered when connecting as one of users.newUserNames; must name an entry in menu.hjson.',
     },
+    'loginServers.ssh.loginTimeoutSeconds': {
+        type: 'number',
+        min: 0,
+        description:
+            'Seconds a connection may take from connecting to reaching the shell (key exchange and login) before it is disconnected. 0 disables.',
+    },
     'loginServers.webSocket.ws.port': PORT,
     'loginServers.webSocket.wss.port': PORT,
     'loginServers.webSocket.proxied': {

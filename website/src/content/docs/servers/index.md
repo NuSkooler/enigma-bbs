@@ -46,7 +46,10 @@ the board is full is not given a node, and is turned away with
 Each refusal is logged at `info` level ("All nodes are busy; refusing
 connection"). A caller who is turned away never takes a node, not even while
 the SSH message is being shown. A caller who is let in takes one as soon as it
-connects; over SSH that is before it has logged in.
+connects; over SSH that is before it has logged in, so an SSH connection that
+has not reached the shell within `loginServers.ssh.loginTimeoutSeconds` (120 by
+default) is disconnected and its node freed; see
+[SSH Login Timeout](loginservers/ssh.md#login-timeout).
 
 ```hjson
 general: {

@@ -745,6 +745,12 @@
                             "type": "string",
                             "default": "sshConnectedNewUser"
                         },
+                        "loginTimeoutSeconds": {
+                            "description": "Seconds a connection may take from connecting to reaching the shell (key exchange and login) before it is disconnected. 0 disables.",
+                            "type": "number",
+                            "minimum": 0,
+                            "default": 120
+                        },
                         "untrustedTermSizeClients": {
                             "type": "array",
                             "items": {
