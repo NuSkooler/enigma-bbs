@@ -469,6 +469,14 @@ function shutdown(cb, { timeoutMs = Timeouts.shutdownFlushMs, log } = {}) {
     Promise.all([...sessions.map(s => s._run.settled), ...idleFlushes]).then(report);
 }
 
+//  _finishRun()'s log line, by why the run was stopped from our side
+const StopRunMessages = {
+    hangup: 'Client disconnected — terminating v86 worker',
+    timeup: 'Caller out of time — terminating v86 worker',
+    leave: 'Caller left the door — terminating v86 worker',
+    shutdown: 'Server shutting down — terminating v86 worker',
+};
+
 exports.moduleInfo = {
     name: 'V86Door',
     desc: 'Native x86/DOS Door Emulation via v86',
@@ -492,6 +500,14 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
         async.series(
             [
+                function notTimedUp(callback) {
+                    //  the caller is being logged off: start nothing for them
+                    if (self.client.timeUpEmitted) {
+                        return callback(Errors.General('Time is up'));
+                    }
+                    return callback(null);
+                },
+
                 function validateConfig(callback) {
                     return self.validateConfigFields(
                         { name: 'string', image: 'string' },
@@ -681,10 +697,22 @@ exports.getModule = class V86DoorModule extends MenuModule {
     }
 
     //
+    //  The menu stack is moving on while the door runs: time-up
+    //  (timeUpLogoff), an idle logoff, or anything else that takes the caller
+    //  elsewhere. Called before the next menu draws.
+    //
+    leave() {
+        super.leave();
+        this._left = true;
+        this._stopRun(this.client.timeUpEmitted ? 'timeup' : 'leave');
+    }
+
+    //
     //  The slot is taken: from here every way out goes through _finishRun().
-    //  The hangup watcher is set now, not when the worker starts, so a caller
-    //  who hangs up while the floppy is built or the image loads is noticed
-    //  and no worker is started for them.
+    //  The hangup and time-up watchers are set now, not when the worker
+    //  starts, so a caller who hangs up or runs out of time while the floppy
+    //  is built or the image loads is noticed and no worker is started for
+    //  them.
     //
     _beginRun() {
         this._incrementInstances();
@@ -693,6 +721,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
             finished: false,
             hungUp: false,
             reason: null,
+            detached: false,
             worker: null,
             done: null,
             spinner: null,
@@ -715,10 +744,17 @@ exports.getModule = class V86DoorModule extends MenuModule {
             }
         };
         Events.on(Events.getSystemEvents().ClientDisconnected, run.onDisconnect);
+
+        run.onTimeUp = () => this._stopRun('timeup');
+        this.client.on('time up', run.onTimeUp);
     }
 
-    //  The caller is gone, or the server is stopping: end the run now if the
-    //  worker is going, else when the step under way calls back
+    //
+    //  The caller is gone (hangup), out of time (timeup), taken elsewhere
+    //  (leave), or the server is stopping (shutdown). The caller is detached
+    //  at once; the run ends now if the worker is going, else when the step
+    //  under way calls back. The first reason is the one kept.
+    //
     _stopRun(reason) {
         const run = this._run;
         if (!run || run.finished || run.hungUp) {
@@ -726,8 +762,38 @@ exports.getModule = class V86DoorModule extends MenuModule {
         }
         run.hungUp = true;
         run.reason = reason;
+        this._detachCaller();
         if (run.done) {
             run.done(null);
+        }
+    }
+
+    //
+    //  From here nothing of the run reaches the caller's terminal and nothing
+    //  the caller types reaches the guest. Synchronous, once, and writes
+    //  nothing: on time-up with no logoff art the caller has just been sent a
+    //  goodbye and ended, and a write queued behind it would cost them it.
+    //
+    _detachCaller() {
+        const run = this._run;
+        if (!run || run.detached) {
+            return;
+        }
+        run.detached = true;
+
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            run.onDisconnect
+        );
+        this.client.removeListener('time up', run.onTimeUp);
+        clearInterval(run.spinner);
+        if (run.inputSource) {
+            run.inputSource.removeListener('data', run.onClientData);
+        }
+        //  the caller's time in the door ends here
+        if (run.doorTracking) {
+            DoorUtil.trackDoorRunEnd(run.doorTracking);
+            run.doorTracking = null;
         }
     }
 
@@ -800,6 +866,9 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     break;
 
                 case 'output':
+                    if (run.detached) {
+                        break; //  the caller is gone or elsewhere
+                    }
                     stopSpinner();
                     self.client.term.passThroughWrite(Buffer.from(msg.data));
                     break;
@@ -871,14 +940,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
         }
         run.finished = true;
 
-        Events.removeListener(
-            Events.getSystemEvents().ClientDisconnected,
-            run.onDisconnect
-        );
-        clearInterval(run.spinner);
-        if (run.inputSource) {
-            run.inputSource.removeListener('data', run.onClientData);
-        }
+        this._detachCaller();
 
         let stopped = Promise.resolve(true);
         if (run.worker) {
@@ -893,10 +955,6 @@ exports.getModule = class V86DoorModule extends MenuModule {
             stopped = terminateWorker(worker, Timeouts.terminateMs);
         }
 
-        if (run.doorTracking) {
-            DoorUtil.trackDoorRunEnd(run.doorTracking);
-            run.doorTracking = null;
-        }
         this._decrementInstances();
 
         if (err) {
@@ -904,9 +962,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
         } else if (run.hungUp) {
             this.client.log.info(
                 { name: this.config.name, reason: run.reason },
-                'shutdown' === run.reason
-                    ? 'Server shutting down — terminating v86 worker'
-                    : 'Client disconnected — terminating v86 worker'
+                StopRunMessages[run.reason] || StopRunMessages.hangup
             );
         }
 
@@ -938,7 +994,9 @@ exports.getModule = class V86DoorModule extends MenuModule {
                 run.settle();
             });
 
-        if (!run.hungUp) {
+        //  ended by the door itself (or an error): back to the menu, unless
+        //  the menu stack has moved on already
+        if (!run.hungUp && !this._left) {
             this.prevMenu();
         }
     }

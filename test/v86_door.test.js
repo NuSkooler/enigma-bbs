@@ -94,6 +94,21 @@ function hangUp(client) {
     Events.emit(ClientDisconnected, { client });
 }
 
+//  As user_time.js does it when the day's budget is gone
+function timeUp(client) {
+    client.timeUpEmitted = true;
+    client.emit('time up');
+}
+
+//  everything written to the caller's terminal from now on
+function watchTerminal(client) {
+    const writes = [];
+    for (const k of ['write', 'rawWrite', 'passThroughWrite']) {
+        client.term[k] = data => writes.push({ k, data });
+    }
+    return writes;
+}
+
 //
 //  A worker as the door sees a real one: terminate() ends it with 'exit'
 //  (code 1) and no 'stopped' message. |holdTerminate| makes terminate()
@@ -1117,6 +1132,143 @@ describe('v86_door', () => {
             } finally {
                 opens.restore();
             }
+        });
+
+        describe('time-up and leave (#1066)', () => {
+            //  the guest has drawn its screen: the caller is in the door
+            function guestSpeaks(m) {
+                m.worker.emit('message', { type: 'output', data: Buffer.from('LORD') });
+            }
+
+            //  the guest goes away, if it has not been ended already
+            function guestStops(m) {
+                m.worker.emit('message', { type: 'stopped', elapsed: 10 });
+                m.worker.exit(0);
+            }
+
+            it('time-up: nothing more reaches the terminal, the guest is stopped and its writes flushed', async () => {
+                const m = await startRunning({ name, image: img });
+                let wentBack = false;
+                m.prevMenu = () => (wentBack = true);
+                const input = m.client.term.output;
+                guestSpeaks(m);
+                m.worker.guestWrite(30, 0x30);
+                const writes = watchTerminal(m.client);
+                timeUp(m.client);
+                assert.equal(input.listenerCount('data'), 0, 'no key reaches the guest');
+                assert.equal(m.client.listenerCount('time up'), 0);
+                guestSpeaks(m);
+                guestStops(m);
+                await settled(m);
+                assert.deepEqual(writes, [], 'nothing written after time-up');
+                assert.equal(m.worker.terminateCalls, 1);
+                assert.equal(fs.readFileSync(img)[30], 0x30);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(wentBack, false, 'timeUpLogoff owns the navigation');
+                assert.equal(trackEnds.length, 1);
+                assert.ok(
+                    m.client.log.lines.some(
+                        l =>
+                            l.obj &&
+                            'timeup' === l.obj.reason &&
+                            /out of time/.test(l.msg)
+                    )
+                );
+            });
+
+            it('time-up then hangup: one finish, reason timeup', async () => {
+                const m = await startRunning({ name, image: img });
+                m.prevMenu = () => assert.fail('no menu');
+                guestSpeaks(m);
+                timeUp(m.client);
+                hangUp(m.client);
+                m.leave(); //  MenuStack moving on as well
+                guestStops(m);
+                await settled(m);
+                assert.equal(m._run.reason, 'timeup');
+                assert.equal(trackEnds.length, 1);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(m.worker.terminateCalls, 1);
+            });
+
+            it('hangup then time-up: one finish, reason hangup', async () => {
+                const m = await startRunning({ name, image: img });
+                guestSpeaks(m);
+                hangUp(m.client);
+                timeUp(m.client);
+                guestStops(m);
+                await settled(m);
+                assert.equal(m._run.reason, 'hangup');
+                assert.equal(trackEnds.length, 1);
+                assert.equal(activeDoorInstances[name], 0);
+            });
+
+            it('leave() ends the run without going back to a menu', async () => {
+                const m = await startRunning({ name, image: img });
+                let wentBack = false;
+                m.prevMenu = () => (wentBack = true);
+                guestSpeaks(m);
+                const writes = watchTerminal(m.client);
+                m.leave();
+                guestSpeaks(m);
+                guestStops(m);
+                await settled(m);
+                assert.equal(m._run.reason, 'leave');
+                assert.deepEqual(writes, []);
+                assert.equal(wentBack, false);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('leave() after the door ended itself changes nothing', async () => {
+                const m = await startRunning({ name, image: img });
+                guestStops(m);
+                assert.equal(await m.left, 'prevMenu');
+                m.leave(); //  the menu stack going back, as prevMenu() does
+                await settled(m);
+                assert.equal(m._run.reason, null);
+                assert.equal(trackEnds.length, 1);
+            });
+
+            it('time-up while the floppy is built starts no worker', async () => {
+                let resolveFloppy;
+                const saved = FatImage.createFloppyWithFiles;
+                FatImage.createFloppyWithFiles = () =>
+                    new Promise(resolve => (resolveFloppy = resolve));
+                try {
+                    const m = startDoor({ name, image: img, runBatch: 'DOOR' });
+                    await waitFor(() => resolveFloppy, 'the floppy build');
+                    m.prevMenu = () => assert.fail('no menu');
+                    timeUp(m.client);
+                    resolveFloppy(Buffer.alloc(1474560));
+                    await settled(m);
+                    assert.equal(workers.length, 0);
+                    assert.equal(activeDoorInstances[name], 0);
+                    assert.equal(m.client.listenerCount('time up'), 0);
+                } finally {
+                    FatImage.createFloppyWithFiles = saved;
+                }
+            });
+
+            it('time-up while the image loads starts no worker and releases the image', async () => {
+                const m = startDoor({ name, image: img });
+                timeUp(m.client);
+                await settled(m);
+                assert.equal(workers.length, 0);
+                assert.equal(activeDoorInstances[name], 0);
+                assert.equal(trackEnds.length, 1);
+                assert.ok(isIdle(img));
+            });
+
+            it('a door entered after time-up starts nothing', async () => {
+                const client = fakeClient();
+                client.timeUpEmitted = true;
+                const m = startDoor({ name, image: img }, { client });
+                await m.left;
+                assert.equal(workers.length, 0);
+                assert.equal(m._run, undefined, 'no slot taken');
+                assert.equal(activeDoorInstances[name] || 0, 0);
+            });
         });
 
         describe('server shutdown', () => {

@@ -21,7 +21,7 @@ Each active session runs in its own worker thread, isolated from other users. Mu
 3. The main thread bridges the user's terminal connection: forwarding keystrokes as line-mode or character-mode input and routing game output back to the client.
 4. Glk text styles are rendered as ANSI SGR; Z-Machine `set_colour` calls are hooked at the VM level and emit ANSI color codes inline.
 5. Output is word-wrapped server-side to a fixed width, and paginated with "-- More --" prompts so long passages don't scroll off screen.
-6. When the user types `QUIT`, the worker exits cleanly and control returns to the calling menu. If the caller disconnects, the worker is stopped at once; games are not saved between sessions yet, so nothing is lost that a clean exit would have kept.
+6. When the user types `QUIT`, the worker exits cleanly and control returns to the calling menu. If the caller disconnects, or their time for the day runs out (they go straight to the time-up logoff screen), the worker is stopped at once; games are not saved between sessions yet, so nothing is lost that a clean exit would have kept.
 
 ---
 
