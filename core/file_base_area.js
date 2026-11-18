@@ -393,31 +393,34 @@ function cleanupExtractTempSession(temptmp) {
     });
 }
 
+//  The first archive entry whose full path matches one of |patterns|
+function findEntryByPatterns(entries, patterns) {
+    //  :TODO: would be nice if these RegExp's were cached
+    return entries.find(e => patterns.some(pat => new RegExp(pat, 'i').test(e.fileName)));
+}
+
+//  Whether |entry| is one of the description files fileBase.fileNamePatterns name
+function isDescFileEntry(entry) {
+    const { desc, descLong } = Config().fileBase.fileNamePatterns;
+    return Boolean(findEntryByPatterns([entry], desc.concat(descLong)));
+}
+
 function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
     const temptmp = createExtractTempSession();
     async.waterfall(
         [
             function extractDescFiles(callback) {
-                //  :TODO: would be nice if these RegExp's were cached
-                //  :TODO: this is long winded...
                 const config = Config();
                 const extractList = [];
 
-                const shortDescFile = archiveEntries.find(e => {
-                    return config.fileBase.fileNamePatterns.desc.find(pat =>
-                        new RegExp(pat, 'i').test(e.fileName)
-                    );
-                });
+                const { desc, descLong } = config.fileBase.fileNamePatterns;
 
+                const shortDescFile = findEntryByPatterns(archiveEntries, desc);
                 if (shortDescFile) {
                     extractList.push(shortDescFile.fileName);
                 }
 
-                const longDescFile = archiveEntries.find(e => {
-                    return config.fileBase.fileNamePatterns.descLong.find(pat =>
-                        new RegExp(pat, 'i').test(e.fileName)
-                    );
-                });
+                const longDescFile = findEntryByPatterns(archiveEntries, descLong);
 
                 if (longDescFile) {
                     extractList.push(longDescFile.fileName);
@@ -451,7 +454,19 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                                 ArchiveUtil.findExtractedFile(
                                     tempDir,
                                     entry.fileName,
-                                    (err, path) => next(null, err ? null : path)
+                                    (err, path) => {
+                                        if (err) {
+                                            logDebug(
+                                                {
+                                                    entry: entry.fileName,
+                                                    error: err.message,
+                                                },
+                                                'Description file not found after extraction'
+                                            );
+                                            return next(null, null);
+                                        }
+                                        return next(null, path);
+                                    }
                                 );
                             };
 
@@ -476,6 +491,10 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 
                         fs.stat(path, (err, stats) => {
                             if (err) {
+                                logDebug(
+                                    { path, error: err.message },
+                                    `Cannot stat "${descType}" file`
+                                );
                                 return next(null);
                             }
 
@@ -499,6 +518,13 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 
                             fs.readFile(path, (err, data) => {
                                 if (err || !data) {
+                                    logDebug(
+                                        {
+                                            path,
+                                            error: err ? err.message : 'No data',
+                                        },
+                                        `Cannot read "${descType}" file`
+                                    );
                                     return next(null);
                                 }
 
@@ -569,7 +595,18 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
                             return ArchiveUtil.findExtractedFile(
                                 tempDir,
                                 extractList[0],
-                                callback
+                                (err, extractedFile) => {
+                                    if (err) {
+                                        logDebug(
+                                            {
+                                                entry: extractList[0],
+                                                error: err.message,
+                                            },
+                                            'Archive entry not found after extraction'
+                                        );
+                                    }
+                                    return callback(err, extractedFile);
+                                }
                             );
                         }
                     );
@@ -638,10 +675,11 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
                 //  work for things like zipped up .pdf files.
                 //
                 //  Otherwise, try to find particular desc files such as FILE_ID.DIZ
-                //  and README.1ST
+                //  and README.1ST -- including when one is the only entry, as in
+                //  a ZIP that holds nothing but its FILE_ID.DIZ.
                 //
                 const archDescHandler =
-                    1 === entries.length
+                    1 === entries.length && !isDescFileEntry(entries[0])
                         ? extractAndProcessSingleArchiveEntry
                         : extractAndProcessDescFiles;
                 archDescHandler(fileEntry, filePath, entries, err => {
