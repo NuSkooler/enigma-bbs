@@ -29,9 +29,9 @@ function makeClient(opts = {}) {
     const currentModule =
         false === opts.inModule ? null : { leave: () => (client.counts.leave += 1) };
     const stackEntry = currentModule
-            ? { instance: currentModule, left: false }
-                : undefined;
-        client.menuStack = { top: () => stackEntry };
+        ? { instance: currentModule, left: false }
+        : undefined;
+    client.menuStack = { top: () => stackEntry };
 
     client.user = {
         isAuthenticated: () => false !== opts.authenticated,
@@ -116,14 +116,14 @@ describe('Client.end()', () => {
         it('still disconnects when the first teardown threw', () => {
             const client = makeClient();
             client.menuStack = {
-                                top: () => ({
-                                                        instance: {
-                                                                                    leave: () => {
-                                                                                                                    throw new Error('module cleanup blew up');
-                                                                                        },
-                                                        },
-                                                        left: false,
-                                }),
+                top: () => ({
+                    instance: {
+                        leave: () => {
+                            throw new Error('module cleanup blew up');
+                        },
+                    },
+                    left: false,
+                }),
             };
 
             assert.throws(() => client.end(), /blew up/);
