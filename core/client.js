@@ -437,7 +437,7 @@ Client.prototype.end = function () {
             currentModuleInfo.left = true;
             currentModuleInfo.instance.leave();
         }
-        
+
         //  persist time online for authenticated users
         if (this.user.isAuthenticated()) {
             this.user.persistProperty(
