@@ -1192,9 +1192,8 @@ function FTNMessageScanTossModule() {
     //  completes.
     //
     //  A per-destination temp subdirectory would also keep the temp names
-    //  apart, but not the outbound ones, and an archiver such as Info-ZIP
-    //  stores the directory part of each path it is given -- so it would
-    //  change what goes into a bundle.
+    //  apart, but not the outbound ones; and bundles are built from the temp
+    //  area itself, with bare packet names (see deliverEchoMailPackets()).
     //
     this.allocateEchoMailPacketPath = function (dest, messageId, claimed) {
         const proposed = self.getOutgoingPacketFileName(
@@ -1720,8 +1719,9 @@ function FTNMessageScanTossModule() {
 
                                 claimedBundlePath = bundlePath;
 
-                                //  adjust back to temp path
-                                tempBundlePath = paths.join(
+                                //  adjust back to temp path (absolute: the
+                                //  archiver runs from the temp area)
+                                tempBundlePath = paths.resolve(
                                     self.exportTempDir,
                                     paths.basename(bundlePath)
                                 );
@@ -1737,11 +1737,21 @@ function FTNMessageScanTossModule() {
                                     //  cannot be used, say) would otherwise
                                     //  leave this export, and its claim on
                                     //  the name, unfinished for good.
+                                    //
+                                    //  Packets are named relative to the
+                                    //  temp area they are in, and the
+                                    //  archiver run from there: most store
+                                    //  the path of each file they are
+                                    //  given, and a bundle must hold bare
+                                    //  packet names. (Blue Wave and QWK
+                                    //  packets are built the same way.)
+                                    //
                                     try {
                                         self.archUtil.compressTo(
                                             exportOpts.nodeConfig.archiveType,
                                             tempBundlePath,
-                                            exportedFileNames,
+                                            exportedFileNames.map(f => paths.basename(f)),
+                                            self.exportTempDir,
                                             err => {
                                                 callback(err, [tempBundlePath]);
                                             }
