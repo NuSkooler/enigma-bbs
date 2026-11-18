@@ -373,32 +373,208 @@ function decode(data, host, emit) {
 }
 
 //
-//  A decoder for one connection. Key and query reply decoding keeps nothing
-//  between chunks (that is decode() above); in front of it sits the RIPscrip
-//  reply scanner (../rip/reply_scanner.js). expectRipReply() is called as the
-//  version query is sent; from then until the window closes (30 seconds) the
-//  scanner takes the first reply out of the input and reports it as
-//  'rip version'. Before and after, input goes straight to decode(). The
-//  scanner can hold back a few bytes that might start a reply split across
-//  chunks, so it is per connection, and dispose() drops what it holds.
+//  An unfinished control sequence at the end of a chunk (#942).
+//
+//  A terminal's reply (CPR, DA, CTDA, ...) or a key such as an arrow can be
+//  split across two reads by the network. decode() reads each chunk on its
+//  own, so the start of the sequence (ESC [ and some parameters) would name
+//  no key and its parameter bytes would come out as key presses, and so
+//  would the rest of it at the start of the next chunk.
+//
+//  So a chunk that ends in ESC [ followed only by parameter and intermediate
+//  bytes (0x20-0x3F), with no final byte yet, has that tail held back; the
+//  rest of the chunk is decoded at once. Any ESC bytes straight before the
+//  ESC [ are held with it, as decode() reads a run of them as one sequence.
+//  Nothing else is held: not a lone ESC (the Escape key, delivered at once
+//  as always), not ESC O, not ESC and any other byte. A key never ends in an
+//  unfinished CSI, so no key that decodes today is delayed.
+//
+//  The next chunk:
+//
+//      first byte 0x20-0x7E    it can carry on the sequence: the held bytes
+//                              and the chunk are decoded as one buffer (and
+//                              an unfinished tail of that is held in turn)
+//      anything else           the held bytes are decoded on their own, then
+//                              the chunk as the object it arrived as
+//
+//  When nothing comes within holdMs (default 100) the held bytes are decoded
+//  on their own: what decode() gives for them today, a little later. The
+//  timer is unref()ed and cleared by the next chunk and by dispose(). A tail
+//  longer than MAX_HELD_CSI_BYTES is not held.
+//
+const DEFAULT_CSI_HOLD_MS = 100;
+//  the longest reply parsed here (a DA reply) is about 30 bytes
+const MAX_HELD_CSI_BYTES = 64;
+
+const ESC = 0x1b;
+const isCsiParamOrIntermediate = byte => byte >= 0x20 && byte <= 0x3f;
+const canContinueCsi = byte => byte >= 0x20 && byte <= 0x7e;
+
+//  rxvt ends its shifted Insert/Delete/Page/Home/End keys in $ (ESC [ 2 $),
+//  a byte that is an intermediate to ECMA-48; decode() reads digits then $
+//  as a complete key, so it is not held. |params| is what follows ESC [.
+const isRxvtDollarKey = params => /^\d+(?:;\d+)?\$$/.test(params);
+
+//  Where an unfinished CSI that ends |buf| starts, or -1
+function unfinishedCsiStart(buf) {
+    let at = buf.length - 1;
+    while (at >= 0 && isCsiParamOrIntermediate(buf[at])) {
+        --at;
+    }
+    if (at < 1 || 0x5b !== buf[at] || ESC !== buf[at - 1]) {
+        return -1;
+    }
+    if (isRxvtDollarKey(buf.toString('latin1', at + 1))) {
+        return -1;
+    }
+    at -= 1;
+    while (at > 0 && ESC === buf[at - 1]) {
+        --at;
+    }
+    return at;
+}
+
+//  |onError(err)| receives errors from decoding held bytes on the timer
+function createCsiTailHolder({ holdMs, onError }) {
+    let held = null; //  Buffer: an unfinished CSI
+    let heldHost = null;
+    let heldEmit = null;
+    let timer = null;
+    let disposed = false;
+
+    const cancelTimer = () => {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
+    };
+
+    const takeHeld = () => {
+        const bytes = held;
+        held = null;
+        heldHost = null;
+        heldEmit = null;
+        return bytes;
+    };
+
+    function flushHeld() {
+        timer = null;
+        const host = heldHost;
+        const emit = heldEmit;
+        const bytes = takeHeld();
+        if (bytes) {
+            try {
+                decode(bytes, host, emit);
+            } catch (e) {
+                //  a timer must never throw: report it, if anyone listens
+                try {
+                    onError(e);
+                } catch (ignored) {
+                    //  nothing more to be done
+                }
+            }
+        }
+    }
+
+    //  |data| is what feed() was given, |buf| the bytes to look at: the same
+    //  bytes, or held bytes joined with them
+    function decodeHoldingTail(buf, data, host, emit) {
+        const at = unfinishedCsiStart(buf);
+        if (
+            -1 === at ||
+            buf.length - at > MAX_HELD_CSI_BYTES ||
+            //  decode() reads a chunk that is one byte above 0x7F as a meta
+            //  key; a byte like that ahead of the tail is not one
+            (1 === at && buf[0] > 0x7f)
+        ) {
+            return decode(data, host, emit);
+        }
+
+        held = Buffer.from(buf.subarray(at));
+        heldHost = host;
+        heldEmit = emit;
+        timer = setTimeout(flushHeld, holdMs);
+        timer.unref();
+
+        if (at > 0) {
+            decode(buf.subarray(0, at), host, emit);
+        }
+    }
+
+    function feed(data, host, emit) {
+        if (disposed) {
+            return decode(data, host, emit);
+        }
+
+        const chunk = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
+        if (0 === chunk.length) {
+            return decode(data, host, emit);
+        }
+
+        cancelTimer();
+        const prior = takeHeld();
+        if (prior) {
+            if (canContinueCsi(chunk[0])) {
+                const joined = Buffer.concat([prior, chunk]);
+                return decodeHoldingTail(joined, joined, host, emit);
+            }
+            decode(prior, host, emit);
+        }
+
+        return decodeHoldingTail(chunk, data, host, emit);
+    }
+
+    function dispose() {
+        disposed = true;
+        cancelTimer();
+        takeHeld();
+    }
+
+    return { feed, dispose };
+}
+
+//
+//  A decoder for one connection. Key and query reply decoding is decode()
+//  above, which keeps nothing between chunks. In front of it sit two stages
+//  that can hold back the end of a chunk, so the decoder is per connection:
+//
+//      the RIPscrip reply scanner (../rip/reply_scanner.js)
+//          expectRipReply() is called as the version query is sent; from
+//          then until the window closes (30 seconds) the scanner takes the
+//          first reply out of the input and reports it as 'rip version'.
+//          It can hold back a few bytes that might start a reply split
+//          across chunks.
+//      the unfinished CSI holder (createCsiTailHolder() above)
+//          holds an unfinished ESC [ ... at the end of a chunk, for up to
+//          holdMs, so a reply or key split across chunks decodes whole.
+//
+//  The scanner hands what is not a reply to the holder, which hands it to
+//  decode(). Both let go of held bytes in stream order. dispose() drops what
+//  either holds; after it, every chunk goes straight to decode() and nothing
+//  is ever held again.
 //
 //  |options.ripReply| is passed to the scanner ({ windowMs, holdMs,
-//  nulWindowMs }). When the scanner's hold timer hands bytes on and decoding
-//  them throws (a key handler failing), the error goes to the |host| of the
-//  latest decode() call, as host.reportError(err), if it has one; the client
-//  logs it.
+//  nulWindowMs }); |options.csiHoldMs| is the holder's holdMs. When a hold
+//  timer hands bytes on and decoding them throws (a key handler failing),
+//  the error goes to the |host| of the latest decode() call, as
+//  host.reportError(err), if it has one; the client logs it.
 //
 function createAnsiInputDecoder(options = {}) {
     let lastHost;
+    const onError = err => {
+        if (lastHost && 'function' === typeof lastHost.reportError) {
+            lastHost.reportError(err);
+        }
+    };
     const ripReplies = createRipReplyScanner(
-        Object.assign({}, options.ripReply, {
-            onError: err => {
-                if (lastHost && 'function' === typeof lastHost.reportError) {
-                    lastHost.reportError(err);
-                }
-            },
-        })
+        Object.assign({}, options.ripReply, { onError })
     );
+    const csiTail = createCsiTailHolder({
+        holdMs: Number.isFinite(options.csiHoldMs)
+            ? Math.min(0x7fffffff, Math.max(0, options.csiHoldMs))
+            : DEFAULT_CSI_HOLD_MS,
+        onError,
+    });
 
     return {
         expectRipReply() {
@@ -407,12 +583,13 @@ function createAnsiInputDecoder(options = {}) {
         decode(data, host, emit) {
             lastHost = host;
             ripReplies.scan(data, {
-                bytes: chunk => decode(chunk, host, emit),
+                bytes: chunk => csiTail.feed(chunk, host, emit),
                 reply: reply => emit('rip version', reply),
             });
         },
         dispose() {
             ripReplies.dispose();
+            csiTail.dispose();
         },
     };
 }
@@ -423,4 +600,6 @@ module.exports = {
     isMouseInput,
     getKeyComponentsFromCode,
     RE_CTDA_RESPONSE: RE_CTDA_RESPONSE_ANYWHERE,
+    DEFAULT_CSI_HOLD_MS,
+    MAX_HELD_CSI_BYTES,
 };
