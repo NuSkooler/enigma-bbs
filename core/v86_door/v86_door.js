@@ -26,6 +26,10 @@
  *                                      on COM1 and the door gets this long to save and
  *                                      exit before the emulator is stopped; 0 = stop at
  *                                      once (default: 30, max 3600)
+ *     startTimeoutSeconds: number - the guest must write its first byte to COM1 within
+ *                                   this, or the session is ended and the caller told
+ *                                   the door could not be started; 0 = wait for ever
+ *                                   (default: 120, max 3600)
  *   }
  *
  * Drop file filename on A: drive:
@@ -72,6 +76,7 @@ const runningSessions = new Set();
 //  per-door options, in seconds (menu entry config)
 const Defaults = {
     disconnectGraceSeconds: 30,
+    startTimeoutSeconds: 120,
 };
 const MaxOptionSeconds = 3600;
 
@@ -510,6 +515,9 @@ exports.getModule = class V86DoorModule extends MenuModule {
                 'disconnectGraceSeconds',
                 Defaults.disconnectGraceSeconds
             );
+        this._startTimeoutMs =
+            1000 *
+            this._secondsOption('startTimeoutSeconds', Defaults.startTimeoutSeconds);
     }
 
     //
@@ -763,6 +771,8 @@ exports.getModule = class V86DoorModule extends MenuModule {
             carrierDroppedAt: null,
             graceExpired: false,
             graceCutShort: false,
+            startTimer: null,
+            timedOut: false,
             worker: null,
             done: null,
             spinner: null,
@@ -878,6 +888,8 @@ exports.getModule = class V86DoorModule extends MenuModule {
         );
         this.client.removeListener('time up', run.onTimeUp);
         clearInterval(run.spinner);
+        clearTimeout(run.startTimer);
+        run.startTimer = null;
         if (run.inputSource) {
             run.inputSource.removeListener('data', run.onClientData);
         }
@@ -937,8 +949,25 @@ exports.getModule = class V86DoorModule extends MenuModule {
             if (!firstOutput) return;
             firstOutput = false;
             clearInterval(run.spinner);
+            clearTimeout(run.startTimer);
+            run.startTimer = null;
             self.client.term.write(ansi.resetScreen());
         };
+
+        //  A guest that never writes to COM1 (a bad image, a BIOS that does
+        //  not work, a RUN.BAT that hangs first) would leave the caller
+        //  watching the spinner for ever. Timed from the worker's start, so
+        //  a worker that never gets the emulator going is covered too.
+        if (self._startTimeoutMs > 0) {
+            const startSeconds = self._startTimeoutMs / 1000;
+            run.startTimer = setTimeout(() => {
+                run.startTimer = null;
+                run.timedOut = true;
+                run.done(
+                    Errors.Timeout(`wrote nothing to COM1 within ${startSeconds} s`)
+                );
+            }, self._startTimeoutMs);
+        }
 
         //  Client → COM1. The stream is kept: client.end() clears
         //  term.output before ClientDisconnected reaches us.
@@ -1036,6 +1065,8 @@ exports.getModule = class V86DoorModule extends MenuModule {
         this._detachCaller();
         clearTimeout(run.graceTimer);
         run.graceTimer = null;
+        clearTimeout(run.startTimer);
+        run.startTimer = null;
 
         let stopped = Promise.resolve(true);
         if (run.worker) {
@@ -1053,7 +1084,12 @@ exports.getModule = class V86DoorModule extends MenuModule {
         this._decrementInstances();
 
         if (err) {
-            this.client.log.warn({ error: err.message }, 'v86_door error');
+            this.client.log.warn(
+                { name: this.config.name, image: this.config.image, error: err.message },
+                run.timedOut
+                    ? `v86 door wrote nothing to COM1 within ${this._startTimeoutMs / 1000} s; ending it`
+                    : 'v86_door error'
+            );
         } else if (run.graceCutShort) {
             this.client.log.info(
                 { name: this.config.name, reason: run.reason },
@@ -1108,8 +1144,29 @@ exports.getModule = class V86DoorModule extends MenuModule {
         //  ended by the door itself (or an error): back to the menu, unless
         //  the menu stack has moved on already
         if (!run.hungUp && !this._left) {
+            if (err && !run.sawOutput) {
+                return this._cannotStart();
+            }
             this.prevMenu();
         }
+    }
+
+    //
+    //  The door failed before the guest wrote anything: say so rather than
+    //  drop the caller back at the menu with no word. The slot is already
+    //  free during the pause.
+    //
+    _cannotStart() {
+        this.client.term.write(ansi.resetScreen());
+        this.client.term.write(
+            `\r\n  ${this.config.name} could not be started. Please let the sysop know.\r\n`
+        );
+        this.pausePrompt(() => {
+            //  not if a time-up, a hangup or anything else moved on meanwhile
+            if (!this._left && !this.client.clientEnded) {
+                this.prevMenu();
+            }
+        });
     }
 
     _incrementInstances() {
