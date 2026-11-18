@@ -128,6 +128,15 @@ async function truncateSentFile(filePath, checkTarget) {
 //                                                        this session may carry mail for
 //    'incoming-file'  (name, size, timestamp)          — inbound transfer started (M_FILE received)
 //    'file-received'  (name, size, timestamp, tempPath) — inbound file ready
+//    'file-abandoned' (name, size, timestamp)          — inbound file over without
+//                                                        being handed on: postponed
+//                                                        (M_SKIP), asked for again
+//                                                        in the clear (NZ), or the
+//                                                        session was torn down.
+//                                                        Every 'incoming-file' is
+//                                                        followed by exactly one
+//                                                        'file-received' or
+//                                                        'file-abandoned'.
 //    'file-sent'      (name, size, timestamp)          — outbound file acknowledged
 //                                                        (M_GOT; also when the remote
 //                                                        M_GOTs a file before we have
@@ -1411,8 +1420,16 @@ class BinkpSession extends EventEmitter {
     //  another session and lets this batch finish -- and is what
     //  _onInflateError already does when it gives up on a file.
     //
-    _postponeReceive(cr, why) {
-        Log.warn({ name: cr.name, got: cr.bytesReceived, want: cr.size }, why);
+    _postponeReceive(cr, why, err) {
+        Log.warn(
+            {
+                name: cr.name,
+                got: cr.bytesReceived,
+                want: cr.size,
+                ...(err ? { error: err.message } : {}),
+            },
+            why
+        );
         this._abandonReceive(cr);
         this._sendCmd(Commands.M_SKIP, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
         this._checkDone();
@@ -1464,16 +1481,25 @@ class BinkpSession extends EventEmitter {
 
         if (!cr.writeStream) {
             cr.writeStream = fs.createWriteStream(cr.tempPath);
-            //  We're going to destroy this stream from _destroy() on
-            //  abnormal session end, which can race with in-flight writes
-            //  and surface as an async ERR_STREAM_DESTROYED. The unlink
-            //  in _destroy supersedes any half-written data anyway, so
-            //  swallow the error here rather than letting it bubble to
-            //  uncaughtException.
+            //  A write error (a full disk, say) means the file is not stored.
+            //  Postpone it: M_GOT would let the sender apply its disposition
+            //  to a file we do not have, and a compressed file waits on a
+            //  'finish' that never comes after an error (#1090).
+            //
+            //  Once the session is torn down or the receive settled, there is
+            //  nothing left to answer: _destroy and _abandonReceive destroy
+            //  this stream, which can surface as an async
+            //  ERR_STREAM_DESTROYED. The listener stays so that it never
+            //  bubbles to uncaughtException.
+            //
             cr.writeStream.on('error', err => {
-                Log.warn(
-                    { name: cr.name, error: err.message },
-                    '[BinkP] Inbound write error'
+                if (this._destroyed || cr._settled) {
+                    return;
+                }
+                this._postponeReceive(
+                    cr,
+                    '[BinkP] Could not write inbound file; leaving it with the sender',
+                    err
                 );
             });
 
@@ -1601,6 +1627,21 @@ class BinkpSession extends EventEmitter {
                 );
             }
         });
+        this._emitAbandoned(cr);
+    }
+
+    //
+    //  Tell listeners an inbound file is over without having been handed on.
+    //  Each 'incoming-file' is answered by exactly one 'file-received' or
+    //  'file-abandoned', so a listener that took something on the first (the
+    //  FREQ handler's M_EOB hold) can always give it back (#1090).
+    //
+    _emitAbandoned(cr) {
+        if (cr._ended) {
+            return;
+        }
+        cr._ended = true;
+        this.emit('file-abandoned', cr.name, cr.size, cr.timestamp);
     }
 
     _finalizeReceive(cr = this._currentRecv) {
@@ -1623,6 +1664,7 @@ class BinkpSession extends EventEmitter {
                 return;
             }
             cr._settled = true;
+            cr._ended = true;
             this._unsettledRecvs.delete(cr);
             this._inboundTempPaths.delete(cr.tempPath);
             this._sendCmd(Commands.M_GOT, `${cr.wireName} ${cr.size} ${cr.timestamp}`);
@@ -1630,12 +1672,22 @@ class BinkpSession extends EventEmitter {
             this._checkDone();
         };
 
-        const finish = () => {
+        const finish = err => {
             //  Destroying a write stream still calls the callback given to
             //  its end(), with ERR_STREAM_DESTROYED, so a clear file being
             //  flushed when the session is torn down lands here anyway.
-            if (this._destroyed) {
+            //  Settled: the write stream's 'error' handler has already
+            //  postponed it, and end() calls back with that same error.
+            if (this._destroyed || cr._settled) {
                 return;
+            }
+            //  The flush failed: the file is not stored (#1090).
+            if (err) {
+                return this._postponeReceive(
+                    cr,
+                    '[BinkP] Could not write inbound file; leaving it with the sender',
+                    err
+                );
             }
             if (this._currentRecv === cr) {
                 this._currentRecv = null;
@@ -1692,22 +1744,29 @@ class BinkpSession extends EventEmitter {
         } else {
             // Zero-byte file — writeStream was never opened
             this._inboundTempPaths.add(cr.tempPath);
-            fsp.writeFile(cr.tempPath, Buffer.alloc(0))
-                .then(finish)
-                .catch(err => {
-                    //  Only if it is still ours to clear: the batch may have
-                    //  moved on to the next file while the write was pending.
-                    if (this._currentRecv === cr) {
-                        this._currentRecv = null;
+            fsp.writeFile(cr.tempPath, Buffer.alloc(0)).then(
+                () => {
+                    //  _destroy unlinked the temp files while this was in
+                    //  flight, possibly before it created this one (#1090).
+                    if (this._destroyed) {
+                        fsp.unlink(cr.tempPath).catch(() => {});
+                        return;
                     }
-                    this._unsettledRecvs.delete(cr);
-                    this._inboundTempPaths.delete(cr.tempPath);
-                    Log.warn(
-                        { name: cr.name, error: err.message },
-                        '[BinkP] Could not write empty inbound file'
+                    finish();
+                },
+                err => {
+                    if (this._destroyed) {
+                        return;
+                    }
+                    //  Not stored, so not acknowledged either: postpone it,
+                    //  which also settles it so the batch can close (#1090).
+                    this._postponeReceive(
+                        cr,
+                        '[BinkP] Could not write empty inbound file; leaving it with the sender',
+                        err
                     );
-                    this._checkDone();
-                });
+                }
+            );
         }
     }
 
@@ -1932,7 +1991,7 @@ class BinkpSession extends EventEmitter {
     //  M_EOB (or newly queued files) can be processed.
     releaseEOB() {
         this._eobHold = Math.max(0, this._eobHold - 1);
-        if (this._eobHold === 0 && this._state === 'transfer') {
+        if (this._eobHold === 0 && this._state === 'transfer' && !this._destroyed) {
             setImmediate(() => this._sendNext());
         }
     }
@@ -1979,6 +2038,7 @@ class BinkpSession extends EventEmitter {
                 stream.on('error', () => {});
                 stream.destroy();
             }
+            this._emitAbandoned(cr);
         }
         //  Unlink any inbound temp files we never finished receiving. The
         //  set is empty in the happy path; entries here mean the peer
