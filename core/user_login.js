@@ -46,6 +46,9 @@ function userLogin(client, username, password, options, cb) {
 
         //  slow down a bit to thwart brute force attacks
         return setTimeout(() => {
+            if (client.clientEnded) {
+                return cb(abandonLogin(client, username));
+            }
             return cb(Errors.BadLogin('Disallowed username', ErrorReasons.NotAllowed));
         }, 2000);
     }
@@ -59,6 +62,17 @@ function userLogin(client, username, password, options, cb) {
     authInfo.pubKey = options.ctx;
 
     client.user.authenticateFactor1(authInfo, err => {
+        //
+        //  The connection can end while authentication is under way (the
+        //  caller hangs up, the SSH login timeout fires). There is nobody to
+        //  log in, and the client is no longer tracked: stop here, before
+        //  any of the login's side effects. Callers treat ClientEnded as
+        //  "do nothing more".
+        //
+        if (client.clientEnded) {
+            return cb(abandonLogin(client, username, err));
+        }
+
         if (err) {
             return cb(transformLoginError(err, client, username));
         }
@@ -125,6 +139,18 @@ function userLogin(client, username, password, options, cb) {
             return cb(null);
         });
     });
+}
+
+function abandonLogin(client, username, authErr) {
+    client.log.info(
+        {
+            username,
+            ip: client.remoteAddress,
+            authResult: authErr ? authErr.message : 'authenticated',
+        },
+        'Login abandoned: the connection ended during login'
+    );
+    return Errors.General('The connection ended during login', ErrorReasons.ClientEnded);
 }
 
 function postLoginPrep(client, cb) {

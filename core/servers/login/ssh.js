@@ -174,6 +174,10 @@ function SSHClient(clientConn, connInfo) {
             );
         };
 
+        //  the connection ended while the login was under way (see
+        //  userLogin()): there is nothing to answer, and nobody to answer
+        const isClientEnded = err => ErrorReasons.ClientEnded === err.reasonCode;
+
         const isSpecialHandleError = err => {
             return [
                 ErrorReasons.AlreadyLoggedIn,
@@ -207,6 +211,10 @@ function SSHClient(clientConn, connInfo) {
                 //  step 1: login/auth using PubKey
                 userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
                     if (err) {
+                        if (isClientEnded(err)) {
+                            return;
+                        }
+
                         if (isSpecialHandleError(err)) {
                             return handleSpecialError(err, username);
                         }
@@ -252,6 +260,10 @@ function SSHClient(clientConn, connInfo) {
             ctx.prompt(interactivePrompt, function retryPrompt(answers) {
                 userLogin(self, username, answers[0] || '', err => {
                     if (err) {
+                        if (isClientEnded(err)) {
+                            return;
+                        }
+
                         if (isSpecialHandleError(err)) {
                             return handleSpecialError(err, username);
                         }

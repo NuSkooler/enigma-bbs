@@ -28,6 +28,8 @@ const FreshPaths = [
     '../core/servers/login/telnet.js',
     '../core/servers/login/websocket.js',
     '../core/servers/login/ssh.js',
+    //  ssh.js logs in through it; another test file may hold a stubbed copy
+    '../core/user_login.js',
 ].map(p => require.resolve(p));
 
 const BusyMessage = 'All nodes are busy. Try again later...';
@@ -782,6 +784,52 @@ describe('login servers (#1017)', function () {
             assert.equal(client.clientEnded, false);
             assert.ok(clientConns.clientConnections.includes(client));
             conn.emit('close');
+        });
+
+        //
+        //  The login timer (or the caller hanging up) can end the connection
+        //  while a password is being checked. Nothing is answered then: no
+        //  reject, no retry prompt, no slow disconnect.
+        //
+        ['password', 'keyboard-interactive'].forEach(method => {
+            it(`${method}: a login that finishes after the connection ended is not answered`, async () => {
+                config.loginServers.ssh.loginTimeoutSeconds = 0;
+                const { conn, client } = connectTracked();
+                let authFinished = false;
+                client.user.authenticateFactor1 = (authInfo, cb) => {
+                    conn.emit('close'); //  gone while the password is checked
+                    setImmediate(() => {
+                        authFinished = true;
+                        return cb(null);
+                    });
+                };
+
+                const ctx = makeAuthCtx(method, 'somebody');
+                ctx.password = 'secret';
+                conn.emit('authentication', ctx);
+                if ('keyboard-interactive' === method) {
+                    assert.equal(ctx.prompts.length, 1, 'asked for the password');
+                    const [, answer] = ctx.prompts[0];
+                    answer(['secret']);
+                }
+                assert.equal(client.clientEnded, true);
+                const endCount = conn.endCount;
+
+                await waitFor('authentication to finish', () => authFinished);
+                await tick(10);
+                assert.deepEqual(ctx.rejects, [], 'not rejected');
+                assert.equal(ctx.accepts, 0, 'not accepted');
+                assert.equal(
+                    ctx.prompts.length,
+                    'password' === method ? 0 : 1,
+                    'no retry'
+                );
+                assert.equal(conn.endCount, endCount, 'nothing more sent');
+                assert.ok(
+                    client.log.entries.some(e => /Login abandoned/.test(e.msg)),
+                    'logged'
+                );
+            });
         });
 
         it('0 leaves a connection that has not reached the shell alone', async () => {
