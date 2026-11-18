@@ -34,6 +34,15 @@ function nodeConfigFor(addr) {
     return findBestNodeMatch(nodes, addr);
 }
 
+//  Set while the system is stopping: no new call is started. See setStopping().
+let stopping = false;
+
+//  Stop (true) or allow again (false) dialing out. BinkpModule.shutdown() sets
+//  it so a poll in progress does not go on to its next node.
+function setStopping(value) {
+    stopping = Boolean(value);
+}
+
 // ── callNode ──────────────────────────────────────────────────────────────────
 
 // Dial a single remote node and run a BinkP session as the originating side.
@@ -55,6 +64,10 @@ async function callNode(addr, nodeConf, spool) {
         .catch(() => false);
     if (!locked) {
         Log.info({ addr: addrStr }, '[BinkP/Caller] Node already in session, skipping');
+        return;
+    }
+    if (stopping) {
+        await lock.close();
         return;
     }
     Log.debug({ addr: addrStr, locks: lock.paths }, '[BinkP/Caller] Holding .bsy locks');
@@ -183,6 +196,10 @@ async function pollNodes(forceAddrs, cb) {
     const addrs = Array.from(addrsByKey.values());
 
     for (const addr of addrs) {
+        if (stopping) {
+            Log.info('[BinkP/Caller] Stopping; not dialing the remaining nodes');
+            break;
+        }
         const nodeConf = nodeConfigFor(addr);
         if (!nodeConf || !nodeConf.host) {
             Log.debug(
@@ -283,4 +300,4 @@ function _connect(host, port, tlsOpts) {
     });
 }
 
-module.exports = { callNode, pollNodes, isPollConfigured };
+module.exports = { callNode, pollNodes, isPollConfigured, setStopping };

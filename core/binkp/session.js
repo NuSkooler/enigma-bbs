@@ -17,6 +17,13 @@ const BINKP_VER = '1.1';
 const SEND_CHUNK_SIZE = 4096;
 const SESSION_TIMEOUT_MS = 300_000; // 5 min
 
+//  How long an aborted session waits for the peer to close after our M_BSY
+//  before the socket is destroyed.
+const ABORT_CLOSE_GRACE_MS = 1000;
+
+//  Every session whose socket has not closed yet. See abortAll().
+const liveSessions = new Set();
+
 //  Runaway guard only, not part of the protocol. A batch carrying nothing but
 //  the two M_EOBs always ends the session, so this can only be reached by a
 //  peer that keeps talking; better to hang up than to loop forever.
@@ -217,8 +224,72 @@ class BinkpSession extends EventEmitter {
         socket.pause();
         socket.on('data', chunk => this._parser.push(chunk));
         socket.on('error', err => this._onSocketError(err));
-        socket.on('close', () => this._onSocketClose());
+        socket.on('close', () => {
+            liveSessions.delete(this);
+            this._onSocketClose();
+        });
         this._parser.on('frame', frame => this._onFrame(frame));
+        if (!socket.destroyed) {
+            liveSessions.add(this);
+        }
+    }
+
+    //
+    //  End the session now because this system is stopping: M_BSY |reason|
+    //  ("try again later", which is what a restart is; binkd counts M_ERR
+    //  against the node instead), then close. The close goes the usual way --
+    //  'disconnect', or 'session-end' if nothing was outstanding -- so whatever
+    //  is attached releases the session's locks as on any other drop. A peer
+    //  that does not close its side is cut off after ABORT_CLOSE_GRACE_MS.
+    //
+    abort(reason) {
+        if (this._aborted || this._socket.destroyed) {
+            return;
+        }
+        this._aborted = true;
+        //  Whatever goes wrong from here on is part of closing, not news to
+        //  whoever was listening.
+        this.on('error', () => {});
+        //  A socket that never connected, or has lost its connection, has
+        //  nothing to say goodbye on.
+        const readyState = this._socket.readyState;
+        const connected =
+            this._socket.writable &&
+            (undefined === readyState ||
+                'open' === readyState ||
+                'writeOnly' === readyState);
+        if (!connected) {
+            this._destroy(false);
+            return;
+        }
+        if (this._state !== 'done') {
+            Log.info({ reason }, '[BinkP] Ending session: sending M_BSY');
+            try {
+                this._sendCmd(Commands.M_BSY, reason);
+            } catch (err) {
+                //  closing anyway
+            }
+        }
+        this._destroy(true);
+        const timer = setTimeout(() => {
+            if (!this._socket.destroyed) {
+                this._socket.destroy();
+            }
+        }, ABORT_CLOSE_GRACE_MS);
+        timer.unref();
+        this._socket.once('close', () => clearTimeout(timer));
+    }
+
+    //  abort() every live session. Returns how many there were.
+    static abortAll(reason) {
+        const sessions = Array.from(liveSessions);
+        sessions.forEach(session => session.abort(reason));
+        return sessions.length;
+    }
+
+    //  Sessions whose socket has not closed yet.
+    static liveCount() {
+        return liveSessions.size;
     }
 
     queueFile(filePath, name, size, timestamp, disposition, guard = null) {
@@ -1845,6 +1916,10 @@ class BinkpSession extends EventEmitter {
             });
         }
         this._inboundTempPaths.clear();
+        if (!graceful) {
+            //  Destroyed below, so it is not live, whenever 'close' arrives.
+            liveSessions.delete(this);
+        }
         if (!this._socket.destroyed) {
             if (graceful) {
                 //  Graceful FIN: peer reads all buffered data (including any
