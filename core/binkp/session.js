@@ -129,6 +129,9 @@ async function truncateSentFile(filePath, checkTarget) {
 //    'incoming-file'  (name, size, timestamp)          — inbound transfer started (M_FILE received)
 //    'file-received'  (name, size, timestamp, tempPath) — inbound file ready
 //    'file-sent'      (name, size, timestamp)          — outbound file acknowledged
+//                                                        (M_GOT; also when the remote
+//                                                        M_GOTs a file before we have
+//                                                        finished sending it)
 //    'file-skipped'   (name, size, timestamp)          — remote sent M_SKIP
 //    'busy'           (reason: string)                 — remote sent M_BSY
 //    'session-end'    ()                               — clean finish
@@ -1114,8 +1117,8 @@ class BinkpSession extends EventEmitter {
         );
         if (queueIdx >= 0) {
             const [skipped] = this._sendQueue.splice(queueIdx, 1);
-            this._applyDisposition(skipped);
             Log.debug({ name }, '[BinkP] Destructive skip via M_GOT (queued file)');
+            this._finishSkipped(skipped);
             this._checkDone();
             return;
         }
@@ -1125,12 +1128,29 @@ class BinkpSession extends EventEmitter {
             this._currentSend.name === name &&
             String(this._currentSend.size) === sizeStr
         ) {
+            const skipped = this._currentSend;
             Log.debug({ name }, '[BinkP] Destructive skip via M_GOT (active send)');
-            this._teardownSendStreams(this._currentSend);
-            this._applyDisposition(this._currentSend);
+            this._teardownSendStreams(skipped);
             this._currentSend = null;
+            this._finishSkipped(skipped);
             setImmediate(() => this._sendNext());
         }
+    }
+
+    //
+    //  A destructive skip is an acknowledgement: the remote says it holds the
+    //  file, so we are done with it exactly as after a full send. That means
+    //  the disposition and 'file-sent' both, or the flow file line is never
+    //  marked and the file is offered again next session -- or, for a '^'
+    //  line, deleted with its line left pointing at nothing.
+    //
+    //  The event carries the file as we queued it, not the M_GOT arguments:
+    //  the active-send match above does not compare timestamps, and listeners
+    //  key on name, size and timestamp together.
+    //
+    _finishSkipped(file) {
+        this._applyDisposition(file);
+        this.emit('file-sent', file.name, file.size, file.timestamp);
     }
 
     _applyDisposition(file) {
