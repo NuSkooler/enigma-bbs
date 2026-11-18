@@ -1881,7 +1881,23 @@ function FTNMessageScanTossModule() {
                     return cb(err || null);
                 };
                 if (!err) {
-                    return release();
+                    //  The bundle is in outbound and referenced, so the
+                    //  packets in it are not needed here any more. (After a
+                    //  failure the caller discards them.)
+                    return async.each(
+                        packetFiles,
+                        (file, nextFile) =>
+                            fs.rm(file, { force: true }, rmErr => {
+                                if (rmErr) {
+                                    Log.warn(
+                                        { path: file, error: rmErr.message },
+                                        'Could not remove a bundled FTN packet'
+                                    );
+                                }
+                                return nextFile();
+                            }),
+                        () => release()
+                    );
                 }
                 fs.rm(tempBundlePath, { force: true }, rmErr => {
                     if (rmErr) {

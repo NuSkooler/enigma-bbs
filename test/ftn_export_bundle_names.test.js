@@ -21,7 +21,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 
-const { createHarness, NODES, U1, LOCAL } = require('./ftn_export_harness.js');
+const { createHarness, NODES, U1, U2, LOCAL } = require('./ftn_export_harness.js');
 const Address = require('../core/ftn_address.js');
 
 describe('ftn_bso — EchoMail bundle names (#1027)', function () {
@@ -194,6 +194,34 @@ describe('ftn_bso — EchoMail bundle names (#1027)', function () {
         results.forEach(({ err }) => assert.ok(!err, err && err.message));
 
         await assertTwoSeparateBundles(mod, calls, ['first call', 'second call']);
+    });
+
+    it('removes bundled packets from the temp area once the bundle is in outbound', async () => {
+        const { mod, calls } = makeBundlingModule();
+        const a = await h.addLocal({ subject: 'bundled, then gone' });
+        const b = await h.addLocal({ subject: 'also bundled' });
+
+        //  U1 takes bundles, U2 bare packets.
+        const { err } = await new Promise(resolve =>
+            mod.exportEchoMailMessagesToUplinks(
+                [a.messageUuid, b.messageUuid],
+                { network: 'testnet', tag: 'LOCAL_A', uplinks: [U1, U2] },
+                [U1, U2],
+                e => resolve({ err: e })
+            )
+        );
+        assert.ok(!err, err && err.message);
+
+        assert.equal(calls.length, 1);
+        assert.ok(calls[0].files.length > 0);
+        const left = await fsp.readdir(tempDir());
+        assert.deepEqual(left, [], 'nothing left in the temp area');
+        const refs = await u1Refs();
+        assert.equal(refs.length, 1);
+        const bundle = await fsp.readFile(refs[0], 'latin1');
+        assert.ok(
+            bundle.includes('bundled, then gone') && bundle.includes('also bundled')
+        );
     });
 
     describe('getOutgoingBundleFileName()', () => {
