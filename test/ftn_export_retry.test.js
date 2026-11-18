@@ -5,8 +5,9 @@
 //  uplink that failed (issue #1026).
 //
 //  The scan selects the messages in an area above its watermark that carry no
-//  System/state_flags0 row, or one holding only ActivityPubExported (#1032). The exporter writes that row (Exported,
-//  with the MSGID) as soon as a message is handed to its first destination,
+//  System/state_flags0 row, or one holding only ActivityPubExported (#1032).
+//  The exporter writes that row (Exported, with the MSGID) as soon as a
+//  message is handed to its first destination,
 //  before anything is delivered. So once one uplink had taken a message, an
 //  uplink that failed -- a move into outbound, a busy flow file, a second
 //  uplink that was down -- never saw it again, although the log said "will
