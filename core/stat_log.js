@@ -15,6 +15,8 @@ const _ = require('lodash');
 const moment = require('moment');
 const SysInfo = require('systeminformation');
 
+const TotalUserCountTTLMs = 30 * 1000;
+
 /*
     System Event Log & Stats
     ------------------------
@@ -31,6 +33,7 @@ class StatLog {
     constructor() {
         this.systemStats = {};
         this.lastSysInfoStatsRefresh = 0;
+        this.lastTotalUserCountRefresh = 0; //  ms
     }
 
     init(cb) {
@@ -112,13 +115,14 @@ class StatLog {
     }
 
     getSystemStat(statName) {
-        const stat = this.systemStats[statName];
-
-        //  Some stats are refreshed periodically when they are
-        //  being accessed (e.g. "looked at"). This is handled async.
+        //  Some stats are refreshed periodically when they are being accessed
+        //  (e.g. "looked at"). The refresh runs before the read: a synchronous
+        //  refresh (TotalUserCount, ProcessTrafficStats) is returned by this
+        //  same call, while an async one (SystemLoadStats, SystemMemoryStats)
+        //  still lands for a later call.
         this._refreshSystemStat(statName);
 
-        return stat;
+        return this.systemStats[statName];
     }
 
     getFriendlySystemStat(statName, defaultValue) {
@@ -454,7 +458,48 @@ class StatLog {
 
             case SysProps.ProcessTrafficStats:
                 return this._refreshProcessTrafficStats();
+
+            case SysProps.TotalUserCount:
+                return this._refreshTotalUserCount();
         }
+    }
+
+    //  Mark the TotalUserCount stat as counted at |at| (ms since the epoch,
+    //  default now), so reads inside TotalUserCountTTLMs of it do not count
+    //  again. The startup seed in bbs.js uses it; 0 marks the stat stale.
+    markTotalUserCountRefreshed(at = Date.now()) {
+        this.lastTotalUserCountRefresh = at;
+    }
+
+    //
+    //  Re-count users at most once per TotalUserCountTTLMs. A NewUser event
+    //  bumps the stat at once (see sys_event_user_log.js); a user removed by
+    //  oputil, which runs as a separate process, is picked up when the window
+    //  expires. getUserCount() is synchronous under the callback.
+    //
+    _refreshTotalUserCount() {
+        const now = Date.now();
+        if (now < this.lastTotalUserCountRefresh + TotalUserCountTTLMs) {
+            return;
+        }
+
+        //  set before the read: a failed read waits out the window too,
+        //  rather than retrying on every read
+        this.lastTotalUserCountRefresh = now;
+
+        //  lazy: user.js captures dbs.user at load, and requires this module
+        const User = require('./user.js');
+        User.getUserCount((err, count) => {
+            if (err) {
+                //  keep the last value
+                return Log.warn(
+                    { error: err.message },
+                    'Failed to refresh the total user count'
+                );
+            }
+
+            this.setNonPersistentSystemStat(SysProps.TotalUserCount, count);
+        });
     }
 
     _refreshSysInfoStats() {

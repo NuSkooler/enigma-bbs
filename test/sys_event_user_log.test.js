@@ -52,6 +52,7 @@ const STUBS = {
     },
     './system_property.js': {
         NewUsersTodayCount: 'new_users_today_count',
+        TotalUserCount: 'user_total_count',
     },
 };
 
@@ -104,6 +105,26 @@ describe('systemEventUserLogInit()', function () {
                 capturedHandler,
                 'addMultipleEventListener should have been called'
             );
+        });
+    });
+
+    describe('NewUser event', function () {
+        it('counts the user in NewUsersTodayCount and TotalUserCount (#1049)', () => {
+            const calls = [];
+            const statLog = makeStatLog({
+                incrementNonPersistentSystemStat: (statName, by) =>
+                    calls.push({ statName, by }),
+            });
+
+            capturedHandler = null;
+            systemEventUserLogInit(statLog);
+
+            fire(SYSTEM_EVENTS.NewUser, { user: makeUser() });
+
+            assert.deepEqual(calls, [
+                { statName: 'new_users_today_count', by: 1 },
+                { statName: 'user_total_count', by: 1 },
+            ]);
         });
     });
 
