@@ -430,12 +430,25 @@ Client.prototype.end = function () {
         //  Run the current module's leave(): it is a module's one chance
         //  to clean up on disconnect (a door's node count, an upload's temp
         //  files, ...). Mark the top entry |left| first, so nothing can
-        //  leave() it a second time; see MenuStack._refuseEnded().
+//  leave() it a second time; see MenuStack._refuseEnded().
+        //
+        //  Guard the call itself: a leave() that throws (a third party mod
+        //  writing to |term.output|, which is null by now, say) must not
+        //  stop the rest of this teardown -- the monitors below would keep
+        //  running for a dead session, and removeClient()'s events would
+        //  never fire.
         const currentModuleInfo = this.menuStack.top();
 
         if (currentModuleInfo && !currentModuleInfo.left) {
             currentModuleInfo.left = true;
-            currentModuleInfo.instance.leave();
+            try {
+                currentModuleInfo.instance.leave();
+            } catch (e) {
+                this.log.warn(
+                    { error: e.message, menuName: currentModuleInfo.name },
+                    'Module leave() failed on disconnect'
+                );
+            }
         }
 
         //  persist time online for authenticated users
