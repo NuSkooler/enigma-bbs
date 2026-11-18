@@ -156,6 +156,32 @@ describe('oputil bso', function () {
         assert.match(out, /never be sent/, 'and be called out as undeliverable');
     });
 
+    it('status and list show a poll request (#1047), but not an empty hold file', async () => {
+        const { root } = await makeFixture('poll');
+        const dir = path.join(root, 'ob', 'outbound');
+        const poll = path.join(dir, '00da02be.clo'); // 1:218/702
+        await fsp.writeFile(poll, '');
+        await fsp.writeFile(path.join(dir, '00da02bf.hlo'), ''); // 1:218/703
+
+        const status = runOputil(root, ['status']);
+        assert.equal(status.code, 0);
+        assert.match(status.out, /Poll/, 'a Poll column');
+        const row = status.out.split('\n').find(l => l.startsWith('1:218/702'));
+        assert.ok(row, `the poll-only node is listed:\n${status.out}`);
+        assert.match(row, /^1:218\/702\s+0\s+\S+\s+yes$/, row);
+        assert.ok(!/1:218\/703/.test(status.out), 'hold is not a poll request');
+        assert.match(status.out, /1 node has a poll request/);
+        assert.match(status.out, /removed after a successful session/);
+
+        const list = runOputil(root, ['list', '1:218/702']);
+        assert.equal(list.code, 0);
+        assert.match(list.out, /POLL\s+-\s+\S+\s+.*00da02be\.clo/);
+
+        //  Prune never touches it.
+        runOputil(root, ['prune', '1:218/702', '--yes']);
+        assert.equal((await fsp.stat(poll)).size, 0);
+    });
+
     it('list flags lines it cannot read, prints them safely, and hides ! lines', async () => {
         const { root, flowPath, realFile } = await makeFixture('unparsed');
         await fsp.writeFile(

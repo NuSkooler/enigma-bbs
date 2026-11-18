@@ -47,6 +47,13 @@ const FLOW_FILE_RE = new RegExp(
     'i'
 );
 
+//  The flavours a zero-length flow file asks us to call for: every one but
+//  hold. FTS-5005.003 §3.2 has hold mean "wait for a poll from the remote
+//  system", so an empty .hlo or .hut is no reason to dial (see isPollFile()).
+function isPollExt(ext) {
+    return 'h' !== String(ext).toLowerCase()[0];
+}
+
 // A point's outbound subdirectory, e.g. 00680024.pnt (FTS-5005.003 §2)
 const POINT_DIR_RE = /^([0-9a-f]{8})\.pnt$/i;
 
@@ -279,7 +286,13 @@ class BsoSpool {
     // disposeFn() marks the flow file under it. Anything the lock does not
     // cover -- another directory, or everything once the set is closed -- is
     // skipped: it is not read, so it is not sent.
-    async getOutboundFilesForNode(addr, { lock } = {}) {
+    //
+    //  |onPollFile(path)|, when given, is called for each poll request found
+    //  under the lock: a zero-length flow file of a flavour other than hold
+    //  (isPollFile()). It has nothing to send, so it adds nothing to the
+    //  list; attachSpoolToSession() removes it once the session has ended
+    //  well (removePollFiles()).
+    async getOutboundFilesForNode(addr, { lock, onPollFile } = {}) {
         if (!bsoLock.isFlowLockSet(lock)) {
             throw Errors.General(
                 "Lock not held: listing a node's outbound needs its lock set (lockNode())",
@@ -311,9 +324,14 @@ class BsoSpool {
                 //  Checked per file: the session may have ended, and its
                 //  locks gone, while this listing ran.
                 if (!lock.holdsFlowFile(filePath)) continue;
+                if (onPollFile && isPollExt(ext) && (await isPollFile(filePath))) {
+                    onPollFile(filePath);
+                    continue;
+                }
                 try {
                     const stat = await fsp.stat(filePath);
-                    // Zero-byte .ilo = poll trigger, not actual mail
+                    //  Zero bytes is not mail. A poll request, when the
+                    //  caller asked for them, was reported above.
                     if (stat.size === 0) continue;
                     //  Found by the scan, so the entry itself is in the
                     //  outbound and unlinking it touches nothing else; but a
@@ -366,6 +384,10 @@ class BsoSpool {
 
                 const flowPath = path.join(dir, actual);
                 if (!lock.holdsFlowFile(flowPath)) continue;
+                if (onPollFile && isPollExt(ext) && (await isPollFile(flowPath))) {
+                    onPollFile(flowPath);
+                    continue;
+                }
                 try {
                     results.push(
                         ...(await this._parseFlowFile(flowPath, addr, policy, lock))
@@ -454,9 +476,19 @@ class BsoSpool {
         const results = [];
         const policy = await this._flowPathPolicy();
 
-        await this._forEachOutboundFile(async ({ addr, filePath, isFlow }) => {
+        await this._forEachOutboundFile(async ({ addr, filePath, ext, isFlow }) => {
             const key = addr.toString();
             if (seen.has(key)) return;
+
+            //  A zero-length flow file is a poll request: call the node even
+            //  though nothing is queued (FTS-5005.003 §3.2, §3.4). Not for
+            //  hold, which means wait for the node to call us. Anything with
+            //  content goes on to the checks below, as before.
+            if (isPollExt(ext) && (await isPollFile(filePath))) {
+                seen.add(key);
+                results.push(addr);
+                return;
+            }
 
             if (isFlow) {
                 if (
@@ -469,7 +501,7 @@ class BsoSpool {
                 )
                     return;
             } else {
-                // Direct-attach: zero-byte = poll flag, not mail
+                //  Direct-attach: zero bytes is a poll (taken above) or hold
                 const stat = await fsp.stat(filePath).catch(() => null);
                 if (!stat || stat.size === 0) return;
                 if (
@@ -538,7 +570,27 @@ class BsoSpool {
             byNode.get(key).entries.push(entry);
         };
 
-        await this._forEachOutboundFile(async ({ addr, filePath, isFlow }) => {
+        await this._forEachOutboundFile(async ({ addr, filePath, ext, isFlow }) => {
+            //  A poll request (see getNodesWithPendingMail()): listed so the
+            //  operator can see why the node is called. Nothing to send.
+            if (isPollExt(ext)) {
+                const pollStat = await isPollFile(filePath);
+                if (pollStat) {
+                    add(addr, {
+                        kind: 'poll',
+                        status: 'poll',
+                        path: filePath,
+                        size: 0,
+                        timestamp: Math.floor(pollStat.mtimeMs / 1000),
+                        disposition: null,
+                        flowFile: filePath,
+                        lineIdx: null,
+                        line: null,
+                    });
+                    return;
+                }
+            }
+
             if (!isFlow) {
                 const stat = await fsp.stat(filePath).catch(() => null);
                 //  Zero-byte direct-attach files are poll flags, not mail.
@@ -714,6 +766,76 @@ class BsoSpool {
         return Array.from(byNode.values()).sort((a, b) =>
             a.address.toString().localeCompare(b.address.toString())
         );
+    }
+
+    //
+    //  Remove the poll requests in |pollPaths| (as getOutboundFilesForNode()
+    //  reported them), after a session with their node ended well.
+    //  FTS-5005.003 §3.4: the mailer "must delete the flow file after the
+    //  successful end of session".
+    //
+    //  |lock| is the session's FlowLockSet, and must still hold the .bsy
+    //  beside each file: every other writer of a flow file takes it, so what
+    //  is checked here cannot change before the unlink. A file that has
+    //  gained content since the session read it (mail queued into it) is kept
+    //  and sent next session, as is one whose lock this session has lost.
+    //  Resolves the paths removed. Never rejects.
+    //
+    async removePollFiles(pollPaths, { lock } = {}) {
+        const removed = [];
+        for (const pollPath of pollPaths || []) {
+            await withFlowFileWrite(pollPath, async () => {
+                if (!bsoLock.isFlowLockSet(lock) || !lock.holdsFlowFile(pollPath)) {
+                    Log.debug(
+                        { path: pollPath },
+                        '[BinkP/BSO] Session no longer holds the lock for a poll request; leaving it'
+                    );
+                    return;
+                }
+                const stat = await fsp.lstat(pollPath).catch(() => null);
+                if (!stat) {
+                    return; //  already gone: another mailer answered it
+                }
+                if (!stat.isFile() || stat.size > 0) {
+                    Log.debug(
+                        { path: pollPath, size: stat.size },
+                        '[BinkP/BSO] Poll request gained content during the session; leaving it'
+                    );
+                    return;
+                }
+                //  Again, with nothing awaited between this and the unlink:
+                //  the lock can go while lstat() runs (settle() gives up and
+                //  closes it), and then another mailer may write to the file.
+                if (!lock.holdsFlowFile(pollPath)) {
+                    Log.debug(
+                        { path: pollPath },
+                        '[BinkP/BSO] Session no longer holds the lock for a poll request; leaving it'
+                    );
+                    return;
+                }
+                try {
+                    await fsp.unlink(pollPath);
+                    removed.push(pollPath);
+                    Log.debug(
+                        { path: pollPath },
+                        '[BinkP/BSO] Poll request answered; removed'
+                    );
+                } catch (err) {
+                    if ('ENOENT' !== err.code) {
+                        Log.warn(
+                            { path: pollPath, error: err.message },
+                            '[BinkP/BSO] Could not remove an answered poll request'
+                        );
+                    }
+                }
+            }).catch(err =>
+                Log.warn(
+                    { path: pollPath, error: err.message },
+                    '[BinkP/BSO] Could not remove an answered poll request'
+                )
+            );
+        }
+        return removed;
     }
 
     //
@@ -1428,6 +1550,18 @@ function uniquePacketName(filePath) {
 //  poller would dial it every cycle only to transfer nothing and log a clean
 //  "Session complete".
 //
+//
+//  The stat of |filePath| when it is a poll request: a regular file of zero
+//  length (FTS-5005.003 §2 calls it a reduced flow file), else null. Not a
+//  symlink, even to an empty file: a link is how an outbound is shared, and
+//  removing one is not ours to decide here. The flavour is the caller's to
+//  check (isPollExt()).
+//
+async function isPollFile(filePath) {
+    const stat = await fsp.lstat(filePath).catch(() => null);
+    return stat && stat.isFile() && 0 === stat.size ? stat : null;
+}
+
 async function flowHasPending(flowPath, addr, repeatMs, policy) {
     const checked = await readFlowFileChecked(flowPath, policy).catch(() => null);
     if (!checked || checked.refused) {
@@ -1922,6 +2056,62 @@ async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
     //  finished with when the file has gone, so both are marked; replacing
     //  the first hook left its line looking unsent.
     //
+    //
+    //  Poll requests (zero-length flow files) seen at the start of the
+    //  session, for the addresses it serves, and the lock they were seen
+    //  under. FTS-5005.003 §3.4: removed "after the successful end of
+    //  session", so on 'session-end' only -- a session that drops, errors or
+    //  is refused keeps them, and the node is called again. Tracked in
+    //  |disposeMap| so that settle() waits for it, and the lock is still held
+    //  while removePollFiles() checks and unlinks.
+    //
+    //  On the originating side a poll is noted with the address it was read
+    //  for, and only counts as answered if the remote presented that address
+    //  (M_ADR): the host we dialled may answer as some other system. The
+    //  answering side only reads polls for addresses already authenticated.
+    //
+    const pollFiles = [];
+    let pollLock = null;
+    let presented = [];
+    session.on('addresses', addrs => {
+        presented = Array.isArray(addrs) ? addrs : [];
+    });
+    const notePollFile = (p, addr) => {
+        if (!pollFiles.some(e => e.path === p)) pollFiles.push({ path: p, addr });
+    };
+    const onPollFile = p => notePollFile(p, null);
+    const answeredBy = addr => {
+        if (!addr) {
+            return true;
+        }
+        const want = addr instanceof Address ? addr : new Address(addr);
+        return presented.some(s => {
+            try {
+                return Boolean(want) && want.isEquivalent(s, { defaultZone: want.zone });
+            } catch (e) {
+                return false;
+            }
+        });
+    };
+    session.on('session-end', () => {
+        if (0 === pollFiles.length || !pollLock) {
+            return;
+        }
+        const answered = pollFiles.splice(0).filter(e => answeredBy(e.addr));
+        if (0 === answered.length) {
+            return;
+        }
+        disposeMap._track(
+            (async () => {
+                await listing.catch(() => {});
+                await spool.removePollFiles(
+                    answered.map(e => e.path),
+                    { lock: pollLock }
+                );
+            })()
+        );
+    });
+
     const registerDispose = f => {
         if (!f.disposeFn) {
             return;
@@ -1950,7 +2140,11 @@ async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
                 );
                 continue;
             }
-            const files = await spool.getOutboundFilesForNode(addr, { lock });
+            pollLock = lock;
+            const files = await spool.getOutboundFilesForNode(addr, {
+                lock,
+                onPollFile: p => notePollFile(p, addr),
+            });
             for (const f of files) {
                 session.queueFile(f.path, f.name, f.size, f.timestamp, f.disposition, {
                     allowed: f.allowed,
@@ -2109,8 +2303,10 @@ async function attachSpoolToSession(session, spool, remoteAddrs, options = {}) {
                     if (!locked.has(addrStr)) continue;
                     const addr = Address.fromString(addrStr);
                     if (!addr || !addr.isValid()) continue;
+                    pollLock = ownLock;
                     const files = await spool.getOutboundFilesForNode(addr, {
                         lock: ownLock,
+                        onPollFile,
                     });
                     for (const f of files) {
                         session.queueFile(
