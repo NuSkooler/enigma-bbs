@@ -1462,9 +1462,11 @@ module.exports = () => {
                     //  Stale .bsy lock reaper. When the BBS crashes mid-session
                     //  the per-node .bsy lock isn't released and that node is
                     //  un-pollable until the file is removed. On startup (and
-                    //  on every acquireLock attempt that hits EEXIST) we treat
-                    //  any .bsy older than this threshold as orphaned and
-                    //  unlink it.
+                    //  whenever taking a lock finds one already there) we
+                    //  treat any .bsy untouched for longer than this as
+                    //  orphaned and unlink it. ENiGMA's own locks are touched
+                    //  while held, and are reaped sooner once their process is
+                    //  gone: see core/bso_lock.js.
                     //
                     //  Default: 30 minutes (6× the internal session timeout of
                     //  5 minutes). If you ever raise the session timeout, raise

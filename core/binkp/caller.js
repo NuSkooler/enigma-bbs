@@ -34,6 +34,15 @@ function nodeConfigFor(addr) {
     return findBestNodeMatch(nodes, addr);
 }
 
+//  Set while the system is stopping: no new call is started. See setStopping().
+let stopping = false;
+
+//  Stop (true) or allow again (false) dialing out. BinkpModule.shutdown() sets
+//  it so a poll in progress does not go on to its next node.
+function setStopping(value) {
+    stopping = Boolean(value);
+}
+
 // ── callNode ──────────────────────────────────────────────────────────────────
 
 // Dial a single remote node and run a BinkP session as the originating side.
@@ -57,13 +66,28 @@ async function callNode(addr, nodeConf, spool) {
         Log.info({ addr: addrStr }, '[BinkP/Caller] Node already in session, skipping');
         return;
     }
+    if (stopping) {
+        await lock.close();
+        return;
+    }
     Log.debug({ addr: addrStr, locks: lock.paths }, '[BinkP/Caller] Holding .bsy locks');
 
     //  Set once the spool is attached; settled before the lock goes.
     let disposeMap = null;
 
     try {
-        const socket = await _connect(host, port, tlsOpts);
+        //  Through the module object so a test can stand in for it.
+        const socket = await module.exports._connect(host, port, tlsOpts);
+        if (stopping) {
+            //  The system started stopping while this call was connecting:
+            //  hang up before starting a session; the finally releases.
+            socket.destroy();
+            Log.info(
+                { addr: addrStr },
+                '[BinkP/Caller] Stopping; not starting the session'
+            );
+            return;
+        }
 
         const session = new BinkpSession(socket, {
             role: 'originating',
@@ -183,6 +207,10 @@ async function pollNodes(forceAddrs, cb) {
     const addrs = Array.from(addrsByKey.values());
 
     for (const addr of addrs) {
+        if (stopping) {
+            Log.info('[BinkP/Caller] Stopping; not dialing the remaining nodes');
+            break;
+        }
         const nodeConf = nodeConfigFor(addr);
         if (!nodeConf || !nodeConf.host) {
             Log.debug(
@@ -283,4 +311,4 @@ function _connect(host, port, tlsOpts) {
     });
 }
 
-module.exports = { callNode, pollNodes, isPollConfigured };
+module.exports = { callNode, pollNodes, isPollConfigured, setStopping, _connect };

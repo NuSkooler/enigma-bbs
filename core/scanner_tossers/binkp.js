@@ -16,6 +16,7 @@ const Address = require('../ftn_address.js');
 const { MessageScanTossModule } = require('../msg_scan_toss_module.js');
 const { BinkpSession } = require('../binkp/session.js');
 const { attachSpoolToSession } = require('../binkp/bso_spool.js');
+const bsoLock = require('../bso_lock.js');
 //  called through the module object so a test can stand in for it
 const caller = require('../binkp/caller.js');
 const {
@@ -54,6 +55,12 @@ const LISTENER_BOUND_KEYS = [
 //  scannerTossers.ftn_bso.binkp.inboundTempMaxAgeMs.
 const DEFAULT_INBOUND_TEMP_MAX_AGE_MS = 60 * 60 * 1000;
 const INBOUND_TEMP_PATTERN = /^binkp_in_.*\.dt$/i;
+
+//  How long shutdown() waits for live sessions to end and their .bsy locks to
+//  be released. Part of the system's 15 s shutdown budget (core/bbs.js); a
+//  lock still held when the process exits is removed on exit by
+//  core/bso_lock.js.
+const SHUTDOWN_SESSIONS_MAX_MS = 4000;
 
 exports.moduleInfo = {
     name: 'BinkP',
@@ -110,9 +117,13 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         this._pullSchedule = null;
         this._pulling = false; // a pull cycle is running
         this._pullRequestListener = null;
+        this._stopping = false;
     }
 
     startup(cb) {
+        this._stopping = false;
+        caller.setStopping(false);
+
         const ftnBsoCfg = _.get(Config(), 'scannerTossers.ftn_bso');
         if (!ftnBsoCfg) {
             return cb(null);
@@ -134,7 +145,13 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         );
     }
 
+    //
+    //  Stop accepting and dialing, end live sessions (M_BSY), and wait -- at
+    //  most SHUTDOWN_SESSIONS_MAX_MS -- for their .bsy locks to be released.
+    //
     shutdown(cb) {
+        this._stopping = true;
+        caller.setStopping(true);
         if (this._pullTimer) {
             this._pullTimer.clear();
             this._pullTimer = null;
@@ -165,29 +182,46 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             );
             this._pullRequestListener = null;
         }
-        const closePlain = done => {
-            if (this._server) {
-                this._server.close(() => {
-                    this._server = null;
-                    done();
-                });
-            } else {
-                done();
-            }
-        };
 
-        const closeTls = done => {
-            if (this._tlsServer) {
-                this._tlsServer.close(() => {
-                    this._tlsServer = null;
-                    done();
-                });
-            } else {
-                done();
-            }
-        };
+        //  A server's close() only calls back once every connection it
+        //  accepted has ended, so both are closed first and the sessions ended
+        //  after; waiting on the first would wait out a live session.
+        const closed = [this._server, this._tlsServer]
+            .filter(Boolean)
+            .map(server => new Promise(resolve => server.close(() => resolve())));
+        this._server = null;
+        this._tlsServer = null;
 
-        closePlain(() => closeTls(() => cb(null)));
+        const aborted = BinkpSession.abortAll('Shutting down');
+        if (aborted > 0) {
+            Log.info({ sessions: aborted }, '[BinkP] Ending live sessions for shutdown');
+        }
+
+        const deadline = Date.now() + SHUTDOWN_SESSIONS_MAX_MS;
+        let timer;
+        const timedOut = new Promise(resolve => {
+            timer = setTimeout(() => resolve(false), SHUTDOWN_SESSIONS_MAX_MS);
+        });
+        const settled = Promise.all(closed).then(() =>
+            bsoLock.whenNoneHeld(Math.max(0, deadline - Date.now()))
+        );
+
+        Promise.race([settled, timedOut])
+            .then(released => {
+                clearTimeout(timer);
+                if (!released) {
+                    Log.warn(
+                        {
+                            sessions: BinkpSession.liveCount(),
+                            locks: bsoLock.heldCount(),
+                            maxMs: SHUTDOWN_SESSIONS_MAX_MS,
+                        },
+                        '[BinkP] Sessions or .bsy locks still open at shutdown; they are released on exit'
+                    );
+                }
+            })
+            .catch(() => clearTimeout(timer))
+            .then(() => cb(null));
     }
 
     // ── Private ──────────────────────────────────────────────────────────────
@@ -564,6 +598,11 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
     async _handleConnection(socket) {
         const remote = `${socket.remoteAddress}:${socket.remotePort}`;
+        if (this._stopping) {
+            //  Accepted just before the listener closed.
+            socket.destroy();
+            return;
+        }
         Log.info({ remote }, '[BinkP] Inbound connection');
 
         //  Resolved per connection, not per process: config.hjson is

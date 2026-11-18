@@ -190,8 +190,9 @@ function main() {
 //  How long an orderly shutdown may take in all before the process exits
 //  anyway, with a non-zero code. Every step below either bounds itself
 //  (the listening servers get about 1 s to stop, running Amiga doors about
-//  3 s to sync their images, v86 doors about 5 s to write theirs) or is
-//  quick, so this only fires when one of them hangs. A service manager
+//  3 s to sync their images, v86 doors about 5 s to write theirs, live BinkP
+//  sessions about 4 s to end and release their .bsy locks) or is quick, so
+//  this only fires when one of them hangs. A service manager
 //  must allow at least this long before it kills ENiGMA½: see "Stopping"
 //  in website/src/content/docs/installation/production.md.
 //
@@ -264,6 +265,8 @@ const shutdownSteps = [
         run: cb => require('./file_area_web.js').shutdown(() => cb(null)),
     },
     {
+        //  Includes BinkP: live sessions are ended and their .bsy locks
+        //  released, about 4 s at most
         name: 'stopMsgNetwork',
         run: cb => require('./msg_network.js').shutdown(() => cb(null)),
     },

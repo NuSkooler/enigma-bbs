@@ -156,9 +156,26 @@ When ENiGMA½ acquires a node lock (`.bsy` file in the outbound directory), it e
 `staleLockMaxAgeMs` (default `30 * 60 * 1000`, i.e. 30 minutes) controls how long a `.bsy` file may live untouched before it's reaped. Two paths use it:
 
 - **Startup sweep** runs unconditionally on BinkP module startup (even when inbound is disabled, since outbound calls also acquire locks).
-- **Just-in-time check** runs when `acquireLock` hits an `EEXIST`: if the existing lock is older than the threshold, it's unlinked and the lock is acquired.
+- **Just-in-time check** runs when taking a lock finds one already there.
 
 The default is 6× the internal session timeout (5 minutes), giving a generous safety margin without making post-crash recovery slow. If you ever raise the session timeout, raise this in proportion.
+
+ENiGMA½ refreshes every `.bsy` it holds once a minute (more often if `staleLockMaxAgeMs` is under 5 minutes), as binkd does, so a long session's lock never looks stale to anyone. It does so by writing the lock's own line back over itself, so the file's modification time is the one the filesystem assigns (on a network filesystem, the file server's clock). Its own locks hold one line, the process ID first (FTS-5005.003 §5.1):
+
+```
+1275201 ENiGMA 3f9a1c0b7d2e 9c4e1a7b2f60d8e1
+```
+
+The second field identifies the machine's current boot and PID namespace (as a short hash, or `-` where it cannot be read, such as on non-Linux systems); the third is new for every lock taken. A lock in this form is removed:
+
+- at once, when it was written on this machine (same boot, same PID namespace) by a process that is no longer running. A crash or `SIGKILL` therefore leaves nothing behind on restart.
+- after 5 minutes without being refreshed (or `staleLockMaxAgeMs`, if that is shorter): its process stopped refreshing it. This covers a container restarted after a crash (each start has a new PID namespace) and other machines sharing the outbound.
+
+A lock's age is its modification time compared with the clock of whoever is looking at it. **Machines sharing an outbound (and the file server, for a network filesystem) need their clocks within a few minutes of each other**; use NTP. A clock running more than about 4 minutes ahead of the file server can take a live ENiGMA½ lock for an orphaned one.
+
+Any other `.bsy` (binkd's, other software's, an older ENiGMA½'s) is removed only once it is older than `staleLockMaxAgeMs`, never because of the PID in it.
+
+When ENiGMA½ releases a lock it removes the file only if it still holds what it wrote: a lock another program took in the meantime stays. If a lock it holds is removed or replaced while a session is running, or cannot be refreshed for half the 5 minutes, ENiGMA½ logs a warning and stops relying on it: for the rest of the session it neither changes the flow files that lock covers nor deletes or truncates the files it sends from them. Those files stay where they are, still queued, and are sent again next session. On shutdown, live sessions are sent `M_BSY` ("Shutting down") and closed, and their locks released, within 4 seconds; anything still held when the process exits is removed as it exits (only if it still holds ENiGMA½'s own line).
 
 The same `.bsy` files are honoured by external mailers such as Binkd, and by the ENiGMA½ *tosser* when it queues outbound — see [`flowLockTimeoutMs`](#flowlocktimeoutms) below.
 

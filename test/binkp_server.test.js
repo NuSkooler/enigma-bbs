@@ -221,6 +221,61 @@ describe('BinkP server', function () {
             assert.equal(mod._server, null, 'server should be null after shutdown');
         });
 
+        //  #1052: a shutdown during a session used to wait for the session
+        //  to end (a listener's close() waits for its connections), so the
+        //  system exited on its safety timer and the lock stayed behind.
+        it('shutdown ends a live session with M_BSY and releases its locks', async () => {
+            const { FrameParser, buildCommandFrame } = require('../core/binkp/frame.js');
+            const { Commands } = require('../core/binkp/commands.js');
+            const bsoLock = require('../core/bso_lock.js');
+            //  1:218/701. The answering side only locks in a directory that
+            //  exists.
+            await fsp.mkdir(path.join(tmpDir, 'outbound'), { recursive: true });
+            const bsyPath = path.join(tmpDir, 'outbound', '00da02bd.bsy');
+
+            const { stop, port } = await startModule();
+            let stopped = false;
+            let socket = null;
+            try {
+                const received = [];
+                const parser = new FrameParser();
+                parser.on('frame', f => 'command' === f.type && received.push(f.cmd));
+                socket = net.createConnection(port, '127.0.0.1');
+                socket.on('data', chunk => parser.push(chunk));
+                socket.on('error', () => {});
+                const closed = new Promise(resolve => socket.on('close', resolve));
+                await new Promise(resolve => socket.on('connect', resolve));
+                //  Present an address, then say nothing more.
+                socket.write(buildCommandFrame(Commands.M_NUL, 'SYS stalls'));
+                socket.write(buildCommandFrame(Commands.M_ADR, '1:218/701@testnet'));
+
+                const until = Date.now() + 3000;
+                while (
+                    !(await fsp.access(bsyPath).then(
+                        () => true,
+                        () => false
+                    ))
+                ) {
+                    assert.ok(Date.now() < until, 'the session took its lock');
+                    await new Promise(r => setTimeout(r, 10));
+                }
+
+                const started = Date.now();
+                stopped = true;
+                await stop();
+                assert.ok(Date.now() - started < 4500, 'within the shutdown cap');
+                await closed;
+                assert.ok(received.includes(Commands.M_BSY), 'remote told M_BSY');
+                await assert.rejects(fsp.access(bsyPath), { code: 'ENOENT' });
+                assert.equal(bsoLock.heldCount(), 0, 'no lock held');
+            } finally {
+                socket && socket.destroy();
+                if (!stopped) {
+                    await stop();
+                }
+            }
+        });
+
         it('startup does nothing when inbound.enabled is false', async () => {
             const prev = configModule._pushTestConfig(
                 makeConfig({
