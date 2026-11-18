@@ -5,8 +5,9 @@
 //  uplink that failed (issue #1026).
 //
 //  The scan selects the messages in an area above its watermark that carry no
-//  System/state_flags0 row at all. The exporter writes that row (Exported,
-//  with the MSGID) as soon as a message is handed to its first destination,
+//  System/state_flags0 row, or one holding only ActivityPubExported (#1032).
+//  The exporter writes that row (Exported, with the MSGID) as soon as a
+//  message is handed to its first destination,
 //  before anything is delivered. So once one uplink had taken a message, an
 //  uplink that failed -- a move into outbound, a busy flow file, a second
 //  uplink that was down -- never saw it again, although the log said "will
@@ -17,10 +18,13 @@
 //  and each uplink's row is cleared once its packets are in outbound. The scan
 //  retries what is left, to those uplinks only.
 //
-//  The first part pins which kinds of message the scan exports. That set is
-//  unchanged by the fix: other tossers write bits into the same state_flags0,
-//  and changing who counts as "ours to export" is a policy decision of its
-//  own.
+//  The first part pins which kinds of message the scan exports. #1026 left
+//  that set alone. #1032 changed it in one place only: the ActivityPub tosser
+//  used to flag what it delivered Exported, the bit this exporter writes, so in
+//  an area that is both federated and an FTN echo a local post ActivityPub got
+//  to first never reached the echo. ActivityPub now has a bit of its own, which
+//  the scan does not count. Messages flagged before that keep their '2' and
+//  stay as they were: nothing already in the base is exported on upgrade.
 //
 
 const { strict: assert } = require('assert');
@@ -109,6 +113,16 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
         return persist(message);
     }
 
+    function stateFlags(message) {
+        return h.db
+            .prepare(
+                `SELECT meta_value FROM message_meta WHERE message_id = ?
+                AND meta_category = 'System' AND meta_name = 'state_flags0';`
+            )
+            .all(message.messageId)
+            .map(r => r.meta_value);
+    }
+
     function scanId(scanToss = 'ftn_bso', areaTag = 'local_a') {
         const row = h.db
             .prepare(
@@ -120,7 +134,7 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
 
     // ─── which messages the scan exports ─────────────────────────────────────
 
-    describe('eligibility (unchanged from master)', () => {
+    describe('eligibility', () => {
         //
         //  One message of each kind that can end up in an FTN EchoMail area,
         //  with the flags the code that writes it gives it:
@@ -133,8 +147,9 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
         //  * an ActivityPub note imported from the fediverse: no flags (the
         //    inbox never writes state_flags0); only reaches an FTN area if an
         //    operator maps activitypub_shared as one
-        //  * a local post the ActivityPub tosser exported first: Exported (2),
-        //    written raw, with ActivityPub ids and no MSGID
+        //  * a local post the ActivityPub tosser exported first, before #1032:
+        //    Exported (2), written raw, with ActivityPub ids and no MSGID
+        //  * the same since #1032: ActivityPubExported (8), with the ids
         //  * EchoMail imported from an FTN network: Imported (1)
         //  * EchoMail relayed on: Imported|Exported (3)
         //  * a post already exported to FTN, e.g. live, with the area's
@@ -168,6 +183,16 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
                     },
                 },
             });
+            m.apExportedNow = await makeMessage({
+                subject: 'elig ap exported now',
+                system: { local_from_user_id: '2', state_flags0: '8' },
+                meta: {
+                    ActivityPub: {
+                        activitypub_activity_id: 'https://bbs.example/a/2',
+                        activitypub_note_id: 'https://bbs.example/n/2',
+                    },
+                },
+            });
             m.ftnImported = await h.addImported({
                 areaTag: 'local_a',
                 subject: 'elig ftn imported',
@@ -198,9 +223,14 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
             return m;
         }
 
-        const EXPORTED = ['elig ap imported', 'elig local post', 'elig qwk reply'];
+        const EXPORTED = [
+            'elig ap exported now',
+            'elig ap imported',
+            'elig local post',
+            'elig qwk reply',
+        ];
 
-        it('exports exactly the messages that carry no state flags, to every uplink', async () => {
+        it('exports exactly the messages that carry no state flags but ActivityPubExported, to every uplink', async () => {
             const m = await addOneOfEach();
             const result = await h.runExportScan(h.makeModule());
             assert.ok(!result.err, result.err && result.err.message);
@@ -211,7 +241,11 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
                 [U3]: EXPORTED,
             });
             //  the watermark moves to the last message exported
-            assert.equal(scanId(), m.apImported.messageId);
+            assert.equal(scanId(), m.apExportedNow.messageId);
+            //  ... and the one ActivityPub delivered is now FTN's too
+            assert.deepEqual(stateFlags(m.apExportedNow), ['10']);
+            assert.equal(h.storedMsgId(m.apExportedNow).length, 1);
+            assert.deepEqual(stateFlags(m.apExported), ['2']);
         });
 
         it('exports none of them a second time', async () => {
@@ -251,6 +285,227 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
                 [U3]: only,
             });
             assert.equal(scanId(), fresh.messageId);
+        });
+    });
+
+    // ─── an area that is both ActivityPub and FTN (#1032) ────────────────────
+
+    //
+    //  local_a stands in for activitypub_shared mapped as an FTN echo. The
+    //  ActivityPub side is the tosser's own step that records a delivered
+    //  Note (_markExported); delivering the Note is not what is under test.
+    //
+    describe('an area that is both ActivityPub and FTN (#1032)', () => {
+        let tosser;
+        before(() => {
+            //  Required here, not at load: see activitypub_note.test.js. And
+            //  not constructed: the module may already be loaded, holding
+            //  whatever logger another test file had installed at the time.
+            //  _markExported() writes through the message it is given and
+            //  uses nothing set up by the constructor.
+            const ApTosser = require('../core/scanner_tossers/activitypub.js').getModule;
+            tosser = Object.create(ApTosser.prototype);
+        });
+
+        let apSeq = 0;
+        function apExport(message, activity) {
+            if (!activity) {
+                ++apSeq;
+                activity = {
+                    id: `https://bbs.example/activities/${apSeq}`,
+                    object: { id: `https://bbs.example/notes/${apSeq}` },
+                };
+            }
+            return new Promise(resolve =>
+                tosser._markExported(message, activity, err => resolve({ err, activity }))
+            );
+        }
+
+        function apIds(message) {
+            return h.db
+                .prepare(
+                    `SELECT meta_name, meta_value FROM message_meta
+                    WHERE message_id = ? AND meta_category = 'ActivityPub'
+                    ORDER BY meta_name;`
+                )
+                .all(message.messageId)
+                .map(r => `${r.meta_name}=${r.meta_value}`);
+        }
+
+        function idsOf(activity) {
+            return [
+                `activitypub_activity_id=${activity.id}`,
+                `activitypub_note_id=${activity.object.id}`,
+            ];
+        }
+
+        it('sends a post ActivityPub delivered first to the echo, on the next scheduled scan', async () => {
+            const message = await h.addLocal({ subject: 'ap first' });
+            const ap = await apExport(message);
+            assert.ok(!ap.err, ap.err && ap.err.message);
+            const apFlags = stateFlags(message);
+
+            const scan = await h.runExportScan(h.makeModule());
+            assert.ok(!scan.err, scan.err && scan.err.message);
+            assert.deepEqual(subjectsOf(await delivered()), {
+                [U1]: ['ap first'],
+                [U2]: ['ap first'],
+                [U3]: ['ap first'],
+            });
+            const minted = h.storedMsgId(message);
+            assert.equal(minted.length, 1);
+            assertEachOnce(await tally(), ['ap first'], [U1, U2, U3], () => minted);
+
+            assert.deepEqual(apFlags, [
+                String(h.Message.StateFlags0.ActivityPubExported),
+            ]);
+
+            //  both bits, one row; the ActivityPub ids untouched
+            assert.deepEqual(stateFlags(message), [
+                String(
+                    h.Message.StateFlags0.ActivityPubExported |
+                        h.Message.StateFlags0.Exported
+                ),
+            ]);
+            assert.deepEqual(apIds(message), idsOf(ap.activity));
+            assert.equal(scanId(), message.messageId);
+
+            //  and never again
+            const again = await h.runExportScan(h.makeModule());
+            assert.ok(!again.err, again.err && again.err.message);
+            assertEachOnce(await tally(), ['ap first'], [U1, U2, U3], () => minted);
+        });
+
+        it('records the ActivityPub ids for a post FTN exported first, and FTN does not send it again', async () => {
+            const mod = h.makeModule();
+            const message = await h.addLocal({ subject: 'ftn first' });
+            const live = await h.runLiveExport(mod, message);
+            assert.ok(!live.err, live.err && live.err.message);
+            assert.deepEqual(stateFlags(message), [
+                String(h.Message.StateFlags0.Exported),
+            ]);
+            const minted = h.storedMsgId(message);
+
+            //  used to fail on the UNIQUE key, before the ids were stored
+            const ap = await apExport(message);
+            assert.ok(!ap.err, ap.err && ap.err.message);
+            assert.deepEqual(stateFlags(message), [
+                String(
+                    h.Message.StateFlags0.ActivityPubExported |
+                        h.Message.StateFlags0.Exported
+                ),
+            ]);
+            assert.deepEqual(apIds(message), idsOf(ap.activity));
+            assert.deepEqual(h.storedMsgId(message), minted);
+
+            //  a live export leaves the watermark behind it: the scan must
+            //  still pass over it
+            const scan = await h.runExportScan(mod);
+            assert.ok(!scan.err, scan.err && scan.err.message);
+            assertEachOnce(await tally(), ['ftn first'], [U1, U2, U3], () => minted);
+        });
+
+        //
+        //  The same Activity, recorded twice. A message reaches the tosser once
+        //  (persistMessage -> record), so this is the only repeat there is. A
+        //  different Activity for the same message would add a second row for
+        //  each ID, as the plain INSERTs before #1032 did: REPLACE collides only
+        //  on an identical meta_value.
+        //
+        it('records the same delivery twice without error, as one flag row and one row per ID', async () => {
+            const message = await h.addLocal({ subject: 'ap twice' });
+            const first = await apExport(message);
+            assert.ok(!first.err, first.err && first.err.message);
+            const second = await apExport(message, first.activity);
+            assert.ok(!second.err, second.err && second.err.message);
+            assert.deepEqual(stateFlags(message), [
+                String(h.Message.StateFlags0.ActivityPubExported),
+            ]);
+            assert.deepEqual(apIds(message), idsOf(first.activity));
+        });
+
+        it('never exports EchoMail imported from FTN, ActivityPub flagged or not', async () => {
+            const imported = await h.addImported({
+                areaTag: 'local_a',
+                subject: 'imported, both-area',
+                msgId: '1:218/701 000000d1',
+            });
+            const importedApToo = await h.addImported({
+                areaTag: 'local_a',
+                subject: 'imported, ap flagged',
+                msgId: '1:218/701 000000d2',
+            });
+            //  The AP tosser never sees imported mail (import does not go
+            //  through persistMessage), but should anything ever flag it
+            const ap = await apExport(importedApToo);
+            assert.ok(!ap.err, ap.err && ap.err.message);
+            assert.deepEqual(stateFlags(importedApToo), [
+                String(
+                    h.Message.StateFlags0.ActivityPubExported |
+                        h.Message.StateFlags0.Imported
+                ),
+            ]);
+
+            const scan = await h.runExportScan(h.makeModule());
+            assert.ok(!scan.err, scan.err && scan.err.message);
+            assert.deepEqual(subjectsOf(await delivered()), {
+                [U1]: [],
+                [U2]: [],
+                [U3]: [],
+            });
+            assert.deepEqual(stateFlags(imported), [
+                String(h.Message.StateFlags0.Imported),
+            ]);
+            assert.equal(scanId(), undefined);
+        });
+
+        it('in an area that is ActivityPub only: flagged and recorded, and FTN never sees it', async () => {
+            const message = await h.addLocal({
+                areaTag: 'activitypub_shared',
+                subject: 'ap only',
+            });
+            const ap = await apExport(message);
+            assert.ok(!ap.err, ap.err && ap.err.message);
+            assert.deepEqual(stateFlags(message), [
+                String(h.Message.StateFlags0.ActivityPubExported),
+            ]);
+            assert.deepEqual(apIds(message), idsOf(ap.activity));
+
+            const scan = await h.runExportScan(h.makeModule());
+            assert.ok(!scan.err, scan.err && scan.err.message);
+            assert.deepEqual(subjectsOf(await delivered()), {
+                [U1]: [],
+                [U2]: [],
+                [U3]: [],
+            });
+            assert.equal(scanId('ftn_bso', 'activitypub_shared'), undefined);
+        });
+
+        it('flags ActivityPub private mail Exported as well, which the sent-mail trim looks for', async () => {
+            const message = await h.addLocal({
+                areaTag: 'private_mail',
+                subject: 'ap private',
+            });
+            const ap = await apExport(message);
+            assert.ok(!ap.err, ap.err && ap.err.message);
+            assert.deepEqual(stateFlags(message), [
+                String(
+                    h.Message.StateFlags0.ActivityPubExported |
+                        h.Message.StateFlags0.Exported
+                ),
+            ]);
+        });
+
+        it('in an area that is FTN only: exported and flagged as before', async () => {
+            const message = await h.addLocal({ subject: 'ftn only' });
+            const scan = await h.runExportScan(h.makeModule());
+            assert.ok(!scan.err, scan.err && scan.err.message);
+            const minted = h.storedMsgId(message);
+            assertEachOnce(await tally(), ['ftn only'], [U1, U2, U3], () => minted);
+            assert.deepEqual(stateFlags(message), [
+                String(h.Message.StateFlags0.Exported),
+            ]);
+            assert.deepEqual(apIds(message), []);
         });
     });
 
