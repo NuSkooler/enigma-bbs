@@ -1423,11 +1423,39 @@ describe('amiga_door session', () => {
             sessionKeys: null,
         });
         assert.equal(longer.timeouts.exitAfterDisconnect, 90000);
-        assert.ok(
-            problemsOf({ disconnectGraceSeconds: 0 }).some(p =>
-                p.includes('"disconnectGraceSeconds"')
-            )
+        for (const bad of [-1, 3601, 1.5, '35']) {
+            assert.ok(
+                problemsOf({ disconnectGraceSeconds: bad }).some(p =>
+                    p.includes('"disconnectGraceSeconds"')
+                ),
+                `${bad} refused`
+            );
+        }
+    });
+
+    it('disconnectGraceSeconds: 0 is no wait: the session ends at once', async () => {
+        assert.deepEqual(problemsOf({ disconnectGraceSeconds: 0 }), []);
+        const none = new AmigaDoorSession({
+            client: fakeClient(),
+            config: config({ disconnectGraceSeconds: 0 }),
+            worker: new FakeWorker(),
+            sessionKeys: null,
+        });
+        assert.equal(none.timeouts.exitAfterDisconnect, 0, 'not the default');
+
+        const s = makeSession(
+            { disconnectGraceSeconds: 0 },
+            { timeouts: { exitAfterDisconnect: 0 } }
         );
+        const closed = closedOf(s);
+        s.session.disconnect('hangup');
+        assert.equal(s.session.finished, true, 'ended in the same tick');
+        assert.deepEqual(s.worker.frames('d'), [], 'no wait for an X');
+        const result = await s.done;
+        assert.equal(result.reason, 'hangup');
+        assert.equal(s.worker.sent('stop').length, 1, 'stopped with a sync');
+        await closed;
+        assert.ok(s.worker.terminated);
     });
 
     for (const rc of ['0', '-1']) {
@@ -1963,6 +1991,56 @@ describe('amiga_door image lock', () => {
         await s.done;
         assert.equal(m.client.term.raw.length, 0);
     });
+
+    //  The session ends inside the 'time up' emit, before leave(): with
+    //  disconnectGraceSeconds 0, or before the emulator is ready
+    for (const when of ['grace 0', 'not ready']) {
+        it(`time-up (${when}) writes nothing and goes to no menu`, async () => {
+            const m = makeModule({ image, disconnectGraceSeconds: 0 });
+            assert.equal(await startModule(m), 'ran');
+            const client = m.client;
+            let s;
+            if ('grace 0' === when) {
+                s = makeSession(
+                    { image, disconnectGraceSeconds: 0 },
+                    { client, timeouts: { exitAfterDisconnect: 0 } }
+                );
+            } else {
+                const worker = new FakeWorker();
+                const session = new AmigaDoorSession({
+                    client,
+                    config: config({ image }),
+                    worker,
+                    sessionKeys: { timeleft: 60, rows: 25, cols: 80 },
+                    rawOutput: false,
+                });
+                s = { session, done: new Promise(r => session.once('done', r)) };
+                session.start();
+            }
+            m._attachSession(s.session, null);
+            const seen = [];
+            for (const k of ['write', 'rawWrite', 'passThroughWrite']) {
+                client.term[k] = d => seen.push([k, String(d)]);
+            }
+            m.autoNextMenu = () => seen.push(['autoNextMenu']);
+            m.prevMenu = () => seen.push(['prevMenu']);
+            m.pausePrompt = () => seen.push(['pausePrompt']);
+
+            client.timeUpEmitted = true;
+            client.emit('time up');
+            assert.equal(s.session.finished, true, 'ended in the emit');
+            const result = await s.done;
+            assert.equal(result.reason, 'timeup');
+            assert.deepEqual(seen, []);
+            assert.equal(activeDoorInstances[BASE.name], 0, 'slot freed');
+
+            //  timeUpLogoff takes the caller to its menu
+            m.leave();
+            assert.equal(seen.length, 1, JSON.stringify(seen));
+            assert.equal(seen[0][0], 'rawWrite');
+            assert.ok(seen[0][1].includes('\x1b[r'), 'scroll region reset');
+        });
+    }
 
     //  Something throws after the worker exists: the worker is stopped, and
     //  the slot and the image hold are released exactly once.

@@ -25,6 +25,8 @@
  *
  * MessagePort protocol (parent → worker):
  *   { type: 'input', data: Buffer }        - bytes to send to COM1
+ *   { type: 'carrier', present: boolean }  - raise or drop DCD on COM1 (the caller hung
+ *                                            up); once dropped, no more output is sent
  *   { type: 'stop' }                       - request clean shutdown
  */
 
@@ -145,9 +147,15 @@ const emulator = new V86({
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
+//  DCD on COM1: up until the parent says the caller is gone. DSR and CTS stay
+//  up regardless, as a modem that lost the line still has them.
+let carrier = true;
+let loaded = false;
+
 emulator.add_listener('emulator-loaded', () => {
+    loaded = true;
     // Assert DCD + DSR + CTS on COM1 so door games see a live connection
-    emulator.serial_set_carrier_detect(0, true);
+    emulator.serial_set_carrier_detect(0, carrier);
     emulator.serial_set_data_set_ready(0, true);
     emulator.serial_set_clear_to_send(0, true);
     parentPort.postMessage({ type: 'ready' });
@@ -161,6 +169,9 @@ let outputBuf = [];
 let flushTimer = null;
 
 emulator.add_listener('serial0-output-byte', byte => {
+    if (!carrier) {
+        return; //  no one to see it: the parent drops it anyway
+    }
     outputBuf.push(byte);
     if (!flushTimer) {
         flushTimer = setTimeout(() => {
@@ -175,6 +186,18 @@ parentPort.on('message', msg => {
     switch (msg.type) {
         case 'input':
             emulator.serial0_send(Buffer.from(msg.data).toString('binary'));
+            break;
+
+        case 'carrier':
+            carrier = !!msg.present;
+            if (loaded) {
+                emulator.serial_set_carrier_detect(0, carrier);
+            }
+            if (!carrier) {
+                //  the door should now save and exit, and FreeDOS power off:
+                //  notice the halt sooner
+                fastHaltPoll();
+            }
             break;
 
         case 'stop':
@@ -211,8 +234,12 @@ emulator.add_listener('emulator-stopped', () => {
 let lastInsnCount = 0;
 let haltTicks = 0;
 const HALT_TICKS_REQUIRED = 2; // 2 × 5s = 10 seconds of no progress
+//  once carrier is dropped: 2 × 1s, so a session whose door has exited
+//  ends a few seconds after FreeDOS powers off rather than 5 to 15
+const HALT_POLL_MS = 5000;
+const HALT_POLL_FAST_MS = 1000;
 
-const haltTimer = setInterval(() => {
+function pollHalt() {
     const ic = emulator.get_instruction_counter();
     if (ic === lastInsnCount && ic > 1_000_000) {
         haltTicks++;
@@ -224,4 +251,17 @@ const haltTimer = setInterval(() => {
         haltTicks = 0;
     }
     lastInsnCount = ic;
-}, 5000);
+}
+
+let haltTimer = setInterval(pollHalt, HALT_POLL_MS);
+let haltPollFast = false;
+
+function fastHaltPoll() {
+    if (haltPollFast || shutdownStarted) {
+        return;
+    }
+    haltPollFast = true;
+    clearInterval(haltTimer);
+    haltTicks = 0;
+    haltTimer = setInterval(pollHalt, HALT_POLL_FAST_MS);
+}
