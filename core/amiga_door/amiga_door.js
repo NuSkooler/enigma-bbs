@@ -2268,6 +2268,14 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
             );
         }
 
+        //  Time-up: timeUpLogoff has the terminal. With no grace (or before
+        //  the emulator was ready) the session ends inside the 'time up'
+        //  emit, before leave(); nothing is written and nothing navigates.
+        //  leave() puts the screen back if the caller is taken to a menu.
+        if ('timeup' === result.reason) {
+            return;
+        }
+
         //  The caller hung up (no terminal), or time-up took them elsewhere
         //  (leave() has already put their screen back): nothing more to show
         if (this.left || !this.client.term.output) {

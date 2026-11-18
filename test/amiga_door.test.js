@@ -1992,6 +1992,56 @@ describe('amiga_door image lock', () => {
         assert.equal(m.client.term.raw.length, 0);
     });
 
+    //  The session ends inside the 'time up' emit, before leave(): with
+    //  disconnectGraceSeconds 0, or before the emulator is ready
+    for (const when of ['grace 0', 'not ready']) {
+        it(`time-up (${when}) writes nothing and goes to no menu`, async () => {
+            const m = makeModule({ image, disconnectGraceSeconds: 0 });
+            assert.equal(await startModule(m), 'ran');
+            const client = m.client;
+            let s;
+            if ('grace 0' === when) {
+                s = makeSession(
+                    { image, disconnectGraceSeconds: 0 },
+                    { client, timeouts: { exitAfterDisconnect: 0 } }
+                );
+            } else {
+                const worker = new FakeWorker();
+                const session = new AmigaDoorSession({
+                    client,
+                    config: config({ image }),
+                    worker,
+                    sessionKeys: { timeleft: 60, rows: 25, cols: 80 },
+                    rawOutput: false,
+                });
+                s = { session, done: new Promise(r => session.once('done', r)) };
+                session.start();
+            }
+            m._attachSession(s.session, null);
+            const seen = [];
+            for (const k of ['write', 'rawWrite', 'passThroughWrite']) {
+                client.term[k] = d => seen.push([k, String(d)]);
+            }
+            m.autoNextMenu = () => seen.push(['autoNextMenu']);
+            m.prevMenu = () => seen.push(['prevMenu']);
+            m.pausePrompt = () => seen.push(['pausePrompt']);
+
+            client.timeUpEmitted = true;
+            client.emit('time up');
+            assert.equal(s.session.finished, true, 'ended in the emit');
+            const result = await s.done;
+            assert.equal(result.reason, 'timeup');
+            assert.deepEqual(seen, []);
+            assert.equal(activeDoorInstances[BASE.name], 0, 'slot freed');
+
+            //  timeUpLogoff takes the caller to its menu
+            m.leave();
+            assert.equal(seen.length, 1, JSON.stringify(seen));
+            assert.equal(seen[0][0], 'rawWrite');
+            assert.ok(seen[0][1].includes('\x1b[r'), 'scroll region reset');
+        });
+    }
+
     //  Something throws after the worker exists: the worker is stopped, and
     //  the slot and the image hold are released exactly once.
     for (const stage of ['font', 'constructor', 'start']) {

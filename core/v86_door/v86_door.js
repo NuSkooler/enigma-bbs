@@ -44,7 +44,7 @@
  */
 
 const { MenuModule } = require('../menu_module.js');
-const { Errors } = require('../enig_error.js');
+const { Errors, ErrorCodes } = require('../enig_error.js');
 //  through the module objects, not destructured, so that tests can stand in
 const DoorUtil = require('../door_util.js');
 const FatImage = require('./fat_image.js');
@@ -1050,9 +1050,19 @@ exports.getModule = class V86DoorModule extends MenuModule {
         const run = this._run;
 
         if (!run) {
-            //  ended before a slot was taken (bad config, too many callers)
+            //  ended before a slot was taken (bad config, a missing BIOS or
+            //  image, too many callers, time-up)
             if (err) {
                 this.client.log.warn({ error: err.message }, 'v86_door error');
+                //  a caller refused for too many callers has been told so
+                if (
+                    ErrorCodes.AccessDenied !== err.code &&
+                    !this._left &&
+                    !this.client.clientEnded &&
+                    !this.client.timeUpEmitted
+                ) {
+                    return this._cannotStart();
+                }
             }
             return this.prevMenu();
         }
@@ -1111,6 +1121,11 @@ exports.getModule = class V86DoorModule extends MenuModule {
                 { name: this.config.name, reason: run.reason },
                 StopRunMessages[run.reason] || StopRunMessages.hangup
             );
+        } else if (!run.sawOutput) {
+            this.client.log.warn(
+                { name: this.config.name, image: this.config.image },
+                'v86 door stopped without writing anything to COM1'
+            );
         }
 
         const log = this.client.log;
@@ -1144,7 +1159,9 @@ exports.getModule = class V86DoorModule extends MenuModule {
         //  ended by the door itself (or an error): back to the menu, unless
         //  the menu stack has moved on already
         if (!run.hungUp && !this._left) {
-            if (err && !run.sawOutput) {
+            //  an error, or a guest that halted or powered off, before the
+            //  first byte
+            if (!run.sawOutput) {
                 return this._cannotStart();
             }
             this.prevMenu();
@@ -1152,9 +1169,9 @@ exports.getModule = class V86DoorModule extends MenuModule {
     }
 
     //
-    //  The door failed before the guest wrote anything: say so rather than
-    //  drop the caller back at the menu with no word. The slot is already
-    //  free during the pause.
+    //  The door failed before the guest wrote anything, or could not be run
+    //  at all: say so rather than drop the caller back at the menu with no
+    //  word. The slot, if one was taken, is already free during the pause.
     //
     _cannotStart() {
         this.client.term.write(ansi.resetScreen());

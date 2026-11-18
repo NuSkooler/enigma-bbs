@@ -162,8 +162,13 @@ let savedTrackEnd;
 //
 //  A door module with the live parts stubbed: the worker (FakeWorker),
 //  prevMenu() and pausePrompt(). |left| settles when it calls prevMenu().
+//  With |watchPause|, |paused| settles when the pause prompt is shown and
+//  the test calls m.dismiss() to go on.
 //
-function startDoor(config, { client = fakeClient(), holdTerminate = false } = {}) {
+function startDoor(
+    config,
+    { client = fakeClient(), holdTerminate = false, watchPause = false } = {}
+) {
     const m = new V86DoorModule({
         menuConfig: {
             config: Object.assign({ biosPath: bios, vgaBiosPath: vgaBios }, config),
@@ -177,6 +182,14 @@ function startDoor(config, { client = fakeClient(), holdTerminate = false } = {}
         m.refused = true;
         cb();
     };
+    if (watchPause) {
+        m.paused = new Promise(resolve => {
+            m.pausePrompt = cb => {
+                m.dismiss = cb;
+                resolve();
+            };
+        });
+    }
     m._newWorker = workerData => {
         const w = new FakeWorker(workerData);
         w.holdTerminate = holdTerminate;
@@ -848,10 +861,12 @@ describe('v86_door', () => {
             const input = client.term.output;
             const m = await startRunning({ name, image: img }, { client });
             assert.equal(input.listenerCount('data'), 1);
+            m.worker.emit('message', { type: 'output', data: Buffer.from('bye') });
             m.worker.guestWrite(0, 0x5a);
             m.worker.emit('message', { type: 'stopped', elapsed: 10 });
             m.worker.exit(0);
             assert.equal(await m.left, 'prevMenu');
+            assert.equal(m.refused, undefined, 'no pause');
             await settled(m);
             assert.deepEqual(listenerSnapshot(m), before);
             assert.equal(input.listenerCount('data'), 0);
@@ -1635,6 +1650,130 @@ describe('v86_door', () => {
                 assert.equal(await m.left, 'prevMenu');
                 await settled(m);
                 assert.equal(m.dismiss, undefined, 'no pause');
+            });
+
+            //  a door module that never runs a worker: |paused| settles when
+            //  the pause prompt is shown, |left| when it goes back
+            //  a door module whose terminal and pause prompt are watched
+            function startWatched(config, { client = fakeClient() } = {}) {
+                const writes = watchTerminal(client);
+                const m = startDoor(config, { client, watchPause: true });
+                m.writes = writes;
+                return m;
+            }
+            const told = m =>
+                m.writes.some(w =>
+                    new RegExp(`${name} could not be started`).test(String(w.data))
+                );
+            const warnings = m => m.client.log.lines.filter(l => 'warn' === l.level);
+
+            //  config validation, a missing BIOS or image: no slot is taken
+            for (const [what, cfg, re] of [
+                [
+                    'a missing image',
+                    () => ({ image: '/no/such/door.img' }),
+                    /disk image not found/,
+                ],
+                [
+                    'a missing BIOS',
+                    () => ({ biosPath: '/no/such/seabios.bin' }),
+                    /biosPath not found/,
+                ],
+                ['no image key', () => ({ image: undefined }), /image/],
+            ]) {
+                it(`${what}: the caller is told, then goes back`, async () => {
+                    const m = startWatched(Object.assign({ name, image: img }, cfg()));
+                    await m.paused;
+                    assert.ok(told(m), 'the message is shown');
+                    assert.equal(m._run, undefined, 'no slot taken');
+                    assert.equal(workers.length, 0);
+                    const warns = warnings(m);
+                    assert.equal(warns.length, 1, 'one warning');
+                    assert.match(warns[0].obj.error, re);
+                    m.dismiss();
+                    assert.equal(await m.left, 'prevMenu');
+                });
+            }
+
+            it('a BBSDEV drop file: the caller is told, then goes back', async () => {
+                const m = startWatched({ name, image: img, dropFileType: 'BBSDEV' });
+                await m.paused;
+                assert.ok(told(m));
+                assert.equal(warnings(m).length, 1);
+                assert.match(warnings(m)[0].obj.error, /BBSDEV/);
+                m.dismiss();
+                assert.equal(await m.left, 'prevMenu');
+                await settled(m);
+                assert.equal(activeDoorInstances[name], 0);
+            });
+
+            it('a failure before the run, after a hangup or time-up: no message', async () => {
+                for (const gone of ['clientEnded', 'timeUpEmitted']) {
+                    const client = fakeClient();
+                    client[gone] = true;
+                    const m = startWatched(
+                        { name, image: '/no/such/door.img' },
+                        { client }
+                    );
+                    assert.equal(await m.left, 'prevMenu', gone);
+                    assert.equal(m.dismiss, undefined, `${gone}: no pause`);
+                    assert.equal(told(m), false, `${gone}: no message`);
+                }
+            });
+
+            it('too many callers: their own message only', async () => {
+                const first = await startRunning({ name, image: img, nodeMax: 1 });
+                const m = startWatched({ name, image: img, nodeMax: 1 });
+                await m.paused;
+                assert.ok(
+                    m.writes.some(w => /Too many active instances/.test(String(w.data)))
+                );
+                m.dismiss();
+                assert.equal(await m.left, 'prevMenu');
+                assert.equal(told(m), false);
+                hangUp(first.client);
+                await settled(first);
+            });
+
+            //  a guest that halts or powers off before its first byte
+            for (const how of ['stopped', 'exit 0']) {
+                it(`a guest that ends (${how}) without writing to COM1: the caller is told`, async () => {
+                    const m = await startSilent({ startTimeoutSeconds: 0 });
+                    if ('stopped' === how) {
+                        m.worker.emit('message', { type: 'stopped', elapsed: 900 });
+                    }
+                    m.worker.exit(0);
+                    await m.paused;
+                    assert.ok(told(m));
+                    const warns = warnings(m);
+                    assert.equal(warns.length, 1, 'one warning');
+                    assert.equal(warns[0].obj.image, img);
+                    assert.match(
+                        warns[0].msg,
+                        /stopped without writing anything to COM1/
+                    );
+                    m.dismiss();
+                    assert.equal(await m.left, 'prevMenu');
+                    await settled(m);
+                });
+            }
+
+            it('a guest stopped by a hangup or leave() before its first byte: no message', async () => {
+                for (const end of ['hangup', 'leave']) {
+                    const m = await startSilent({ startTimeoutSeconds: 0 });
+                    let wentBack = false;
+                    m.prevMenu = () => (wentBack = true);
+                    if ('hangup' === end) {
+                        hangUp(m.client);
+                    } else {
+                        m.leave();
+                    }
+                    m.worker.emit('message', { type: 'stopped', elapsed: 1 });
+                    await settled(m);
+                    assert.equal(m.dismiss, undefined, `${end}: no pause`);
+                    assert.equal(wentBack, false);
+                    assert.equal(told(m), false);
+                }
             });
 
             for (const bad of [-5, 'soon', 7200]) {
