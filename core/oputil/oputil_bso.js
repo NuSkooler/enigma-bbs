@@ -118,9 +118,18 @@ function padRight(s, width) {
 }
 
 //  Entries an operator is waiting on: not the ones already sent ('~'), nor
-//  '!' lines, which say "leave this alone".
+//  '!' lines, which say "leave this alone", nor poll requests, which queue
+//  nothing (see pollEntries()).
 function liveEntries(node) {
-    return node.entries.filter(e => 'sent' !== e.status && 'skip' !== e.status);
+    return node.entries.filter(
+        e => 'sent' !== e.status && 'skip' !== e.status && 'poll' !== e.status
+    );
+}
+
+//  Poll requests: zero-length flow files asking for the node to be called
+//  (FTS-5005.003 §3.4). The mailer removes each after a successful session.
+function pollEntries(node) {
+    return node.entries.filter(e => 'poll' === e.status);
 }
 
 //  A path from a flow file, safe to print: whatever another program wrote
@@ -159,7 +168,9 @@ function withSpool(handler) {
 function cmdStatus() {
     withSpool(async spool => {
         const nodes = await spool.inspectOutbound();
-        const interesting = nodes.filter(n => liveEntries(n).length > 0);
+        const interesting = nodes.filter(
+            n => liveEntries(n).length > 0 || pollEntries(n).length > 0
+        );
 
         if (0 === interesting.length) {
             console.info('Nothing queued in the outbound.');
@@ -170,9 +181,9 @@ function cmdStatus() {
             `${padRight('Node', 22)}${padLeft('Queued', 8)}${padLeft(
                 'Missing',
                 9
-            )}${padLeft('Oldest', 8)}`
+            )}${padLeft('Oldest', 8)}${padLeft('Poll', 6)}`
         );
-        console.info('-'.repeat(47));
+        console.info('-'.repeat(53));
 
         let missingTotal = 0;
         let unreadableTotal = 0;
@@ -180,8 +191,13 @@ function cmdStatus() {
         let refusedLinkTotal = 0;
         let misfiledTotal = 0;
         let unparsedTotal = 0;
+        let pollTotal = 0;
         for (const node of interesting) {
             const live = liveEntries(node);
+            const polls = pollEntries(node);
+            if (polls.length > 0) {
+                pollTotal++;
+            }
             const missing = live.filter(e => 'missing' === e.status);
             missingTotal += missing.length;
             unreadableTotal += live.filter(e => 'unreadable' === e.status).length;
@@ -201,9 +217,23 @@ function cmdStatus() {
                     live.length,
                     8
                 )}${padLeft(missing.length || '', 9)}${padLeft(
-                    friendlyAge(oldestTimestamp(live)),
+                    friendlyAge(oldestTimestamp(live.concat(polls))),
                     8
-                )}`
+                )}${padLeft(polls.length > 0 ? 'yes' : '', 6)}`
+            );
+        }
+
+        if (pollTotal > 0) {
+            console.info('');
+            console.info(
+                `${pollTotal} ${
+                    1 === pollTotal
+                        ? 'node has a poll request'
+                        : 'nodes have poll requests'
+                } (a zero-length flow file): called on the next`
+            );
+            console.info(
+                'poll even with nothing queued. The file is removed after a successful session.'
             );
         }
 
@@ -297,13 +327,22 @@ function cmdList(addressArg) {
             sameAddress(n.address, addr)
         );
         const live = node ? liveEntries(node) : [];
+        const polls = node ? pollEntries(node) : [];
 
-        if (0 === live.length) {
+        if (0 === live.length && 0 === polls.length) {
             console.info(`Nothing queued for ${addr.toString()}.`);
             return;
         }
 
         console.info(`${addr.toString()}`);
+        for (const entry of polls) {
+            console.info(
+                `  ${padRight('POLL', 9)}${padLeft('-', 10)}${padLeft(
+                    friendlyAge(entry.timestamp),
+                    8
+                )}  ${shownPath(entry.path)}`
+            );
+        }
         for (const entry of live) {
             const flag =
                 {
@@ -327,6 +366,14 @@ function cmdList(addressArg) {
                         : entry.path
                 )}${entry.linkTarget ? `  ->  ${shownPath(entry.linkTarget)}` : ''}`
             );
+        }
+
+        if (polls.length > 0) {
+            console.info('');
+            console.info(
+                'POLL: a zero-length flow file asking for this node to be called. It queues'
+            );
+            console.info('nothing, and is removed after the next successful session.');
         }
 
         const unreadable = live.filter(e => 'unreadable' === e.status);
