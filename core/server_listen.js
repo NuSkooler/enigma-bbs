@@ -12,6 +12,7 @@ exports.reportListening = reportListening;
 exports.reportBindFailure = reportBindFailure;
 exports.formatBindTarget = formatBindTarget;
 exports.consoleStyle = consoleStyle;
+exports.closeServer = closeServer;
 
 const ANSI_RESET = '\u001b[0m';
 
@@ -188,5 +189,43 @@ function listenServer(server, options, cb) {
         //  Node throws synchronously for a malformed address/port rather than
         //  emitting 'error'.
         return finish(makeBindError(e, options));
+    }
+}
+
+//
+//  close() stops a server accepting connections at once, but its callback
+//  only comes once every connection already open has ended, which may be
+//  never as far as this is concerned. So a server that is no longer
+//  listening when close() returns counts as stopped; the callback is for
+//  anything else.
+//
+//  Shared by core/listening_server.js and the telnet server, which closes its
+//  own listeners.
+//
+function closeServer(server, log, name, cb) {
+    let called = false;
+    const done = () => {
+        if (!called) {
+            called = true;
+            return cb();
+        }
+    };
+
+    try {
+        server.close(() => done());
+    } catch (err) {
+        log.warn({ err, server: name }, 'Failed to stop listening; continuing');
+        return done();
+    }
+
+    //  net, http, https and tls servers have .listening; an ssh2 Server does
+    //  not, but its address() is null once it has stopped
+    if (
+        false === server.listening ||
+        (undefined === server.listening &&
+            'function' === typeof server.address &&
+            null === server.address())
+    ) {
+        return done();
     }
 }

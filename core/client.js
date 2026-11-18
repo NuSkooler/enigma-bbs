@@ -382,6 +382,20 @@ Client.prototype.restoreIdleLogoutSeconds = function () {
 };
 
 //
+//  Turn away a connection that is not being served (every node is busy):
+//  tell the caller why where the transport has a terminal already, then end
+//  it. The client is never tracked, so none of the usual 'end' or 'close'
+//  handling applies. SSH has no terminal until its shell opens and does this
+//  its own way; see core/servers/login/ssh.js.
+//
+Client.prototype.refuseConnection = function (message) {
+    if (this.term) {
+        this.term.write(`\n${message}\n`);
+    }
+    return this.end();
+};
+
+//
 //  end() is reached more than once on a server initiated disconnect, and
 //  always has been: end() calls disconnect(), the socket emits 'close',
 //  login_server_module's handler calls clientConnections.removeClient(),

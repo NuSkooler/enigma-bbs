@@ -3,7 +3,7 @@
 
 //  ENiGMA½
 const logger = require('./logger.js');
-const { consoleStyle } = require('./server_listen.js');
+const { consoleStyle, closeServer } = require('./server_listen.js');
 
 //  deps
 const async = require('async');
@@ -135,41 +135,6 @@ function stopListening(name, entry, log, cb) {
         );
     } catch (err) {
         log.warn({ err, server: name }, 'Failed to stop listening; continuing');
-        return done();
-    }
-}
-
-//
-//  close() stops a server accepting connections at once, but its callback
-//  only comes once every connection already open has ended, which may be
-//  never as far as this is concerned. So a server that is no longer
-//  listening when close() returns counts as stopped; the callback is for
-//  anything else.
-//
-function closeServer(server, log, name, cb) {
-    let called = false;
-    const done = () => {
-        if (!called) {
-            called = true;
-            return cb();
-        }
-    };
-
-    try {
-        server.close(() => done());
-    } catch (err) {
-        log.warn({ err, server: name }, 'Failed to stop listening; continuing');
-        return done();
-    }
-
-    //  net, http, https and tls servers have .listening; an ssh2 Server does
-    //  not, but its address() is null once it has stopped
-    if (
-        false === server.listening ||
-        (undefined === server.listening &&
-            isFunction(server.address) &&
-            null === server.address())
-    ) {
         return done();
     }
 }
