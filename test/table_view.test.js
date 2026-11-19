@@ -2050,4 +2050,220 @@ describe('TableView', function () {
             assert.equal(drawnOnRow(client, 1), ' P 2');
         });
     });
+
+    //  Review round 3 (#447)
+    describe('wrap and rules edge cases', function () {
+        const S = code => pipeToAnsi(code);
+
+        it('a row just below the window that shrinks to fit is drawn', function () {
+            const { view, client } = makeView(
+                {
+                    dimens: { width: 12, height: 4 },
+                    columns: { k: { width: 2 }, t: { width: 10, maxLines: 3 } },
+                    columnOrder: ['k', 't'],
+                },
+                [
+                    { k: '0', t: 'x' },
+                    { k: '1', t: 'x' },
+                    { k: '2', t: 'a b c d e f g h i j k l m n' },
+                    { k: '3', t: 'y' },
+                ]
+            );
+            assert.deepEqual(view.viewWindow, { top: 0, bottom: 1 });
+            view.updateItemAt(2, { t: 'z' });
+            assert.equal(drawnOnRow(client, 3), '2 z         ');
+            assert.equal(drawnOnRow(client, 4), '3 y         ');
+            assert.deepEqual(view.viewWindow, { top: 0, bottom: 3 });
+        });
+
+        it('bool rules and display read "true"/"false"/"0" strings; other values never match', function () {
+            const shown = (when, v) => {
+                const { client } = makeView(
+                    {
+                        dimens: { width: 3, height: 1 },
+                        columns: {
+                            b: { width: 3, type: 'bool', rules: [{ when, text: 'Y' }] },
+                        },
+                    },
+                    [{ b: v }]
+                );
+                return drawnOnRow(client, 1).trim();
+            };
+            assert.equal(shown('= true', '0'), 'No');
+            assert.equal(shown('= false', 'false'), 'Y');
+            assert.equal(shown('= true', 'yes'), 'Y');
+            assert.equal(shown('!= true', 'maybe'), 'may');
+            assert.equal(shown('= false', 0), 'Y');
+        });
+
+        it('removeItem and updateItem refresh the inferred column type', function () {
+            const columns = { v: { width: 5 } };
+            const removed = makeView({ dimens: { width: 5, height: 2 }, columns }, [
+                { v: 'abc' },
+                { v: 5 },
+            ]);
+            removed.view.removeItem(0);
+            removed.view.redraw();
+            assert.equal(drawnOnRow(removed.client, 1), '    5');
+
+            const updated = makeView({ dimens: { width: 5, height: 2 }, columns }, [
+                { key: 'a', v: 'abc' },
+                { key: 'b', v: 5 },
+            ]);
+            updated.view.updateItem('a', { v: 7 });
+            assert.equal(drawnOnRow(updated.client, 1), '    7');
+            assert.equal(drawnOnRow(updated.client, 2), '    5');
+        });
+
+        it('wrapped lines carry the colour in effect, not every escape seen so far', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 2, height: 6 },
+                    columns: { t: { width: 2, maxLines: 6 } },
+                },
+                [{ t: '|14a |15b |14c |15d |14e |15f' }]
+            );
+            const escapes = row => (rawOnRow(client, row).match(/\x1b\[/g) || []).length;
+            assert.equal(escapes(6), escapes(2));
+            assert.ok(rawOnRow(client, 6).includes(`${S('|15')}f`));
+            assert.equal(drawnOnRow(client, 6), 'f ');
+        });
+
+        it('a hard-broken word carries its colour once', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 3, height: 4 },
+                    columns: { t: { width: 3, maxLines: 4 } },
+                },
+                [{ t: '|14abc|15defghijkl' }]
+            );
+            const escapes = row => (rawOnRow(client, row).match(/\x1b\[/g) || []).length;
+            assert.equal(drawnOnRow(client, 4), 'jkl');
+            assert.equal(escapes(4), escapes(3));
+        });
+
+        it('tabs and line breaks in a value are shown as spaces', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 8, height: 1 },
+                    columns: { t: { width: 8 } },
+                },
+                [{ t: 'a\nb\tc\rd' }]
+            );
+            assert.equal(drawnOnRow(client, 1), 'a b c d ');
+            assert.ok(!/[\n\r\t]/.test(rawOnRow(client, 1)));
+        });
+
+        const ruleShown = (when, value, type, extra) => {
+            const { client } = makeView(
+                {
+                    dimens: { width: 3, height: 1 },
+                    columns: {
+                        v: Object.assign(
+                            { width: 3, type, rules: [{ when, text: 'Y' }] },
+                            extra
+                        ),
+                    },
+                },
+                [{ v: value }]
+            );
+            return 'Y' === drawnOnRow(client, 1).trim();
+        };
+
+        it('text = and != are exact apart from case and accents; < and > keep the sort order', function () {
+            assert.equal(ruleShown('= 7', '007', 'text'), false);
+            assert.equal(ruleShown('!= 7', '007', 'text'), true);
+            assert.equal(ruleShown('= new', 'NÉW', 'text'), true);
+            assert.equal(ruleShown('< 10', '9', 'text'), true);
+        });
+
+        it('number operands must be decimal; others make the rule invalid', function () {
+            assert.equal(ruleShown('= 0x10', 16, 'number'), false);
+            assert.equal(ruleShown('< Infinity', 1, 'number'), false);
+            assert.equal(ruleShown('> -2.5', 1, 'number'), true);
+            assert.equal(ruleShown('= 1e2', 100, 'number'), false);
+        });
+
+        it('date-only operands compare by calendar day', function () {
+            assert.equal(ruleShown('= 2026-11-17', '2026-11-17T21:04:00', 'date'), true);
+            assert.equal(
+                ruleShown('!= 2026-11-17', '2026-11-17T21:04:00', 'date'),
+                false
+            );
+            assert.equal(ruleShown('> 2026-11-17', '2026-11-17T23:00:00', 'date'), false);
+            assert.equal(ruleShown('<= 2026-11-17', '2026-11-17T23:00:00', 'date'), true);
+            assert.equal(ruleShown('< 2026-11-18', '2026-11-17T23:00:00', 'date'), true);
+            assert.equal(
+                ruleShown('>= 2026-11-17T22:00:00', '2026-11-17T21:04:00', 'date'),
+                false
+            );
+        });
+
+        it('bad operands and operator typos are invalid; one warning names every bad rule', function () {
+            const warned = [];
+            const client = makeClient();
+            client.log.warn = (...args) => warned.push(args);
+            const view = new TableView({
+                client,
+                id: 1,
+                position: { row: 1, col: 1 },
+                dimens: { width: 8, height: 1 },
+                columns: {
+                    a: {
+                        width: 4,
+                        type: 'number',
+                        rules: [
+                            { when: '== 5', text: 'X' },
+                            { when: '<> 5', text: 'X' },
+                            { when: '> =5', text: 'X' },
+                            { when: '> five', text: 'X' },
+                            { when: '>= 5', text: 'ok' },
+                        ],
+                    },
+                    b: {
+                        width: 4,
+                        type: 'date',
+                        rules: [{ when: '> soon', text: 'X' }, { when: '!5' }],
+                    },
+                    c: { type: 'bool', rules: [{ when: '= maybe' }] },
+                },
+                columnOrder: ['a', 'b'],
+            });
+            view.setItems([{ a: 5, b: '' }]);
+            view.redraw();
+            assert.equal(drawnOnRow(client, 1), '  ok    ');
+            assert.equal(warned.length, 1);
+            const [info] = warned[0];
+            assert.deepEqual(
+                info.rules.map(r => `${r.column} ${r.when}`),
+                [
+                    'a == 5',
+                    'a <> 5',
+                    'a > =5',
+                    'a > five',
+                    'b > soon',
+                    'b !5',
+                    'c = maybe',
+                ]
+            );
+        });
+
+        it('rule text with pipe codes is padded by its rendered width in a format', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 8, height: 1 },
+                    columns: {
+                        n: {
+                            width: 8,
+                            justify: 'left',
+                            format: '[{value:>6}]',
+                            rules: [{ when: '= 0', text: '|12-' }],
+                        },
+                    },
+                },
+                [{ n: 0 }]
+            );
+            assert.equal(drawnOnRow(client, 1), '[     -]');
+        });
+    });
 });

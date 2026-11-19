@@ -104,6 +104,18 @@ function isNumeric(v) {
     return _.isString(v) && '' !== v.trim() && !isNaN(Number(v));
 }
 
+//  A boolean, or a string / number that reads as one (true/false, yes/no,
+//  on/off, 1/0); null for anything else
+function toBool(v) {
+    if (_.isBoolean(v)) {
+        return v;
+    }
+    return _.isString(v) || _.isNumber(v) ? parseBool(v) : null;
+}
+
+//  A rule's number operand: plain decimal only (no hex, exponent or Infinity)
+const DecimalRegExp = /^[+-]?(\d+(\.\d+)?|\.\d+)$/;
+
 //  Does |v| read as |type|?
 function conformsTo(v, type) {
     switch (type) {
@@ -112,7 +124,7 @@ function conformsTo(v, type) {
         case 'date':
             return toMoment(v).isValid();
         case 'bool':
-            return _.isBoolean(v);
+            return null !== toBool(v);
         default:
             return true;
     }
@@ -174,7 +186,7 @@ function compareTyped(a, b, type) {
         }
 
         case 'bool':
-            return (a ? 1 : 0) - (b ? 1 : 0);
+            return (toBool(a) ? 1 : 0) - (toBool(b) ? 1 : 0);
     }
 
     return String(a).localeCompare(String(b), undefined, {
@@ -190,7 +202,64 @@ const ANSI_SEQ = /\x1b\[[0-9;?]*[ -/]*[@-~]/y;
 // eslint-disable-next-line no-control-regex
 const ANSI_SEQ_G = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
 
-const escapesIn = s => (s.match(ANSI_SEQ_G) || []).join('');
+const escapesIn = s => s.match(ANSI_SEQ_G) || [];
+
+//
+//  The SGR state a run of escapes leaves: what a wrapped line has to start
+//  with so its colours carry on, without replaying every escape before it
+//
+function sgrState() {
+    return { reset: false, attrs: {} };
+}
+
+const SgrAttr = p => {
+    if (1 === p || 2 === p || 22 === p) return 'intensity';
+    if (3 === p || 23 === p) return 'italic';
+    if (4 === p || 24 === p) return 'underline';
+    if (5 === p || 6 === p || 25 === p) return 'blink';
+    if (7 === p || 27 === p) return 'reverse';
+    if (8 === p || 28 === p) return 'conceal';
+    if ((p >= 30 && p <= 37) || 39 === p || (p >= 90 && p <= 97)) return 'fg';
+    if ((p >= 40 && p <= 47) || 49 === p || (p >= 100 && p <= 107)) return 'bg';
+    return null;
+};
+
+function applySgr(state, esc) {
+    const m = esc.match(/^\x1b\[([0-9;]*)m$/); // eslint-disable-line no-control-regex
+    if (!m) {
+        return; //  only SGR carries
+    }
+    const ps = '' === m[1] ? [0] : m[1].split(';').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < ps.length; ++i) {
+        const p = ps[i];
+        if (0 === p) {
+            state.reset = true;
+            state.attrs = {};
+        } else if (38 === p || 48 === p) {
+            const key = 38 === p ? 'fg' : 'bg';
+            if (5 === ps[i + 1]) {
+                state.attrs[key] = ps.slice(i, i + 3).join(';');
+                i += 2;
+            } else if (2 === ps[i + 1]) {
+                state.attrs[key] = ps.slice(i, i + 5).join(';');
+                i += 4;
+            }
+        } else {
+            const attr = SgrAttr(p);
+            if (attr) {
+                state.attrs[attr] = String(p);
+            }
+        }
+    }
+}
+
+function sgrOf(state) {
+    const parts = Object.values(state.attrs);
+    if (state.reset) {
+        parts.unshift('0');
+    }
+    return parts.length ? `\x1b[${parts.join(';')}m` : '';
+}
 
 //  Rendered text (only ANSI escapes are codes) as words and runs of spaces;
 //  escapes ride along in the word they precede or sit in
@@ -233,7 +302,8 @@ function wordsOf(text) {
 //
 function wrapRendered(text, width, maxLines) {
     const lines = [];
-    let codes = '';
+    const state = sgrState();
+    const carry = s => escapesIn(s).forEach(esc => applySgr(state, esc));
     let line = '';
     let lineW = 0;
     let pend = '';
@@ -241,7 +311,7 @@ function wrapRendered(text, width, maxLines) {
 
     const pushLine = () => {
         lines.push(line);
-        line = codes;
+        line = sgrOf(state);
         lineW = 0;
     };
 
@@ -279,7 +349,7 @@ function wrapRendered(text, width, maxLines) {
                 }
                 const chunk = rest.slice(0, pos);
                 line += chunk;
-                codes += escapesIn(chunk);
+                carry(chunk);
                 pushLine();
                 rest = rest.slice(pos);
                 if (lines.length > maxLines) {
@@ -288,10 +358,14 @@ function wrapRendered(text, width, maxLines) {
             }
             line += rest;
             lineW = strUtil.renderStringLength(rest, ANSI_ONLY);
+            carry(rest);
+            pend = '';
+            pendW = 0;
+            continue;
         }
         pend = '';
         pendW = 0;
-        codes += escapesIn(word.s);
+        carry(word.s);
     }
 
     if (lineW > 0 || 0 === lines.length) {
@@ -320,23 +394,52 @@ function parseBool(s) {
     return null;
 }
 
-//  { op, operand } for a rule's 'when', or null if it cannot be read
-function parseWhen(when) {
+const DateOnlyRegExp = /^\d{4}-\d{2}-\d{2}$/;
+
+//
+//  { test: { op, operand, dayOnly } } for a rule's 'when', or { error }. An
+//  operand that starts with an operator character is a typo ("== 5",
+//  "<> 5", "> =5"); with a declared column type, the operand must read as
+//  that type (numbers: plain decimal).
+//
+function parseWhen(when, type) {
     if (!_.isString(when)) {
-        return null;
+        return { error: 'no when' };
     }
     when = when.trim();
     if (/^empty$/i.test(when)) {
-        return { op: 'empty' };
+        return { test: { op: 'empty' } };
     }
     if (/^notEmpty$/i.test(when)) {
-        return { op: 'notEmpty' };
+        return { test: { op: 'notEmpty' } };
     }
     const m = when.match(RuleOpRegExp);
     if (!m || '' === m[2].trim()) {
-        return null;
+        return { error: 'not empty, notEmpty or an operator and a value' };
     }
-    return { op: m[1], operand: unquote(m[2].trim()) };
+    const raw = m[2].trim();
+    if (/^[<>=!]/.test(raw)) {
+        return { error: 'unknown operator' };
+    }
+    const operand = unquote(raw);
+    switch (type) {
+        case 'number':
+            if (!DecimalRegExp.test(operand)) {
+                return { error: 'not a decimal number' };
+            }
+            break;
+        case 'date':
+            if (!toMoment(operand).isValid()) {
+                return { error: 'not an ISO 8601 date' };
+            }
+            break;
+        case 'bool':
+            if (null === parseBool(operand)) {
+                return { error: 'not true or false' };
+            }
+            break;
+    }
+    return { test: { op: m[1], operand, dayOnly: DateOnlyRegExp.test(operand) } };
 }
 
 //
@@ -362,37 +465,47 @@ function ruleMatches(test, raw, type) {
     let c;
     switch (type) {
         case 'number':
-            if (!isNumeric(raw) || !isNumeric(test.operand)) {
+            if (!isNumeric(raw) || !DecimalRegExp.test(test.operand)) {
                 return false;
             }
             c = compareValues(Number(raw), Number(test.operand));
             break;
 
         case 'date': {
-            const a = toMoment(raw);
-            const b = toMoment(test.operand);
+            let a = toMoment(raw);
+            let b = toMoment(test.operand);
             if (!a.isValid() || !b.isValid()) {
                 return false;
+            }
+            if (test.dayOnly) {
+                //  a date without a time is a calendar day, in the time the
+                //  column shows dates in
+                a = a.clone().startOf('day');
+                b = moment(test.operand, 'YYYY-MM-DD', true).startOf('day');
             }
             c = compareValues(a.valueOf(), b.valueOf());
             break;
         }
 
         case 'bool': {
+            const a = toBool(raw);
             const b = parseBool(test.operand);
-            if (null === b) {
+            if (null === a || null === b) {
                 return false;
             }
-            c = compareValues(raw ? 1 : 0, b ? 1 : 0);
+            c = compareValues(a ? 1 : 0, b ? 1 : 0);
             break;
         }
 
         default:
-            c = String(raw).localeCompare(test.operand, undefined, {
-                sensitivity: 'base',
-                numeric: true,
-            });
-            c = Math.sign(c);
+            //  = and != are equality apart from case and accents; the others
+            //  use the order the column sorts in
+            c = Math.sign(
+                String(raw).localeCompare(test.operand, undefined, {
+                    sensitivity: 'base',
+                    numeric: !['=', '!='].includes(test.op),
+                })
+            );
             break;
     }
 
@@ -563,11 +676,13 @@ class TableView extends MenuView {
         return out;
     }
 
+    //  Text to draw: tabs and line breaks become spaces (they would move the
+    //  cursor and break the layout), then pipe codes are rendered
     _pipe(s) {
         if (isEmptyValue(s)) {
             return '';
         }
-        return pipeToAnsi(String(s), this.client);
+        return pipeToAnsi(String(s).replace(LINE_CONTROLS, ' '), this.client);
     }
 
     //  A fill spec may carry its own colour: '|08─'. Returns { sgr, ch }.
@@ -621,12 +736,14 @@ class TableView extends MenuView {
 
         //  every configured column; _visibleColumns() drops hidden ones
         const columns = _.isPlainObject(cfg.columns) ? cfg.columns : {};
+        this._badRules = [];
         this._columnDefs = {};
         Object.keys(columns).forEach(id => {
             if (_.isPlainObject(columns[id])) {
                 this._columnDefs[id] = this._makeColumn(id, columns[id]);
             }
         });
+        this._warnBadRules();
         this._columnOrder = Array.isArray(cfg.columnOrder)
             ? cfg.columnOrder
             : Object.keys(this._columnDefs);
@@ -674,25 +791,36 @@ class TableView extends MenuView {
             minTermWidth: parseInt(def.minTermWidth) || 0,
             sortOrder: def.sortOrder ? normalizeOrder(def.sortOrder) : 'asc',
             maxLines: Math.max(1, parseInt(def.maxLines) || 1),
-            rules: this._parseRules(id, def.rules),
+            rules: this._parseRules(
+                id,
+                def.rules,
+                ['text', 'number', 'date', 'bool'].includes(def.type)
+                    ? def.type
+                    : undefined
+            ),
         };
     }
 
-    //  A column's rules; one that cannot be read is skipped, with one
-    //  warning per view
-    _parseRules(columnId, rules) {
+    //  A column's rules; one that cannot be read is skipped and noted for
+    //  the view's one warning
+    _parseRules(columnId, rules, type) {
         if (!Array.isArray(rules)) {
             return [];
         }
         return rules
             .map(rule => {
-                const test = _.isPlainObject(rule) ? parseWhen(rule.when) : null;
-                if (!test) {
-                    this._warnRule(columnId, _.isPlainObject(rule) ? rule.when : rule);
+                const when = _.isPlainObject(rule) ? rule.when : rule;
+                const parsed = _.isPlainObject(rule) ? parseWhen(rule.when, type) : null;
+                if (!parsed || parsed.error) {
+                    this._badRules.push({
+                        column: columnId,
+                        when,
+                        reason: parsed ? parsed.error : 'not a rule object',
+                    });
                     return null;
                 }
                 return {
-                    test,
+                    test: parsed.test,
                     sgr: this._pipe(rule.sgr),
                     text:
                         _.isString(rule.text) || _.isNumber(rule.text)
@@ -703,16 +831,17 @@ class TableView extends MenuView {
             .filter(Boolean);
     }
 
-    _warnRule(column, when) {
-        if (this._ruleWarned) {
+    //  Once per view: every rule that was skipped
+    _warnBadRules() {
+        if (this._ruleWarned || !this._badRules.length) {
             return;
         }
         this._ruleWarned = true;
         const log = this.client.log;
         if (log && _.isFunction(log.warn)) {
             log.warn(
-                { viewId: this.id, column, when },
-                'TableView rule ignored: "when" must be empty, notEmpty, or =, !=, <, <=, >, >= and a value'
+                { viewId: this.id, rules: this._badRules },
+                'TableView rules ignored: "when" must be empty, notEmpty, or =, !=, <, <=, >, >= and a value of the column\'s type'
             );
         }
     }
@@ -1061,20 +1190,24 @@ class TableView extends MenuView {
         const hadItemRows = this.hasItemRows();
         const prevKind = item.kind;
         const prevHeight = this._rowHeight(index);
+        const prevTypes = this._typeSignature();
 
         Object.assign(item, patch);
         this.removeRenderCacheItem(index);
+        this._inferredTypes = {};
+        const typesChanged = prevTypes !== this._typeSignature();
 
         const kindChanged = (prevKind || 'item') !== (item.kind || 'item');
         if (
             kindChanged ||
+            typesChanged ||
             'selectable' in patch ||
             wasSelectable !== this.isSelectable(index) ||
             hadSelectable !== this.hasSelectable() ||
             hadItemRows !== this.hasItemRows()
         ) {
             //  group runs (sorting, stripes), focus or emptiness may change
-            if (kindChanged) {
+            if (kindChanged || typesChanged) {
                 this._resort();
             }
             this._computeAltRows();
@@ -1100,6 +1233,12 @@ class TableView extends MenuView {
                     this.redraw();
                 } else if (this._rowScreen.has(index)) {
                     this._drawBody(index);
+                } else if (
+                    index === this.viewWindow.bottom + 1 &&
+                    this._rowScreen.has(this.viewWindow.bottom)
+                ) {
+                    //  just below the window: it may fit now
+                    this._drawBody(this.viewWindow.bottom);
                 }
             }
             return true;
@@ -1111,11 +1250,19 @@ class TableView extends MenuView {
         return true;
     }
 
+    //  Every column's type as it stands (inferred types follow the rows)
+    _typeSignature() {
+        return Object.values(this._columnDefs)
+            .map(col => this._columnType(col))
+            .join(',');
+    }
+
     removeItem(index) {
         const item = this.items[index];
         if (!item) {
             return;
         }
+        this._inferredTypes = {};
         this.items.splice(index, 1);
         const moduleIndex = this._moduleItems.indexOf(item);
         if (moduleIndex > -1) {
@@ -1808,9 +1955,11 @@ class TableView extends MenuView {
                 break;
             }
 
-            case 'bool':
-                value = String(raw ? col.boolText[0] : col.boolText[1]);
+            case 'bool': {
+                const b = toBool(raw);
+                value = null === b ? String(raw) : b ? col.boolText[0] : col.boolText[1];
                 break;
+            }
 
             case 'number':
                 if (

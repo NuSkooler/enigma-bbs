@@ -133,12 +133,17 @@ new: {
 ```
 
 - `when` is `empty`, `notEmpty`, or one of `=`, `!=`, `<`, `<=`, `>`, `>=` followed by a value, e.g. `"> 0"`, `"= new"`, `">= 2026-11-01"`. Quote a value to keep spaces: `"= 'no subject'"`.
-- Values compare by the column's `type`: numbers as numbers, dates as dates (give an ISO 8601 date such as `2026-11-01`), `bool` as `true`/`false` (`yes`/`no`, `on`/`off`, `1`/`0` also work), and text **ignoring case** (and accents), with numbers inside text compared as numbers, the same order the column sorts in.
+- Values compare by the column's `type`:
+  - numbers as numbers; the value after the operator must be a plain decimal (`5`, `-2.5`), not `0x10`, `1e2` or `Infinity`
+  - dates as dates; give an ISO 8601 date (`2026-11-01`) or date and time (`2026-11-01T18:00:00`). A date **without a time** means that whole calendar day, in the server's time zone as the column shows dates: `= 2026-11-17` matches any time that day, `> 2026-11-17` means from the next day on
+  - `bool` as `true`/`false` (`yes`/`no`, `on`/`off`, `1`/`0` also work, in the value and in the rule)
+  - text **ignoring case** (and accents). `=` and `!=` are otherwise exact (`= 7` does not match `007`); `<`, `<=`, `>`, `>=` use the order the column sorts in, where numbers inside text compare as numbers
+- Set the column's `type` so a rule's value can be checked when the menu loads; a value that does not read as that type, or a mistyped operator (`== 5`, `<> 5`, `> =5`), makes the rule invalid.
 - An empty value only matches `empty`; it never matches a comparison, not even `!=`. A value that does not read as the column's type (`n/a` in a `number` column) never matches a comparison either.
 - The first rule that matches is used. A rule can have `sgr`, `text` or both.
 - `sgr` is the highest colour (see **Colours** below).
 - `text` is shown instead of the value: it is your text, so pipe codes show as colour, and it goes through the column's `format`, justification and `textOverflow` like a value. It also replaces `nullText` for a rule that matches an empty value.
-- A rule whose `when` cannot be read is skipped, and logged once.
+- A rule whose `when` cannot be read is skipped. Each table view logs one warning, the first time it is set up (so once per visit to the screen), naming every rule it skipped.
 
 ### Colours
 
@@ -151,6 +156,10 @@ A cell's colour is built up in this order, each later colour overriding only wha
 5. the `sgr` of the first matching rule
 
 Because the lightbar comes first, a column colour such as `|03` stays visible inside it, and a rule's colour (a lit "New" count) stays lit inside it; set the column's `focusSGR` to change that. Colours inside a `format` or a value apply after all of these.
+
+:::note
+A column's `sgr` sits below `stateSGR` and rules. A theme that overrides only `columns.new.sgr` does not show on rows that a `state` colours, or on cells a rule colours; change the `stateSGR` or the rule's `sgr` too.
+:::
 
 ### Sorting
 
@@ -302,7 +311,7 @@ A module fills the table and reacts to it through the view:
 | Method | Description |
 |--------|-------------|
 | `setItems(rows, { keepFocus })` | Set the rows. With `keepFocus: true` focus stays on the same row (by `key`, else at the same index), moving to the nearest selectable row if that one cannot be selected now; without it focus goes to the first row that can be selected. A sort set with `setSort()` or `cycleSort()` is kept. Does not redraw |
-| `updateItem(key, fields)` | Merge `fields` into the row with this `key` (falling back to `data`; numbers are keys too) and redraw that row only (from that row down, if its height changes); focus and scroll stay put. The row is not moved by the sort; call `setSort()` to re-sort. A change of `kind` or `selectable` redraws the table. Returns `false` if there is no such row |
+| `updateItem(key, fields)` | Merge `fields` into the row with this `key` (falling back to `data`; numbers are keys too) and redraw that row only (from that row down, if its height changes). Focus stays put; the list scrolls only when needed to keep the focused row whole, e.g. when a row above it grows. The row is not moved by the sort; call `setSort()` to re-sort. A change of `kind` or `selectable` redraws the table. Returns `false` if there is no such row |
 | `updateItemAt(index, fields)` | The same, by the row's position on screen (after sorting) |
 | `getFocusedItem()` | The focused row, or `null` when nothing can be selected |
 | `findIndex(fn)` | Index of the first row for which `fn(row, index)` is true, else `-1` |
@@ -318,4 +327,5 @@ A module fills the table and reacts to it through the view:
 - `setDefaults({ height })` (or any other view property) applies when neither the menu nor the theme sets it, so it overrides a height taken from the art.
 - `removeItem(index)` does not redraw, as on a vertical menu; call `redraw()`.
 - The default width is the rest of the row from the view's column, as for other views (79 on an 80-column terminal at column 2).
+- Like the other views, a table view does not lay itself out again when the caller's terminal is resized during the screen: widths and `minTermWidth` use the size when the screen was drawn.
 - The focused row stays highlighted while another view has focus, as on a vertical menu.
