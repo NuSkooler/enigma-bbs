@@ -389,10 +389,10 @@ A scanner returns a verdict only. It must not change, move or delete the file; E
 `init(entries, cb)` is optional. It runs once the scanner is registered, only when scanning is enabled, and is given the config entries that name the scanner. Use it to check what the scanner depends on (is the daemon answering, does every entry have an API key) and say what is wrong:
 
 * `cb(null)`: all is well.
-* `cb(null, { warnings: [ '...' ] })`: problems found. Each warning is logged at warn level ("File scanner reported a problem").
+* `cb(null, { warnings: [ '...' ] })`: problems found. Each warning is logged at warn level ("File scanner reported a problem"). `warnings` may be a single string, and `cb(null, '...')` works too.
 * `cb(err)`: `init()` itself failed. This is logged at error level ("File scanner failed to initialize"). A throw counts the same.
 
-None of these stops startup or unregisters the scanner, and nothing waits for `init()`: `scan()` must work without it, and should answer `error` while what it needs is missing, so the entry's `onError` decides. A scanner written before 0.6.1-beta that calls back an error for a warning still works; it is just logged as an error.
+None of these stops startup or unregisters the scanner, and nothing waits for `init()`: `scan()` must work without it, and should answer `error` while what it needs is missing, so the entry's `onError` decides. A scanner that calls back an error for what is really a warning still works; the warning is just logged as an error.
 
 Each scanner is logged at info level when it is registered ("File scanner registered", with the mod's path). Registering a name a second time replaces the first scanner, with a warning in the log, so you can replace the built-in `command` scanner if you need to.
 

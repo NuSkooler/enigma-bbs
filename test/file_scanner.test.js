@@ -234,6 +234,87 @@ describe('file_scanner', function () {
             );
         });
 
+        it('takes a bare string, and stringifies anything else', done => {
+            initWith(
+                (entries, cb) => cb(null, 'clamd is down'),
+                got => {
+                    assert.deepEqual(
+                        got.map(l => [l.level, l.obj.warning]),
+                        [['warn', 'clamd is down']]
+                    );
+                    initWith(
+                        (entries, cb) =>
+                            cb(null, { warnings: [{ host: 'x' }, new Error('e'), 42] }),
+                        got2 => {
+                            assert.deepEqual(
+                                got2.map(l => l.obj.warning),
+                                ['{"host":"x"}', 'e', '42']
+                            );
+                            done();
+                        }
+                    );
+                }
+            );
+        });
+
+        it('an init() that calls back then throws does not stop the mod registering more', done => {
+            const first = uniqueName('throwafter');
+            const second = uniqueName('throwafter2');
+            setScanning({
+                enabled: true,
+                scanners: [{ scanner: first }, { scanner: second }],
+            });
+            const mod = {
+                registerFileScanners: registry => {
+                    registry.registerScanner(first, {
+                        scan: () => {},
+                        init: (entries, cb) => {
+                            cb(null);
+                            throw new Error('late');
+                        },
+                    });
+                    registry.registerScanner(
+                        second,
+                        stubScanner({ result: 'clean' }, [])
+                    );
+                },
+            };
+            FileScanner.registerModFileScanners(
+                mod,
+                paths.join(dir, 'throwafter.js'),
+                err => {
+                    assert.ifError(err);
+                    assert.ok(FileScanner.getScanner(first));
+                    assert.ok(FileScanner.getScanner(second));
+                    const errs = linesFor(first).filter(l => 'error' === l.level);
+                    assert.equal(errs.length, 1);
+                    assert.equal(errs[0].obj.error, 'late');
+                    assert.ok(!lines.some(l => /registering file scanners/.test(l.msg)));
+                    done();
+                }
+            );
+        });
+
+        it("rethrows what the caller's own callback throws, not as an init failure", () => {
+            const name = uniqueName('callerthrow');
+            setScanning({ enabled: true, scanners: [{ scanner: name }] });
+            assert.throws(
+                () =>
+                    FileScanner.registerScanner(
+                        name,
+                        { scan: () => {}, init: (entries, cb) => cb(null) },
+                        () => {
+                            throw new Error('caller');
+                        }
+                    ),
+                /caller/
+            );
+            assert.deepEqual(
+                linesFor(name).filter(l => 'error' === l.level),
+                []
+            );
+        });
+
         it('logs an init() error, or a throw, as a failure to initialize', done => {
             initWith(
                 (entries, cb) => cb(new Error('boom')),

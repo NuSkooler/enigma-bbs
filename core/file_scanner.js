@@ -184,6 +184,7 @@ function registerScanner(name, impl, cb, logInfo) {
 
     const entries = getScanningConfig().scanners.filter(e => e && name === e.scanner);
     let initCalled = false;
+    let inCallerCb = false; //  true while |cb| runs, and after, if it threw
     const initDone = (err, info) => {
         if (initCalled) {
             return;
@@ -200,7 +201,9 @@ function registerScanner(name, impl, cb, logInfo) {
         initWarnings(info).forEach(warning => {
             log('warn', { scanner: name, warning }, 'File scanner reported a problem');
         });
-        return cb(null);
+        inCallerCb = true;
+        cb(null);
+        inCallerCb = false;
     };
 
     try {
@@ -210,19 +213,53 @@ function registerScanner(name, impl, cb, logInfo) {
             impl.init(entries, initDone);
         }
     } catch (e) {
-        if (initCalled) {
+        if (inCallerCb) {
             throw e; //  thrown by what |cb| went on to do, not by init()
+        }
+        if (initCalled) {
+            //  init() called back, then threw: the registration stands, and
+            //  a mod's other registerScanner() calls must still run
+            log(
+                'error',
+                { scanner: name, error: e.message || String(e) },
+                'File scanner threw after its init() called back'
+            );
+            return;
         }
         initDone(e);
     }
 }
 
-//  The warnings an init() called back with, as strings.
+//
+//  The warnings an init() called back with, as strings: |info| is
+//  { warnings } (a string or an array), or a bare string.
+//
 function initWarnings(info) {
-    const warnings = _.get(info, 'warnings');
+    const warnings = _.isString(info) ? info : _.get(info, 'warnings');
     return (Array.isArray(warnings) ? warnings : [warnings])
         .filter(w => !_.isNil(w) && '' !== w)
-        .map(w => (w instanceof Error ? w.message : String(w)));
+        .map(warningText);
+}
+
+function warningText(w) {
+    if (_.isString(w)) {
+        return w;
+    }
+    if (w instanceof Error) {
+        return w.message || String(w);
+    }
+    if (_.isPlainObject(w) || Array.isArray(w)) {
+        try {
+            return JSON.stringify(w);
+        } catch (e) {
+            //  circular: fall through
+        }
+    }
+    try {
+        return String(w);
+    } catch (e) {
+        return Object.prototype.toString.call(w);
+    }
 }
 
 function getScanner(name) {
