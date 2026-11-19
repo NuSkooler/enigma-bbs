@@ -82,12 +82,65 @@ function inferType(v) {
     return 'text';
 }
 
+//  Dates come as moments, Dates, epoch milliseconds or ISO 8601 strings;
+//  anything else is not a date (and never reaches moment's lenient parser)
 function toMoment(v) {
     if (moment.isMoment(v)) {
         return v;
     }
-    //  ISO strings, Date and epoch milliseconds
-    return moment(v);
+    if (v instanceof Date || _.isNumber(v)) {
+        return moment(v);
+    }
+    if (_.isString(v)) {
+        return moment(v, moment.ISO_8601, true);
+    }
+    return moment.invalid();
+}
+
+function isNumeric(v) {
+    if (_.isNumber(v)) {
+        return !isNaN(v);
+    }
+    return _.isString(v) && '' !== v.trim() && !isNaN(Number(v));
+}
+
+//  Does |v| read as |type|?
+function conformsTo(v, type) {
+    switch (type) {
+        case 'number':
+            return isNumeric(v);
+        case 'date':
+            return toMoment(v).isValid();
+        case 'bool':
+            return _.isBoolean(v);
+        default:
+            return true;
+    }
+}
+
+//
+//  Sorting ranks values by class first so mixed values still sort in one
+//  consistent order: in a typed column, values that read as its type come
+//  before those that do not (compared as text); untyped, numbers come
+//  before dates, booleans and text. Returns [rank, type to compare by].
+//
+const SortClassOrder = ['number', 'date', 'bool', 'text'];
+
+function sortClass(v, type) {
+    if (type) {
+        return conformsTo(v, type) ? [0, type] : [1, 'text'];
+    }
+    const t = inferType(v);
+    return [SortClassOrder.indexOf(t), t];
+}
+
+//  User-supplied text: C0 controls and DEL dropped (an ESC sequence must not
+//  reach the terminal or upset width maths) and pipes shown as typed
+// eslint-disable-next-line no-control-regex
+const C0_CONTROLS = /[\x00-\x1f\x7f]/g;
+
+function plainText(s) {
+    return PipeCodes.escape(String(s).replace(C0_CONTROLS, ''));
 }
 
 function compareTyped(a, b, type) {
@@ -370,7 +423,11 @@ class TableView extends MenuView {
             format: _.isString(def.format) ? def.format : undefined,
             dateFormat: _.isString(def.dateFormat) ? def.dateFormat : undefined,
             nullText: _.isString(def.nullText) ? def.nullText : '',
-            boolText: Array.isArray(def.boolText) ? def.boolText : DefaultBoolText,
+            boolText: [0, 1].map(i =>
+                Array.isArray(def.boolText) && !isEmptyValue(def.boolText[i])
+                    ? String(def.boolText[i])
+                    : DefaultBoolText[i]
+            ),
             sgr: this._pipe(def.sgr),
             focusSGR: this._pipe(def.focusSGR),
             pipeCodes: _.isBoolean(def.pipeCodes) ? def.pipeCodes : undefined,
@@ -416,6 +473,22 @@ class TableView extends MenuView {
             used += col._width;
         });
 
+        //  fixed and percentage widths that do not fit shrink in proportion
+        //  (the columns left over go to the first ones); fill columns get 0
+        if (used > avail) {
+            const sized = cols.filter(col => !fills.includes(col));
+            let total = 0;
+            sized.forEach(col => {
+                col._width = Math.floor((col._width * avail) / used);
+                total += col._width;
+            });
+            for (let i = 0; total < avail && sized.length; i = (i + 1) % sized.length) {
+                sized[i]._width += 1;
+                total += 1;
+            }
+            used = total;
+        }
+
         let remain = Math.max(0, avail - used);
         fills.forEach((col, i) => {
             const share = Math.floor(remain / (fills.length - i));
@@ -460,7 +533,7 @@ class TableView extends MenuView {
 
         if (this.autoAdjustHeight) {
             let lines = this._headerLines();
-            if (this.hasSelectable()) {
+            if (this.hasItemRows()) {
                 for (let i = 0; i < this.items.length; ++i) {
                     lines += this._rowHeight(i);
                 }
@@ -512,8 +585,11 @@ class TableView extends MenuView {
         super.setPropertyValue(propName, value);
     }
 
+    //  The module's plain fields: a module default, so an operator's
+    //  plainFields (menu / theme) wins; a column's pipeCodes overrides both
     setPlainFields(fields) {
-        this.setPropertyValue('plainFields', fields);
+        this._moduleDefaults.plainFields = fields;
+        this._applyConfig();
     }
 
     setHeaderData(data) {
@@ -539,6 +615,12 @@ class TableView extends MenuView {
 
     hasSelectable() {
         return this.items.some((item, i) => this.isSelectable(i));
+    }
+
+    //  Rows other than group rows, selectable or not: a table that has none
+    //  shows emptyText
+    hasItemRows() {
+        return this.items.some(item => this._isItemRow(item));
     }
 
     _itemKey(item) {
@@ -576,14 +658,22 @@ class TableView extends MenuView {
         return -1;
     }
 
-    //  |index| if selectable, else the next selectable row, else the previous
+    //  |index| (clamped) if selectable, else the nearest selectable row (the
+    //  next one on a tie); 0 when there is none
     _snapToSelectable(index) {
         index = Math.min(Math.max(index, 0), Math.max(this.items.length - 1, 0));
-        let i = this._firstSelectable(index);
-        if (-1 === i) {
-            i = this._lastSelectable(index);
+        if (this.isSelectable(index)) {
+            return index;
         }
-        return -1 === i ? 0 : i;
+        for (let d = 1; d < this.items.length; ++d) {
+            if (this.isSelectable(index + d)) {
+                return index + d;
+            }
+            if (this.isSelectable(index - d)) {
+                return index - d;
+            }
+        }
+        return 0;
     }
 
     //
@@ -624,10 +714,10 @@ class TableView extends MenuView {
 
         let focus = -1;
         if (options.keepFocus) {
-            focus = this._keyIndex(prevKey);
-            if (-1 === focus) {
-                focus = this._snapToSelectable(prevIndex);
-            }
+            //  the same row by key; if that row (or a group taking its key)
+            //  cannot be selected now, the nearest one that can
+            const keyIndex = this._keyIndex(prevKey);
+            focus = this._snapToSelectable(-1 === keyIndex ? prevIndex : keyIndex);
         } else {
             this._top = 0;
         }
@@ -658,37 +748,52 @@ class TableView extends MenuView {
             : null;
     }
 
-    _resolveIndex(indexOrKey) {
-        if (_.isNumber(indexOrKey)) {
-            return this.items[indexOrKey] ? indexOrKey : -1;
-        }
-        return this._keyIndex(indexOrKey);
+    //
+    //  Merge |patch| into the row with this key (falling back to data;
+    //  numbers are keys too) and redraw that row only; focus and scroll stay
+    //  where they are. The row is not re-sorted (call setSort() to re-apply
+    //  the sort). Returns false if no such row. See updateItemAt().
+    //
+    updateItem(key, patch) {
+        return this._updateItemAt(this._keyIndex(key), patch);
     }
 
-    //
-    //  Merge |patch| into a row and redraw that row only; focus and scroll
-    //  stay where they are. The row is not re-sorted (call setSort() to
-    //  re-apply the sort). Returns false if no such row.
-    //
-    updateItem(indexOrKey, patch) {
-        const index = this._resolveIndex(indexOrKey);
+    //  updateItem() by index (screen order, after sorting)
+    updateItemAt(index, patch) {
+        return this._updateItemAt(
+            Number.isInteger(index) && this.items[index] ? index : -1,
+            patch
+        );
+    }
+
+    _updateItemAt(index, patch) {
         if (-1 === index || !_.isPlainObject(patch)) {
             return false;
         }
 
+        const item = this.items[index];
         const wasSelectable = this.isSelectable(index);
         const hadSelectable = this.hasSelectable();
+        const hadItemRows = this.hasItemRows();
+        const prevKind = item.kind;
 
-        Object.assign(this.items[index], patch);
+        Object.assign(item, patch);
         this.removeRenderCacheItem(index);
 
+        const kindChanged = (prevKind || 'item') !== (item.kind || 'item');
         if (
+            kindChanged ||
+            'selectable' in patch ||
             wasSelectable !== this.isSelectable(index) ||
-            hadSelectable !== this.hasSelectable()
+            hadSelectable !== this.hasSelectable() ||
+            hadItemRows !== this.hasItemRows()
         ) {
-            //  focus may have to move, or the list became (non-)empty
-            this.focusedItemIndex = this._snapToSelectable(this.focusedItemIndex);
+            //  group runs (sorting, stripes), focus or emptiness may change
+            if (kindChanged) {
+                this._resort();
+            }
             this._computeAltRows();
+            this.focusedItemIndex = this._snapToSelectable(this.focusedItemIndex);
             this.invalidateRenderCache();
             this._layoutDirty = true;
             this._ensureVisible(this.focusedItemIndex);
@@ -783,9 +888,11 @@ class TableView extends MenuView {
                         }
                         return ea ? 1 : -1; //  empty values last, either order
                     }
-                    const type =
-                        col.type ||
-                        (inferType(va) === inferType(vb) ? inferType(va) : 'text');
+                    const [ra, type] = sortClass(va, col.type);
+                    const [rb] = sortClass(vb, col.type);
+                    if (ra !== rb) {
+                        return ra - rb; //  by class, in either order
+                    }
                     const c = compareTyped(va, vb, type);
                     if (0 !== c) {
                         return desc ? -c : c;
@@ -878,10 +985,13 @@ class TableView extends MenuView {
     }
 
     //  Next column in 'sortable' (default: every visible column), wrapping
+    //  Columns hidden by minTermWidth (or left out of columnOrder) are
+    //  skipped even when listed in sortable.
     cycleSort() {
-        const sortable = Array.isArray(this._cfg.sortable)
-            ? this._cfg.sortable
-            : this._visibleColumns().map(col => col.id);
+        const visible = new Set(this._visibleColumns().map(col => col.id));
+        const sortable = (
+            Array.isArray(this._cfg.sortable) ? this._cfg.sortable : [...visible]
+        ).filter(id => visible.has(id) || !this._columnDefs[id]);
         if (!sortable.length) {
             return this.getSort();
         }
@@ -995,6 +1105,32 @@ class TableView extends MenuView {
         this._top = top;
     }
 
+    //  Keep the window in range without a row to show (a read-only table)
+    _clampWindow() {
+        this._updateLayout();
+        const last = this.items.length - 1;
+        let top = Math.min(Math.max(this._top, 0), Math.max(last, 0));
+        if (last >= 0 && this._bottomFrom(top) === last) {
+            while (top > 0 && this._fits(top - 1, last)) {
+                top -= 1;
+            }
+        }
+        this._top = top;
+    }
+
+    //  With nothing selectable the cursor keys scroll the window
+    _scrollTo(top) {
+        if (!this.hasItemRows()) {
+            return;
+        }
+        const prevTop = this._top;
+        this._top = top;
+        this._clampWindow();
+        if (!this._drawn || prevTop !== this._top) {
+            this.redraw();
+        }
+    }
+
     _moveFocus(index) {
         const prev = this.focusedItemIndex;
         const prevTop = this._top;
@@ -1031,7 +1167,7 @@ class TableView extends MenuView {
     //  Up/down wrap at the ends of the list (VerticalMenuView parity)
     focusNext() {
         if (!this.hasSelectable()) {
-            return;
+            return this._scrollTo(this._top + 1);
         }
         let next = this._firstSelectable(this.focusedItemIndex + 1);
         if (-1 === next) {
@@ -1042,7 +1178,7 @@ class TableView extends MenuView {
 
     focusPrevious() {
         if (!this.hasSelectable()) {
-            return;
+            return this._scrollTo(this._top - 1);
         }
         let prev = this._lastSelectable(this.focusedItemIndex - 1);
         if (-1 === prev) {
@@ -1073,7 +1209,7 @@ class TableView extends MenuView {
     //  Page down; at the last selectable row it wraps to the top (VM parity)
     focusNextPageItem() {
         if (!this.hasSelectable()) {
-            return;
+            return this._scrollTo(this._top + Math.max(1, this._bodyHeight()));
         }
         if (this.focusedItemIndex >= this._lastSelectable()) {
             return this.focusNext();
@@ -1088,7 +1224,7 @@ class TableView extends MenuView {
 
     focusPreviousPageItem() {
         if (!this.hasSelectable()) {
-            return;
+            return this._scrollTo(this._top - Math.max(1, this._bodyHeight()));
         }
         if (this.focusedItemIndex <= this._firstSelectable()) {
             return this.focusPrevious();
@@ -1103,14 +1239,14 @@ class TableView extends MenuView {
 
     focusFirst() {
         if (!this.hasSelectable()) {
-            return;
+            return this._scrollTo(0);
         }
         this._focusAndEmit(this._firstSelectable());
     }
 
     focusLast() {
         if (!this.hasSelectable()) {
-            return;
+            return this._scrollTo(this.items.length - 1);
         }
         this._focusAndEmit(this._lastSelectable());
     }
@@ -1183,11 +1319,15 @@ class TableView extends MenuView {
     }
 
     //  The base colour of a row (|col| null: separators and trailing fill)
-    _rowBaseSGR(index, focused, col) {
-        const lit = col
+    //  Is |col| (null: separators and trailing fill) lit on the focused row?
+    _lit(col) {
+        return col
             ? !this._focusColumns || this._focusColumns.includes(col.id)
             : !this._focusColumns;
-        if (focused && lit) {
+    }
+
+    _rowBaseSGR(index, focused, col) {
+        if (focused && this._lit(col)) {
             return this._viewFocusSGR();
         }
         const alt = this._altRowSGR && this._altRows && this._altRows[index];
@@ -1214,23 +1354,50 @@ class TableView extends MenuView {
             this._rowBaseSGR(index, focused, col) +
             col.sgr +
             this._stateSGRFor(item) +
-            (focused ? col.focusSGR : '') +
+            (focused && this._lit(col) ? col.focusSGR : '') +
             this._cellRuleSGR(col, item, value)
         );
     }
 
-    //  'default': fields in plainFields; 'all': every string field; 'none'
+    //
+    //  The fields a format sees. 'default': the plainFields paths (dotted
+    //  paths too) as plain text; 'all': every string, at any depth; 'none':
+    //  as they are. Only what is changed is copied.
+    //
     _formatFields(item, mode = 'default') {
         if ('none' === mode || ('default' === mode && !this._plainFields.size)) {
             return item;
         }
+
+        if ('all' === mode) {
+            return _.cloneDeepWith(item, v => {
+                if (_.isString(v)) {
+                    return plainText(v);
+                }
+                return _.isPlainObject(v) || Array.isArray(v) ? undefined : v;
+            });
+        }
+
         const out = Object.assign({}, item);
-        Object.keys(out).forEach(name => {
-            if (
-                _.isString(out[name]) &&
-                ('all' === mode || this._plainFields.has(name))
-            ) {
-                out[name] = PipeCodes.escape(out[name]);
+        this._plainFields.forEach(path => {
+            const parts = String(path).split('.');
+            const last = parts.pop();
+            let src = item;
+            let dst = out;
+            for (const k of parts) {
+                if (!_.isObject(src[k])) {
+                    return;
+                }
+                if (dst[k] === src[k]) {
+                    dst[k] = Array.isArray(src[k])
+                        ? src[k].slice()
+                        : Object.assign({}, src[k]);
+                }
+                src = src[k];
+                dst = dst[k];
+            }
+            if (_.isString(src[last])) {
+                dst[last] = plainText(src[last]);
             }
         });
         return out;
@@ -1288,7 +1455,7 @@ class TableView extends MenuView {
         if (!_.isNumber(value)) {
             value = String(value);
             if (plain) {
-                value = PipeCodes.escape(value);
+                value = plainText(value);
             }
         }
 
@@ -1309,9 +1476,14 @@ class TableView extends MenuView {
         if (strUtil.renderStringLength(text, ANSI_ONLY) <= width) {
             return text;
         }
+        //  a marker wider than the cell is cut to it, never into the next one
+        let marker = _.isString(omission) ? omission : '';
+        if (strUtil.renderStringLength(marker, ANSI_ONLY) > width) {
+            marker = strUtil.renderSubstr(marker, 0, width, ANSI_ONLY);
+        }
         return strUtil.renderTruncate(text, {
             length: width,
-            omission: _.isString(omission) ? omission : '',
+            omission: marker,
             dialect: 'ansi',
         });
     }
@@ -1562,6 +1734,22 @@ class TableView extends MenuView {
 
         this._updateLayout();
 
+        //  the footprint shrank (auto height after setItems / removeItem, a
+        //  new height or width): blank what was drawn before, as VM does
+        const prev = this._drawnDimens;
+        if (
+            prev &&
+            (prev.height > this.dimens.height || prev.width > this.dimens.width)
+        ) {
+            const blank = ' '.repeat(Math.max(prev.width, this.dimens.width));
+            for (let r = 0; r < prev.height; ++r) {
+                this.client.term.write(
+                    `${ansi.goto(this.position.row + r, this.position.col)}${this.getSGR()}${blank}`
+                );
+            }
+        }
+        this._drawnDimens = { width: this.dimens.width, height: this.dimens.height };
+
         let row = this.position.row;
         const lastRow = this.position.row + this.dimens.height - 1;
 
@@ -1572,8 +1760,12 @@ class TableView extends MenuView {
 
         this._rowScreen = new Map();
 
-        if (this.hasSelectable()) {
-            this._ensureVisible(this.focusedItemIndex);
+        if (this.hasItemRows()) {
+            if (this.hasSelectable()) {
+                this._ensureVisible(this.focusedItemIndex);
+            } else {
+                this._clampWindow(); //  read-only: nothing to focus
+            }
 
             let i = this._top;
             for (; i < this.items.length; ++i) {

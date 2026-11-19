@@ -307,6 +307,58 @@ describe('ThemeManager._finalizeTheme() — TableView MCI merge', () => {
         assert.equal(mci.TV1.submit, true);
     });
 
+    it('matches TV entries the way view_controller parses MCI keys', () => {
+        //  view_controller applies "TV1_alt" to view 1 (code TV, id 1)
+        const mci = finalize(
+            { TV1_alt: { columns: { a: { width: 3 }, b: { width: 4 } } } },
+            { TV1_alt: { columns: { b: { sgr: '|10' } } } }
+        );
+        assert.deepEqual(mci.TV1_alt.columns, {
+            a: { width: 3 },
+            b: { width: 4, sgr: '|10' },
+        });
+    });
+
+    it('re-finalising does not mutate the raw theme or menu config, nor alias them', () => {
+        const menuMci = { TV1: { height: 5 }, TV2: { columns: { a: { width: 1 } } } };
+        const themeMci = {
+            TV1: { columns: { a: { sgr: '|10' } }, stateSGR: { new: '|15' } },
+            TV2: { columns: { a: { sgr: '|11' } } },
+            TV3: { group: { sgr: '|08' } }, //  not in the menu at all
+        };
+        const menuData = {
+            menus: { idx: { form: { 0: { mci: menuMci } } } },
+            prompts: {},
+        };
+        const themeData = {
+            info: { name: 'T', author: 'A', enabled: true },
+            customization: { menus: { idx: { mci: themeMci } } },
+        };
+        const menuBefore = structuredClone(menuData);
+        const themeBefore = structuredClone(themeData);
+
+        const tm = makeThemeManager(menuData);
+        const themeConfig = makeThemeConfig(themeData);
+        tm._finalizeTheme('t', themeConfig);
+        const first = themeConfig.current.menus.idx.form[0].mci;
+
+        //  a consumer changing the merged result must not reach the sources
+        first.TV1.columns.a.sgr = '|01';
+        first.TV1.stateSGR.new = '|01';
+        first.TV2.columns.a.sgr = '|01';
+        first.TV3.group.sgr = '|01';
+
+        tm._finalizeTheme('t', themeConfig);
+        const second = themeConfig.current.menus.idx.form[0].mci;
+
+        assert.deepEqual(menuData, menuBefore);
+        assert.deepEqual(themeData, themeBefore);
+        assert.equal(second.TV1.columns.a.sgr, '|10');
+        assert.equal(second.TV3.group.sgr, '|08');
+        assert.notEqual(second.TV1.columns, themeMci.TV1.columns);
+        assert.notEqual(second.TV3, themeMci.TV3);
+    });
+
     it('still replaces nested values on other views (VM, SB)', () => {
         const mci = finalize(
             {

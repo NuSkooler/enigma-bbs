@@ -10,7 +10,7 @@ const art = require('./art.js');
 const ansi = require('./ansi_term.js');
 const Log = require('./logger.js').log;
 const asset = require('./asset.js');
-const ViewController = require('./view_controller.js').ViewController;
+const { ViewController, MCI_REGEXP } = require('./view_controller.js');
 const { DeepMergeProperties: TableViewDeepMergeProperties } = require('./table_view.js');
 const Errors = require('./enig_error.js').Errors;
 const Events = require('./events.js');
@@ -333,32 +333,40 @@ exports.ThemeManager = class ThemeManager {
         //  TableView (%TV) entries: TableView's own object-valued properties
         //  deep-merge, so a theme can set e.g. columns.new.sgr alone (arrays
         //  inside them still replace). Every other property, and every other
-        //  view type, keeps the replace behaviour above.
+        //  view type, keeps the replace behaviour above. Objects taken from
+        //  the theme are copied, so the merged menu never aliases theme.hjson.
+        //  Keys are parsed as ViewController parses them (code + view ID).
         //
+        const isTableViewMci = mci => {
+            const m = mci.match(MCI_REGEXP);
+            return null !== m && 'TV' === m[1];
+        };
+
         const tableViewMciCustomizer = (objVal, srcVal, key) => {
-            if (
-                TableViewDeepMergeProperties.includes(key) &&
-                _.isPlainObject(objVal) &&
-                _.isPlainObject(srcVal)
-            ) {
-                return _.mergeWith({}, objVal, srcVal, (o, s) =>
-                    Array.isArray(s) ? s : undefined
+            if (TableViewDeepMergeProperties.includes(key) && _.isPlainObject(srcVal)) {
+                return _.mergeWith(
+                    {},
+                    _.isPlainObject(objVal) ? objVal : {},
+                    srcVal,
+                    (o, s) => (Array.isArray(s) ? _.cloneDeep(s) : undefined)
                 );
             }
-            return mciCustomizer(objVal, srcVal, key);
+            const value = mciCustomizer(objVal, srcVal, key);
+            return _.isObject(value) && value === srcVal ? _.cloneDeep(value) : value;
         };
 
         const mergeMciProperties = (dst, src) => {
             Object.keys(src).forEach(mci => {
+                const tableView = isTableViewMci(mci);
                 if (dst[mci]) {
                     _.mergeWith(
                         dst[mci],
                         src[mci],
-                        /^TV\d+$/.test(mci) ? tableViewMciCustomizer : mciCustomizer
+                        tableView ? tableViewMciCustomizer : mciCustomizer
                     );
                 } else {
                     //  theme contains a MCI that's not found in menu
-                    dst[mci] = src[mci];
+                    dst[mci] = tableView ? _.cloneDeep(src[mci]) : src[mci];
                 }
             });
         };

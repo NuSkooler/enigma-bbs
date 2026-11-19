@@ -39,12 +39,12 @@ add on top of these.
 
 ## Common Menu View Properties
 
-The five **menu views** — [Horizontal](horizontal_menu_view.md),
+The six **menu views** — [Horizontal](horizontal_menu_view.md),
 [Vertical](vertical_menu_view.md), [Full](full_menu_view.md),
-[Toggle](toggle_menu_view.md) and [Spinner](spinner_menu_view.md) — all derive
-from the same base and therefore accept everything above **plus** the following.
-The [Table View](table_view.md) shares the same base too; its page lists the few
-it does not support.
+[Toggle](toggle_menu_view.md), [Spinner](spinner_menu_view.md) and
+[Table](table_view.md) — all derive from the same base and therefore accept
+everything above **plus** the following. The Table View does not support
+`focusItems`, `itemSpacing` or `itemHorizSpacing`.
 
 | Property | Description |
 |----------|-------------|
@@ -310,7 +310,8 @@ classDiagram
         +sort
         +viewWindow
         +setItems(items, options)
-        +updateItem(indexOrKey, patch)
+        +updateItem(key, patch)
+        +updateItemAt(index, patch)
         +focusNextMatching(pred, options)
         +setSort(column, order)
         +cycleSort()

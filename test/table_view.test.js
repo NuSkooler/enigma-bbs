@@ -900,14 +900,14 @@ describe('TableView', function () {
             assert.equal(view.viewWindow.top, top);
         });
 
-        it('by index; an off-screen row is not drawn; unknown rows return false', function () {
+        it('updateItemAt by index; an off-screen row is not drawn; unknown rows return false', function () {
             const { view, client } = makeView(options, items());
             client.writes.length = 0;
-            assert.equal(view.updateItem(8, { name: 'x' }), true);
+            assert.equal(view.updateItemAt(8, { name: 'x' }), true);
             assert.deepEqual(rowsWritten(client), []);
             assert.equal(view.getItem(8).name, 'x');
             assert.equal(view.updateItem('nope', { n: 1 }), false);
-            assert.equal(view.updateItem(42, { n: 1 }), false);
+            assert.equal(view.updateItemAt(42, { n: 1 }), false);
         });
 
         it('a focused row that becomes unselectable moves focus on', function () {
@@ -1131,6 +1131,344 @@ describe('TableView', function () {
                 [{ text: 'a' }, { text: 'b', state: 'new' }]
             );
             assert.ok(rawOnRow(client, 2).startsWith(`${pipeToAnsi('|07|15')}b`));
+        });
+    });
+
+    //  Review round 1 (#447): each of these failed before its fix
+    describe('edge cases', function () {
+        const S = code => pipeToAnsi(code);
+        const keyed = names => names.map(n => ({ key: n, text: n }));
+
+        it('keepFocus: a kept key on a row that is now unselectable moves to the nearest selectable row', function () {
+            const { view } = makeView({}, keyed(['a', 'b', 'c', 'd']));
+            view.focusNext(); //  b
+            view.setItems(
+                [
+                    { key: 'a', text: 'a' },
+                    { key: 'b', text: 'b', selectable: false },
+                    { key: 'x', text: 'x', selectable: false },
+                    { key: 'd', text: 'd' },
+                ],
+                { keepFocus: true }
+            );
+            assert.equal(view.getFocusItemIndex(), 0);
+            assert.equal(view.getFocusedItem().key, 'a');
+
+            view.setItems(
+                [{ key: 'z', text: 'z' }, g('G', { key: 'a' }), ...keyed(['q'])],
+                {
+                    keepFocus: true,
+                }
+            );
+            assert.equal(view.getFocusItemIndex(), 2);
+        });
+
+        it('an auto-sized view that shrinks blanks the rows it drew before', function () {
+            const client = makeClient();
+            const view = new TableView({
+                client,
+                id: 1,
+                position: { row: 1, col: 1 },
+                width: 10,
+            });
+            view.setItems(['r0', 'r1', 'r2', 'r3', 'r4']);
+            view.redraw();
+            assert.equal(drawnOnRow(client, 5), 'r4        ');
+            view.setItems(['n0', 'n1']);
+            view.redraw();
+            assert.equal(drawnOnRow(client, 2), 'n1        ');
+            [3, 4, 5].forEach(row => assert.equal(drawnOnRow(client, row), '          '));
+        });
+
+        describe('a read-only table (no selectable rows)', function () {
+            const items = () => [
+                g('A'),
+                { text: 'a1', selectable: false },
+                { text: 'a2', selectable: false },
+                { text: 'a3', selectable: false },
+            ];
+
+            it('draws its rows, with no lightbar, and not emptyText', function () {
+                const { view, client } = makeView(
+                    {
+                        dimens: { width: 6, height: 4 },
+                        emptyText: 'empty',
+                        styleSGR1: S('|07'),
+                        focusSGR: '|17',
+                    },
+                    items()
+                );
+                assert.equal(drawnOnRow(client, 1), 'A     ');
+                assert.equal(drawnOnRow(client, 2), 'a1    ');
+                assert.equal(drawnOnRow(client, 4), 'a3    ');
+                assert.ok(!client.writes.join('').includes(S('|17')));
+                let updates = 0;
+                view.on('index update', () => updates++);
+                view.focusNext();
+                view.focusLast();
+                assert.equal(updates, 0);
+                assert.equal(view.getData(), null);
+                assert.equal(view.getFocusedItem(), null);
+            });
+
+            it('the cursor keys scroll it', function () {
+                const { view, client } = makeView(
+                    { dimens: { width: 6, height: 2 } },
+                    items()
+                );
+                view.focusNext();
+                assert.deepEqual(view.viewWindow, { top: 1, bottom: 2 });
+                view.focusLast();
+                assert.deepEqual(view.viewWindow, { top: 2, bottom: 3 });
+                assert.equal(drawnOnRow(client, 2), 'a3    ');
+                view.focusFirst();
+                assert.deepEqual(view.viewWindow, { top: 0, bottom: 1 });
+            });
+
+            it('emptyText is still shown for an empty or groups-only list', function () {
+                const { client } = makeView(
+                    { dimens: { width: 6, height: 2 }, emptyText: 'empty' },
+                    [g('A')]
+                );
+                assert.equal(drawnOnRow(client, 1), 'empty ');
+            });
+        });
+
+        it('updateItem takes a key (numbers too) and updateItemAt an index', function () {
+            const { view } = makeView(
+                {
+                    dimens: { width: 6, height: 2 },
+                    columns: { n: { width: 6 } },
+                },
+                [
+                    { key: 1, n: 'a' },
+                    { key: 0, n: 'b' },
+                ]
+            );
+            assert.equal(view.updateItem(0, { n: 'x' }), true);
+            assert.equal(view.getItem(1).n, 'x');
+            assert.equal(view.getItem(0).n, 'a');
+            assert.equal(view.updateItemAt(0, { n: 'y' }), true);
+            assert.equal(view.getItem(0).n, 'y');
+            assert.equal(view.updateItemAt(5, { n: 'z' }), false);
+            assert.equal(view.updateItem(7, { n: 'z' }), false);
+        });
+
+        it('cycleSort skips columns hidden by minTermWidth, even when listed in sortable', function () {
+            const { view, client } = makeView(
+                {
+                    dimens: { width: 20, height: 3 },
+                    header: true,
+                    columns: {
+                        name: { label: 'Name', width: 'fill' },
+                        last: { label: 'Last', width: 6, minTermWidth: 80 },
+                    },
+                    columnOrder: ['name', 'last'],
+                    sortable: ['name', 'last'],
+                },
+                [
+                    { name: 'b', last: 1 },
+                    { name: 'a', last: 2 },
+                ],
+                { termWidth: 60 }
+            );
+            assert.equal(view.cycleSort().column, 'name');
+            assert.equal(view.cycleSort().column, 'name');
+            //  allowed, but there is no header column to mark
+            assert.equal(view.setSort('last', 'desc').column, 'last');
+            assert.equal(drawnOnRow(client, 1), 'Name                ');
+        });
+
+        it('plain fields drop C0 controls and DEL', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 12, height: 1 },
+                    columns: { s: { field: 'subject', width: 12 } },
+                    plainFields: ['subject'],
+                },
+                [{ subject: '\x1b[31mred\x07\x7f!' }]
+            );
+            assert.equal(drawnOnRow(client, 1), '[31mred!    ');
+            assert.ok(!rawOnRow(client, 1).includes('\x1b[31m'));
+        });
+
+        it('dotted plainFields are escaped in every format', function () {
+            const row = { text: 't', from: { name: '|05bob' } };
+            const col = makeView(
+                {
+                    dimens: { width: 10, height: 1 },
+                    columns: { f: { field: 'text', format: '{from.name}' } },
+                    plainFields: ['from.name'],
+                },
+                [row]
+            );
+            assert.equal(drawnOnRow(col.client, 1), '|05bob    ');
+
+            const fmt = makeView(
+                {
+                    dimens: { width: 10, height: 2 },
+                    itemFormat: '{from.name}',
+                    group: { format: '-{from.name}' },
+                    plainFields: ['from.name'],
+                },
+                [g('G', { from: { name: '|06al' } }), row]
+            );
+            assert.equal(drawnOnRow(fmt.client, 1), '-|06al    ');
+            assert.equal(drawnOnRow(fmt.client, 2), '|05bob    ');
+
+            const head = makeView(
+                {
+                    dimens: { width: 10, height: 2 },
+                    header: true,
+                    headerFormat: '{by.name}',
+                    plainFields: ['by.name'],
+                },
+                ['x']
+            );
+            head.view.setHeaderData({ by: { name: '|07cy' } });
+            assert.equal(drawnOnRow(head.client, 1), '|07cy     ');
+        });
+
+        it("setPlainFields is a module default: the operator's plainFields wins", function () {
+            const { view, client } = makeView(
+                {
+                    dimens: { width: 10, height: 1 },
+                    columns: { a: { width: 5 }, b: { width: 5 } },
+                    columnOrder: ['a', 'b'],
+                },
+                [{ a: '|01x', b: '|02y' }],
+                { draw: false }
+            );
+            view.setPropertyValue('plainFields', ['a']); //  menu / theme
+            view.setPlainFields(['b']);
+            assert.deepEqual(view.getConfig().plainFields, ['a']);
+            view.redraw();
+            assert.equal(drawnOnRow(client, 1), '|01x y    ');
+        });
+
+        it('fixed and percent widths wider than the view shrink to fit', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 10, height: 1 },
+                    columns: {
+                        a: { width: 6 },
+                        b: { width: '80%' },
+                        c: { width: 'fill' },
+                    },
+                    columnOrder: ['a', 'b', 'c'],
+                },
+                [{ a: 'abcdefgh', b: '123456789', c: 'zzz' }]
+            );
+            //  6 + 8 = 14 in 10 columns: 4.28 / 5.71, the spare column to a; fill gets 0
+            assert.equal(drawnOnRow(client, 1), 'abcde12345');
+        });
+
+        it('a textOverflow marker wider than its cell is cut to the cell', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 6, height: 1 },
+                    columns: { a: { width: 2, textOverflow: '...' }, b: { width: 4 } },
+                    columnOrder: ['a', 'b'],
+                },
+                [{ a: 'abcdef', b: 'wxyz' }]
+            );
+            assert.equal(drawnOnRow(client, 1), '..wxyz');
+        });
+
+        it("focusColumns also gates a column's focusSGR", function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 4, height: 1 },
+                    styleSGR1: S('|07'),
+                    focusSGR: '|17',
+                    focusColumns: ['b'],
+                    columns: {
+                        a: { width: 2, focusSGR: '|14' },
+                        b: { width: 2, focusSGR: '|13' },
+                    },
+                    columnOrder: ['a', 'b'],
+                },
+                [{ a: 'x', b: 'y' }]
+            );
+            const raw = rawOnRow(client, 1);
+            assert.ok(raw.startsWith(`${S('|07')}x`));
+            assert.ok(raw.includes(`${S('|17')}${S('|13')}y`));
+        });
+
+        it('boolText with one entry falls back to the default for the other', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 6, height: 2 },
+                    columns: { b: { width: 6, boolText: ['+'] } },
+                },
+                [{ b: true }, { b: false }]
+            );
+            assert.equal(drawnOnRow(client, 1), '+     ');
+            assert.equal(drawnOnRow(client, 2), 'No    ');
+        });
+
+        it('updateItem that changes kind recomputes group runs and stripes', function () {
+            const { view, client } = makeView(
+                {
+                    dimens: { width: 4, height: 4 },
+                    styleSGR1: S('|07'),
+                    altRowSGR: '|08',
+                    columns: { a: { width: 4 } },
+                },
+                [
+                    { key: 'a', a: 'a' },
+                    { key: 'b', a: 'b' },
+                    { key: 'c', a: 'c' },
+                    { key: 'd', a: 'd' },
+                ]
+            );
+            view.focusLast(); //  d
+            assert.ok(rawOnRow(client, 3).startsWith(`${S('|07')}c`));
+            view.updateItem('a', { kind: 'group', selectable: true, text: 'G' });
+            //  stripes restart after the new group row: c is now the second row of it
+            assert.ok(rawOnRow(client, 3).startsWith(`${S('|07')}${S('|08')}c`));
+            assert.equal(drawnOnRow(client, 1), 'G   ');
+        });
+
+        it('mixed values sort in a consistent total order', function () {
+            const values = [10, '9', 'a', 2, '10', 'b', 1];
+            const sortBy = type =>
+                makeView(
+                    { columns: { v: { type } }, sort: { column: 'v' } },
+                    values.map(v => ({ v }))
+                )
+                    .view.getItems()
+                    .map(i => i.v);
+            //  untyped: numbers, then text
+            assert.deepEqual(sortBy(undefined), [1, 2, 10, '9', '10', 'a', 'b']);
+            //  number: everything that reads as a number, then the rest
+            assert.deepEqual(sortBy('number'), [1, 2, '9', 10, '10', 'a', 'b']);
+        });
+
+        it('a date column reads ISO strings, Dates and epoch ms without moment warnings', function () {
+            const moment = require('moment');
+            const warned = [];
+            const prev = moment.deprecationHandler;
+            moment.deprecationHandler = (name, msg) => warned.push(msg);
+            try {
+                const { client } = makeView(
+                    {
+                        dimens: { width: 8, height: 3 },
+                        columns: { d: { width: 8, type: 'date', dateFormat: 'MMM DD' } },
+                    },
+                    [
+                        { d: '2026-11-17T21:04:00' },
+                        { d: '11/17 21:04' },
+                        { d: Date.UTC(2026, 0, 2, 12) },
+                    ]
+                );
+                assert.equal(drawnOnRow(client, 1), 'Nov 17  ');
+                assert.equal(drawnOnRow(client, 2), '11/17 21'); //  not a date: shown as given
+                assert.equal(drawnOnRow(client, 3), 'Jan 02  ');
+                assert.deepEqual(warned, []);
+            } finally {
+                moment.deprecationHandler = prev;
+            }
         });
     });
 });
