@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.1-beta
 
+* **Message lists can focus the last message when nothing is new** ([#447](https://github.com/NuSkooler/enigma-bbs/issues/447)). `msg_list` has a new `focusWhenNoneNew` option, `first` (default, as before) or `last`, set in the menu `config` or passed in `extraArgs` by a module that opens the list (`extraArgs` wins). With `last`, a list with no new message opens on its most recent message instead of the oldest. Returning from reading a message is unchanged. Nothing in the stock menus changes. See [Message List](website/src/content/docs/modules/message-lists.md#message-list).
+
 * **New scan can skip the message base** ([#447](https://github.com/NuSkooler/enigma-bbs/issues/447)). `new_scan` has a new `skipMessageBase` config entry, the mirror of `skipFileBase`: with `true` the message base is not scanned and the module goes straight to the file base, so a board whose message reader is a mod can still run the file part of the login new scan (a `new_scan` entry with `skipMessageBase: true`, chained after the reader). With both set there is nothing to scan and the module finishes at once. Off by default; nothing in the stock menus changes. See [New Scan](website/src/content/docs/modules/new-scan.md).
 
 * **Area hash tags given as a string are no longer stored one letter at a time.** An area's `hashTags` written as a string (`hashTags: uploads`) could reach a new upload as that string and be stored as one tag per character (`u,p,l,o,a,d,s`). File entries now take hash tags as a string, an array or a Set alike, trimmed and without empty tags. Entries already tagged that way keep those tags: look for single letter hash tags in the file base.

@@ -306,6 +306,9 @@
             config: {
                 menuViewPost: messageAreaViewPost
                 menuNewPost: messageBaseNewPost
+
+                //  With nothing new, focus the most recent message rather than the first:
+                //  focusWhenNoneNew: last
             }
             form: {
                 0: {
