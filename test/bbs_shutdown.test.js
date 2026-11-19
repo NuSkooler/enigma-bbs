@@ -498,6 +498,7 @@ describe('bbs.js shutdown', function () {
                     'stopEventScheduler',
                     'stopFileAreaWeb',
                     'stopMsgNetwork',
+                    'flushFileScanNotices',
                 ]
             );
         });

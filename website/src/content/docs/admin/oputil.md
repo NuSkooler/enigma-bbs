@@ -202,6 +202,15 @@ scan arguments:
 
   --update                     Attempt to update information for existing entries
   --full                       Perform a full scan (default is quick)
+  --virus-scan                 Run file (virus) scanning on each new file first
+
+  --virus-scan needs fileBase.scanning enabled and uses the scanners whose
+  "sources" include "oputil", or that list no sources. Scanners from mods
+  are loaded through their registerFileScanners() export (only that; mods
+  are not otherwise initialized). A file that fails is reported, not
+  imported, and quarantined or deleted per fileBase.scanning.failAction; the
+  operators get one inbox notice for the run. Without the flag nothing is
+  virus scanned.
 
 info arguments:
   --show-desc                  Display short description, if any
@@ -246,6 +255,11 @@ $ ./oputil.js fb scan --update --quick --tags artscene,textmode artscene`
 Scan "oldschoolbbs" area using the description file at "/path/to/DESCRIPT.ION":
 ```
 $ ./oputil.js fb scan --desc-file /path/to/DESCRIPT.ION oldschoolbbs
+```
+
+Scan the "uploads" area for viruses before importing anything new; see [File Scanning](../filebase/file-scanning.md#oputil):
+```
+$ ./oputil.js fb scan --virus-scan uploads
 ```
 
 #### Retrieve Information

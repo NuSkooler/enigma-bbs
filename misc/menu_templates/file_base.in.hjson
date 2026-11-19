@@ -446,7 +446,22 @@
                     fileDetails: ULDETAIL
                     processing: ULCHECK
                     dupes: ULDUPES
+                    //  files that failed file (virus) scanning; optional
+                    rejected: ULREJECT
                 }
+
+                //
+                //  File (virus) scanning, when fileBase.scanning is enabled.
+                //  The uploader is told a file was refused and, generally,
+                //  why -- not the signature a scanner found, unless
+                //  rejectedInfoFormat asks for {signature}.
+                //
+                //  virusScanStartFormat: Scanning for viruses
+                //  virusScanFinishFormat: Virus scan finished
+                //  virusScanRejectedFormat: "{fileName} failed the upload check"
+                //  rejectedInfectedReason: failed the upload check
+                //  rejectedHeldReason: could not be checked
+                //  rejectedInfoFormat: "{fileName}: {reason}"
             }
 
             form: {
@@ -545,6 +560,26 @@
                             fileSha256
                             storageTag
                             uploadTimestamp
+
+                            */
+
+                            mode: preview
+                        }
+                    }
+                }
+
+                //  rejected: failed file (virus) scanning
+                4: {
+                    mci: {
+                        VM1: {
+                            /*
+                            Use 'rejectedInfoFormat' to custom format:
+
+                            fileName
+                            reason      rejectedInfectedReason or
+                                        rejectedHeldReason
+                            scanResult  infected or held
+                            signature   what the scanner found, if anything
 
                             */
 
