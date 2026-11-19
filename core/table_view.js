@@ -212,16 +212,27 @@ function sgrState() {
     return { reset: false, attrs: {} };
 }
 
-const SgrAttr = p => {
-    if (1 === p || 2 === p || 22 === p) return 'intensity';
+//  The attribute an SGR code sets; codes in one family replace each other
+//  ("off" codes included). Bold and faint are separate; 22 clears both.
+//  Any code not listed carries under its own key.
+const SgrFamily = p => {
     if (3 === p || 23 === p) return 'italic';
-    if (4 === p || 24 === p) return 'underline';
+    if (4 === p || 21 === p || 24 === p) return 'underline';
     if (5 === p || 6 === p || 25 === p) return 'blink';
     if (7 === p || 27 === p) return 'reverse';
     if (8 === p || 28 === p) return 'conceal';
+    if (9 === p || 29 === p) return 'strike';
+    if (p >= 10 && p <= 19) return 'font';
+    if (53 === p || 55 === p) return 'overline';
     if ((p >= 30 && p <= 37) || 39 === p || (p >= 90 && p <= 97)) return 'fg';
     if ((p >= 40 && p <= 47) || 49 === p || (p >= 100 && p <= 107)) return 'bg';
-    return null;
+    return `sgr${p}`;
+};
+
+//  set |key| last, so the state replays in the order it was last set
+const setAttr = (state, key, value) => {
+    delete state.attrs[key];
+    state.attrs[key] = value;
 };
 
 function applySgr(state, esc) {
@@ -235,20 +246,25 @@ function applySgr(state, esc) {
         if (0 === p) {
             state.reset = true;
             state.attrs = {};
+        } else if (1 === p) {
+            setAttr(state, 'bold', '1');
+        } else if (2 === p) {
+            setAttr(state, 'faint', '2');
+        } else if (22 === p) {
+            delete state.attrs.bold;
+            delete state.attrs.faint;
+            setAttr(state, 'normalIntensity', '22');
         } else if (38 === p || 48 === p) {
             const key = 38 === p ? 'fg' : 'bg';
             if (5 === ps[i + 1]) {
-                state.attrs[key] = ps.slice(i, i + 3).join(';');
+                setAttr(state, key, ps.slice(i, i + 3).join(';'));
                 i += 2;
             } else if (2 === ps[i + 1]) {
-                state.attrs[key] = ps.slice(i, i + 5).join(';');
+                setAttr(state, key, ps.slice(i, i + 5).join(';'));
                 i += 4;
             }
         } else {
-            const attr = SgrAttr(p);
-            if (attr) {
-                state.attrs[attr] = String(p);
-            }
+            setAttr(state, SgrFamily(p), String(p));
         }
     }
 }

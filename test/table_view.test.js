@@ -2265,5 +2265,28 @@ describe('TableView', function () {
             );
             assert.equal(drawnOnRow(client, 1), '[     -]');
         });
+
+        it('wrapped lines carry every SGR attribute, bold and faint both', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 2, height: 2 },
+                    columns: { t: { width: 2, maxLines: 2, pipeCodes: true } },
+                },
+                [{ t: '\x1b[9m\x1b[1m\x1b[2m\x1b[53mab cd' }]
+            );
+            assert.equal(drawnOnRow(client, 2), 'cd');
+            assert.ok(rawOnRow(client, 2).includes('\x1b[9;1;2;53mcd'));
+        });
+
+        it('an SGR off code clears what it turns off on wrapped lines', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 2, height: 2 },
+                    columns: { t: { width: 2, maxLines: 2, pipeCodes: true } },
+                },
+                [{ t: '\x1b[9m\x1b[1m\x1b[2m\x1b[12m\x1b[29m\x1b[22m\x1b[10mab cd' }]
+            );
+            assert.ok(rawOnRow(client, 2).includes('\x1b[29;22;10mcd'));
+        });
     });
 });
