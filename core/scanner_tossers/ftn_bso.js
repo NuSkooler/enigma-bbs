@@ -23,6 +23,7 @@ const Errors = require('../enig_error.js').Errors;
 const ErrorCodes = require('../enig_error.js').ErrorCodes;
 const FileEntry = require('../file_entry.js');
 const scanFile = require('../file_base_area.js').scanFile;
+const FileScanner = require('../file_scanner.js');
 const getFileAreaByTag = require('../file_base_area.js').getFileAreaByTag;
 const getDescFromFileName = require('../file_base_area.js').getDescFromFileName;
 const { safeCopyFile } = require('../file_util.js');
@@ -3720,6 +3721,57 @@ function FTNMessageScanTossModule() {
         ];
     };
 
+    //
+    //  What file scanning (#291) is told about a TIC payload: the name it will
+    //  be stored or relayed under, and where it came from, for the quarantine
+    //  sidecar and the operator notice.
+    //
+    this.ticFileScanContext = function (ticFileInfo, localInfo) {
+        return {
+            fileName:
+                ticFileInfo.longFileName ||
+                (ticFileInfo.filePath && paths.basename(ticFileInfo.filePath)),
+            //  a passthrough echo has no local area
+            areaTag: localInfo.passthrough ? undefined : localInfo.areaTag,
+            ticInfo: {
+                area: localInfo.externalAreaTag,
+                origin: ticFileInfo.getAsString('Origin'),
+                from: ticFileInfo.getAsString('From'),
+                ticFileName: paths.basename(ticFileInfo.path),
+                passthrough: !!localInfo.passthrough,
+            },
+        };
+    };
+
+    //
+    //  Quarantine or delete a payload file scanning rejected, and hang what
+    //  happened on |rejectedErr| for the pass's operator notice; see
+    //  processTicFilesInDirectory(). Never fails: a payload that could not be
+    //  moved is still archived to |reject| and unlinked with its .tic.
+    //
+    this.disposeRejectedTicPayload = function (ticFileInfo, rejectedErr, cb) {
+        FileScanner.applyFailAction(
+            ticFileInfo.filePath,
+            rejectedErr.verdict,
+            rejectedErr.scanContext,
+            (err, disposition) => {
+                if (err) {
+                    Log.warn(
+                        { error: err.message, file: ticFileInfo.filePath },
+                        'Failed to quarantine or delete rejected TIC payload'
+                    );
+                }
+
+                rejectedErr.scanRejection = {
+                    ctx: rejectedErr.scanContext,
+                    verdict: rejectedErr.verdict,
+                    disposition,
+                };
+                return cb(null);
+            }
+        );
+    };
+
     this.processSingleTicFile = function (ticFileInfo, inboundType, cb) {
         Log.debug(
             { tic: ticFileInfo.path, file: ticFileInfo.getAsString('File') },
@@ -3921,6 +3973,23 @@ function FTNMessageScanTossModule() {
                 },
                 function scan(localInfo, callback) {
                     //
+                    //  File scanning (#291) sees every TIC payload, stored or
+                    //  passed through. A rejected payload is quarantined or
+                    //  deleted here, so the reject path that follows archives
+                    //  only the .tic, never the file.
+                    //
+                    const fileScanCtx = self.ticFileScanContext(ticFileInfo, localInfo);
+                    const scanned = (err, fileEntry) => {
+                        if (!FileScanner.isFileRejected(err)) {
+                            localInfo.fileEntry = fileEntry;
+                            return callback(err, localInfo);
+                        }
+                        return self.disposeRejectedTicPayload(ticFileInfo, err, () =>
+                            callback(err, localInfo)
+                        );
+                    };
+
+                    //
                     //  Nothing to scan into. The scanner's whole output is a
                     //  FileEntry -- hashes, archive type, FILE_ID.DIZ, release
                     //  year -- and a transit file gets no database row, so all
@@ -3928,12 +3997,28 @@ function FTNMessageScanTossModule() {
                     //  computed the CRC-32 (or SHA-256) we need for the
                     //  outgoing TIC, from the bytes we actually received.
                     //
+                    //  File scanning cannot ride along inside scanFile() for
+                    //  the same reason, so it is called directly: without it
+                    //  an infected file would be relayed to every downlink.
+                    //
                     if (localInfo.passthrough) {
-                        return callback(null, localInfo);
+                        return FileScanner.scanFile(
+                            ticFileInfo.filePath,
+                            Object.assign(
+                                {
+                                    source: FileScanner.ScanSources.Tic,
+                                    sha256: localInfo.sha256, //  *may* be known
+                                },
+                                fileScanCtx
+                            ),
+                            err => scanned(err)
+                        );
                     }
 
                     const scanOpts = {
                         sha256: localInfo.sha256, //  *may* have already been calculated
+                        scanSource: FileScanner.ScanSources.Tic,
+                        scanContext: fileScanCtx,
                         meta: {
                             //  some TIC-related metadata we always want
                             short_file_name: ticFileInfo
@@ -3978,8 +4063,7 @@ function FTNMessageScanTossModule() {
                             Log.trace({ reason: err.message }, 'Scanning failed');
                         }
 
-                        localInfo.fileEntry = fileEntry;
-                        return callback(err, localInfo);
+                        return scanned(err, fileEntry);
                     });
                 },
                 function store(localInfo, callback) {
@@ -6317,6 +6401,9 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                 );
             },
             function process(ticFilesInfo, callback) {
+                //  payloads file scanning refused this pass: one notice for all
+                const scanRejections = [];
+
                 async.eachSeries(
                     ticFilesInfo,
                     (ticFileInfo, nextTicInfo) => {
@@ -6350,6 +6437,10 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                         };
 
                         self.processSingleTicFile(ticFileInfo, inboundType, err => {
+                            if (err && err.scanRejection) {
+                                scanRejections.push(err.scanRejection);
+                            }
+
                             if (!err) {
                                 self.forgetTicHold(ticFileInfo);
                                 return self.removeAssocTicFiles(ticFileInfo, () => {
@@ -6364,6 +6455,10 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                             //  next pass rather than rejecting the announcement
                             //  and orphaning the file that follows it.
                             //
+                            //  A file scanning rejection is final and is never
+                            //  held: its payload is already quarantined or
+                            //  deleted, and a retry would only find it gone.
+                            //
                             if (!TicFileInfo.isRetryableError(err)) {
                                 return reject();
                             }
@@ -6374,7 +6469,11 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                         });
                     },
                     err => {
-                        return callback(err);
+                        return FileScanner.notifyOperators(
+                            scanRejections,
+                            { source: FileScanner.ScanSources.Tic },
+                            () => callback(err)
+                        );
                     }
                 );
             },

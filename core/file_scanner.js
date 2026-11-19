@@ -766,6 +766,17 @@ function buildOperatorNotice(rejections, ctx) {
         if (c.areaTag) {
             lines.push(`Area:    ${cleanText(c.areaTag)}`);
         }
+        if (c.ticInfo) {
+            const t = c.ticInfo;
+            let tic = `${cleanText(t.area) || '?'} from ${cleanText(t.from) || '?'}`;
+            if (t.ticFileName) {
+                tic += ` in ${cleanText(t.ticFileName)}`;
+            }
+            if (t.passthrough) {
+                tic += ' (passthrough)';
+            }
+            lines.push(`TIC:     ${tic}`);
+        }
         if (c.sha256) {
             lines.push(`SHA-256: ${cleanText(c.sha256)}`);
         }
