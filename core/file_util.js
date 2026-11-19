@@ -18,6 +18,24 @@ exports.safeCopyFile = safeCopyFile;
 exports.safeMoveFile = safeMoveFile;
 exports.pathWithTerminatingSeparator = pathWithTerminatingSeparator;
 exports.endWriteStream = endWriteStream;
+exports.isWindowsDeviceName = isWindowsDeviceName;
+
+//
+//  Is |fileName| one of the names Windows reserves for a device -- CON, PRN,
+//  AUX, NUL, COM0-9, LPT0-9 (and the superscript-digit forms) -- with or
+//  without an extension, in any case? "NUL.ZIP" and "con .txt" open the
+//  device, not a file, so such a name must never reach a path on Windows.
+//
+const WINDOWS_DEVICE_NAME_RE =
+    /^(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3])$/i;
+
+function isWindowsDeviceName(fileName) {
+    const base = String(fileName || '')
+        .replace(/[. ]+$/, '') //  dropped by Windows
+        .split('.')[0]
+        .replace(/ +$/, '');
+    return WINDOWS_DEVICE_NAME_RE.test(base);
+}
 
 //
 //  fs.copyFile / fs-extra.copy both invoke utimensat() on the destination to
@@ -101,13 +119,17 @@ function _streamCopyRespectingOverwrite(src, dst, options, cb) {
     });
 }
 
-function _streamCopy(src, dst, cb) {
+function _streamCopy(src, dst, cb, writeOptions) {
     const rs = fs.createReadStream(src);
-    const ws = fs.createWriteStream(dst);
+    const ws = fs.createWriteStream(dst, writeOptions);
     let done = false;
     const finish = err => {
         if (done) return;
         done = true;
+        if (err && 'EEXIST' === err.code) {
+            rs.destroy();
+            return cb(err); //  exclusive, and not ours to remove
+        }
         if (err) {
             //  Best-effort cleanup of partial dst on failure.
             fs.unlink(dst, () => cb(err));
@@ -149,6 +171,64 @@ function endWriteStream(ws, cb) {
     ws.end();
 }
 
+//
+//  Errors from fs.link() that mean "no hard link here", not "no": another
+//  volume, a file system without hard links (FAT, some network shares), a
+//  platform or sandbox that refuses them. The copy fallback takes over.
+//
+const NO_LINK_CODES = ['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EMLINK'];
+
+//
+//  Copies |src| to |dst| without ever replacing |dst|: an existing |dst| is
+//  an EEXIST error, decided by the file system, not by a check made earlier.
+//  Falls back to a stream copy (also exclusive) on EPERM; see safeCopyFile().
+//
+function _exclusiveCopy(src, dst, cb) {
+    fs.copyFile(src, dst, fs.constants.COPYFILE_EXCL, err => {
+        if (!err || 'EPERM' !== err.code) {
+            return cb(err);
+        }
+        _streamCopy(src, dst, cb, { flags: 'wx' });
+    });
+}
+
+//
+//  Moves |src| to |dst| without ever replacing |dst|. A plain rename()
+//  replaces whatever is there, so an "exists?" check before it is a race:
+//  two callers moving "same.zip" both see the name free and the second
+//  rename overwrites the first file. link() fails with EEXIST instead, so
+//  the name is claimed atomically; the source is then unlinked. Where hard
+//  links are not available the copy fallback is exclusive the same way.
+//
+//  If the source cannot be removed afterwards the move has not happened:
+//  the new name is removed again and the error returned.
+//
+function _moveNoReplace(src, dst, cb) {
+    const removeSource = () => {
+        fs.unlink(src, unlinkErr => {
+            if (!unlinkErr) {
+                return cb(null);
+            }
+            fs.unlink(dst, () => cb(unlinkErr));
+        });
+    };
+
+    fs.link(src, dst, err => {
+        if (!err) {
+            return removeSource();
+        }
+        if (!NO_LINK_CODES.includes(err.code)) {
+            return cb(err); //  EEXIST included: the caller tries the next name
+        }
+        _exclusiveCopy(src, dst, err => {
+            if (err) {
+                return cb(err);
+            }
+            return removeSource();
+        });
+    });
+}
+
 function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
     operation = operation || 'copy';
     const dstPath = paths.dirname(dst);
@@ -161,21 +241,29 @@ function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
     let opOk = false;
     let tryDstPath;
 
+    //
+    //  Neither ever replaces an existing file: see _moveNoReplace(). Like the
+    //  fs-extra move/copy they stand in for, both create the destination
+    //  directory if it is missing (on ENOENT, then try once more: an ENOENT
+    //  that persists is a missing source).
+    //
     function tryOperation(src, dst, callback) {
-        if ('move' === operation) {
-            safeMoveFile(src, tryDstPath, err => {
+        const attempt = cb =>
+            'move' === operation
+                ? _moveNoReplace(src, dst, cb)
+                : _exclusiveCopy(src, dst, cb);
+
+        attempt(err => {
+            if (!err || 'ENOENT' !== err.code) {
                 return callback(err);
-            });
-        } else if ('copy' === operation) {
-            safeCopyFile(
-                src,
-                tryDstPath,
-                { overwrite: false, errorOnExist: true },
-                err => {
+            }
+            fse.mkdirs(paths.dirname(dst), mkdirErr => {
+                if (mkdirErr) {
                     return callback(err);
                 }
-            );
-        }
+                return attempt(callback);
+            });
+        });
     }
 
     async.until(
@@ -193,15 +281,7 @@ function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
 
             tryOperation(src, tryDstPath, err => {
                 if (err) {
-                    //  fs-extra doesn't set err.code for the errorOnExist
-                    //  path, and the message format has shifted across
-                    //  versions ("dest already exists." → "'<path>' already
-                    //  exists"). Match on either code or any "already exists"
-                    //  variant so the collision-retry loop stays robust.
-                    if (
-                        'EEXIST' === err.code ||
-                        (err.message && /already exists/i.test(err.message))
-                    ) {
+                    if ('EEXIST' === err.code) {
                         renameIndex += 1;
                         return cb(null); //  keep trying
                     }
