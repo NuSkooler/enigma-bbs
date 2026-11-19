@@ -250,10 +250,27 @@ module.exports = class FileEntry {
             try {
                 fileDb.transaction(() => {
                     if (isUpdate) {
+                        //
+                        //  An update, never a REPLACE: REPLACE deletes the
+                        //  row first, and with foreign keys on that cascades
+                        //  to every file_meta, file_hash_tag and
+                        //  file_user_rating row of the entry -- user ratings
+                        //  lost on any edit, and (#291) the scan meta below
+                        //  that is deliberately not rewritten gone with it.
+                        //
                         fileDb
                             .prepare(
-                                `REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, storage_tag_rel_path, desc, desc_long, upload_timestamp)
-                                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);`
+                                `INSERT INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, storage_tag_rel_path, desc, desc_long, upload_timestamp)
+                                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ON CONFLICT(file_id) DO UPDATE SET
+                                    area_tag = excluded.area_tag,
+                                    file_sha256 = excluded.file_sha256,
+                                    file_name = excluded.file_name,
+                                    storage_tag = excluded.storage_tag,
+                                    storage_tag_rel_path = excluded.storage_tag_rel_path,
+                                    desc = excluded.desc,
+                                    desc_long = excluded.desc_long,
+                                    upload_timestamp = excluded.upload_timestamp;`
                             )
                             .run(
                                 self.fileId,
@@ -294,33 +311,59 @@ module.exports = class FileEntry {
                         WHERE file_id = ? AND meta_name = ?;`
                     );
                     for (const [n, v] of Object.entries(self.meta)) {
-                        if (isUpdate && SCAN_META_NAMES.includes(n)) {
+                        if (isUpdate) {
                             //
                             //  Scan meta on an update (#291). A value this
-                            //  entry was loaded with and still holds is left
-                            //  alone: a rescan or mark-safe may have changed
-                            //  it since, and writing the stale copy back
-                            //  would undo that -- worst of all, a stale
-                            //  'clean' unhiding an entry flagged infected.
-                            //  A value the caller set (a fresh scanFile()
-                            //  verdict for a TIC replace, say) replaces every
-                            //  row of that name rather than adding one, so
-                            //  an old 'infected' cannot linger beside it.
+                            //  entry was loaded (or last persisted) with and
+                            //  still holds is left alone: a rescan or
+                            //  mark-safe may have changed it since, and
+                            //  writing the stale copy back would undo that
+                            //  -- worst of all, a stale 'clean' unhiding an
+                            //  entry flagged infected.
                             //
                             if (
+                                SCAN_META_NAMES.includes(n) &&
                                 self.loadedScanMeta &&
                                 _.isEqual(self.loadedScanMeta[n], v)
                             ) {
                                 continue;
                             }
+                            //  Meta are single valued: a new value replaces
+                            //  every row of that name rather than adding one
+                            //  beside it (file_meta is UNIQUE on name *and*
+                            //  value), so an old 'infected' cannot linger
+                            //  beside a fresh verdict.
                             delMetaStmt.run(self.fileId, n);
-                            if (_.isNil(v)) {
-                                continue;
-                            }
                         }
-                        metaStmt.run(self.fileId, n, coerceToText(v));
+                        if (!_.isNil(v)) {
+                            metaStmt.run(self.fileId, n, coerceToText(v));
+                        }
                     }
 
+                    //  a new verdict without a signature (clean, skipped) leaves
+                    //  no old one behind
+                    if (
+                        isUpdate &&
+                        !_.isNil(self.meta.scan_result) &&
+                        !(
+                            self.loadedScanMeta &&
+                            _.isEqual(
+                                self.loadedScanMeta.scan_result,
+                                self.meta.scan_result
+                            )
+                        ) &&
+                        !_.has(self.meta, 'scan_signature')
+                    ) {
+                        delMetaStmt.run(self.fileId, 'scan_signature');
+                    }
+
+                    //  |hashTags| is the whole set: on an update, tags it no
+                    //  longer has go (what the cascade used to do)
+                    if (isUpdate) {
+                        fileDb
+                            .prepare('DELETE FROM file_hash_tag WHERE file_id = ?;')
+                            .run(self.fileId);
+                    }
                     const insertTagStmt = fileDb.prepare(
                         `INSERT OR IGNORE INTO hash_tag (hash_tag) VALUES (?);`
                     );
@@ -336,6 +379,9 @@ module.exports = class FileEntry {
                         insertFileTagStmt.run(hashTag, self.fileId);
                     }
                 })();
+
+                //  what the database now holds, as far as this entry knows
+                self.loadedScanMeta = _.pick(self.meta, SCAN_META_NAMES);
 
                 return cb(null);
             } catch (transErr) {

@@ -19,7 +19,6 @@ const os = require('os');
 const paths = require('path');
 const moment = require('moment');
 const _ = require('lodash');
-const Database = require('better-sqlite3');
 
 const configModule = require('../core/config.js');
 const configDefault = require('../core/config_default.js');
@@ -111,53 +110,8 @@ describe('hiding infected file entries (#291)', function () {
         prevConfig = configModule._pushTestConfig(config);
 
         prevFileDb = dbModule.dbs.file;
-        fileDb = new Database(':memory:');
-        fileDb.exec(`
-            CREATE TABLE file (
-                file_id                 INTEGER PRIMARY KEY,
-                area_tag                VARCHAR NOT NULL,
-                file_sha256             VARCHAR NOT NULL,
-                file_name,
-                storage_tag             VARCHAR NOT NULL,
-                storage_tag_rel_path    VARCHAR DEFAULT NULL,
-                desc,
-                desc_long,
-                upload_timestamp        DATETIME NOT NULL
-            );
-            CREATE TABLE file_meta (
-                file_id     INTEGER NOT NULL,
-                meta_name   VARCHAR NOT NULL,
-                meta_value  VARCHAR NOT NULL,
-                UNIQUE(file_id, meta_name, meta_value)
-            );
-            CREATE TABLE hash_tag (
-                hash_tag_id INTEGER PRIMARY KEY,
-                hash_tag    VARCHAR NOT NULL,
-                UNIQUE(hash_tag)
-            );
-            CREATE TABLE file_hash_tag (
-                hash_tag_id INTEGER NOT NULL,
-                file_id     INTEGER NOT NULL,
-                UNIQUE(hash_tag_id, file_id)
-            );
-            CREATE TABLE file_user_rating (
-                file_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                rating  INTEGER NOT NULL,
-                UNIQUE(file_id, user_id)
-            );
-            CREATE TABLE file_web_serve (
-                hash_id             VARCHAR NOT NULL PRIMARY KEY,
-                expire_timestamp    DATETIME NOT NULL
-            );
-            CREATE TABLE file_web_serve_batch (
-                hash_id VARCHAR NOT NULL,
-                file_id INTEGER NOT NULL,
-                UNIQUE(hash_id, file_id)
-            );
-            ${require('../core/file_scan_allowlist.js').AllowlistTableSql}
-        `);
-        dbModule.dbs.file = fileDb;
+        //  the real schema: foreign keys, cascades and triggers included
+        fileDb = dbModule.createFileDatabase();
 
         FRESH.forEach(m => {
             const key = require.resolve(m);
@@ -191,8 +145,9 @@ describe('hiding infected file entries (#291)', function () {
 
     beforeEach(() => {
         fileDb.exec(`
-            DELETE FROM file_meta; DELETE FROM file; DELETE FROM file_web_serve;
-            DELETE FROM file_web_serve_batch; DELETE FROM file_scan_allowlist;
+            DELETE FROM file_web_serve_batch; DELETE FROM file_web_serve;
+            DELETE FROM file_user_rating; DELETE FROM file_hash_tag; DELETE FROM hash_tag;
+            DELETE FROM file_meta; DELETE FROM file; DELETE FROM file_scan_allowlist;
         `);
         config.fileBase.scanning.hideInfected = true;
         config.fileBase.scanning.infectedVisibleAcs = 'GM[sysops]';
@@ -336,6 +291,91 @@ describe('hiding infected file entries (#291)', function () {
                 entry.load(1, err => (err ? reject(err) : resolve()))
             );
             assert.equal(entry.meta.scan_result, 'clean');
+        });
+
+        const persist = (entry, isUpdate) =>
+            new Promise((resolve, reject) =>
+                entry.persist(isUpdate, err => (err ? reject(err) : resolve()))
+            );
+
+        //  oputil fb desc, the desc editor, fb scan's dupe update, a TIC update
+        it('load, edit the description, update: an infected entry stays infected', async () => {
+            addFile(1, { infected: true });
+            const entry = await loadEntry(1);
+            entry.desc = 'a new description';
+            await persist(entry, true);
+
+            assert.deepEqual(scanResultRows(1), ['infected']);
+            assert.deepEqual(
+                await findFiles({ areaTag: AREA, excludeInfected: true }),
+                []
+            );
+            assert.equal((await loadEntry(1)).desc, 'a new description');
+            assert.equal(
+                (await loadEntry(1)).meta.scan_signature,
+                'Eicar-Test-Signature'
+            );
+        });
+
+        it('insert, flagged since, update: the flag stays', async () => {
+            const entry = new mods.FileEntry({
+                areaTag: AREA,
+                storageTag: 'vis_tag',
+                fileName: 'new.zip',
+                fileSha256: 'b'.repeat(64),
+                meta: { byte_size: 3, scan_result: 'clean' },
+            });
+            entry.desc = 'first';
+            await persist(entry, false);
+            markInfected(entry.fileId);
+
+            entry.desc = 'second';
+            await persist(entry, true);
+            assert.deepEqual(scanResultRows(entry.fileId), ['infected']);
+        });
+
+        it('an update keeps user ratings, and the hash tags the entry has', async () => {
+            addFile(1);
+            const entry = await loadEntry(1);
+            entry.setHashTags(['demo', 'dos']);
+            await persist(entry, true);
+            mods.FileEntry.persistUserRating(1, 42, 4, err => assert.ifError(err));
+
+            const again = await loadEntry(1);
+            again.hashTags.delete('dos');
+            again.desc = 'edited';
+            await persist(again, true);
+
+            const after = await loadEntry(1);
+            assert.deepEqual([...after.hashTags], ['demo']);
+            assert.equal(after.userRating, 4);
+            assert.equal(after.meta.byte_size, 'contents of 1'.length);
+        });
+
+        it('an update with new meta replaces the old values, not adds to them', async () => {
+            addFile(1, { infected: true });
+
+            //  a TIC replace: a fresh entry for the new file, the old file ID
+            const entry = new mods.FileEntry({
+                fileId: 1,
+                areaTag: AREA,
+                storageTag: 'vis_tag',
+                fileName: 'file1.zip',
+                fileSha256: 'c'.repeat(64),
+                meta: { byte_size: 99, scan_result: 'clean' },
+            });
+            await persist(entry, true);
+
+            const rows = name =>
+                fileDb
+                    .prepare(
+                        'SELECT meta_value FROM file_meta WHERE file_id = 1 AND meta_name = ?'
+                    )
+                    .all(name)
+                    .map(r => r.meta_value);
+            assert.deepEqual(rows('byte_size'), ['99']);
+            assert.deepEqual(rows('scan_result'), ['clean']);
+            assert.deepEqual(rows('scan_signature'), [], 'no stale signature');
         });
 
         it('an update does not write back stale scan meta it was loaded with', async () => {

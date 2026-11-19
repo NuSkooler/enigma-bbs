@@ -29,6 +29,7 @@ exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
 exports.scheduledEventCheckpointDatabases = scheduledEventCheckpointDatabases;
 exports.scheduledEventBackupDatabases = scheduledEventBackupDatabases;
 exports.checkpointDatabases = checkpointDatabases;
+exports.createFileDatabase = createFileDatabase;
 exports.backupDatabases = backupDatabases;
 exports.initMessageDatabase = initMessageDatabase;
 exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
@@ -57,6 +58,17 @@ function openDatabase(filePath) {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     return db;
+}
+
+//
+//  An in-memory file database with the real schema and pragmas, installed as
+//  dbs.file: for tests, which would otherwise copy the schema and miss what
+//  matters (foreign keys and their cascades, triggers). Returns it.
+//
+function createFileDatabase() {
+    dbs.file = openDatabase(':memory:');
+    DB_INIT_TABLE.file();
+    return dbs.file;
 }
 
 function getDatabasePath(name) {
