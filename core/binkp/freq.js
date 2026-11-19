@@ -104,7 +104,10 @@ class FreqResolver {
         const upperName = name.toUpperCase();
         for (const [magic, pattern] of Object.entries(this._magic)) {
             if (magic.toUpperCase() === upperName) {
-                return this._resolveGlobPattern(pattern);
+                const found = await this._resolveGlobPattern(pattern);
+                return found && !(await this._isHiddenPath(found.filePath))
+                    ? found
+                    : null;
             }
         }
 
@@ -117,10 +120,73 @@ class FreqResolver {
         // 3. Directory search
         for (const dir of this._dirs) {
             const found = await this._findInDir(dir, name);
-            if (found) return found;
+            if (found && !(await this._isHiddenPath(found.filePath))) return found;
         }
 
         return null;
+    }
+
+    //
+    //  Magic names and search directories serve files by path, and either
+    //  may point into file base storage: a file there whose entry a rescan
+    //  marked infected is not served (#291), as the area search would not
+    //  serve it. If that cannot be told, it is not served either.
+    //
+    async _isHiddenPath(filePath) {
+        let FileEntry;
+        try {
+            const Visibility = require('../file_base_visibility.js');
+            if (!Visibility.hideInfectedEnabled()) {
+                return false;
+            }
+            FileEntry = require('../file_entry.js');
+        } catch (err) {
+            Log.warn(
+                { filePath, error: err.message },
+                '[BinkP/FREQ] Could not check whether a file is marked infected; not serving it'
+            );
+            return true;
+        }
+
+        const real = async p => {
+            try {
+                return await fsp.realpath(p);
+            } catch (_) {
+                return path.resolve(p);
+            }
+        };
+
+        try {
+            const entries = FileEntry.getInfectedEntriesByFileName(
+                path.basename(filePath)
+            );
+            if (0 === entries.length) {
+                return false;
+            }
+            const target = await real(filePath);
+            for (const entry of entries) {
+                let entryPath;
+                try {
+                    entryPath = entry.filePath;
+                } catch (_) {
+                    continue;
+                }
+                if (entryPath && (await real(entryPath)) === target) {
+                    Log.info(
+                        { filePath, fileId: entry.fileId },
+                        '[BinkP/FREQ] Not serving a file whose entry is marked infected'
+                    );
+                    return true;
+                }
+            }
+            return false;
+        } catch (err) {
+            Log.warn(
+                { filePath, error: err.message },
+                '[BinkP/FREQ] Could not check whether a file is marked infected; not serving it'
+            );
+            return true;
+        }
     }
 
     // Resolve a path that may contain glob wildcards.  When the pattern has no
@@ -181,13 +247,17 @@ class FreqResolver {
 
         const lowerName = name.toLowerCase();
 
+        //  A remote node is no one in particular: entries a rescan marked
+        //  infected are not served to it (#291).
+        const { visibleFilesFilter } = require('../file_base_visibility.js');
+
         return new Promise(resolve => {
             FileEntry.findFiles(
-                {
+                visibleFilesFilter(null, {
                     areaTag,
                     sort: 'upload_timestamp',
                     order: 'descending',
-                },
+                }),
                 (err, fileIds) => {
                     if (err || !fileIds || fileIds.length === 0) {
                         return resolve(null);

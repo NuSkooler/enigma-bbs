@@ -83,8 +83,9 @@ function findInfoPackFile(areaTag, match, cb) {
     const FileEntry = require('./file_entry.js');
     const matchRe = match ? globToRegExp(match) : null;
 
+    //  a pack a rescan marked infected is not opened (#291)
     FileEntry.findFiles(
-        { areaTag, sort: 'upload_timestamp', order: 'descending' },
+        { areaTag, sort: 'upload_timestamp', order: 'descending', excludeInfected: true },
         (err, fileIds) => {
             if (err || !fileIds || 0 === fileIds.length) {
                 return cb(null, null);

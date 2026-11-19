@@ -1053,7 +1053,7 @@
 			fileBaseListEntries: {
 				config: {
 					hashTagsSep: "|08, |07"
-					browseInfoFormat10: "|00|10{fileName:<.44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat10: "{infectedIndicator}|00|10{fileName:<.44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
 					browseInfoFormat11: "|00|15{areaName}"
 					browseInfoFormat12: "|00|07{hashTags}"
 					browseInfoFormat13: "|00|07{estReleaseYear}"
@@ -1068,6 +1068,8 @@
 					isQueuedIndicator: "|00|10YES"
 					isNotQueuedIndicator: "|00|07no"
 					noDownloadAccessIndicator: "|00|08n/a"
+					//	shown only to those who still see entries a rescan marked infected
+					infectedIndicator: "|00|12INFECTED |08- "
 
 					userRatingTicked: "|00|15*"
 					userRatingUnticked: "|00|07-"
@@ -1154,7 +1156,7 @@
 			newScanFileBaseList: {
 				config: {
 					hashTagsSep: "|08, |07"
-					browseInfoFormat10: "|00|10{fileName:<44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat10: "{infectedIndicator}|00|10{fileName:<44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
 					browseInfoFormat11: "|00|15{areaName}"
 					browseInfoFormat12: "|00|07{hashTags}"
 					browseInfoFormat13: "|00|07{estReleaseYear}"
@@ -1169,6 +1171,8 @@
 					isQueuedIndicator: "|00|10YES"
 					isNotQueuedIndicator: "|00|07no"
 					noDownloadAccessIndicator: "|00|08n/a"
+					//	shown only to those who still see entries a rescan marked infected
+					infectedIndicator: "|00|12INFECTED |08- "
 
 					userRatingTicked: "|00|15*"
 					userRatingUnticked: "|00|07-"

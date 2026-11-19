@@ -1045,10 +1045,48 @@ describe('TIC passthrough end to end', function () {
             assert.equal(sidecar.source, 'tic');
             assert.equal(sidecar.signature, 'Eicar-Test-Signature');
             assert.equal(sidecar.ticInfo.passthrough, true);
+            //  kept so that a release loses nothing
+            assert.equal(sidecar.ticInfo.desc, 'a cool app');
+            assert.equal(sidecar.ticInfo.shortFileName, 'COOLAPP.ZIP');
 
             assert.equal(notices.length, 1);
             assert.ok(notices[0].body.includes('COOLAPP.ZIP'));
             assert.ok(notices[0].body.includes('(passthrough)'));
+        });
+
+        it('carries an allowlisted passthrough payload without running a scanner', async () => {
+            const Database = require('better-sqlite3');
+            const dbModule = require('../core/database.js');
+            const Allowlist = require('../core/file_scan_allowlist.js');
+            const prev = dbModule.dbs.file;
+            const db = new Database(':memory:');
+            db.exec(Allowlist.AllowlistTableSql);
+            dbModule.dbs.file = db;
+            try {
+                const content = 'EICAR, a known false positive';
+                await new Promise(r =>
+                    Allowlist.add(
+                        {
+                            sha256: require('crypto')
+                                .createHash('sha256')
+                                .update(content)
+                                .digest('hex'),
+                            addedBy: 'test',
+                        },
+                        r
+                    )
+                );
+                deliver({ content });
+                await importOnce();
+
+                assert.equal(calls.length, 0, 'no scanner ran');
+                assert.deepEqual(transitFiles(), ['COOLAPP.ZIP']);
+                assert.deepEqual(ls(quarantineDir()), []);
+                assert.equal(notices.length, 0);
+            } finally {
+                dbModule.dbs.file = prev;
+                db.close();
+            }
         });
 
         it('is not held for a retry once rejected', async () => {

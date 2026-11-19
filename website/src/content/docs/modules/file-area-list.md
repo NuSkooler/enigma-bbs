@@ -21,6 +21,8 @@ Available `config` block entries:
 * `isQueuedIndicator`: Indicator for items that are in the users download queue. Defaults to "Y".
 * `isNotQueuedIndicator`: Indicator for items that are _not_ in the users download queue. Defaults to "N".
 * `noDownloadAccessIndicator`: Indicator for items the user may browse but has no `download` ACS for, and therefore cannot queue. Defaults to "-".
+* `infectedIndicator`: Indicator for an entry a file base rescan marked infected. Only users passing `fileBase.scanning.infectedVisibleAcs` ever see one; everyone else has such entries [hidden](../filebase/file-scanning.md#hidden-infected-entries). Defaults to "INFECTED ".
+* `notInfectedIndicator`: Indicator for any other entry. Defaults to empty.
 * `userRatingTicked`: Indicator for a items current _n_/5 "star" rating. Defaults to "\*". `userRatingTicked` and `userRatingUnticked` are combined to build strings such as "***--" for 3/5 rating.
 * `userRatingUnticked`: Indicator for missing "stars" in a items _n_/5 rating. Defaults to "-". `userRatingTicked` and `userRatingUnticked` are combined to build strings such as "***--" for 3/5 rating.
 * `webDlExpireTimeFormat`: Presents the expiration time of a web download URL. Defaults to current theme → system `short` date/time format.
@@ -74,6 +76,9 @@ The browse page uses the `browse` art described above. The following MCI codes a
     * `{isQueued}`: Indicates if a item is currently in the user's download queue presented as `isQueuedIndicator` or `isNotQueuedIndicator` described above. Where the user has no `download` access to the area, `noDownloadAccessIndicator` is shown instead.
     * `{webDlLink}`: Web download link if generated else `webDlLinkNeedsGenerated` or `webDlLinkNoWebserver` described above.
     * `{webDlExpire}`: Web download link expiration using `webDlExpireTimeFormat` described above.
+    * `{infectedIndicator}`: `infectedIndicator` or `notInfectedIndicator` described above.
+    * `{scanResult}`, `{scanSignature}`: The file scan result (`clean`, `infected`, `skipped`, ...) and what a scan found, or "N/A". See [File Scanning](../filebase/file-scanning.md).
+    * `{quarantineReleasedAt}`, `{quarantineReleasedBy}`: When a file was released from quarantine, and by whom: the operator's OS user name (`oputil:bryan`, say), or "N/A". Mind that this shows a system account name to whoever can see the format.
 
 ### Details Page
 The details page uses the `details` art described above. The following MCI codes are available:

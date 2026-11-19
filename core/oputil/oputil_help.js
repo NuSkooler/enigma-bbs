@@ -184,6 +184,15 @@ Actions:
       '*' wildcards
   An area match wins over a filename wildcard.
 
+  quarantine list              List what is in the file scanning quarantine
+  quarantine release NAME      Import a quarantined file into a file base area
+  quarantine delete NAME       Delete a quarantined file and its sidecar
+
+  mark-safe FILE_ID|SHA256     Put a file's SHA-256 on the file scanning
+                               allowlist and clear "infected" from its entries
+  mark-safe --list             List the allowlist
+  mark-safe --remove SHA256    Take a SHA-256 off the allowlist
+
   info CRITERIA                Display information about areas and/or files
 
   mv SRC [SRC...] DST          Move matching entry(s)
@@ -256,6 +265,44 @@ virus-scan arguments:
   and is reported again on every run until removed. The operators get one
   inbox notice for the run if anything needs them. Exits non-zero if an
   infected file was found, a file could not be checked, or on any error.
+
+quarantine release arguments:
+  --area TAG                   Area to release into; default: the area the file
+                               was headed for
+  --name NAME                  Name to give it; default: its original name
+  --allow                      It is a false positive: put its SHA-256 on the
+                               allowlist (taken off again if the release fails)
+  --note TEXT                  Note for the allowlist entry (needs --allow)
+  --no-scan                    Release it without scanning it first, on your
+                               own responsibility
+
+  NAME is the quarantined file's name, as "quarantine list" shows it. Its
+  SHA-256 must still be the one its sidecar recorded. The original name and
+  area came from the uploader or TIC: unless they are a plain, safe file name
+  and a configured, normal area, it is refused and --name or --area must be
+  given. It is scanned first, where it is (source "oputil"), and stays in
+  quarantine if that scan rejects it or cannot run: a flagged file needs
+  --allow, a held one is released once the scanner works again. Then it is
+  moved into the area's storage directory (never replacing a file; a taken
+  name becomes NAME(1).EXT) and imported, keeping the uploader, description
+  and TIC details the sidecar recorded, and the sidecar is removed. A file
+  the file base already has is refused. A file with no sidecar is refused:
+  move it and "fb scan --virus-scan" it by hand.
+
+quarantine delete arguments:
+  --yes, --no-prompt           Delete without asking
+
+mark-safe arguments:
+  --note TEXT                  Why it is safe; kept with the entry
+  --force                      Allowlist a FILE_ID whose file is missing, by
+                               the SHA-256 recorded for its entry
+
+  The allowlist is global and matches exact bytes (SHA-256) only. A file on
+  it is clean for every scan, from every source (uploads, REST, TIC, oputil,
+  rescans), without any scanner running. A FILE_ID's file is hashed as it is
+  on disk now and must still match its entry; a missing file is refused
+  without --force. Entries with that SHA-256 that are marked infected become
+  scan_result=clean, scanner=allowlist.
 
 info arguments:
   --show-desc                  Display short description, if any

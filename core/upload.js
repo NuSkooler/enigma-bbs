@@ -23,6 +23,7 @@ const isAnsi = require('./string_util.js').isAnsi;
 const Events = require('./events.js');
 const UploadTempDir = require('./upload_temp_dir.js');
 const FileScanner = require('./file_scanner.js');
+const { maskHiddenDupes } = require('./file_base_visibility.js');
 
 //  deps
 const async = require('async');
@@ -505,7 +506,15 @@ exports.getModule = class UploadModule extends MenuModule {
                                 dupeEntries: dupeEntries,
                             });
 
-                            results.dupes = results.dupes.concat(dupeEntries);
+                            //  a dupe of an entry hidden from them (#291) is
+                            //  still a dupe, but is not named
+                            results.dupes = results.dupes.concat(
+                                maskHiddenDupes(
+                                    self.client,
+                                    dupeEntries,
+                                    paths.basename(filePath)
+                                )
+                            );
                         } else {
                             //  new one
                             results.newEntries.push(fileEntry);
@@ -801,6 +810,12 @@ exports.getModule = class UploadModule extends MenuModule {
                     async.each(
                         dupes,
                         (dupe, nextDupe) => {
+                            if (dupe.hiddenDupe) {
+                                dupe.areaName = dupe.areaDesc =
+                                    self.menuConfig.config.hiddenDupeAreaName ||
+                                    'this board';
+                                return nextDupe(null);
+                            }
                             FileEntry.loadBasicEntry(dupe.fileId, dupe, err => {
                                 if (err) {
                                     return nextDupe(err);

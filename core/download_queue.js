@@ -6,6 +6,7 @@ const UserProps = require('./user_property');
 const Events = require('./events');
 const { isClientConnected } = require('./client_connections.js');
 const { hasFileAreaDownloadAccess } = require('./file_base_area.js');
+const { filterHidden, isFileIdHidden } = require('./file_base_visibility.js');
 
 //  deps
 const _ = require('lodash');
@@ -84,10 +85,14 @@ module.exports = class DownloadQueue {
 
     //
     //  May the current user download |fileEntry|? Browsing an area ('read')
-    //  and downloading from it ('download') are separate rights.
+    //  and downloading from it ('download') are separate rights. An entry
+    //  hidden from them as infected (#291) is not theirs to take either.
     //
     canDownload(fileEntry) {
-        return hasFileAreaDownloadAccess(this.client, fileEntry.areaTag);
+        return (
+            hasFileAreaDownloadAccess(this.client, fileEntry.areaTag) &&
+            !isFileIdHidden(this.client, fileEntry.fileId)
+        );
     }
 
     //  Returns true if the entry ended up queued, false if it was refused.
@@ -108,7 +113,9 @@ module.exports = class DownloadQueue {
         if (!systemFile && !this.canDownload(fileEntry)) {
             this.client.log.info(
                 { fileId: fileEntry.fileId, areaTag: fileEntry.areaTag },
-                'Refusing to queue download; no download ACS for area'
+                isFileIdHidden(this.client, fileEntry.fileId)
+                    ? 'Refusing to queue download; the entry is marked infected'
+                    : 'Refusing to queue download; no download ACS for area'
             );
             return false;
         }
@@ -127,14 +134,43 @@ module.exports = class DownloadQueue {
 
     //
     //  Queues persist in a user property across sessions, so an item queued
-    //  while permitted can outlive the permission. Filter at the point of
-    //  actually sending or generating links, not just at queue time.
+    //  while permitted can outlive the permission -- or be marked infected by
+    //  a rescan after it was queued (#291). Filter at the point of actually
+    //  sending or generating links, not just at queue time.
     //
     get allowedItems() {
-        return this.items.filter(
+        const permitted = this.items.filter(
             item =>
                 item.systemFile || hasFileAreaDownloadAccess(this.client, item.areaTag)
         );
+        const visible = filterHidden(this.client, permitted);
+        if (visible.length !== permitted.length) {
+            this.client.log.info(
+                {
+                    fileIds: _.difference(permitted, visible).map(i => i.fileId),
+                },
+                'Withholding queued downloads; the entries are marked infected'
+            );
+        }
+        return visible;
+    }
+
+    //
+    //  Takes entries now marked infected (#291) out of the queue, so the
+    //  queue managers neither show nor offer them. Returns what was removed.
+    //
+    removeHiddenItems() {
+        const visible = filterHidden(this.client, this.items);
+        if (visible.length === this.items.length) {
+            return [];
+        }
+        const removed = _.difference(this.items, visible);
+        this.client.user.downloadQueue = visible;
+        this.client.log.info(
+            { fileIds: removed.map(i => i.fileId) },
+            'Removed queued downloads; the entries are marked infected'
+        );
+        return removed;
     }
 
     removeItems(fileIds) {

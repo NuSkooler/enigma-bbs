@@ -39,6 +39,8 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
         this.setMergedFlag(MenuFlags.NoHistory);
 
         this.dlQueue = new DownloadQueue(this.client);
+        //  neither shown nor offered once a rescan marks them infected (#291)
+        this.dlQueue.removeHiddenItems();
 
         if (_.has(options, 'lastMenuResult.sentFileIds')) {
             this.sentFileIds = options.lastMenuResult.sentFileIds;

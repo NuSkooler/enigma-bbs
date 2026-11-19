@@ -13,6 +13,7 @@ const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment');
 const { ActiveUsersIndexSql } = require('./active_users');
+const { AllowlistTableSql } = require('./file_scan_allowlist.js');
 
 //  database handles
 const dbs = {};
@@ -28,6 +29,7 @@ exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
 exports.scheduledEventCheckpointDatabases = scheduledEventCheckpointDatabases;
 exports.scheduledEventBackupDatabases = scheduledEventBackupDatabases;
 exports.checkpointDatabases = checkpointDatabases;
+exports.createFileDatabase = createFileDatabase;
 exports.backupDatabases = backupDatabases;
 exports.initMessageDatabase = initMessageDatabase;
 exports.migrateMessageIdAutoincrement = migrateMessageIdAutoincrement;
@@ -56,6 +58,17 @@ function openDatabase(filePath) {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     return db;
+}
+
+//
+//  An in-memory file database with the real schema and pragmas, installed as
+//  dbs.file: for tests, which would otherwise copy the schema and miss what
+//  matters (foreign keys and their cascades, triggers). Returns it.
+//
+function createFileDatabase() {
+    dbs.file = openDatabase(':memory:');
+    DB_INIT_TABLE.file();
+    return dbs.file;
 }
 
 function getDatabasePath(name) {
@@ -898,6 +911,11 @@ const DB_INIT_TABLE = {
             CREATE INDEX IF NOT EXISTS file_by_storage_tag_index
                 ON file (storage_tag);
 
+            /* file scanning (#291): by name, any case, for FREQ's lookup of
+               infected entries behind a served path */
+            CREATE INDEX IF NOT EXISTS file_by_file_name_nocase_index
+                ON file (file_name COLLATE NOCASE);
+
             CREATE VIRTUAL TABLE IF NOT EXISTS file_fts USING fts4 (
                 content="file",
                 file_name,
@@ -965,6 +983,9 @@ const DB_INIT_TABLE = {
                 UNIQUE(hash_id, file_id),
                 FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
             );
+
+            /* file scanning (#291): SHA-256 hashes declared safe; see core/file_scan_allowlist.js */
+            ${AllowlistTableSql}
         `);
 
         //  Inline migration: add storage_tag_rel_path to existing installations.

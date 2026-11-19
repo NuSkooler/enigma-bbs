@@ -79,6 +79,7 @@ exports.parseTaskArgs = parseTaskArgs;
 exports.formatSummary = formatSummary;
 exports.buildRescanNotice = buildRescanNotice;
 exports.removeCommand = removeCommand;
+exports.markSafeCommand = markSafeCommand;
 exports.isRunning = () => running;
 
 //  What happened to one entry
@@ -136,6 +137,11 @@ function fileEntryClass() {
 //  where a later "fb scan" would import it again.
 function removeCommand(fileId) {
     return `./oputil.js fb rm ${fileId} --phys-file`;
+}
+
+//  ...and the one for a false positive: allowlist the bytes, clear the result.
+function markSafeCommand(fileId) {
+    return `./oputil.js fb mark-safe ${fileId}`;
 }
 
 // ── Readiness ────────────────────────────────────────────────────────────────
@@ -1143,6 +1149,7 @@ function buildRescanNotice(summary, options) {
             out.push(noticeLine('', '(the scanners had no opinion this time)'));
         }
         out.push(noticeLine('Remove:', removeCommand(r.fileId)));
+        out.push(noticeLine('If safe:', markSafeCommand(r.fileId)));
         return out;
     });
 
@@ -1172,7 +1179,7 @@ function buildRescanNotice(summary, options) {
     if (infected.length > 0) {
         lines.push(
             ...wrap(
-                `To remove an infected file and its entry, run the "Remove" command from the ENiGMA directory. It deletes the file too; without --phys-file only the entry goes and the file stays on disk, where a later "fb scan" would import it again. An infected file is reported on every rescan until it is removed.`
+                `To remove an infected file and its entry, run the "Remove" command from the ENiGMA directory. It deletes the file too; without --phys-file only the entry goes and the file stays on disk, where a later "fb scan" would import it again. An infected file is reported on every rescan until it is removed. If it is a false positive, the "If safe" command puts those exact bytes on the allowlist and clears the result instead.`
             )
         );
         lines.push('');

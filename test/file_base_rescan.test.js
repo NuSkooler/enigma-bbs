@@ -84,6 +84,7 @@ describe('file base rescan (#291)', function () {
         fileDb = new Database(':memory:');
         fileDb.pragma('foreign_keys = ON');
         fileDb.exec(FILE_DB_SCHEMA);
+        fileDb.exec(require('../core/file_scan_allowlist.js').AllowlistTableSql);
         dbModule.dbs.file = fileDb;
 
         FRESH.forEach(m => {
@@ -110,7 +111,9 @@ describe('file base rescan (#291)', function () {
     });
 
     beforeEach(() => {
-        fileDb.exec('DELETE FROM file_meta; DELETE FROM file;');
+        fileDb.exec(
+            'DELETE FROM file_meta; DELETE FROM file; DELETE FROM file_scan_allowlist;'
+        );
         dir = fs.realpathSync(fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-rescan-')));
         fs.mkdirSync(storageDir(), { recursive: true });
 
@@ -444,6 +447,43 @@ describe('file base rescan (#291)', function () {
             notices[0].body
                 .split('\r\n')
                 .forEach(line => assert.ok(line.length <= 79, line));
+        });
+    });
+
+    describe('allowlist', () => {
+        it('records an allowlisted file as clean by "allowlist", dropping the signature', async () => {
+            const fileId = addFile('EVIL.EXE', 'EICAR false positive', {
+                meta: { scan_result: 'infected', scan_signature: 'Stub-Found-It' },
+            });
+            await new Promise((resolve, reject) =>
+                require('../core/file_scan_allowlist.js').add(
+                    { sha256: sha256('EICAR false positive'), addedBy: 'test' },
+                    err => (err ? reject(err) : resolve())
+                )
+            );
+
+            const summary = await run();
+            assert.equal(summary.counts.clean, 1);
+            assert.equal(summary.counts.infected, 0);
+            assert.equal(scanState.calls.length, 0, 'no scanner ran');
+            assert.deepEqual(meta(fileId, 'scan_result'), ['clean']);
+            assert.deepEqual(meta(fileId, 'scanner'), ['allowlist']);
+            assert.deepEqual(meta(fileId, 'scan_signature'), []);
+            assert.equal(notices.length, 0);
+        });
+
+        it('reports it infected again once it is off the allowlist', async () => {
+            const Allowlist = require('../core/file_scan_allowlist.js');
+            const fileId = addFile('EVIL.EXE', 'EICAR flagged');
+            const h = sha256('EICAR flagged');
+            await new Promise(r => Allowlist.add({ sha256: h, addedBy: 'test' }, r));
+            await run();
+            assert.deepEqual(meta(fileId, 'scanner'), ['allowlist']);
+
+            await new Promise(r => Allowlist.remove(h, 'test', r));
+            const summary = await run();
+            assert.equal(summary.counts.infected, 1);
+            assert.deepEqual(meta(fileId, 'scan_result'), ['infected']);
         });
     });
 

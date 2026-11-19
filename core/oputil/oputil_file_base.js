@@ -16,6 +16,7 @@ const {
 } = require('./oputil_common.js');
 const Errors = require('../enig_error.js').Errors;
 const FileScanner = require('../file_scanner.js');
+const { replaceInvisibleFormatChars } = require('../string_util.js');
 const {
     AreaListFormat,
     parseAreaList,
@@ -979,15 +980,32 @@ function scanFileAreas() {
     );
 }
 
-//  Names and scanner output from the database: no control characters on the
-//  operator's terminal.
-function consoleText(s) {
-    // eslint-disable-next-line no-control-regex
-    return String(_.isUndefined(s) || null === s ? '' : s).replace(
-        /[\x00-\x1f\x7f-\x9f]/g,
+//
+//  Names and scanner output from the database, often from outside: no
+//  control characters on the operator's terminal, and none of the invisible
+//  format characters (U+202E RIGHT-TO-LEFT OVERRIDE, zero widths, ...) or
+//  line and paragraph separators that would make one line read as another.
+//  |maxLength| caps it, with "..." to show it was cut.
+//
+function consoleText(s, maxLength) {
+    const text = replaceInvisibleFormatChars(
+        String(_.isUndefined(s) || null === s ? '' : s).replace(
+            // eslint-disable-next-line no-control-regex
+            /[\x00-\x1f\x7f-\x9f]/g,
+            '?'
+        ),
         '?'
     );
+    if (_.isFinite(maxLength) && text.length > maxLength) {
+        return `${text.slice(0, maxLength)}...`;
+    }
+    return text;
 }
+
+//  What a remote field (an uploader's file name, a TIC origin, scanner
+//  output) may take up on a listing line
+const MAX_REMOTE_FIELD_CHARS = 128;
+const remoteText = s => consoleText(s, MAX_REMOTE_FIELD_CHARS);
 
 //
 //  virus-scan CRITERIA: each is an area tag (simple wildcards allowed; "*" is
@@ -1071,7 +1089,9 @@ function printRescanResult(result, dryRun) {
             what = `: missing, ${result.path}`;
             break;
         default:
-            if (FileScanner.Verdicts.Infected === result.keptResult) {
+            if (v.allowlisted) {
+                what = ' (allowlisted)';
+            } else if (FileScanner.Verdicts.Infected === result.keptResult) {
                 label = 'INFECTED';
                 what = `: still marked infected (${
                     result.keptSignature || 'unnamed threat'
@@ -1090,6 +1110,7 @@ function printRescanResult(result, dryRun) {
 
     if ('INFECTED' === label && !dryRun) {
         line += `\n${' '.repeat(14)}remove with: ${Rescan.removeCommand(result.fileId)}`;
+        line += `\n${' '.repeat(14)}or, if safe: ${Rescan.markSafeCommand(result.fileId)}`;
     }
 
     if (result.error) {
@@ -1880,6 +1901,496 @@ function hatchFile() {
     );
 }
 
+// ── Quarantine and allowlist (#291) ─────────────────────────────────────────
+
+//  Who is at the keyboard, for the log and the allowlist: the OS user
+//  running oputil.
+function operatorName() {
+    try {
+        const name = require('os').userInfo().username;
+        if (name) {
+            return `oputil:${name}`;
+        }
+    } catch (e) {
+        //  no passwd entry, say: fall through
+    }
+    return 'oputil';
+}
+
+//
+//  A value option (--area TAG): undefined when not given, an error when given
+//  without a value -- minimist makes that `true`, which must never become an
+//  area tag or a note.
+//
+function valueArg(name) {
+    const value = argv[name];
+    if (_.isUndefined(value)) {
+        return { value: undefined };
+    }
+    //  a string option given without a value is ''
+    if ((!_.isString(value) && !_.isNumber(value)) || '' === value) {
+        return { error: Errors.Invalid(`--${name} needs a value`) };
+    }
+    return { value: String(value) };
+}
+
+function formatBytes(n) {
+    return _.isFinite(n) ? `${n} byte${1 === n ? '' : 's'}` : '? bytes';
+}
+
+function printQuarantineItem(item) {
+    const sc = item.sidecar || {};
+    const when = sc.quarantinedAt || (item.mtime && item.mtime.toISOString());
+
+    console.info(
+        `${remoteText(item.quarantineName)}  ${
+            item.exists ? formatBytes(item.byteSize) : '(file missing)'
+        }  ${remoteText(when || '')}`
+    );
+
+    if (!item.sidecar) {
+        console.info(
+            'ambiguous' === item.sidecarProblem
+                ? '    (more than one sidecar claims this file)'
+                : '    (no sidecar)'
+        );
+        return;
+    }
+
+    const line = (label, value) =>
+        console.info(`    ${label.padEnd(10)}${remoteText(value)}`);
+
+    line('original', sc.originalName || '?');
+    let from = sc.source || '?';
+    if (sc.user && (sc.user.name || sc.user.id)) {
+        from += `, user ${sc.user.name || '?'} #${sc.user.id || '?'}`;
+    }
+    if (sc.ticInfo && sc.ticInfo.origin) {
+        from += `, TIC origin ${sc.ticInfo.origin}`;
+    }
+    line('from', from);
+    line(
+        'area',
+        sc.areaTag || (sc.ticInfo && sc.ticInfo.passthrough ? '(passthrough TIC)' : '-')
+    );
+    const result =
+        FileScanner.Verdicts.Infected === sc.verdict
+            ? `infected: ${sc.signature || 'unnamed threat'}`
+            : `${sc.verdict || '?'}: ${sc.detail || ''}`;
+    line('scanner', `${sc.scanner || '?'}, ${result}`);
+    if (sc.sha256) {
+        line('sha-256', sc.sha256);
+    }
+}
+
+function quarantineList() {
+    async.waterfall(
+        [
+            callback => initConfigAndDatabases(callback),
+            callback => require('../file_quarantine.js').listQuarantine(callback),
+        ],
+        (err, items) => {
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                return console.error(err.message);
+            }
+            const dir = FileScanner.getQuarantinePath();
+            if (0 === items.length) {
+                return console.info(`Nothing in quarantine (${dir})`);
+            }
+            items.forEach(printQuarantineItem);
+            console.info('');
+            console.info(
+                `${items.length} item${1 === items.length ? '' : 's'} in ${dir}`
+            );
+        }
+    );
+}
+
+function quarantineRelease() {
+    //
+    //  oputil fb quarantine release NAME [--area TAG] [--name NEWNAME]
+    //      [--allow [--note TEXT]] [--no-scan]
+    //
+    const name = argv._[3];
+    if (!name || argv._.length > 4) {
+        return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.BAD_ARGS);
+    }
+
+    const area = valueArg('area');
+    const newName = valueArg('name');
+    const note = valueArg('note');
+    const badArg = area.error || newName.error || note.error;
+    if (badArg) {
+        return printUsageAndSetExitCode(badArg.message, ExitCodes.BAD_ARGS);
+    }
+    const allow = true === argv.allow;
+    const noScan = false === argv.scan;
+    if (note.value && !allow) {
+        return printUsageAndSetExitCode(
+            '--note is for the allowlist entry; it needs --allow',
+            ExitCodes.BAD_ARGS
+        );
+    }
+
+    let modsLoaded = false;
+    async.waterfall(
+        [
+            callback => initConfigAndDatabases(callback),
+            callback => {
+                //
+                //  The release scans first, with the scanners mods provide:
+                //  as for "fb scan --virus-scan", only their
+                //  registerFileScanners() runs. With scanning off there is
+                //  nothing to load, and the release says what to do.
+                //
+                if (noScan || !FileScanner.isEnabled()) {
+                    return callback(null);
+                }
+                modsLoaded = true;
+                FileScanner.loadModFileScanners(
+                    _.get(require('../../core/config.js').get(), 'paths.mods'),
+                    err => callback(err)
+                );
+            },
+            callback =>
+                require('../file_quarantine.js').releaseQuarantined(
+                    String(name),
+                    {
+                        operator: operatorName(),
+                        areaTag: area.value,
+                        fileName: newName.value,
+                        allow,
+                        note: note.value,
+                        noScan,
+                    },
+                    callback
+                ),
+        ],
+        (err, res) => {
+            //  a mod may keep the process alive just by being loaded (see
+            //  scanFileAreas()): exit once the output is flushed
+            if (modsLoaded) {
+                setImmediate(() =>
+                    process.stdout.write('', () => {
+                        process.stderr.write('', () => process.exit());
+                    })
+                );
+            }
+
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                console.error(consoleText(err.message));
+                if (err.movedBackTo) {
+                    console.error(
+                        `It is back in quarantine as ${consoleText(err.movedBackTo)}`
+                    );
+                }
+                if (err.allowlistRolledBack) {
+                    console.error('Its SHA-256 was taken off the allowlist again');
+                } else if (err.allowlistRollbackFailed) {
+                    console.error(
+                        'Its SHA-256 is still on the allowlist: remove it with "fb mark-safe --remove SHA256"'
+                    );
+                }
+                return;
+            }
+            const e = res.fileEntry;
+            const v = res.verdict;
+            console.info(
+                v
+                    ? `Scanned before release: ${consoleText(v.result)} (${consoleText(
+                          v.scanner || _.uniq(v.results.map(r => r.scanner)).join(',')
+                      )})`
+                    : 'Not scanned before release (--no-scan)'
+            );
+            console.info(
+                `Released ${consoleText(name)} as ${consoleText(res.path)} (file ID ${
+                    e.fileId
+                }, area ${consoleText(e.areaTag)})`
+            );
+            if (res.allowlisted) {
+                console.info(
+                    res.allowlistAdded
+                        ? `Added ${res.sha256} to the allowlist`
+                        : `${res.sha256} was already on the allowlist`
+                );
+            } else {
+                console.info(
+                    'Not added to the allowlist: a later scan or rescan may flag it again (use --allow, or "fb mark-safe", for a false positive)'
+                );
+            }
+            if (res.sidecarError) {
+                console.error(
+                    `Warning: could not remove its sidecar: ${consoleText(res.sidecarError)}`
+                );
+            }
+        }
+    );
+}
+
+function quarantineDelete() {
+    //  oputil fb quarantine delete NAME [--yes|--no-prompt]
+    const name = argv._[3];
+    if (!name || argv._.length > 4) {
+        return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.BAD_ARGS);
+    }
+    const Quarantine = () => require('../file_quarantine.js');
+
+    async.waterfall(
+        [
+            callback => initConfigAndDatabases(callback),
+            callback =>
+                Quarantine().findQuarantined(String(name), (err, item) => {
+                    if (!err && !item) {
+                        err = Errors.DoesNotExist(`No quarantined file named "${name}"`);
+                    }
+                    return callback(err, item);
+                }),
+            (item, callback) => {
+                if (true === argv.yes || false === argv.prompt) {
+                    return callback(null);
+                }
+                printQuarantineItem(item);
+                getAnswers(
+                    [
+                        {
+                            name: 'proceed',
+                            message: `Permanently delete ${name} and its sidecar?`,
+                            type: 'confirm',
+                            default: false,
+                        },
+                    ],
+                    answers =>
+                        callback(
+                            answers.proceed ? null : Errors.General('Nothing deleted')
+                        )
+                );
+            },
+            callback =>
+                Quarantine().deleteQuarantined(String(name), operatorName(), callback),
+        ],
+        (err, res) => {
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                return console.error(err.message);
+            }
+            res.removed.forEach(p => console.info(`Deleted ${consoleText(p)}`));
+            res.missing.forEach(p => console.info(`Already gone: ${consoleText(p)}`));
+            if (0 === res.removed.length) {
+                process.exitCode = ExitCodes.ERROR;
+                console.error('Nothing was deleted');
+            }
+        }
+    );
+}
+
+function quarantineCommand() {
+    const action = argv._[2];
+    return (
+        {
+            list: quarantineList,
+            ls: quarantineList,
+            release: quarantineRelease,
+            delete: quarantineDelete,
+            del: quarantineDelete,
+            rm: quarantineDelete,
+        }[action] ||
+        (() => printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.BAD_ARGS))
+    )();
+}
+
+function printAllowlistEntry(e) {
+    console.info(consoleText(e.sha256));
+    console.info(`    added     ${remoteText(e.addedAt)} by ${remoteText(e.addedBy)}`);
+    if (e.originalName) {
+        console.info(`    name      ${remoteText(e.originalName)}`);
+    }
+    if (e.signature) {
+        console.info(`    signature ${remoteText(e.signature)}`);
+    }
+    if (e.note) {
+        console.info(`    note      ${remoteText(e.note)}`);
+    }
+}
+
+//
+//  The SHA-256 to allowlist for |target|: a SHA-256 as given, or a file ID's
+//  file as it is on disk now. A file that no longer matches its entry's
+//  hash is refused: the rescan that flagged it read the bytes on disk, and
+//  those are what would have to be allowed. Calls back (err, { sha256,
+//  originalName?, signature? }).
+//
+function resolveMarkSafeTarget(target, cb) {
+    const Allowlist = require('../file_scan_allowlist.js');
+
+    if (Allowlist.isValidSha256(target)) {
+        return cb(null, { sha256: target.toLowerCase() });
+    }
+    if (!/^[0-9]+$/.test(target)) {
+        return cb(
+            Errors.Invalid(
+                `"${target}" is neither a file ID nor a SHA-256 (64 hexadecimal digits)`
+            )
+        );
+    }
+
+    const FileEntry = require('../file_entry.js');
+    const entry = new FileEntry();
+    entry.load(parseInt(target, 10), err => {
+        if (err) {
+            return cb(Errors.DoesNotExist(`No file entry with ID ${target}`));
+        }
+        const info = {
+            sha256: entry.fileSha256,
+            originalName: entry.fileName,
+            signature: entry.meta.scan_signature,
+        };
+
+        let filePath;
+        try {
+            filePath = entry.filePath;
+        } catch (e) {
+            return cb(e);
+        }
+
+        const crypto = require('crypto');
+        const hash = crypto.createHash('sha256');
+        const stream = fs.createReadStream(filePath);
+        stream.on('data', chunk => hash.update(chunk));
+        stream.on('error', err => {
+            if ('ENOENT' !== err.code) {
+                return cb(err);
+            }
+            //  nothing on disk to check the recorded hash against
+            if (true !== argv.force) {
+                return cb(
+                    Errors.DoesNotExist(
+                        `${consoleText(filePath)} is missing, so its SHA-256 cannot be checked. Give the SHA-256 you mean to allow, or --force to use the one recorded for the entry`
+                    )
+                );
+            }
+            console.warn(
+                `Warning: ${consoleText(filePath)} is missing; using the SHA-256 recorded for the entry (--force)`
+            );
+            return cb(null, info);
+        });
+        stream.on('end', () => {
+            const actual = hash.digest('hex');
+            if (actual !== info.sha256) {
+                return cb(
+                    Errors.Invalid(
+                        `The file has changed since it was imported (its SHA-256 is now ${actual}, the entry says ${info.sha256}). Check it, then give the SHA-256 you mean to allow`
+                    )
+                );
+            }
+            return cb(null, info);
+        });
+    });
+}
+
+function markSafe() {
+    //
+    //  oputil fb mark-safe FILE_ID|SHA256 [--note TEXT]
+    //  oputil fb mark-safe --list
+    //  oputil fb mark-safe --remove SHA256
+    //
+    const Allowlist = () => require('../file_scan_allowlist.js');
+    const note = valueArg('note');
+    const remove = valueArg('remove');
+    const badArg = note.error || remove.error;
+    if (badArg) {
+        return printUsageAndSetExitCode(badArg.message, ExitCodes.BAD_ARGS);
+    }
+
+    const modes = [true === argv.list, !_.isUndefined(remove.value), argv._.length > 2];
+    if (1 !== modes.filter(Boolean).length || argv._.length > 3) {
+        return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.BAD_ARGS);
+    }
+
+    const done = err => {
+        if (err) {
+            process.exitCode = ExitCodes.ERROR;
+            console.error(err.message);
+        }
+    };
+
+    initConfigAndDatabases(err => {
+        if (err) {
+            return done(err);
+        }
+
+        if (true === argv.list) {
+            return Allowlist().list((err, entries) => {
+                if (err) {
+                    return done(err);
+                }
+                if (0 === entries.length) {
+                    console.info('The allowlist is empty');
+                    return done(null);
+                }
+                entries.forEach(printAllowlistEntry);
+                console.info('');
+                console.info(
+                    `${entries.length} entr${1 === entries.length ? 'y' : 'ies'}`
+                );
+                return done(null);
+            });
+        }
+
+        if (!_.isUndefined(remove.value)) {
+            return Allowlist().remove(remove.value, operatorName(), (err, removed) => {
+                if (err) {
+                    return done(err);
+                }
+                if (!removed) {
+                    return done(
+                        Errors.DoesNotExist(`${remove.value} is not on the allowlist`)
+                    );
+                }
+                console.info(`Removed ${removed.sha256} from the allowlist`);
+                console.info(
+                    'Entries already marked clean by it keep that until they are rescanned'
+                );
+                return done(null);
+            });
+        }
+
+        resolveMarkSafeTarget(String(argv._[2]), (err, target) => {
+            if (err) {
+                return done(err);
+            }
+            Allowlist().add(
+                Object.assign({}, target, {
+                    addedBy: operatorName(),
+                    note: note.value,
+                }),
+                (err, res) => {
+                    if (err) {
+                        return done(err);
+                    }
+                    console.info(
+                        res.added
+                            ? `Added ${target.sha256} to the allowlist`
+                            : `${target.sha256} was already on the allowlist`
+                    );
+                    Allowlist().markEntriesSafe(target.sha256, (err, changed) => {
+                        if (err) {
+                            return done(err);
+                        }
+                        if (changed.length > 0) {
+                            console.info(
+                                `Marked clean: file ID ${changed.join(', ')} (was infected)`
+                            );
+                        }
+                        return done(null);
+                    });
+                }
+            );
+        });
+    });
+}
+
 function handleFileBaseCommand() {
     function errUsage() {
         return printUsageAndSetExitCode(
@@ -1914,6 +2425,9 @@ function handleFileBaseCommand() {
             description: setFileDescription,
 
             hatch: hatchFile,
+
+            quarantine: quarantineCommand,
+            'mark-safe': markSafe,
         }[action] || errUsage
     )();
 }

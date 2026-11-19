@@ -59,6 +59,10 @@
             desc: Browsing Files
             module: file_area_list
             config: {
+                //  {infectedIndicator} in a format string flags an entry a
+                //  rescan marked infected. Only users passing
+                //  fileBase.scanning.infectedVisibleAcs ever see one.
+                //  infectedIndicator: "|00|12INFECTED |08- "
                 art: {
                     browse: FBRWSE
                     details: FDETAIL
@@ -560,6 +564,12 @@
                             fileSha256
                             storageTag
                             uploadTimestamp
+
+                            A dupe of an entry hidden from the uploader (a
+                            rescan marked it infected) is not named: it has
+                            only fileName (the uploaded file's) and areaName
+                            / areaDesc, which are 'hiddenDupeAreaName' from
+                            this menu's config (default "this board").
 
                             */
 

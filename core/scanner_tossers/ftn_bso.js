@@ -3739,6 +3739,10 @@ function FTNMessageScanTossModule() {
                 from: ticFileInfo.getAsString('From'),
                 ticFileName: paths.basename(ticFileInfo.path),
                 passthrough: !!localInfo.passthrough,
+                //  for the sidecar, so that a release loses nothing
+                shortFileName: ticFileInfo.getAsString('File'),
+                desc: ticFileInfo.getAsString('Desc'),
+                ldesc: ticFileInfo.getAsString('Ldesc', '\n'),
             },
         };
     };

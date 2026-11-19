@@ -19,6 +19,12 @@ const UserProps = require('./user_property.js');
 const SysProps = require('./system_menu_method.js');
 const { buildUrl, getUrlPath } = require('./web_util');
 const { hasFileAreaDownloadAccess } = require('./file_base_area.js');
+const {
+    hideInfectedEnabled,
+    canSeeInfected,
+    filterHidden,
+    isFileIdHidden,
+} = require('./file_base_visibility.js');
 
 //  deps
 const hashids = require('hashids/cjs');
@@ -264,6 +270,15 @@ class FileAreaWebAccess {
             return cb(Errors.AccessDenied('No download access to this file area'));
         }
 
+        //  as though it were not there (#291)
+        if (isFileIdHidden(client, fileEntry.fileId)) {
+            Log.info(
+                { username: client.user.username, fileId: fileEntry.fileId },
+                'Refusing web download link; the entry is marked infected'
+            );
+            return cb(Errors.DoesNotExist('No file is available by that ID'));
+        }
+
         const hashId = this.getSingleFileHashId(client, fileEntry);
         const url = this.buildSingleFileTempDownloadLink(client, fileEntry, hashId);
         options.expireTime = options.expireTime || moment().add(2, 'days');
@@ -299,7 +314,22 @@ class FileAreaWebAccess {
             return cb(Errors.AccessDenied('No download access to any queued file area'));
         }
 
-        fileEntries = allowed;
+        //  ...and anything a rescan has marked infected since (#291)
+        fileEntries = filterHidden(client, allowed);
+        if (fileEntries.length !== allowed.length) {
+            Log.info(
+                {
+                    username: client.user.username,
+                    requested: allowed.length,
+                    allowed: fileEntries.length,
+                },
+                'Omitting batch download entries; marked infected'
+            );
+        }
+
+        if (0 === fileEntries.length) {
+            return cb(Errors.DoesNotExist('No queued file is available'));
+        }
 
         const batchId = moment().utc().unix();
         const hashId = this.getBatchArchiveHashId(client, batchId);
@@ -334,6 +364,41 @@ class FileAreaWebAccess {
         return this.webServer.instance.fileNotFound(resp);
     }
 
+    //
+    //  |fileIds| less those hidden as infected (#291) from |userId|, whose
+    //  link this is. Checked when the link is *used*: one made before a
+    //  rescan marked its file stops working, and answers like a link to a
+    //  file that is gone.
+    //
+    withholdHiddenFromLinkOwner(userId, fileIds, cb) {
+        if (!hideInfectedEnabled()) {
+            return cb(fileIds);
+        }
+
+        const infected = FileEntry.getInfectedFileIds(fileIds);
+        if (0 === infected.size) {
+            return cb(fileIds);
+        }
+
+        const decide = subject => {
+            if (subject && canSeeInfected(subject)) {
+                return cb(fileIds);
+            }
+
+            Log.info(
+                { userId, fileIds: Array.from(infected) },
+                'Refusing web download; the entries are marked infected'
+            );
+            return cb(fileIds.filter(id => !infected.has(id)));
+        };
+
+        const client = getConnectionByUserId(userId);
+        if (client) {
+            return decide(client);
+        }
+        User.getUser(userId, (err, user) => decide(err ? null : user));
+    }
+
     routeWebRequest(req, resp) {
         const hashId = paths.basename(getUrlPath(req.url));
 
@@ -365,6 +430,15 @@ class FileAreaWebAccess {
 
         servedItem.fileId = servedItem.fileIds[0];
 
+        this.withholdHiddenFromLinkOwner(servedItem.userId, [servedItem.fileId], ids => {
+            if (0 === ids.length) {
+                return this.fileNotFound(resp);
+            }
+            return this.serveSingleFile(servedItem, fileEntry, resp);
+        });
+    }
+
+    serveSingleFile(servedItem, fileEntry, resp) {
         fileEntry.load(servedItem.fileId, err => {
             if (err) {
                 return this.fileNotFound(resp);
@@ -444,6 +518,16 @@ class FileAreaWebAccess {
                             Errors.DoesNotExist('Could not get file IDs for batch')
                         );
                     }
+                },
+                function withholdHidden(fileIds, callback) {
+                    self.withholdHiddenFromLinkOwner(servedItem.userId, fileIds, ids => {
+                        if (0 === ids.length) {
+                            return callback(
+                                Errors.DoesNotExist('No file in the batch is available')
+                            );
+                        }
+                        return callback(null, ids);
+                    });
                 },
                 function loadFileEntries(fileIds, callback) {
                     async.map(

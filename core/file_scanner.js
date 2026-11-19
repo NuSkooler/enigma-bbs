@@ -39,6 +39,8 @@ const PipeCodes = require('./pipe_codes.js');
 const configModule = require('./config.js');
 const Config = () => (_.isFunction(configModule.get) ? configModule.get() : null);
 
+const { replaceInvisibleFormatChars } = require('./string_util.js');
+
 //  deps
 const _ = require('lodash');
 const async = require('async');
@@ -896,6 +898,90 @@ function fillHashAndSize(filePath, ctx, cb) {
     });
 }
 
+//  SHA-256 of a file as it is on disk now.
+function hashFile(filePath, cb) {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('error', err => cb(err));
+    stream.on('end', () => cb(null, hash.digest('hex')));
+}
+
+// ── Allowlist ────────────────────────────────────────────────────────────────
+
+//  A failed lookup is logged at most this often; each one is also a debug line.
+const ALLOWLIST_ERROR_LOG_INTERVAL_MS = 60 * 1000;
+let lastAllowlistErrorLoggedAt = 0;
+
+//
+//  The allowlist entry for |sha256|, or null. A lookup that fails (no file
+//  database, no table, a locked database) is "not allowlisted": the file is
+//  scanned as usual. Never throws.
+//
+function allowlistLookup(sha256) {
+    try {
+        return require('./file_scan_allowlist.js').lookup(sha256);
+    } catch (err) {
+        const now = Date.now();
+        const level =
+            now - lastAllowlistErrorLoggedAt >= ALLOWLIST_ERROR_LOG_INTERVAL_MS
+                ? 'warn'
+                : 'debug';
+        if ('warn' === level) {
+            lastAllowlistErrorLoggedAt = now;
+        }
+        log(
+            level,
+            { error: err.message },
+            'File scanning allowlist lookup failed; scanning the file as usual'
+        );
+        return null;
+    }
+}
+
+//
+//  Calls back (entry | null): the allowlist entry when the file's bytes hash
+//  to a listed SHA-256. Never an error.
+//
+//  The hash the allowlist is asked about must be one worked out from the
+//  file's bytes, never one a TIC or an uploader claimed. Callers do pass a
+//  hash they worked out themselves (file_base_area.scanFile() hashes as it
+//  reads, a TIC's Sha256 is only kept once it matches the payload, a rescan
+//  hashes the open file), but when a caller-given hash turns out to be
+//  listed the file is hashed once more here and must agree: that costs a
+//  read for allowlisted files only, and an allowlist decision never rests on
+//  someone else's word -- or on bytes that changed since they were hashed.
+//
+function checkAllowlist(filePath, ctx, hashedHere, cb) {
+    const entry = allowlistLookup(ctx.sha256);
+    if (!entry) {
+        return cb(null);
+    }
+    if (hashedHere) {
+        return cb(entry);
+    }
+    hashFile(filePath, (err, actual) => {
+        if (err || actual !== entry.sha256) {
+            log(
+                'warn',
+                {
+                    fileName: ctx.fileName,
+                    source: ctx.source,
+                    given: ctx.sha256,
+                    actual: err ? undefined : actual,
+                    error: err ? err.message : undefined,
+                },
+                'File given an allowlisted SHA-256 that its content does not have; scanning it as usual'
+            );
+            if (!err) {
+                ctx.sha256 = actual; //  the truth, for the scanners and any sidecar
+            }
+            return cb(null);
+        }
+        return cb(entry);
+    });
+}
+
 function makeRejectedError(verdict, ctx) {
     const err = Errors.FileRejected(
         Verdicts().Infected === verdict.result
@@ -913,13 +999,26 @@ function isFileRejected(err) {
 }
 
 //
-//  ctx: { source, fileName?, areaTag?, user?, sha256?, byteSize?, ticInfo? }
+//  ctx: { source, fileName?, areaTag?, user?, sha256?, byteSize?, ticInfo?,
+//         desc?, hashTags?, entryMeta?, storageTag? }
+//
+//  The last four (and ticInfo) are only kept, bounded, in a quarantine
+//  sidecar should the file be rejected (see sidecarDetails()): desc is a
+//  description the uploader typed, entryMeta the meta the entry would have
+//  had (uploader, TIC Desc/Ldesc/Origin, ...).
 //
 //  |source| is required and is one of ScanSources. |fileName| is the name the
 //  file will have (it defaults to the base name of |filePath|, which for an
 //  upload may well be a temp name); |fileTypes| matching uses it. A missing
 //  sha256 / byteSize is worked out here, but only if some entry is going to
-//  run.
+//  run. A |sha256| given must have been worked out from the file's bytes:
+//  see checkAllowlist().
+//
+//  Before any scanner runs, a file whose SHA-256 is on the allowlist (see
+//  core/file_scan_allowlist.js) is clean: no scanner runs, |scanner| is
+//  "allowlist" and |detail| is "allowlisted". That needs an entry that
+//  would have scanned it: with scanning disabled, or no entry matching, the
+//  verdict is still not_scanned.
 //
 //  Calls back (null, verdict) when the file may proceed, and
 //  (Errors.FileRejected, verdict) when it may not; the error also carries
@@ -959,95 +1058,132 @@ function scanFile(filePath, ctx, cb) {
         return cb(null, verdict);
     }
 
+    const hashedHere = !ctx.sha256;
+
     fillHashAndSize(filePath, ctx, err => {
         if (err) {
             return cb(err);
         }
 
-        let decided = null;
-
-        async.eachSeries(
-            entries,
-            (entry, nextEntry) => {
-                runOneScanner(entry, filePath, ctx, (res, how) => {
-                    verdict.results.push(res);
-
-                    switch (res.result) {
-                        case exports.ScanResults.Infected:
-                            decided = Object.assign(
-                                { verdict: exports.Verdicts.Infected },
-                                res
-                            );
-                            return nextEntry(true); //  stop the chain
-
-                        case exports.ScanResults.Error:
-                            if ('accept' === entry.onError && !how.forceHold) {
-                                log(
-                                    'warn',
-                                    {
-                                        scanner: res.scanner,
-                                        fileName: ctx.fileName,
-                                        detail: res.detail,
-                                    },
-                                    'File scanner failed; accepting the file as configured'
-                                );
-                                return nextEntry(null);
-                            }
-                            decided = Object.assign(
-                                { verdict: exports.Verdicts.Held },
-                                res
-                            );
-                            return nextEntry(true);
-
-                        default:
-                            return nextEntry(null);
-                    }
-                });
-            },
-            () => {
-                if (decided) {
-                    verdict.result = decided.verdict;
-                    verdict.rejected = true;
-                } else {
-                    const clean = _.findLast(
-                        verdict.results,
-                        r => exports.ScanResults.Clean === r.result
-                    );
-                    decided = clean || _.last(verdict.results);
-                    verdict.result = clean
-                        ? exports.Verdicts.Clean
-                        : exports.Verdicts.Skipped;
-                }
-
-                verdict.scanner = decided.scanner;
-                if (decided.signature) {
-                    verdict.signature = decided.signature;
-                }
-                if (decided.detail) {
-                    verdict.detail = decided.detail;
-                }
-
-                const logObj = {
-                    fileName: ctx.fileName,
-                    source: ctx.source,
-                    areaTag: ctx.areaTag,
-                    sha256: ctx.sha256,
-                    verdict: verdict.result,
-                    scanner: verdict.scanner,
-                    signature: verdict.signature,
-                    detail: verdict.detail,
-                };
-
-                if (verdict.rejected) {
-                    log('warn', logObj, 'File rejected by file scanning');
-                    return cb(makeRejectedError(verdict, ctx), verdict);
-                }
-
-                log('debug', logObj, 'File passed file scanning');
-                return cb(null, verdict);
+        checkAllowlist(filePath, ctx, hashedHere, allowed => {
+            if (allowed) {
+                return allowlistedVerdict(verdict, ctx, allowed, cb);
             }
-        );
+            return runChain(filePath, ctx, entries, verdict, cb);
+        });
     });
+}
+
+function allowlistedVerdict(verdict, ctx, allowed, cb) {
+    const Allowlist = require('./file_scan_allowlist.js');
+    verdict.result = exports.Verdicts.Clean;
+    verdict.scanner = Allowlist.ScannerName;
+    verdict.detail = Allowlist.VerdictDetail;
+    verdict.allowlisted = true;
+    verdict.results.push({
+        result: exports.ScanResults.Clean,
+        scanner: Allowlist.ScannerName,
+        detail: Allowlist.VerdictDetail,
+        durationMs: 0,
+    });
+
+    log(
+        'info',
+        {
+            fileName: ctx.fileName,
+            source: ctx.source,
+            areaTag: ctx.areaTag,
+            sha256: allowed.sha256,
+            allowlistedBy: allowed.addedBy,
+            allowlistedAt: allowed.addedAt,
+            note: allowed.note,
+        },
+        'File is on the file scanning allowlist; no scanner run'
+    );
+    return cb(null, verdict);
+}
+
+function runChain(filePath, ctx, entries, verdict, cb) {
+    let decided = null;
+
+    async.eachSeries(
+        entries,
+        (entry, nextEntry) => {
+            runOneScanner(entry, filePath, ctx, (res, how) => {
+                verdict.results.push(res);
+
+                switch (res.result) {
+                    case exports.ScanResults.Infected:
+                        decided = Object.assign(
+                            { verdict: exports.Verdicts.Infected },
+                            res
+                        );
+                        return nextEntry(true); //  stop the chain
+
+                    case exports.ScanResults.Error:
+                        if ('accept' === entry.onError && !how.forceHold) {
+                            log(
+                                'warn',
+                                {
+                                    scanner: res.scanner,
+                                    fileName: ctx.fileName,
+                                    detail: res.detail,
+                                },
+                                'File scanner failed; accepting the file as configured'
+                            );
+                            return nextEntry(null);
+                        }
+                        decided = Object.assign({ verdict: exports.Verdicts.Held }, res);
+                        return nextEntry(true);
+
+                    default:
+                        return nextEntry(null);
+                }
+            });
+        },
+        () => {
+            if (decided) {
+                verdict.result = decided.verdict;
+                verdict.rejected = true;
+            } else {
+                const clean = _.findLast(
+                    verdict.results,
+                    r => exports.ScanResults.Clean === r.result
+                );
+                decided = clean || _.last(verdict.results);
+                verdict.result = clean
+                    ? exports.Verdicts.Clean
+                    : exports.Verdicts.Skipped;
+            }
+
+            verdict.scanner = decided.scanner;
+            if (decided.signature) {
+                verdict.signature = decided.signature;
+            }
+            if (decided.detail) {
+                verdict.detail = decided.detail;
+            }
+
+            const logObj = {
+                fileName: ctx.fileName,
+                source: ctx.source,
+                areaTag: ctx.areaTag,
+                sha256: ctx.sha256,
+                verdict: verdict.result,
+                scanner: verdict.scanner,
+                signature: verdict.signature,
+                detail: verdict.detail,
+            };
+
+            if (verdict.rejected) {
+                log('warn', logObj, 'File rejected by file scanning');
+                return cb(makeRejectedError(verdict, ctx), verdict);
+            }
+
+            log('debug', logObj, 'File passed file scanning');
+            return cb(null, verdict);
+        }
+    );
 }
 
 // ── Quarantine / delete ──────────────────────────────────────────────────────
@@ -1155,10 +1291,123 @@ function quarantineFileName(fileName, ctx, defangExtensions) {
         name = `_${name}`;
     }
 
-    return defangFileName(name, defangExtensions);
+    name = defangFileName(name, defangExtensions);
+
+    //  Sidecars end in ".json", so a quarantined file never does: an upload
+    //  named "OTHER.ZIP.json" could otherwise take, or pose as, the sidecar
+    //  of another quarantined file.
+    if (/\.json$/i.test(name)) {
+        name = `${name.slice(0, -1)}_`;
+    }
+
+    return name;
 }
 
 exports._quarantineFileName = quarantineFileName;
+exports.restrictQuarantinedFile = restrictQuarantinedFile;
+exports.writeSidecar = writeSidecar;
+
+//
+//  Upload-time details that never reached an entry, kept in the sidecar so
+//  that releasing the file loses nothing (see oputil fb quarantine release).
+//  All of it came from outside -- an uploader, a TIC, a peer's config -- so
+//  each value is a bounded string, control characters gone (a long
+//  description keeps its line breaks), and only known names are kept.
+//
+const SIDECAR_LIMITS = {
+    short: 128, //  tags, names, addresses, the TIC's File
+    desc: 1024,
+    descLong: 8192,
+    hashTags: 32,
+};
+
+//  Entry meta a caller may hand over (ctx.entryMeta) for the sidecar to keep.
+const SIDECAR_META_NAMES = {
+    upload_by_username: 'short',
+    upload_by_user_id: 'short',
+    tic_origin: 'short',
+    tic_desc: 'desc',
+    tic_ldesc: 'descLong',
+    short_file_name: 'short',
+};
+
+function sidecarText(value, limit, multiline) {
+    if (_.isNil(value) || _.isObject(value)) {
+        return undefined;
+    }
+    let text = String(value).replace(/\r\n?/g, '\n');
+    text = multiline
+        ? // eslint-disable-next-line no-control-regex
+          text.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]+/g, ' ')
+        : // eslint-disable-next-line no-control-regex
+          text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ');
+    //  ...and what draws nothing but changes how the rest reads (#291)
+    text = replaceInvisibleFormatChars(text, ' ').trim();
+    if (!text) {
+        return undefined;
+    }
+    return text.length > limit ? text.slice(0, limit) : text;
+}
+
+function sidecarDetails(ctx) {
+    const out = {};
+    const L = SIDECAR_LIMITS;
+
+    const desc = sidecarText(ctx.desc, L.desc, true);
+    if (desc) {
+        out.desc = desc;
+    }
+
+    const storageTag = sidecarText(ctx.storageTag, L.short);
+    if (storageTag) {
+        out.storageTag = storageTag;
+    }
+
+    const tags = ctx.hashTags instanceof Set ? Array.from(ctx.hashTags) : ctx.hashTags;
+    if (Array.isArray(tags)) {
+        const hashTags = _.uniq(tags.map(t => sidecarText(t, L.short)).filter(Boolean));
+        if (hashTags.length > 0) {
+            out.hashTags = hashTags.slice(0, L.hashTags);
+        }
+    }
+
+    if (_.isPlainObject(ctx.entryMeta)) {
+        const meta = {};
+        _.each(SIDECAR_META_NAMES, (kind, name) => {
+            const v = sidecarText(ctx.entryMeta[name], L[kind], 'short' !== kind);
+            if (v) {
+                meta[name] = v;
+            }
+        });
+        if (!_.isEmpty(meta)) {
+            out.meta = meta;
+        }
+    }
+
+    if (_.isPlainObject(ctx.ticInfo)) {
+        const t = ctx.ticInfo;
+        const ticInfo = { passthrough: !!t.passthrough };
+        [
+            ['area', 'short'],
+            ['origin', 'short'],
+            ['from', 'short'],
+            ['ticFileName', 'short'],
+            ['shortFileName', 'short'],
+            ['desc', 'desc'],
+            ['ldesc', 'descLong'],
+        ].forEach(([name, kind]) => {
+            const v = sidecarText(t[name], L[kind], 'short' !== kind);
+            if (v) {
+                ticInfo[name] = v;
+            }
+        });
+        out.ticInfo = ticInfo;
+    }
+
+    return out;
+}
+
+exports.sanitizeSidecarDetails = sidecarDetails;
 
 function userInfo(ctx) {
     const user = ctx.user;
@@ -1284,24 +1533,28 @@ function applyFailAction(filePath, verdict, ctx, cb) {
                 return quarantineFailed(err);
             }
 
-            const record = {
-                originalName: fileName,
-                originalPath: filePath,
-                quarantineName: paths.basename(finalPath),
-                sha256: ctx.sha256,
-                byteSize: ctx.byteSize,
-                source: ctx.source,
-                user: userInfo(ctx),
-                areaTag: ctx.areaTag,
-                ticInfo: ctx.ticInfo,
-                verdict: verdict.result,
-                scanner: verdict.scanner,
-                signature: verdict.signature,
-                detail: verdict.detail,
-                results: verdict.results,
-                action,
-                quarantinedAt: new Date().toISOString(),
-            };
+            //  sidecarDetails() last: desc, hashTags, meta, storageTag and a
+            //  bounded ticInfo
+            const record = Object.assign(
+                {
+                    originalName: fileName,
+                    originalPath: filePath,
+                    quarantineName: paths.basename(finalPath),
+                    sha256: ctx.sha256,
+                    byteSize: ctx.byteSize,
+                    source: ctx.source,
+                    user: userInfo(ctx),
+                    areaTag: ctx.areaTag,
+                    verdict: verdict.result,
+                    scanner: verdict.scanner,
+                    signature: verdict.signature,
+                    detail: verdict.detail,
+                    results: verdict.results,
+                    action,
+                    quarantinedAt: new Date().toISOString(),
+                },
+                sidecarDetails(ctx)
+            );
 
             writeSidecar(finalPath, record, (err, sidecarPath) => {
                 if (err) {
@@ -1511,7 +1764,10 @@ function buildOperatorNotice(rejections, ctx) {
         lines.push(
             'A held file was not found to be infected: a scanner failed or timed out.'
         );
-        lines.push('It may be clean; check the scanner, then release it by hand.');
+        lines.push('It may be clean. Once the scanner works again, release it with');
+        lines.push('./oputil.js fb quarantine release NAME (see fb quarantine list):');
+        lines.push('the release scans it first, and it stays in quarantine if that');
+        lines.push('scan rejects it too.');
         lines.push('');
     }
 

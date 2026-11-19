@@ -23,6 +23,7 @@ const FileEntry = require('../../file_entry');
 const FileScanner = require('../../file_scanner');
 const { moveFileWithCollisionHandling, isWindowsDeviceName } = require('../../file_util');
 const ACS = require('../../acs');
+const { visibleFilesFilter, isFileIdHidden } = require('../../file_base_visibility');
 const Config = require('../../config').get;
 const User = require('../../user');
 const StatLog = require('../../stat_log');
@@ -239,7 +240,7 @@ function _fileListHandler(req, resp, log) {
         return problemDetail(resp, 400, 'Bad Request');
     }
 
-    _resolveAreaReadAccess(req, resp, areaTag, (_user, _area) => {
+    _resolveAreaReadAccess(req, resp, areaTag, (user, _area) => {
         const params = new URL(req.url, 'http://localhost').searchParams;
         const strip = params.get('stripAnsi') !== 'false';
         const limit = Math.min(
@@ -254,14 +255,15 @@ function _fileListHandler(req, resp, log) {
             afterFileId = decoded?.fileId || 0;
         }
 
+        //  infected entries hidden from this caller are not listed (#291)
         FileEntry.findFiles(
-            {
+            visibleFilesFilter(user, {
                 areaTag,
                 sort: 'file_id',
                 order: 'ascending',
                 newerThanFileId: afterFileId,
                 limit: limit + 1,
-            },
+            }),
             (err, fileIds) => {
                 if (err) {
                     log.error({ err, areaTag }, 'Error listing files');
@@ -330,7 +332,11 @@ function _fileMetaHandler(req, resp, _log) {
             return problemDetail(resp, 404, 'Not Found', 'File not found');
         }
 
-        _resolveAreaReadAccess(req, resp, entry.areaTag, () => {
+        _resolveAreaReadAccess(req, resp, entry.areaTag, user => {
+            //  as though it were not there (#291)
+            if (isFileIdHidden(user, fileId)) {
+                return problemDetail(resp, 404, 'Not Found', 'File not found');
+            }
             return jsonResponse(
                 resp,
                 200,
@@ -357,6 +363,15 @@ function _downloadHandler(req, resp, log) {
             const entry = new FileEntry();
             entry.load(fileId, err => {
                 if (err) {
+                    return problemDetail(resp, 404, 'Not Found', 'File not found');
+                }
+
+                //  as though it were not there (#291)
+                if (isFileIdHidden(user, fileId)) {
+                    log.info(
+                        { userId: user.userId, fileId },
+                        'Refusing REST download; the entry is marked infected'
+                    );
                     return problemDetail(resp, 404, 'Not Found', 'File not found');
                 }
 

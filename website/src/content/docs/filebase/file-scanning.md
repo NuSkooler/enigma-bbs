@@ -66,6 +66,8 @@ fileBase: {
 | `scanners` | `[]` | The scanners to run, in order; see below |
 | `maxConcurrent` | `2` | Most scanners running at once, across every source. The rest wait their turn, first come first served. A scanner's `timeout` starts when it starts, not while it waits |
 | `maxQueueWaitMs` | `600000` | Longest a file waits for a free scanner (10 minutes). Past that, it is a scanner failure, which the entry's `onError` decides. `0` waits as long as it takes |
+| `hideInfected` | `true` | Hide entries a rescan marked infected from users; see [Hidden infected entries](#hidden-infected-entries). Applies whether or not `enabled` is set |
+| `infectedVisibleAcs` | `GM[sysops]\|ID1` | [ACS](../configuration/acs.md) of users who still see hidden infected entries, flagged, and can download them |
 
 `maxConcurrent` is what stops one REST user firing uploads in parallel from starting a scanner process per file. `clamscan` in particular loads its whole signature database each time, which adds up to a lot of memory quickly.
 
@@ -100,7 +102,7 @@ Anything else in the entry is the scanner's own configuration, such as `cmd` and
 ### When a scanner fails
 **File scanning fails closed.** If a scanner fails, for example ClamAV's signature database is missing, a daemon is down, or the scanner runs past its `timeout`, the file is **held**: it is quarantined as if it were infected, and the operator notice says it was held rather than found infected. Nothing silently passes because a scanner was broken.
 
-A held file may well be clean. Check the scanner, then release the file by hand from the quarantine directory: move it back to where it belongs (renaming it if it was defanged) and run `oputil fb scan` on that area, or upload it again.
+A held file may well be clean. Fix the scanner, then release the file with `oputil fb quarantine release`, which scans it first (see [Releasing a quarantined file](#releasing-a-quarantined-file)), or have it uploaded again.
 
 TIC imports are the exception: a held TIC payload is not quarantined straight away but kept in the inbound and tried again on later passes, since a sender will not send it again. See [TIC imports](#tic-imports-and-passthrough-echoes).
 
@@ -254,9 +256,9 @@ The [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/) is 
 ### Quarantine
 With `failAction: quarantine`, the default, a rejected file is:
 
-1. moved to `quarantinePath`, keeping its name but defanged (`.exe` becomes `.ex_`, see `defangExtensions`, after dropping any trailing dots and spaces), and renamed `FILE(1).EX_` and so on if the name is taken, never replacing a file already there. Characters Windows does not allow in a name (`: < > " | ? *`) become `_`, and a name Windows reserves for a device (`CON`, `NUL`, `COM1.ZIP`, ...) gets a leading `_`. A name with nothing usable left (`..`, `.`, all dots) or too long for the file system is replaced by `unnamed-` and the start of its SHA-256; the sidecar keeps the original;
+1. moved to `quarantinePath`, keeping its name but defanged (`.exe` becomes `.ex_`, see `defangExtensions`, after dropping any trailing dots and spaces; `.json` always becomes `.jso_`, so a quarantined file can never pass for a sidecar), and renamed `FILE(1).EX_` and so on if the name is taken, never replacing a file already there. Characters Windows does not allow in a name (`: < > " | ? *`) become `_`, and a name Windows reserves for a device (`CON`, `NUL`, `COM1.ZIP`, ...) gets a leading `_`. A name with nothing usable left (`..`, `.`, all dots) or too long for the file system is replaced by `unnamed-` and the start of its SHA-256; the sidecar keeps the original;
 2. made readable and writable by the ENiGMA½ user only (mode `0600`, no execute permission). The quarantine directory is created with mode `0700`;
-3. given a JSON sidecar beside it, `FILE.EX_.json` (also `0600`), recording the original name, SHA-256, size, where it came from (source, user, area, TIC details), the scanner, its result and signature, and the time.
+3. given a JSON sidecar beside it, `FILE.EX_.json` (also `0600`), recording the original name, SHA-256, size, where it came from (source, user, area, TIC details), the scanner, its result and signature, and the time. It also keeps what the file would have had as an entry, so that [releasing it](#releasing-files-and-false-positives) loses nothing: a description the uploader typed (REST), the uploader, hash tags, the storage location, and a TIC's `Desc`, `Ldesc` and `File`. These came from outside, so each is bounded in length and stripped of control characters.
 
 With `failAction: delete`, the file is deleted and there is no sidecar. A held file is always quarantined.
 
@@ -329,6 +331,41 @@ An infected file is listed, in oputil's output and in the operator notice, with 
 
 `fb rm` takes the file ID and removes the entry; `--phys-file` deletes the file from disk as well. Without `--phys-file` only the entry goes and the file stays in the storage directory, where a later `fb scan` would import it again. To keep the file for a closer look, move it out of the storage tree yourself first, then run `fb rm 123` without the flag. An infected entry is reported again on every rescan until you remove it.
 
+If it is a false positive, `./oputil.js fb mark-safe 123` (also listed) puts its SHA-256 on the [allowlist](#the-allowlist) and marks every entry with those bytes clean again.
+
+Until you do either, the entry is [hidden from users](#hidden-infected-entries).
+
+### Hidden infected entries
+An entry a rescan marked `scan_result: infected` stays in the file base until you act on it, but with `hideInfected` (the default) nobody else can find or fetch it in the meantime. For everyone who does not pass `infectedVisibleAcs` it is as though the entry were not there:
+
+| Where | What happens |
+|-------|--------------|
+| Browsing an area, file searches and filters | Not listed |
+| File base new scan | Not listed, and not counted as new |
+| Download queue | Cannot be queued. One queued before the rescan flagged it is taken out of the queue when the user opens the queue manager, and is not sent if they download from anywhere else: the send queue is checked once more just before the transfer starts |
+| Web download links | No link is made. A link made before the rescan flagged the file stops working and answers "not found"; a batch link leaves the file out (and answers "not found" if that leaves nothing) |
+| [REST API](../servers/contentservers/rest-api.md) | Not in area listings; the entry by ID and its download answer `404`, as for an entry that does not exist |
+| File list exports (the user's "download a file list") | Not listed |
+| FREQ (a remote node requesting a file by name) | Not served: not from a FREQ area, and not by a magic name or from a search directory that points at file base storage either |
+| Uploading the same file again | Still refused as a dupe, but the dupes page does not name the hidden entry or its area: it shows the uploaded file's name and "this board" (the menu's `hiddenDupeAreaName`) |
+
+Asked for directly, an entry is never reported as infected: it is simply not found, so nothing tells a caller why. A refused download or link is logged at `info` level.
+
+A list already on a user's screen when the rescan flagged an entry (an area they are browsing, say) can still show it until they leave it, but the entry can no longer be queued, linked or sent from there.
+
+Users who pass `infectedVisibleAcs` (the `sysops` group and user 1, by default) still see and can download infected entries, flagged: the file list's `{infectedIndicator}` format field shows the menu's `infectedIndicator` text (default `INFECTED `) for an infected entry and `notInfectedIndicator` (default empty) for any other, and `{scanResult}` and `{scanSignature}` show the result and what was found. The ACS is checked for the user a link was made for when the link is used, so a sysop's link keeps working.
+
+Not affected:
+
+- Only entries a rescan marked are hidden. A file a scanner rejects on the way in (upload, REST, TIC, `fb scan --virus-scan`) never becomes an entry at all.
+- `oputil` sees every entry, and so does the rescan itself.
+- Dupe checks still see them: uploading the same file again is refused as a dupe (see above), and a TIC import of the same file is a dupe as before.
+- Area file counts and sizes (the area list, the WFC, the `%TF` and `%TB` MCI codes) still include them. They are totals for the whole board, the same for everyone, and say nothing about which file it is.
+- The scheduled `DESCRIPT.ION` export, which lives in the storage directory beside the files themselves.
+- A rescan run with `--dry-run` records nothing, so it hides nothing.
+
+`fb mark-safe` (a false positive) clears the flag and the entry is back at once; `fb rm` removes it for good. Set `hideInfected: false` to show infected entries to everyone, as before.
+
 ### What is read, and in what order
 Only files inside their storage directory are read. The storage directory itself may be a symbolic link (to another disk, say), but a path that goes through a link below it, a linked subdirectory or a file that is itself a link, is reported as an error and not read. The file is opened once, without following a link and without blocking (a FIFO is an error, not a hang), it must be a regular file, and its hash is worked out from that open file. A hash lookup scanner therefore sees the hash of the file as it is now, not the one stored in the entry; a file whose hash no longer matches is reported as changed since import. The scanners then read the file by its path, so afterwards the path must still name the same, unchanged file, or the result is not recorded and the file is reported as changed during the scan.
 
@@ -386,6 +423,64 @@ Any other key is an error, so a misspelling cannot quietly rescan everything. Th
 :::note
 A schedule with an `@watch:` trigger file runs the task once every time the BBS starts if the file exists, as well as whenever it changes.
 :::
+
+## Releasing files and false positives
+Scanners get things wrong, and old DOS files (packed executables, trainers, demos) are flagged more than most. A file that was wrongly rejected sits in quarantine, and one a rescan wrongly flagged keeps `scan_result: infected` and is reported on every run. Two tools put that right, both in `oputil` and nowhere else: only someone with local operator access to the system can use them. Nothing a caller does on the BBS, and nothing over the REST API, can release a file or add to the allowlist. Every release, delete and allowlist change is logged at `info` level with the operator's OS user name.
+
+### The allowlist
+The allowlist is a list of SHA-256 hashes you have declared safe, kept in the file database (`file_scan_allowlist`).
+
+- **It matches exact bytes only.** There is no name or pattern matching: change one byte of a file, or put it in a different archive, and it is a different file to the allowlist.
+- **It is global**, with no per-area scope. A listed file is clean for every scan, from every source: telnet/SSH and REST uploads, TIC imports (passthrough echoes included), `fb scan --virus-scan` and rescans.
+- **It is checked before any scanner runs.** A listed file is clean with no scanner run at all; its entry records `scan_result: clean` and `scanner: allowlist`, the log says it was allowlisted (at `info` level), and a rescan records the same, dropping any old `scan_signature`. Scanning must still be enabled, with an entry that would have scanned the file: the allowlist only ever turns a scan into a pass, it never makes a file count as scanned on its own.
+- **The hash is ENiGMA½'s own**, worked out from the file's bytes as it reads them, never one a TIC or an uploader claimed. If a caller hands over a hash that is on the allowlist, the file is hashed once more and must agree.
+- If the allowlist cannot be read (a database problem), files are scanned as usual, and a warning is logged.
+- Each entry keeps who added it (`oputil:` and the OS user), when, your note, and the file's name and signature at the time.
+
+```bash
+#  allowlist a file in the file base by its file ID, or any file by its SHA-256
+./oputil.js fb mark-safe 123 --note "PKLITE'd demo, checked by hand"
+./oputil.js fb mark-safe 0f343b0931126a20f133d67c2b018a3b5d6c4c5e9bd76dc3c4b1a1a5e9a1b7c0
+
+#  what is on it, and taking an entry off again
+./oputil.js fb mark-safe --list
+./oputil.js fb mark-safe --remove 0f343b0931126a20f133d67c2b018a3b5d6c4c5e9bd76dc3c4b1a1a5e9a1b7c0
+```
+
+`mark-safe` also clears a rescan's result: every entry with that SHA-256 that is marked `infected` becomes `scan_result: clean`, `scanner: allowlist`, and loses its `scan_signature`. Given a file ID, it hashes the file as it is on disk now, and refuses if that no longer matches the entry (the file changed since it was imported); give the SHA-256 you mean to allow instead. If the file is missing there is nothing to check, so that is refused too, unless you add `--force` to use the SHA-256 recorded for the entry. Taking a hash off the allowlist changes no entry: the next rescan scans those files again, and reports them if a scanner still flags them.
+
+### Releasing a quarantined file
+```bash
+./oputil.js fb quarantine list
+#  a held file, once the scanner works again: scanned, then released
+./oputil.js fb quarantine release HELD.ZIP
+#  a false positive
+./oputil.js fb quarantine release DEMO.EX_ --allow --note "false positive"
+./oputil.js fb quarantine delete OTHER.ZIP
+```
+
+`quarantine list` shows each quarantined file with its original name, where it came from, the area it was headed for, the scanner and what it found, its SHA-256, size and when it was quarantined. A file without a readable sidecar is listed as "no sidecar", and a sidecar whose file is gone as "file missing".
+
+`quarantine release NAME` (the name the list shows) puts the file into the file base:
+
+1. Its SHA-256 must still be the one the sidecar recorded when it was quarantined; if not, nothing happens.
+2. The sidecar's original name and area came from the uploader or the TIC, so neither is trusted. The name is used only if it is already a plain, safe file name: no directory part, no `..`, no leading dot, none of `< > : " | ? *`, no control characters or invisible format characters (a right-to-left override, zero widths, line separators; this also refuses a legitimate zero width joiner or non-joiner, as some scripts and emoji use: give such a file its name with `--name`), no trailing dot or space, and not a name Windows reserves for a device (`CON`, `NUL`, `COM1.ZIP`, ...). Otherwise give one with `--name NEWNAME`. The area must be a configured, normal file base area with a storage location; a passthrough TIC has none, so give one with `--area TAG` (`--area` also overrides the sidecar's).
+3. **It is scanned first**, where it lies in quarantine, by the scanner entries for the `oputil` source (the allowlist included). If that scan finds something, cannot check it (the scanner is still down), or cannot run at all (scanning is disabled, or no entry takes `oputil`), the file stays in quarantine and oputil says why. A scanner that reads files by path as another user cannot read them there (the quarantine directory is `0700`, its files `0600`) and always "cannot check it": see [File permissions](#file-permissions), and stream the file instead (`clamdscan --fdpass`, or a mod scanner that streams it). So a held file is released once the scanner works again, and a flagged one only with `--allow`.
+4. The file gets its original name back (`DEMO.EX_` becomes `DEMO.EXE`) and is moved into the area's storage directory, never replacing a file there: a name that is taken becomes `DEMO(1).EXE`. It gets ordinary file permissions back (by your umask, still without execute permission).
+5. It is imported with what the sidecar recorded: the uploader, a description the uploader typed, hash tags, and a TIC's `Desc`, `Ldesc`, `Origin` and `File`, and with the result of the scan in step 3 (`scan_result`, `scanner`, `scanned_at`). The entry also records `quarantine_released_at` and `quarantine_released_by`; the latter is the operator's OS user name, which `{quarantineReleasedBy}` shows in file list formats.
+6. The sidecar is removed.
+
+If anything fails after the move, the file goes back into quarantine under its quarantine name, `0600` again, with its sidecar. (Should that name have been taken in the meantime, it gets another and the sidecar is rewritten to match; should even the move back fail, the error says where the file is: in the storage directory with no entry.)
+
+With `--allow` (and an optional `--note`), you are saying it is a false positive: its SHA-256 goes on the allowlist, the scan in step 3 passes it on that, and the entry records `scan_result: clean`, `scanner: allowlist`. If the release then fails, a hash this release added is taken off the allowlist again, and oputil says so.
+
+With `--no-scan`, step 3 is skipped and the entry gets no scan result: the file goes into the file base unscanned, on your responsibility (a later rescan scans it like any other file). It is for when nothing can scan the file and you have checked it some other way.
+
+A file the file base already has (the same SHA-256) is refused: delete the quarantined copy, and `mark-safe` the entry if it was a false positive. A file with no sidecar, or with more than one claiming it, is refused too; there is nothing to check it against. Move such a file into a storage directory yourself and import it with `fb scan` if you are sure of it.
+
+`quarantine delete NAME` deletes the file and its sidecar (or whichever of the two is left, or every sidecar that claims it when more than one does), after asking; `--yes` or `--no-prompt` skips the question. Anything already gone is reported as such, not as deleted.
+
+`quarantine list` and `mark-safe --list` show text that came from outside (names, a TIC's origin, scanner output) with control and invisible format characters replaced by `?`, and cut at 128 characters.
 
 ## Writing a scanner
 A scanner is an object with a `scan()` function, registered by name. A mod provides it through a `registerFileScanners` export:

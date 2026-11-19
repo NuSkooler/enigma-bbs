@@ -20,6 +20,8 @@ const TEST_CONFIG = {
     debug: { assertsEnabled: false },
     menus: { cls: false },
     fileBase: {
+        //  no file database here to ask what is infected (#291)
+        scanning: { hideInfected: false },
         storageTags: { tag: '/tmp/enigma-test-files' },
         areas: {
             //  no acs block at all -> ACS.Defaults (download: GM[users])

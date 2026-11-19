@@ -102,6 +102,7 @@ describe('file scanning at upload (#291)', function () {
         prevFileDb = dbModule.dbs.file;
         fileDb = new Database(':memory:');
         fileDb.exec(FILE_DB_SCHEMA);
+        fileDb.exec(require('../core/file_scan_allowlist.js').AllowlistTableSql);
         dbModule.dbs.file = fileDb;
 
         FRESH.forEach(m => {
@@ -132,7 +133,7 @@ describe('file scanning at upload (#291)', function () {
 
     beforeEach(() => {
         fileDb.exec(
-            'DELETE FROM file; DELETE FROM file_meta; DELETE FROM file_hash_tag;'
+            'DELETE FROM file; DELETE FROM file_meta; DELETE FROM file_hash_tag; DELETE FROM file_scan_allowlist;'
         );
         dir = fs.realpathSync(fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-ingest-')));
         fs.mkdirSync(storageDir(), { recursive: true });
@@ -177,6 +178,20 @@ describe('file scanning at upload (#291)', function () {
         FileScanner._setNoticeWriter(prevWriter);
         fs.rmSync(dir, { recursive: true, force: true });
     });
+
+    const addToAllowlist = content =>
+        new Promise((resolve, reject) =>
+            require('../core/file_scan_allowlist.js').add(
+                {
+                    sha256: require('crypto')
+                        .createHash('sha256')
+                        .update(content)
+                        .digest('hex'),
+                    addedBy: 'test',
+                },
+                err => (err ? reject(err) : resolve())
+            )
+        );
 
     // ── REST ─────────────────────────────────────────────────────────────────
 
@@ -258,6 +273,31 @@ describe('file scanning at upload (#291)', function () {
             assert.equal(notices.length, 1);
             assert.ok(notices[0].body.includes('evil.exe'));
             assert.ok(await waitGone(up.tempDir));
+        });
+
+        it('keeps the description the uploader typed in the sidecar', async () => {
+            const up = tempUpload('evil.zip', 'EICAR');
+            up.desc = 'My demo, honest';
+            await store(up);
+            const sidecar = JSON.parse(
+                fs.readFileSync(paths.join(quarantineDir(), 'evil.zip.json'), 'utf8')
+            );
+            assert.equal(sidecar.desc, 'My demo, honest');
+            assert.equal(sidecar.meta.upload_by_username, 'webby');
+            assert.equal(sidecar.meta.upload_by_user_id, '7');
+            assert.equal(sidecar.storageTag, 'uploads_main');
+        });
+
+        it('stores an allowlisted file without running a scanner', async () => {
+            const content = 'EICAR, but a known false positive';
+            await addToAllowlist(content);
+            const result = await store(tempUpload('fp.zip', content));
+
+            assert.ok(result.fileEntry, JSON.stringify(result));
+            assert.equal(result.fileEntry.meta.scan_result, 'clean');
+            assert.equal(result.fileEntry.meta.scanner, 'allowlist');
+            assert.equal(scanCalls.length, 0);
+            assert.deepEqual(ls(storageDir()), ['fp.zip']);
         });
 
         it('says "could not be checked" for a held file', async () => {
@@ -381,6 +421,31 @@ describe('file scanning at upload (#291)', function () {
             assert.ok(steps.includes('virus_scan_finish'));
             assert.ok(out.includes('Scanning for viruses'));
             assert.ok(out.includes('evil.com failed the upload check'));
+        });
+
+        it('lets an allowlisted file through without running a scanner', async () => {
+            const content = 'EICAR, allowlisted';
+            await addToAllowlist(content);
+            const fake = fakeUpload([
+                ['fp.com', content],
+                ['evil.com', 'EICAR'],
+            ]);
+            const results = await scanFiles(fake);
+
+            assert.deepEqual(
+                results.newEntries.map(e => [
+                    e.fileName,
+                    e.meta.scan_result,
+                    e.meta.scanner,
+                ]),
+                [['fp.com', 'clean', 'allowlist']]
+            );
+            assert.equal(results.rejected.length, 1);
+            assert.deepEqual(
+                scanCalls.map(c => c.ctx.fileName),
+                ['evil.com'],
+                'only the other file was scanned'
+            );
         });
 
         it('sends one notice for several rejected files', async () => {

@@ -1735,6 +1735,17 @@ module.exports = () => {
                 //  Longest a file waits for a free scanner before that is a
                 //  scanner error (onError applies). 0 waits as long as it takes.
                 maxQueueWaitMs: 600000, //  10 minutes
+
+                //  Hide entries a rescan marked infected (scan_result=infected)
+                //  from users: not listed, found, queued, sent or served, and
+                //  asked for directly they do not exist. Applies whether or not
+                //  scanning is enabled. oputil fb mark-safe or removing the
+                //  entry is how one comes back or goes away.
+                hideInfected: true,
+
+                //  Who still sees (flagged) and can download hidden infected
+                //  entries
+                infectedVisibleAcs: 'GM[sysops]|ID1',
             },
 
             //
