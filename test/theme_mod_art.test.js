@@ -18,6 +18,7 @@ const UserProps = require('../core/user_property.js');
 //  Late bound: client_term.js captures the logger at load
 let ClientTerminal;
 let attachRipLayer;
+let selectClientEmulation;
 
 const quietLog = {
     trace() {},
@@ -35,7 +36,13 @@ const quietLog = {
 const latin1 = b => Buffer.from(b).toString('latin1');
 
 //  A client on a ClientTerminal, with the user's theme set to |themeId|
-function session({ themeId = 'user_theme', rip = false, menus = {}, prompts = {} } = {}) {
+function session({
+    themeId = 'user_theme',
+    rip = false,
+    petscii = false,
+    menus = {},
+    prompts = {},
+} = {}) {
     const wire = [];
     const term = new ClientTerminal({
         writable: true,
@@ -48,9 +55,6 @@ function session({ themeId = 'user_theme', rip = false, menus = {}, prompts = {}
             }
         },
     });
-    term.outputEncoding = 'cp437';
-    term.termWidth = 80;
-    term.termHeight = 25;
     const client = {
         term,
         log: quietLog,
@@ -60,6 +64,17 @@ function session({ themeId = 'user_theme', rip = false, menus = {}, prompts = {}
         },
         currentTheme: { info: { themeId }, menus, prompts },
     };
+    if (petscii) {
+        selectClientEmulation(client, {
+            firstMenu: 'telnetConnected',
+            listener: { name: 'c64', emulation: 'petscii' },
+        });
+        term.termWidth = 40;
+    } else {
+        term.outputEncoding = 'cp437';
+        term.termWidth = 80;
+    }
+    term.termHeight = 25;
     if (rip) {
         attachRipLayer(client, { source: 'termType' });
     }
@@ -78,6 +93,7 @@ describe('Mod art fallback (mods/<name>/art, #447)', function () {
     let artDir;
     let modsDir;
     let modArt;
+    let otherArt;
     let config;
     let prevConfig;
     let prevLog;
@@ -123,6 +139,16 @@ exports.getModule = class extends MenuModule {};
         write(paths.join(modArt, 'RIPART.ans'), 'mod RIPART ansi\r\n');
         write(paths.join(modArt, 'RIPART.rip'), '!|1K\r\nmod RIPART rip\r\n');
         write(paths.join(modArt, 'sub', 'SUBART.ans'), 'mod sub\r\n');
+        //  native PETSCII art beside, and instead of, ANSI art
+        write(paths.join(modArt, 'PETBOTH.seq'), Buffer.from([0x93, 0x48, 0x49, 0x0d]));
+        write(paths.join(modArt, 'PETBOTH.ans'), 'mod PETBOTH ansi\r\n');
+        write(paths.join(modArt, 'PETANS.ans'), 'mod PETANS ansi\r\n');
+        write(paths.join(modArt, 'PETSEQ.seq'), Buffer.from([0x93, 0x48, 0x49, 0x0d]));
+
+        //  somewhere else holding art of the same name: never to be used
+        otherArt = paths.join(tmp, 'other');
+        write(paths.join(otherArt, 'LAMP.ans'), 'other LAMP\r\n');
+        write(paths.join(otherArt, 'OTHERONLY.ans'), 'other only\r\n');
 
         //  a single file mod; the folder of the same name is not its own
         write(paths.join(modsDir, 'single.js'), modSource('single'));
@@ -153,7 +179,7 @@ exports.getModule = class extends MenuModule {};
         cacheBefore.forEach((_, id) => delete require.cache[id]);
 
         ({ ClientTerminal } = require('../core/client_term.js'));
-        ({ attachRipLayer } = require('../core/term/select.js'));
+        ({ attachRipLayer, selectClientEmulation } = require('../core/term/select.js'));
         theme = require('../core/theme.js');
         moduleUtil = require('../core/module_util.js');
         menuUtil = require('../core/menu_util.js');
@@ -204,6 +230,40 @@ exports.getModule = class extends MenuModule {};
                 undefined
             );
             assert.equal(moduleUtil.getModArtPath(opts, undefined), undefined);
+        });
+
+        it('a name that is not a plain file name: none', function () {
+            for (const name of ['../x', 'a/b', '..', '.', 'a\\b', '']) {
+                const opts = { name, path: modsDir };
+                assert.equal(
+                    moduleUtil.getModArtPath(
+                        opts,
+                        paths.join(modsDir, name, `${paths.basename(name)}.js`)
+                    ),
+                    undefined,
+                    name
+                );
+                //  even when the loaded file looks like <path>/<name>/<name>.js
+                assert.equal(
+                    moduleUtil.getModArtPath(
+                        opts,
+                        paths.join(modsDir, name, `${name}.js`)
+                    ),
+                    undefined,
+                    name
+                );
+            }
+        });
+
+        it('a menu naming @userModule:../<x> gets no art folder', async function () {
+            //  loadModuleEx() finds <mods>/../outside.js, which is also
+            //  <mods>/../outside/../outside.js: without the name check, that
+            //  read as a folder mod with its art in <mods>/../outside/art
+            const outside = paths.join(tmp, 'outside');
+            write(paths.join(tmp, 'outside.js'), modSource('outside'));
+            write(paths.join(outside, 'art', 'LAMP.ans'), 'outside LAMP\r\n');
+            const { inst } = await loadMenu({ module: '@userModule:../outside' });
+            assert.equal(inst.modArtPath, undefined);
         });
 
         it('loadModuleEx() says which file it loaded', function (done) {
@@ -396,6 +456,62 @@ exports.getModule = class extends MenuModule {};
         });
     });
 
+    describe('native art in a mod folder: the type policy, as in a theme', function () {
+        const native = { acceptNative: true };
+
+        it('a PETSCII caller: .seq first, else the ANSI art (translated), as in a theme', async function () {
+            const { client } = session({ petscii: true });
+            const opts = Object.assign({ modArtPath: modArt }, native);
+            assert.equal(
+                from(await themeArt(client, 'PETBOTH', opts)),
+                'mods/lampmod/art/PETBOTH.seq'
+            );
+            assert.equal(
+                from(await themeArt(client, 'PETSEQ', opts)),
+                'mods/lampmod/art/PETSEQ.seq'
+            );
+            assert.equal(
+                from(await themeArt(client, 'PETANS', opts)),
+                'mods/lampmod/art/PETANS.ans'
+            );
+            //  a caller that cannot show native art is not offered .seq
+            assert.equal(
+                from(await themeArt(client, 'PETBOTH', { modArtPath: modArt })),
+                'mods/lampmod/art/PETBOTH.ans'
+            );
+        });
+
+        it('an ANSI caller never gets .seq from the mod folder', async function () {
+            const { client } = session();
+            const opts = Object.assign({ modArtPath: modArt }, native);
+            assert.equal(
+                from(await themeArt(client, 'PETBOTH', opts)),
+                'mods/lampmod/art/PETBOTH.ans'
+            );
+            assert.equal(from(await themeArt(client, 'PETSEQ', opts)), 'none');
+        });
+
+        it('the same files in the general art directory are picked the same way', async function () {
+            //  the theme steps' policy, for comparison: copy the mod's files
+            for (const f of ['PETBOTH.seq', 'PETBOTH.ans', 'PETANS.ans', 'PETSEQ.seq']) {
+                fs.copyFileSync(paths.join(modArt, f), paths.join(artDir, `G${f}`));
+            }
+            const pet = session({ petscii: true }).client;
+            const ansi = session().client;
+            const pick = async (client, name) =>
+                paths.basename(from(await themeArt(client, name, native))).slice(1);
+            assert.deepEqual(
+                [
+                    await pick(pet, 'GPETBOTH'),
+                    await pick(pet, 'GPETANS'),
+                    await pick(ansi, 'GPETBOTH'),
+                    await pick(ansi, 'GPETSEQ'),
+                ],
+                ['PETBOTH.seq', 'PETANS.ans', 'PETBOTH.ans', 'one']
+            );
+        });
+    });
+
     describe("a mod menu's art helpers", function () {
         function modMenu(menu = {}) {
             const s = session({
@@ -425,6 +541,109 @@ exports.getModule = class extends MenuModule {};
                 inst.displayAsset('LAMP', { modArtPath: modArt }, resolve)
             );
             assert.ok(err, 'not found');
+        });
+
+        describe("a mod menu ignores an injected modArtPath: the mod's own is used", function () {
+            it('displayAsset() options, and a modArtPath key in the menu config', async function () {
+                const { inst, s } = await modMenu({
+                    art: 'LAMP',
+                    config: { modArtPath: otherArt },
+                });
+                await new Promise((resolve, reject) =>
+                    inst.displayAsset('LAMP', { modArtPath: otherArt }, err =>
+                        err ? reject(err) : resolve()
+                    )
+                );
+                assert.ok(s.sent().includes('mod LAMP'));
+                assert.ok(!s.sent().includes('other LAMP'));
+                s.clear();
+                //  as the menu's own art is shown: its config block as options
+                await new Promise((resolve, reject) =>
+                    inst.displayAsset(inst.menuConfig.art, inst.menuConfig.config, err =>
+                        err ? reject(err) : resolve()
+                    )
+                );
+                assert.ok(s.sent().includes('mod LAMP'));
+                const err = await new Promise(resolve =>
+                    inst.displayAsset('OTHERONLY', { modArtPath: otherArt }, resolve)
+                );
+                assert.ok(err, 'nothing from the injected folder');
+            });
+
+            it('config.art.<name>: prepViewControllerWithArt() and displayArtAndPrepViewController()', async function () {
+                const { inst, s } = await modMenu({
+                    config: { modArtPath: otherArt, art: { list: 'LAMP' } },
+                });
+                inst.prepViewController = (name, formId, mciMap, cb) => cb(null);
+                await new Promise((resolve, reject) =>
+                    inst.prepViewControllerWithArt(
+                        'list',
+                        0,
+                        { modArtPath: otherArt },
+                        err => (err ? reject(err) : resolve())
+                    )
+                );
+                assert.ok(s.sent().includes('mod LAMP'));
+                assert.ok(!s.sent().includes('other LAMP'));
+                s.clear();
+
+                inst.client.on = () => {};
+                inst.client.removeListener = () => {};
+                //  the form setup after the art is not under test
+                inst.addViewController = () => ({
+                    loadFromMenuConfig: (opts, cb) => cb(null),
+                    setFocus() {},
+                });
+                await new Promise(resolve =>
+                    inst.displayArtAndPrepViewController(
+                        'list',
+                        0,
+                        { modArtPath: otherArt },
+                        () => resolve()
+                    )
+                );
+                assert.ok(s.sent().includes('mod LAMP'));
+                assert.ok(!s.sent().includes('other LAMP'));
+            });
+
+            it('paged art', async function () {
+                const { inst, s } = await modMenu({ config: { modArtPath: otherArt } });
+                await new Promise(resolve =>
+                    inst._displayArtPaginated(
+                        'LAMP',
+                        Object.assign({}, inst.menuConfig.config, {
+                            modArtPath: otherArt,
+                        }),
+                        () => resolve()
+                    )
+                );
+                assert.ok(s.sent().includes('mod LAMP'));
+                assert.ok(!s.sent().includes('other LAMP'));
+            });
+
+            it('promptForInput(), with modArtPath in its options and the prompt config', async function () {
+                const { inst, s } = await modMenu();
+                inst.client.currentTheme.prompts.lampPrompt = {
+                    art: 'LAMP',
+                    config: { modArtPath: otherArt },
+                };
+                inst.client.on = () => {};
+                inst.client.removeListener = () => {};
+                inst.addViewController = () => ({
+                    setFocus() {},
+                    loadFromPromptConfig: (opts, cb) => cb(null),
+                });
+                const artInfo = await new Promise(resolve =>
+                    inst.promptForInput(
+                        { formName: 'p', formId: 0, promptName: 'lampPrompt' },
+                        { modArtPath: otherArt },
+                        (err, artInfo) => resolve(artInfo)
+                    )
+                );
+                assert.ok(artInfo, 'found');
+                assert.ok(s.sent().includes('mod LAMP'));
+                assert.ok(!s.sent().includes('other LAMP'));
+            });
         });
 
         it('the helpers that bypass displayAsset() pass it on', async function () {

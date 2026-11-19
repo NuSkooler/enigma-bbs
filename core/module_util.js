@@ -104,6 +104,17 @@ function getModArtPath(options, modPath) {
     if (!_.isString(modPath) || !_.isString(options.name) || !_.isString(options.path)) {
         return undefined;
     }
+    //  a name that is not a plain file name (`../x`, `a/b`) never yields a
+    //  folder, so the art folder is always directly under |options.path|
+    if (
+        0 === options.name.length ||
+        /[\\/]/.test(options.name) ||
+        '.' === options.name ||
+        '..' === options.name ||
+        paths.basename(options.name) !== options.name
+    ) {
+        return undefined;
+    }
     const folder = paths.join(options.path, options.name);
     if (modPath !== paths.join(folder, `${options.name}.js`)) {
         return undefined;
