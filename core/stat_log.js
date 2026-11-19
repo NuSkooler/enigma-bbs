@@ -625,14 +625,17 @@ class StatLog {
     }
 
     //
-    //  What a cached message count depends on besides time: the caller's
-    //  lastread pointers (any move is recounted at once), their new scan floor,
-    //  and whatever |parts| the count is for (the current area, say). A change
-    //  to any of them refreshes inside the TTL window.
+    //  What a cached message count depends on besides time: who the caller is
+    //  (the cache lives on the connection, which can change user), their
+    //  lastread pointers (a move made in this process is recounted at once),
+    //  their new scan floor, and whatever |parts| the count is for (the
+    //  current area, say). A change to any of them refreshes inside the TTL
+    //  window.
     //
     _messageCountScope(client, ...parts) {
         const MsgArea = require('./message_area');
         return JSON.stringify([
+            client.user.userId,
             MsgArea.getMessageAreaLastReadGeneration(client.user.userId),
             client.user.getProperty(UserProps.NewScanMinTimestamp) || null,
             ...parts.map(p => (undefined === p ? null : p)),
@@ -648,8 +651,11 @@ class StatLog {
             return;
         }
 
-        updateMethod.call(this, client);
-        client.statLogRefreshCache.set(cacheKey, { at: now, scope });
+        //  a refresh that failed (returned false) is tried again on the next
+        //  read, rather than leaving the old value in place for a whole window
+        if (false !== updateMethod.call(this, client)) {
+            client.statLogRefreshCache.set(cacheKey, { at: now, scope });
+        }
     }
 
     _refreshUserPrivateMailCount(client) {
@@ -668,7 +674,9 @@ class StatLog {
 
     //
     //  |NA and |AT: new and total messages in the caller's current area. An
-    //  area they cannot read, or one no longer configured, counts 0.
+    //  area they cannot read, or one no longer configured, counts 0. Like the
+    //  other count refreshes, false means it failed (getMessageAreaStats()
+    //  answers synchronously, so |ok| is set before this returns).
     //
     _refreshUserCurrentAreaMessageCounts(client) {
         const MsgArea = require('./message_area');
@@ -680,14 +688,18 @@ class StatLog {
         const areaTag = client.user.getProperty(UserProps.MessageAreaTag);
         const area = areaTag ? MsgArea.getMessageAreaByTag(areaTag) : null;
         if (!area || !MsgArea.hasMessageConfAndAreaRead(client, area)) {
-            return setCounts(0, 0);
+            setCounts(0, 0);
+            return true;
         }
 
+        let ok = false;
         MsgArea.getMessageAreaStats(client.user, [areaTag], (err, stats) => {
             if (!err && stats[areaTag]) {
                 setCounts(stats[areaTag].newCount, stats[areaTag].total);
+                ok = true;
             }
         });
+        return ok;
     }
 
     //  |NC: new messages across the readable areas of the current conference
@@ -697,7 +709,7 @@ class StatLog {
             client,
             client.user.getProperty(UserProps.MessageConfTag)
         );
-        this._setSummedNewMessageCount(
+        return this._setSummedNewMessageCount(
             client,
             UserProps.NewMessageCountCurrentConf,
             areaTags
@@ -707,7 +719,7 @@ class StatLog {
     //  |NS: new messages across the areas new_scan would scan
     _refreshUserNewScanNewMessageCount(client) {
         const MsgArea = require('./message_area');
-        this._setSummedNewMessageCount(
+        return this._setSummedNewMessageCount(
             client,
             UserProps.NewMessageCountNewScan,
             MsgArea.getNewScanMessageAreaTags(client)
@@ -716,12 +728,15 @@ class StatLog {
 
     _setSummedNewMessageCount(client, statName, areaTags) {
         const MsgArea = require('./message_area');
+        let ok = false;
         MsgArea.getMessageAreaStats(client.user, areaTags, (err, stats) => {
             if (!err) {
                 const count = Object.values(stats).reduce((n, s) => n + s.newCount, 0);
                 client.user.setProperty(statName, count);
+                ok = true;
             }
         });
+        return ok;
     }
 
     _refreshUserNewAddressedToMessageCount(client) {

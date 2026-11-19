@@ -379,5 +379,38 @@ describe('message count MCI codes (#447)', function () {
             );
             assert.equal(code(client, 'NA'), 3);
         });
+
+        it('recounts at once when the connection changes user', () => {
+            //  two users no pointer has ever moved for, so nothing but who
+            //  they are tells their cached counts apart
+            const client = makeClient();
+            client.user.userId = 901;
+            assert.equal(code(client, 'NA'), 3);
+
+            //  a different user, same area and floor, on the same connection:
+            //  their counts are not yet in their properties
+            const props = { message_conf_tag: 'local', message_area_tag: 'general' };
+            client.user = Object.assign({}, client.user, {
+                userId: 902,
+                properties: props,
+                getProperty: name => props[name],
+                setProperty: (name, value) => {
+                    props[name] = value;
+                },
+            });
+            assert.equal(code(client, 'NA'), 3);
+        });
+
+        it('tries a failed refresh again on the next read', () => {
+            const client = makeClient();
+            const real = MessageArea.getMessageAreaStats;
+            MessageArea.getMessageAreaStats = (user, tags, cb) => cb(new Error('boom'));
+            try {
+                code(client, 'NA');
+            } finally {
+                MessageArea.getMessageAreaStats = real;
+            }
+            assert.equal(code(client, 'NA'), 3, 'not served from the window');
+        });
     });
 });

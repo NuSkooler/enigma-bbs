@@ -960,7 +960,9 @@ function markMessageAreaRead(user, areaTag, cb) {
 //
 //  Bumped whenever one of a user's lastread pointers moves. StatLog keys its
 //  cached per-user message counts on it, so a count read after the pointer
-//  moved is recounted rather than served from the cache window.
+//  moved is recounted rather than served from the cache window. It is
+//  per-process: a pointer moved by another process (oputil, say) is picked
+//  up when the cache window ends.
 //
 const lastReadGenerations = new Map(); //  userId -> n
 
