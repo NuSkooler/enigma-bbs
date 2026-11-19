@@ -78,6 +78,7 @@ The browse page uses the `browse` art described above. The following MCI codes a
     * `{webDlExpire}`: Web download link expiration using `webDlExpireTimeFormat` described above.
     * `{infectedIndicator}`: `infectedIndicator` or `notInfectedIndicator` described above.
     * `{scanResult}`, `{scanSignature}`: The file scan result (`clean`, `infected`, `skipped`, ...) and what a scan found, or "N/A". See [File Scanning](../filebase/file-scanning.md).
+    * `{quarantineReleasedAt}`, `{quarantineReleasedBy}`: When a file was released from quarantine, and by whom: the operator's OS user name (`oputil:bryan`, say), or "N/A". Mind that this shows a system account name to whoever can see the format.
 
 ### Details Page
 The details page uses the `details` art described above. The following MCI codes are available:
