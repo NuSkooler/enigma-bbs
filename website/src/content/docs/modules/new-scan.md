@@ -39,17 +39,17 @@ messageBaseNewScan: {
 }
 ```
 
-`skipMessageBase` is for a board where something else, such as a mod's message reader, does the message part of the login new scan, and callers still get the file base scan. Chain a files-only entry after the reader:
+`skipMessageBase` is for a board where something else, such as a mod's message reader, does the message part of the login new scan, and callers still get the file base scan. Chain a files-only entry after the reader (the reader's login entry has `next: fullLoginSequenceFileScan`), keeping the stock `next` so login carries on to System Stats:
 
 ```hjson
-lampboardLoginFileScan: {
+fullLoginSequenceFileScan: {
     desc: New Files
     module: new_scan
     art: NEWSCAN
     config: {
         skipMessageBase: true
     }
-    next: fullLoginSequenceUserStats
+    next: fullLoginSequenceSysStats
 }
 ```
 
