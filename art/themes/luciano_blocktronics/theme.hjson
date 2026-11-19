@@ -1418,6 +1418,14 @@
 
 					//	dupes
 					dupeInfoFormat: "|00|11{fileName:<53.52}|03{areaName}"
+
+					//	file (virus) scanning
+					virusScanStartFormat: "Scanning for viruses"
+					virusScanFinishFormat: "Virus scan finished"
+					virusScanRejectedFormat: "|00|12{fileName} |04failed the upload check"
+
+					//	rejected
+					rejectedInfoFormat: "|00|11{fileName:<53.52}|04{reason}"
 				}
 
 				//	options
@@ -1450,6 +1458,7 @@
 						TL1: { width: 48 }
 						TL2: { width: 48 }
 						TL3: { width: 48 }
+						TL5: { width: 48 }
 						MT4: {
 							height: 6
 							width: 68
@@ -1484,6 +1493,16 @@
 
 				//	dupes
 				3: {
+					mci: {
+						VM1: {
+							height: 17
+							width: 75
+						}
+					}
+				}
+
+				//	rejected (file scanning)
+				4: {
 					mci: {
 						VM1: {
 							height: 17
