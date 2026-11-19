@@ -15,7 +15,8 @@ const NEW_SCAN_PATH = require.resolve('../core/new_scan.js');
 
 describe('new_scan: skipMessageBase', () => {
     let NewScanModule;
-    let prevConfigGet = null;
+    let prevConfigGet;
+    let configPushed = false;
     let prevLog;
     let logSwapped = false;
     let prevCacheEntry;
@@ -33,6 +34,7 @@ describe('new_scan: skipMessageBase', () => {
         logSwapped = true;
 
         prevConfigGet = configModule._pushTestConfig({});
+        configPushed = true;
 
         prevCacheEntry = require.cache[NEW_SCAN_PATH];
         delete require.cache[NEW_SCAN_PATH];
@@ -40,7 +42,8 @@ describe('new_scan: skipMessageBase', () => {
     });
 
     after(() => {
-        if (prevConfigGet) {
+        //  get() is legitimately undefined when this file runs alone
+        if (configPushed) {
             configModule._popTestConfig(prevConfigGet);
         }
         if (logSwapped) {
@@ -64,6 +67,8 @@ describe('new_scan: skipMessageBase', () => {
         });
 
         mod.trace = [];
+        mod.statusTexts = [];
+        mod.updateScanStatus = text => mod.statusTexts.push(text);
 
         //  neither real step is under test; record them, and finish each as
         //  a scan that found nothing does
@@ -104,6 +109,24 @@ describe('new_scan: skipMessageBase', () => {
             assert.equal(err, null);
             assert.deepEqual(mod.trace, ['step:fileBase']);
             assert.equal(mod.currentStep, 'finished');
+            done();
+        });
+    });
+
+    it('a files-only scan closes with scanCompleteMsg', done => {
+        const mod = makeScan({ skipMessageBase: true, scanCompleteMsg: 'All done' });
+        mod.performScanCurrentStep(err => {
+            assert.equal(err, null);
+            assert.deepEqual(mod.statusTexts, ['All done']);
+            done();
+        });
+    });
+
+    it('a full scan leaves the closing text to the message base step', done => {
+        const mod = makeScan({});
+        mod.performScanCurrentStep(err => {
+            assert.equal(err, null);
+            assert.deepEqual(mod.statusTexts, []);
             done();
         });
     });

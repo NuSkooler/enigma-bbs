@@ -375,6 +375,11 @@ exports.getModule = class NewScanModule extends MenuModule {
                 }
 
                 this.newScanFileBase(() => {
+                    //  a files-only scan has no message base step to end on
+                    //  scanCompleteMsg, so it closes with it here
+                    if (this.skipMessageBase) {
+                        this.updateScanStatus(this.scanCompleteMsg);
+                    }
                     this.currentStep = Steps.Finished;
                     return this.performScanCurrentStep(cb);
                 });

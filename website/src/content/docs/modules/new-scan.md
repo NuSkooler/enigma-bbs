@@ -22,7 +22,7 @@ Available `config` block entries:
 | `omitMessageAreaTags` | none | Message area tags (a string or an array) not to scan. |
 | `omitFileAreaTags` | none | File area tags not to scan. |
 | `scanStartFmt` | `Scanning {confName} - {areaName}...` | Status text while an area is scanned. `{confName}`, `{confDesc}`, `{areaName}` and `{areaDesc}` are available. |
-| `scanCompleteMsg` | `Finished newscan` | Status text when the scan is done. |
+| `scanCompleteMsg` | `Finished newscan` | Status text when the scan is done: after the message base, or after the file base in a `skipMessageBase` scan. |
 
 The status text goes to `%TL1`, which the menu's art must have.
 
