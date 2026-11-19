@@ -59,6 +59,7 @@ with the system, see [Menu Modules](../modding/menu-modules.md).
 | [Sysop Chat](sysop-chat.md) | Two-way split-screen chat with a connected user |
 | [Pre-Auth Feedback](pre-auth-feedback.md) | Letting visitors write to the sysop before logging in |
 | [2FA/OTP Config](user-2fa-otp-config.md) | Where users opt in to two-factor authentication |
+| [User Preference Select](user-pref-select.md) | Letting users choose between alternatives you offer, such as which reader the new scan opens |
 
 ## Display
 

@@ -96,13 +96,15 @@ function main() {
                 return displayStartupBanner(() =>
                     callback(
                         null,
-                        configOverridePath || conf.Config.getDefaultPath(),
+                        configOverridePath, //  undefined: the default
                         _.isString(configOverridePath)
                     )
                 );
             },
             function initConfig(configPath, configPathSupplied, callback) {
-                const configFile = configPath + 'config.hjson';
+                const configFile = conf.Config.getConfigFilePath(configPath, msg =>
+                    console.error(`Warning: ${msg}`)
+                );
 
                 conf.Config.create(resolvePath(configFile), err => {
                     //
@@ -124,8 +126,8 @@ function main() {
                             //
                             const missingPath = err.configPath || resolvePath(configFile);
                             const isBaseConfig =
-                                paths.basename(missingPath).toLowerCase() ===
-                                'config.hjson';
+                                paths.resolve(missingPath) ===
+                                paths.resolve(resolvePath(configFile));
 
                             if (isBaseConfig) {
                                 console.error(

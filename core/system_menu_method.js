@@ -10,6 +10,7 @@ const { ErrorReasons } = require('./enig_error.js');
 const UserProps = require('./user_property.js');
 const { loginFactor2_OTP } = require('./user_2fa_otp.js');
 const UserTime = require('./user_time.js');
+const UserPreference = require('./user_preference.js');
 
 //  deps
 const _ = require('lodash');
@@ -28,6 +29,7 @@ exports.prevArea = prevArea;
 exports.nextArea = nextArea;
 exports.sendForgotPasswordEmail = sendForgotPasswordEmail;
 exports.optimizeDatabases = optimizeDatabases;
+exports.setUserPreference = setUserPreference;
 
 const handleAuthFailures = (callingMenu, err, cb) => {
     //  the caller has gone (logged by userLogin()); there is nobody to answer
@@ -341,4 +343,52 @@ function optimizeDatabases(callingMenu, formData, extraArgs, cb) {
     });
 
     return callingMenu.prevMenu(cb);
+}
+
+//
+//  Set (or clear) a user preference: a pref__<name> user property that menus
+//  route on with PV[pref__<name>,<value>]. See user_preference.js.
+//
+//  extraArgs (menu configuration only; formData is never read):
+//    pref    the property name; must match ^pref__[A-Za-z0-9\-_+]+$
+//    value   the value; must match ^[A-Za-z0-9\-_+]+$ (an integer or boolean
+//            is taken as its text). null removes the property, so the board
+//            default (the entry without an acs) applies again.
+//    next    optional menu to go to afterwards (a step in the menu history);
+//            without it, back to the previous menu
+//
+//  Anything else is refused, nothing is written and the caller stays on the
+//  menu. This method owns the warning: it calls back without an error, so
+//  the dispatcher does not log the same refusal a second time.
+//
+function setUserPreference(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
+    const client = callingMenu.client;
+    const { pref, value, next } = extraArgs || {};
+
+    UserPreference.setUserPreference(client.user, pref, value, (err, stored) => {
+        if (err) {
+            client.log.warn(
+                { error: err.message, pref, value },
+                'User preference not set'
+            );
+            return cb(null);
+        }
+
+        client.log.debug({ pref, value: stored }, 'User preference set');
+
+        if (undefined === next) {
+            return callingMenu.prevMenu(cb);
+        }
+
+        if (!_.isString(next) || '' === next) {
+            client.log.warn(
+                { next },
+                'Invalid "next" for setUserPreference: going to the previous menu'
+            );
+            return callingMenu.prevMenu(cb);
+        }
+
+        return callingMenu.gotoMenu(next, cb);
+    });
 }

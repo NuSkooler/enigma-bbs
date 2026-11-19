@@ -7,6 +7,14 @@
 //  This IS NOT a full list. For example, custom modules
 //  can utilize their own properties as well!
 //
+//  The "pref__" prefix (double underscore) is RESERVED for user preferences:
+//  choices between alternatives the operator offers, written only by
+//  @systemMethod:setUserPreference and the user_pref_select module (see
+//  user_preference.js) and routed on with PV[pref__<name>,<value>]. Never
+//  give a property below that prefix (a test enforces this). A mod storing
+//  its own data uses a prefix of its own or its mod database
+//  (getModDatabasePath()), not pref__.
+//
 module.exports = {
     PassPbkdf2Salt: 'pw_pbkdf2_salt',
     PassPbkdf2Dk: 'pw_pbkdf2_dk',

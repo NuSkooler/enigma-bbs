@@ -1196,6 +1196,66 @@
             }
         }
 
+        //
+        //  Letting users choose between alternatives (e.g. this stock new
+        //  scan or an index reader mod): route the "!" action above on a
+        //  user preference with PV, keeping this entry last as the board
+        //  default, and offer the choice with a user_pref_select menu.
+        //  Not wired up in stock. See the User Preference Select docs page
+        //  (website/src/content/docs/modules/user-pref-select.md). Example:
+        //
+        //  In mainMenu's submit:
+        //      {
+        //          value: { command: "!" }
+        //          action: [
+        //              {
+        //                  acs: "PV[pref__msg_reader,lampboard]"
+        //                  action: @menu:lampboardMain
+        //              }
+        //              {
+        //                  action: @menu:mainMenuGlobalNewScan
+        //              }
+        //          ]
+        //      }
+        //
+        //  The menu offering the choice (art is yours; needs %VM1 or %TV1):
+        //      mainMenuReaderPref: {
+        //          desc: Choosing a Reader
+        //          module: user_pref_select
+        //          art: READRPREF
+        //          config: {
+        //              pref: pref__msg_reader
+        //              choices: [
+        //                  {
+        //                      value: lampboard
+        //                      text: Index reader
+        //                      desc: A table of areas with new mail
+        //                      acs: "TE[ansi]"
+        //                  }
+        //              ]
+        //          }
+        //          form: {
+        //              0: {
+        //                  mci: {
+        //                      VM1: {
+        //                          focus: true
+        //                      }
+        //                      TL2: { }
+        //                  }
+        //                  actionKeys: [
+        //                      {
+        //                          keys: [ "return", "space" ]
+        //                          action: @method:select
+        //                      }
+        //                      {
+        //                          keys: [ "q", "shift + q", "escape" ]
+        //                          action: @method:done
+        //                      }
+        //                  ]
+        //              }
+        //          }
+        //      }
+        //
         mainMenuGlobalNewScan: {
             desc: New Scan
             module: new_scan

@@ -6,7 +6,7 @@ sidebar:
 ---
 The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. Defaults lived in `core/config_default.js`.
 
-The default path is `/enigma-bbs/config/config.hjson` though this can be overridden using the `--config` parameter when invoking `main.js` (and `oputil.js`). `--config` takes the directory holding `config.hjson`, with a trailing slash: `./main.js --config /srv/bbs/`.
+The default path is `/enigma-bbs/config/config.hjson` though this can be overridden using the `--config` parameter when invoking `main.js` (and `oputil.js`). `--config` takes the directory holding `config.hjson`: `./main.js --config /srv/bbs/` (the trailing slash is optional). A path to the file itself, `--config /srv/bbs/config.hjson`, also works: an existing file, or a name ending in `.hjson`, is loaded as it is, whatever its name. `--config` with no value prints a warning and uses the default.
 
 ### Relative Paths
 Relative file names in `config.hjson`, such as `general.menuFile`, `general.achievementFile` and the [offline mail bulletins](../messageareas/bluewave.md#bulletins), are taken from `paths.config`. Unless you set it, `paths.config` is the directory your `config.hjson` was loaded from, which is also where files listed in [`includes`](config-files.md#includes) are read from. With the stock layout that is `/enigma-bbs/config/`; with `--config /srv/bbs/` it is `/srv/bbs/`, so `menuFile: menu.hjson` reads `/srv/bbs/menu.hjson`.
