@@ -164,6 +164,15 @@ Actions:
   May contain optional GLOB as last parameter.
   Example: ./oputil.js fb scan d0pew4r3z *.zip
 
+  virus-scan CRITERIA [...]    Rescan existing entries with the file scanners
+
+  CRITERIA may be any of the following:
+    - Area tag, with simple wildcards ("*" is every area)
+    - Area tag with @storageTag suffix
+    - File ID, SHA-256 (or the start of one), or filename including
+      '*' wildcards
+  An area match wins over a filename wildcard.
+
   info CRITERIA                Display information about areas and/or files
 
   mv SRC [SRC...] DST          Move matching entry(s)
@@ -211,6 +220,21 @@ scan arguments:
   imported, and quarantined or deleted per fileBase.scanning.failAction; the
   operators get one inbox notice for the run. Without the flag nothing is
   virus scanned.
+
+virus-scan arguments:
+  --older-than DAYS            Only entries never scanned, or last scanned more
+                               than DAYS days ago
+  --max N                      Check at most N entries (those scanned longest
+                               ago first); the rest are left for a later run
+  --dry-run                    Scan and report only; change nothing
+
+  Needs fileBase.scanning enabled and uses the entries whose "sources" include
+  "rescan", or that list no sources. One file at a time. Clean or skipped:
+  the entry's scan result and time are updated. Infected: the file is
+  quarantined or deleted per fileBase.scanning.failAction and its entry is
+  removed. Could not be checked (a scanner failed) or missing: nothing is
+  changed. The operators get one inbox notice for the run if anything needs
+  them. Exits non-zero if a file could not be checked or on any error.
 
 info arguments:
   --show-desc                  Display short description, if any
@@ -260,6 +284,20 @@ $ ./oputil.js fb scan --desc-file /path/to/DESCRIPT.ION oldschoolbbs
 Scan the "uploads" area for viruses before importing anything new; see [File Scanning](../filebase/file-scanning.md#oputil):
 ```
 $ ./oputil.js fb scan --virus-scan uploads
+```
+
+#### Rescan for Viruses
+The `virus-scan` action runs files already in the file base through the configured [file scanners](../filebase/file-scanning.md) again. An infected file is quarantined or deleted and its entry removed; a file a scanner could not check is left alone. See [Rescanning the file base](../filebase/file-scanning.md#rescanning-the-file-base).
+
+##### Examples
+Report what a rescan of every area would find, changing nothing:
+```bash
+$ ./oputil.js fb virus-scan "*" --dry-run
+```
+
+Rescan the "retro_dos" area's files that were never scanned or were last scanned more than 30 days ago, at most 500 of them:
+```bash
+$ ./oputil.js fb virus-scan --older-than 30 --max 500 retro_dos
 ```
 
 #### Retrieve Information

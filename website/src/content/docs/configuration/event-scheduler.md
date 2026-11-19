@@ -83,6 +83,8 @@ Methods are passed any supplied `args` in the order they are provided.
 ##### Method Signature
 To create your own method, simply `export` a method with the following signature: `(args, callback)`. Methods are executed asynchronously.
 
+A method may call back with a second argument, a string, `callback(err, output)`: it is kept as the run's output (`outputTail`), as for an `@execute`, and shown in the WFC's task detail. Use it for a short summary of what the run did.
+
 Example:
 ```javascript
 // my_custom_mod.js
@@ -130,6 +132,10 @@ ENiGMA½ ships with these events. Each can be switched off with `enabled: false`
 | `exportOutboundNow` | manual-only | Asks the FTN BSO scanner/tosser to scan the FTN message areas and export new mail to the outbound now, as its `schedule.export` does. It finishes when the export does, and fails if the export fails. If an export is already running, or FTN is not configured (no `scannerTossers.ftn_bso.nodes` or `messageNetworks.ftn.areas`), or the scanner/tosser is not running, nothing is exported, the log says why, and the task still succeeds. |
 | `binkpPullNow` | manual-only | Runs the native [BinkP](../messageareas/binkp.md#binkppullschedule) mailer's pull cycle now: dials every node `binkp.pullSchedule` would (each concrete address in `binkp.nodes` without `pull: false`), plus any node with mail waiting, whether or not a `pullSchedule` is set. It finishes once every call has ended. A node already in a session is skipped (its `.bsy` lock is held), and a pull cycle already running, from the schedule or by hand, is not started again. If FTN is not configured or the mailer is not running, nothing is dialed, the log says why, and the task still succeeds. |
 
+:::tip
+To rescan the file base with the file scanners on a schedule (or by hand from the WFC), add a `rescanFileBase` event; see [File Scanning: Rescanning the file base](../filebase/file-scanning.md#on-a-schedule-the-event-scheduler). It is not a built-in event, since it needs `fileBase.scanning` set up first.
+:::
+
 :::note
 There is deliberately no `VACUUM` task: SQLite rebuilds the whole database during a VACUUM and the BBS would be frozen until it finished.
 :::
@@ -158,9 +164,9 @@ The saved last run has these fields:
 | `stoppedBy` | Who stopped it, if an operator did |
 | `exitCode` | For an `@execute`, the process's exit code; `null` if a signal ended it |
 | `signal` | For an `@execute` ended by a signal, its name, such as `SIGHUP` (what stopping it sends) or `SIGKILL`; otherwise `null` |
-| `outputTail` | For an `@execute`, the last 20 lines of output |
+| `outputTail` | For an `@execute`, the last 20 lines of output; for a `@method`, the output it called back with, if any |
 
-Three system events follow each run, for modules that want them: `TaskStarted` with `{ name, desc, reason, byUser }`; `TaskOverdue` with `{ name, desc, reason, byUser, timeoutMs, startedAt }` when a run passes its timeout; and `TaskFinished` with `{ name, desc, reason, byUser, ok, error, durationMs, overdue, stoppedBy, exitCode, signal }`. A reload of the events that changed anything emits `TasksReloaded` with `{ added, removed, changed }`, each a list of event names.
+Three system events follow each run, for modules that want them: `TaskStarted` with `{ name, desc, reason, byUser }`; `TaskOverdue` with `{ name, desc, reason, byUser, timeoutMs, startedAt }` when a run passes its timeout; and `TaskFinished` with `{ name, desc, reason, byUser, ok, error, durationMs, overdue, stoppedBy, exitCode, signal, outputTail }`. A reload of the events that changed anything emits `TasksReloaded` with `{ added, removed, changed }`, each a list of event names.
 
 ## Example Entries
 

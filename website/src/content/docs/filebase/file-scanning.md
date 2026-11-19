@@ -14,6 +14,7 @@ Files are scanned when they come in:
 | [REST API](../servers/contentservers/rest-api.md) uploads | Before the file is moved into the area's storage | `web` |
 | [TIC](tic-support.md) imports | Before the file is stored, **and** for passthrough echoes before it is relayed to downlinks | `tic` |
 | `oputil fb scan` | Only with `--virus-scan` | `oputil` |
+| [Rescan](#rescanning-the-file-base) of files already in the file base | When you run it, or on a schedule | `rescan` |
 
 Files the sysop or the system makes (a TIC hatch, exports, offline mail packets) are not scanned.
 
@@ -275,6 +276,71 @@ With `--virus-scan`, each new file is scanned before it is imported, by the entr
 The file is already in the area's storage directory, where a later plain `fb scan` would import it unscanned, so a file that cannot be moved is reported loudly. An infected file that cannot be quarantined is deleted instead; if it cannot be deleted either, oputil says so and exits with an error. A held file that cannot be quarantined is left in place, and oputil says that it is still there, unscanned.
 
 oputil loads the scanners mods provide by calling each mod's [`registerFileScanners`](#writing-a-scanner) export, and nothing else of the mod: no `moduleInitialize`. If an entry that would run for `oputil` still names a scanner nobody registered, `--virus-scan` refuses to start rather than hold every file.
+
+## Rescanning the file base
+New signatures arrive every day, so a file that was clean when it was uploaded may not be today. A rescan runs the files already in the file base through the scanners again, using the entries whose `sources` include `rescan` (or that list no `sources`). Run it by hand with `oputil fb virus-scan`, or as an [event scheduler](../configuration/event-scheduler.md) task, which also puts it in the [WFC task list](../modules/wfc.md#tasks) to run on demand.
+
+What happens to each file depends on the verdict:
+
+| Verdict | What happens |
+|---------|--------------|
+| clean, skipped | The entry's `scan_result`, `scanned_at` and `scanner` are updated |
+| infected | The file is quarantined or deleted per `failAction`, as for an upload, and its entry is **removed** from the file base, so nothing is left pointing at a file that is gone. If the file cannot be moved or deleted, the entry stays and the run reports an error |
+| held (the scanner failed or timed out) | **Nothing changes**: the file stays where it is, the entry stays, and `scanned_at` is not updated, so the next rescan tries it again. A scanner outage never pulls files out of the file base |
+
+A file that is missing from its storage directory is reported and its entry kept. An entry that is a symbolic link to an infected file is reported, and neither the link nor the file it points at is moved: the target may be outside the file base. Entries in the system's internal areas (temporary download batches) are never rescanned.
+
+Files are scanned **one at a time**, so a rescan takes at most one of the `maxConcurrent` scanner slots and never holds up uploads or TIC imports. Each file's hash is worked out again from the file as it is now, not taken from the entry, so a hash lookup scanner sees the real one; a file whose hash no longer matches its entry is reported as changed since import (nothing else is done about it).
+
+Each run logs a summary line (the counts), and the operators in `notifyUserIds` get **one** private message for the run, listing the infected, unchecked and missing files and any errors, but only if there are any. A run that finds everything clean sends nothing.
+
+A rescan refuses to start, saying why, if scanning is disabled, if no scanner entry scans the `rescan` source, if an entry it would use names a scanner no mod registered (every file would only be held), or if another rescan is already running.
+
+### By hand: oputil
+```bash
+#  every area; report only, change nothing
+./oputil.js fb virus-scan "*" --dry-run
+
+#  one area, files never scanned or last scanned more than 30 days ago,
+#  at most 500 of them (those scanned longest ago first)
+./oputil.js fb virus-scan retro_dos --older-than 30 --max 500
+```
+
+The criteria are as for `fb rm`: area tags (with simple wildcards; `"*"` is every area), `AREA_TAG@STORAGE_TAG`, file IDs, SHA-256 hashes (or the start of one) and file name wildcards. If a criterion matches an area, it is taken as one. Each file's result is printed as it is checked, then a summary. With `--dry-run` nothing is changed and no notice is sent. oputil exits non-zero if any file could not be checked or on any error. Like `fb scan --virus-scan`, it loads mods' scanners through their `registerFileScanners` export only.
+
+### On a schedule: the event scheduler
+Add an entry to `eventScheduler.events` in `config.hjson`:
+
+```hjson
+eventScheduler: {
+    events: {
+        rescanFileBase: {
+            desc: Rescan the file base for viruses
+            //  e.g. once freshclam has updated the signatures
+            schedule: at 5:00 am on Sun
+            action: @method:core/file_base_rescan.js:rescanFileBaseScheduledEvent
+            args: [
+                {
+                    areas: "*"
+                    olderThanDays: 6
+                    maxFiles: 5000
+                }
+            ]
+        }
+    }
+}
+```
+
+Leave out `schedule` for a task that only runs when you start it from the WFC. `args` is either empty (every file in every area) or one object with any of:
+
+| Item | Default | Description |
+|------|---------|-------------|
+| `areas` | every area | An area tag, or a list of them. Simple wildcards (`*`, `?`) are allowed |
+| `olderThanDays` | none | Only files never scanned, or last scanned more than this many days ago. Without it, every file is scanned on every run |
+| `maxFiles` | none | Check at most this many files per run: those never scanned first, then those scanned longest ago, so runs capped this way work through the whole file base in turn. The rest are counted as left for a later run |
+| `dryRun` | `false` | Scan and report only: nothing is changed and no notice is sent |
+
+Any other key is an error, so a misspelling cannot quietly rescan everything. The run's summary is kept as its output, shown in the WFC task detail. The task fails (and the WFC shows it as failed) if a file could not be checked or on any error; the notice has the details. A large file base takes a while: `maxFiles` keeps each run short, and the event's `timeout` only marks a run that goes on too long as overdue.
 
 ## Writing a scanner
 A scanner is an object with a `scan()` function, registered by name. A mod provides it through a `registerFileScanners` export:

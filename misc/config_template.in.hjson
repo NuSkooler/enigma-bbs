@@ -755,6 +755,29 @@
             //  backupDatabases: {
             //    schedule: at 4:00 am
             //  }
+            //
+            //  Rescan the file base with the file scanners once a week, e.g.
+            //  after freshclam has updated ClamAV's signatures (needs
+            //  fileBase.scanning; uses the entries whose "sources" include
+            //  "rescan", or list none). An infected file is quarantined or
+            //  deleted per failAction and its entry removed; a file a scanner
+            //  could not check is left alone. It is also listed in the WFC
+            //  task list, to run by hand. All args are optional: areas (a tag
+            //  or a list, wildcards allowed; default every area),
+            //  olderThanDays, maxFiles and dryRun.
+            //
+            //  rescanFileBase: {
+            //    desc: Rescan the file base for viruses
+            //    schedule: at 5:00 am on Sun
+            //    action: @method:core/file_base_rescan.js:rescanFileBaseScheduledEvent
+            //    args: [
+            //        {
+            //            areas: "*"
+            //            olderThanDays: 6
+            //            maxFiles: 5000
+            //        }
+            //    ]
+            //  }
         }
     }
 
