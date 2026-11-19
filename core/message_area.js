@@ -65,6 +65,9 @@ exports.getEffectiveNewScanLastReadId = getEffectiveNewScanLastReadId;
 exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
 exports.getMessageAreaStats = getMessageAreaStats;
 exports.markMessageAreaRead = markMessageAreaRead;
+exports.getMessageAreaLastReadGeneration = getMessageAreaLastReadGeneration;
+exports.getReadableMessageAreaTagsInConf = getReadableMessageAreaTagsInConf;
+exports.getNewScanMessageAreaTags = getNewScanMessageAreaTags;
 exports.persistMessage = persistMessage;
 exports.trimMessageAreasScheduledEvent = trimMessageAreasScheduledEvent;
 
@@ -954,6 +957,60 @@ function markMessageAreaRead(user, areaTag, cb) {
     });
 }
 
+//
+//  Bumped whenever one of a user's lastread pointers moves. StatLog keys its
+//  cached per-user message counts on it, so a count read after the pointer
+//  moved is recounted rather than served from the cache window.
+//
+const lastReadGenerations = new Map(); //  userId -> n
+
+function getMessageAreaLastReadGeneration(userId) {
+    return lastReadGenerations.get(userId) || 0;
+}
+
+//
+//  The areas in |confTag| that |client| can read, hidden ones included, as
+//  new_scan scans them. [] for a conference the caller cannot read.
+//
+function getReadableMessageAreaTagsInConf(client, confTag) {
+    const confs = getAvailableMessageConferences(client, {
+        includeSystemInternal: true,
+        includeHidden: true,
+    });
+    if (!confTag || !confs[confTag]) {
+        return [];
+    }
+    return Object.keys(
+        getAvailableMessageAreasByConfTag(confTag, { client, includeHidden: true }) || {}
+    );
+}
+
+//
+//  The areas new_scan would scan for |client|: every readable area, private
+//  mail and hidden conferences included, narrowed to the caller's
+//  NewScanAreaTags selection when they have made one. A menu's
+//  omitMessageAreaTags is new_scan's own and not applied here.
+//
+function getNewScanMessageAreaTags(client) {
+    const areaTags = getAllAvailableMessageAreaTags(client, {
+        includeSystemInternal: true,
+        includeHidden: true,
+    });
+
+    let selected = null;
+    const raw = client.user.getProperty(UserProps.NewScanAreaTags);
+    if (raw) {
+        try {
+            const tags = JSON.parse(raw);
+            selected = Array.isArray(tags) && tags.length > 0 ? tags : null;
+        } catch (e) {
+            selected = null;
+        }
+    }
+
+    return selected ? areaTags.filter(tag => selected.includes(tag)) : areaTags;
+}
+
 function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb) {
     if (!cb && _.isFunction(allowOlder)) {
         cb = allowOlder;
@@ -984,6 +1041,10 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
                     } catch (err) {
                         return callback(err);
                     }
+                    lastReadGenerations.set(
+                        userId,
+                        getMessageAreaLastReadGeneration(userId) + 1
+                    );
                     return callback(null, true); //  true=didUpdate
                 } else {
                     callback(null);
