@@ -91,7 +91,7 @@ The following ACS codes are available:
 | `AS`*status*, `AS[`*status,...*`]` | User's account status is *status* or one of [*status,...*]. `0`=inactive, `1`=active. |
 | `AF`*factor* | User's current authentication factor is >= *factor*. Factor 1 = password/pubkey, factor 2 = 2FA (OTP). |
 | `AR`*factor* | User **requires** authentication factor >= *factor*. `1`=always true, `2`=true only if user has 2FA configured. |
-| `PV[`*name*`,`*value*`]` | User property *name* is exactly *value*. Allows arbitrary property checks, e.g. `PV[message_conf,local]`. |
+| `PV[`*name*`,`*value*`]` | User property *name* is exactly *value*. Allows arbitrary property checks, e.g. `PV[message_conf,local]`. A property that is not set matches no value. See [User Preferences](#user-preferences-pv). |
 
 ### Activity & Statistics
 
@@ -221,6 +221,28 @@ next: [
     }
 ]
 ```
+
+---
+
+## User Preferences (PV)
+
+Where you offer users a choice between alternatives (for example the stock new scan or an index reader mod), the choice is stored as a **user preference**: a user property whose name starts with `pref__` (two underscores), such as `pref__msg_reader`. The prefix is reserved for this; no built-in property uses it. Users set it through the [User Preference Select](../modules/user-pref-select.md) module or `@systemMethod:setUserPreference`, and your menus route on it with `PV`:
+
+```hjson
+action: [
+    {
+        acs: "PV[pref__msg_reader,lampboard]"
+        action: @menu:lampboardMain
+    }
+    {
+        action: @menu:mainMenuGlobalNewScan
+    }
+]
+```
+
+* A user who never chose has no such property, which matches no `PV` check, so the last entry (without `acs`) is the **board default**.
+* `PV` arguments, and so preference names and values, may only use letters, digits, `-`, `_` and `+`: no `.`, `:` or spaces.
+* Quote the ACS string and keep the objects multi-line; a comma inside an inline Hjson object breaks it.
 
 ---
 
