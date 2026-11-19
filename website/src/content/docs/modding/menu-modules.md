@@ -188,6 +188,19 @@ Search the code for the above methods to see how they are used in the base syste
 :::
 
 
+### Default custom info formats
+Art places custom views `%TL10`, `%TL11`... (up to 99) that a module fills with `updateCustomViewTextsWithFilter(formName, startId, fmtObj)`. Their formats come from the menu's `config` as `${formName}InfoFormat${id}`, e.g. `mainInfoFormat10`. To make a mod work with no operator config, override `getDefaultCustomInfoFormats(formName)` and return the defaults keyed by view ID:
+
+```javascript
+getDefaultCustomInfoFormats(formName) {
+    return 'main' === formName ? { 10: '{msgCount} new', 11: '{userName}' } : {};
+}
+```
+
+* An operator's `config` (or theme) entry always wins over a default.
+* Setting an entry to an empty string, `null` or `false` (`mainInfoFormat10: ""`) hides that view even though the module has a default for it. For a module without a default, either is the same as not setting it.
+* Never write defaults into `this.menuConfig.config`: it is the shared, cached theme object. `getCustomInfoFormat(formName, id)` is the lookup, and `getCustomViewsWithFilter()` (including its `filter` option) and `updateCustomViewTextsWithFilter()` both use it.
+
 ## Custom Mods
 Most mods will also derive from `MenuModule`. Some things to be aware of:
 * Custom mods that bring in their own dependencies must also include their own `package.json` and other Node requirements

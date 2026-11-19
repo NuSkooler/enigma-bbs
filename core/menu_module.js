@@ -1090,6 +1090,37 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return form && form.getView(id);
     }
 
+    //
+    //  Defaults for the custom info formats (`${formName}InfoFormat${id}`) of
+    //  |formName|, as { id: formatString }, e.g. { 10: '{msgCount} new' }.
+    //  A module overrides this to ship formats that work with no operator
+    //  config. Return a new object; never write into menuConfig, which is the
+    //  shared, cached theme object.
+    //
+    getDefaultCustomInfoFormats(/*formName*/) {
+        return {};
+    }
+
+    //
+    //  The format for custom view |id| of |formName|. Anything an operator
+    //  sets (menu `config` / theme) always wins, including an empty string,
+    //  null or false, which hide the view even when the module has a default
+    //  for it. Absent that, the module's default, else undefined. A format
+    //  that comes out empty is treated as unset by the callers (no view,
+    //  nothing drawn).
+    //
+    getCustomInfoFormat(formName, id) {
+        const config = (this.menuConfig && this.menuConfig.config) || {};
+        const configured = config[`${formName}InfoFormat${id}`];
+        if (undefined !== configured) {
+            return configured;
+        }
+
+        const defaults = this.getDefaultCustomInfoFormats(formName) || {};
+        const dflt = defaults[id];
+        return 'string' === typeof dflt ? dflt : undefined;
+    }
+
     getCustomViewsWithFilter(formName, startId, options) {
         options = options || {};
 
@@ -1102,7 +1133,6 @@ exports.MenuModule = class MenuModule extends PluginModule {
             return views;
         }
 
-        const config = this.menuConfig.config;
         const endId = options.endId || 99;
 
         //  Walk the whole range rather than stopping at the first missing ID:
@@ -1115,13 +1145,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
             }
 
             const key = `${formName}InfoFormat${customMciId}`; //  e.g. "mainInfoFormat10"
-            const format = config[key];
+            const format = this.getCustomInfoFormat(formName, customMciId);
 
             if (
                 format &&
                 (!options.filter || options.filter.find(f => format.indexOf(f) > -1))
             ) {
                 view.key = key; // cache
+                view.infoFormat = format; // what updateCustomViewTextsWithFilter() draws
                 views.push(view);
             }
         }
@@ -1147,11 +1178,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
     updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
         options = options || {};
         const views = this.getCustomViewsWithFilter(formName, startId, options);
-        const config = this.menuConfig.config;
         let drawn = 0;
 
         views.forEach(view => {
-            const format = config[view.key];
+            const format = view.infoFormat;
             //  measured with the client the view renders it with
             const text = stringFormat(format, fmtObj, { client: this.client });
 
