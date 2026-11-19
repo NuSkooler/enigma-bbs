@@ -55,6 +55,7 @@ exports.DefaultTimeoutMs = 60 * 1000;
 exports.registerScanner = registerScanner;
 exports.getScanner = getScanner;
 exports.isEnabled = isEnabled;
+exports.getUnavailableScanners = getUnavailableScanners;
 exports.scanFile = scanFile;
 exports.isFileRejected = isFileRejected;
 exports.applyFailAction = applyFailAction;
@@ -214,6 +215,32 @@ function getScanningConfig() {
 
 function isEnabled() {
     return getScanningConfig().enabled;
+}
+
+//
+//  Names of configured scanners that would run for |source| but are not
+//  registered -- typically because the mod providing one has not loaded, as
+//  in oputil, which does not initialize mods. Every file such an entry sees
+//  is held (unless it says onError: accept), so a caller may want to refuse
+//  to start instead.
+//
+function getUnavailableScanners(source) {
+    const scanning = getScanningConfig();
+    if (!scanning.enabled) {
+        return [];
+    }
+    return _.uniq(
+        scanning.scanners
+            .filter(
+                e =>
+                    e &&
+                    _.isString(e.scanner) &&
+                    false !== e.enabled &&
+                    (!Array.isArray(e.sources) || e.sources.includes(source))
+            )
+            .filter(e => 'accept' !== e.onError && !scanners.has(e.scanner))
+            .map(e => e.scanner)
+    );
 }
 
 //
