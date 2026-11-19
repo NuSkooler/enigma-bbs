@@ -51,6 +51,8 @@ const FILE_WELL_KNOWN_META = {
     scanner: null, //  scanner name(s) that ran, comma separated
     scan_signature: null, //  what an infected verdict found (rescan)
     rescan_attempted_at: null, //  ISO 8601: last rescan attempt, whatever came of it
+    quarantine_released_at: null, //  ISO 8601: released from quarantine (oputil)
+    quarantine_released_by: null, //  the operator who released it
 };
 
 //

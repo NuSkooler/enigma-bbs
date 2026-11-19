@@ -1069,10 +1069,15 @@ function scanFile(filePath, options, iterator, cb) {
                     return callback(null);
                 }
 
+                //  what the entry would have had, for a quarantine sidecar
                 const scanCtx = Object.assign(
                     {
                         fileName: stepInfo.fileName,
                         areaTag: options.areaTag,
+                        storageTag: options.storageTag,
+                        hashTags: fileEntry.hashTags,
+                        entryMeta: options.meta,
+                        desc: options.desc,
                     },
                     options.scanContext,
                     {

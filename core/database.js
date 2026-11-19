@@ -13,6 +13,7 @@ const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment');
 const { ActiveUsersIndexSql } = require('./active_users');
+const { AllowlistTableSql } = require('./file_scan_allowlist.js');
 
 //  database handles
 const dbs = {};
@@ -965,6 +966,9 @@ const DB_INIT_TABLE = {
                 UNIQUE(hash_id, file_id),
                 FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
             );
+
+            /* file scanning (#291): SHA-256 hashes declared safe; see core/file_scan_allowlist.js */
+            ${AllowlistTableSql}
         `);
 
         //  Inline migration: add storage_tag_rel_path to existing installations.
