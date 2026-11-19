@@ -39,10 +39,12 @@ add on top of these.
 
 ## Common Menu View Properties
 
-The five **menu views** — [Horizontal](horizontal_menu_view.md),
+The six **menu views** — [Horizontal](horizontal_menu_view.md),
 [Vertical](vertical_menu_view.md), [Full](full_menu_view.md),
-[Toggle](toggle_menu_view.md) and [Spinner](spinner_menu_view.md) — all derive
-from the same base and therefore accept everything above **plus** the following.
+[Toggle](toggle_menu_view.md), [Spinner](spinner_menu_view.md) and
+[Table](table_view.md) — all derive from the same base and therefore accept
+everything above **plus** the following. The Table View does not support
+`focusItems`, `itemSpacing` or `itemHorizSpacing`.
 
 | Property | Description |
 |----------|-------------|
@@ -131,6 +133,7 @@ items: [ "First item", "Second item", "Third Item" ]
 | [Full Menu View](full_menu_view.md) | `%FM` | A paginated multi-column grid of selectable items |
 | [Toggle Menu View](toggle_menu_view.md) | `%TM` | A two-item toggle, typically used for Yes/No or On/Off choices |
 | [Spinner Menu View](spinner_menu_view.md) | `%SM` | A single-item rotary selector that cycles through a list |
+| [Table View](table_view.md) | `%TV` | A scrolling list with columns, group rows, an optional header and sorting |
 
 ---
 
@@ -301,6 +304,21 @@ classDiagram
         +setNo()
     }
 
+    class TableView {
+        +columns
+        +columnOrder
+        +sort
+        +viewWindow
+        +setItems(items, options)
+        +updateItem(key, patch)
+        +updateItemAt(index, patch)
+        +focusNextMatching(pred, options)
+        +setSort(column, order)
+        +cycleSort()
+        +toggleSortOrder()
+        +setDefaults(defaults)
+    }
+
     class SpinnerMenuView {
         +drawItem(index)
         +updateSelection()
@@ -323,6 +341,7 @@ classDiagram
     MenuView <|-- FullMenuView
     MenuView <|-- ToggleMenuView
     MenuView <|-- SpinnerMenuView
+    MenuView <|-- TableView
 ```
 
 ---

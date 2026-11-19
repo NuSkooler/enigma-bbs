@@ -1039,3 +1039,4 @@ class ViewController extends events.EventEmitter {
 }
 
 exports.ViewController = ViewController;
+exports.MCI_REGEXP = MCI_REGEXP;
