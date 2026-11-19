@@ -353,6 +353,73 @@ describe('hiding infected file entries (#291)', function () {
             assert.equal(after.meta.byte_size, 'contents of 1'.length);
         });
 
+        it('a replace by a fresh entry drops what the old file had', async () => {
+            addFile(1, { infected: true });
+            const add = fileDb.prepare(
+                'INSERT INTO file_meta (file_id, meta_name, meta_value) VALUES (1, ?, ?)'
+            );
+            add.run('archive_type', 'zip');
+            add.run('desc_sauce', '{"title":"old"}');
+            add.run('est_release_year', '1994');
+            mods.FileEntry.persistUserRating(1, 42, 5, err => assert.ifError(err));
+            fileDb
+                .prepare(
+                    "INSERT INTO file_web_serve_batch (hash_id, file_id) VALUES ('h', 1)"
+                )
+                .run();
+
+            //  a TIC "Replaces" with scanning off: new bytes, no verdict at all
+            const entry = new mods.FileEntry({
+                fileId: 1,
+                areaTag: AREA,
+                storageTag: 'vis_tag',
+                fileName: 'file1.txt',
+                fileSha256: 'd'.repeat(64),
+                meta: { byte_size: 5 },
+            });
+            await persist(entry, true);
+
+            const names = fileDb
+                .prepare('SELECT meta_name FROM file_meta WHERE file_id = 1 ORDER BY 1')
+                .all()
+                .map(r => r.meta_name);
+            assert.deepEqual(names, ['byte_size', 'dl_count']);
+            assert.deepEqual(mods.FileEntry.getInfectedFileIds([1]), new Set());
+            assert.equal(
+                fileDb.prepare('SELECT COUNT(*) AS n FROM file_user_rating').get().n,
+                0
+            );
+            assert.equal(
+                fileDb.prepare('SELECT COUNT(*) AS n FROM file_web_serve_batch').get().n,
+                0
+            );
+
+            //  ...and once persisted, the same object's next update is an edit
+            markInfected(1);
+            entry.desc = 'edited';
+            await persist(entry, true);
+            assert.deepEqual(scanResultRows(1), ['infected']);
+        });
+
+        it('a loaded entry edited keeps its scan meta, ratings and other meta', async () => {
+            addFile(1, { infected: true });
+            fileDb
+                .prepare(
+                    "INSERT INTO file_meta (file_id, meta_name, meta_value) VALUES (1, 'archive_type', 'zip')"
+                )
+                .run();
+            mods.FileEntry.persistUserRating(1, 42, 3, err => assert.ifError(err));
+
+            const entry = await loadEntry(1);
+            entry.desc = 'edited';
+            await persist(entry, true);
+
+            const after = await loadEntry(1);
+            assert.equal(after.meta.scan_result, 'infected');
+            assert.equal(after.meta.archive_type, 'zip');
+            assert.equal(after.userRating, 3);
+        });
+
         it('an update with new meta replaces the old values, not adds to them', async () => {
             addFile(1, { infected: true });
 

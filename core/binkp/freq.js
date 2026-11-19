@@ -133,17 +133,19 @@ class FreqResolver {
     //  serve it. If that cannot be told, it is not served either.
     //
     async _isHiddenPath(filePath) {
-        let Visibility;
         let FileEntry;
         try {
-            Visibility = require('../file_base_visibility.js');
+            const Visibility = require('../file_base_visibility.js');
+            if (!Visibility.hideInfectedEnabled()) {
+                return false;
+            }
             FileEntry = require('../file_entry.js');
-        } catch (_) {
-            return false;
-        }
-
-        if (!Visibility.hideInfectedEnabled()) {
-            return false;
+        } catch (err) {
+            Log.warn(
+                { filePath, error: err.message },
+                '[BinkP/FREQ] Could not check whether a file is marked infected; not serving it'
+            );
+            return true;
         }
 
         const real = async p => {

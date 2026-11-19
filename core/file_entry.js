@@ -247,16 +247,35 @@ module.exports = class FileEntry {
                 return cb(err);
             }
 
+            //
+            //  Two kinds of update (#291):
+            //
+            //  - an EDIT: this object came from the database (load(),
+            //    findByFileNameWildcard()) or was persisted by it, so it knows
+            //    what the entry holds. Meta, ratings and web batch rows the
+            //    object does not mention stay; see the scan meta rule below.
+            //    (fb desc, the desc editor, fb scan's dupe update)
+            //
+            //  - a REPLACE: a fresh entry for new bytes under an old file ID
+            //    (a TIC "Replaces", say), which never loaded the old one.
+            //    Nothing the old entry had says anything about the new file
+            //    -- least of all its scan result -- so its meta, user ratings
+            //    and web batch rows go first, as the REPLACE INTO file's
+            //    foreign key cascade used to do, and the object's are written.
+            //
+            const isReplace = isUpdate && !self.loadedScanMeta;
+
             try {
                 fileDb.transaction(() => {
                     if (isUpdate) {
                         //
-                        //  An update, never a REPLACE: REPLACE deletes the
+                        //  An upsert, never a REPLACE: REPLACE deletes the
                         //  row first, and with foreign keys on that cascades
                         //  to every file_meta, file_hash_tag and
                         //  file_user_rating row of the entry -- user ratings
-                        //  lost on any edit, and (#291) the scan meta below
-                        //  that is deliberately not rewritten gone with it.
+                        //  lost on any edit, and the scan meta below that is
+                        //  deliberately not rewritten gone with it. What a
+                        //  replace must drop, it drops by name below.
                         //
                         fileDb
                             .prepare(
@@ -300,6 +319,18 @@ module.exports = class FileEntry {
                                 getISOTimestampString()
                             );
                         self.fileId = info.lastInsertRowid;
+                    }
+
+                    if (isReplace) {
+                        for (const table of [
+                            'file_meta',
+                            'file_user_rating',
+                            'file_web_serve_batch',
+                        ]) {
+                            fileDb
+                                .prepare(`DELETE FROM ${table} WHERE file_id = ?;`)
+                                .run(self.fileId);
+                        }
                     }
 
                     const metaStmt = fileDb.prepare(

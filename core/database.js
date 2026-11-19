@@ -911,6 +911,11 @@ const DB_INIT_TABLE = {
             CREATE INDEX IF NOT EXISTS file_by_storage_tag_index
                 ON file (storage_tag);
 
+            /* file scanning (#291): by name, any case, for FREQ's lookup of
+               infected entries behind a served path */
+            CREATE INDEX IF NOT EXISTS file_by_file_name_nocase_index
+                ON file (file_name COLLATE NOCASE);
+
             CREATE VIRTUAL TABLE IF NOT EXISTS file_fts USING fts4 (
                 content="file",
                 file_name,
