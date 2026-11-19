@@ -55,16 +55,28 @@ const Floor = '2026-09-10T00:00:00.000Z';
 
 const ts = date => moment.parseZone(date).format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 
+//  message_area and stat_log capture logger.log when loaded: a silent one,
+//  with every level, so these run alone as well as inside the suite
+const SilentLog = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'].reduce(
+    (log, level) => Object.assign(log, { [level]: () => {} }),
+    { child: () => SilentLog }
+);
+
 describe('message area stats (#447)', function () {
     let testDb;
     let prevMessageDb;
     let prevConfig;
     let savedModules;
+    let prevLog;
 
     let MessageArea;
     let Message;
 
     before(() => {
+        const loggerModule = require('../core/logger.js');
+        prevLog = loggerModule.log;
+        loggerModule.log = SilentLog;
+
         prevConfig = configModule._pushTestConfig(TestConfig);
 
         const dbModule = require('../core/database.js');
@@ -94,6 +106,7 @@ describe('message area stats (#447)', function () {
         require('../core/database.js').dbs.message = prevMessageDb;
         testDb.close();
         configModule._popTestConfig(prevConfig);
+        require('../core/logger.js').log = prevLog;
     });
 
     beforeEach(() => {
