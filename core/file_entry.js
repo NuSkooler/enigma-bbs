@@ -713,6 +713,15 @@ module.exports = class FileEntry {
         return Object.keys(FILE_WELL_KNOWN_META);
     }
 
+    //  |id| as a file ID (a positive whole number, from a number or a string
+    //  of digits), or null
+    static toFileId(id) {
+        if (_.isString(id) && /^[0-9]{1,15}$/.test(id.trim())) {
+            id = parseInt(id, 10);
+        }
+        return Number.isSafeInteger(id) && id > 0 ? id : null;
+    }
+
     static get ScanMetaNames() {
         return SCAN_META_NAMES.slice();
     }
@@ -727,8 +736,38 @@ module.exports = class FileEntry {
     //  entry flagged after it was loaded or queued. Synchronous, like the
     //  database underneath it, so it can sit in a filter.
     //
+    //
+    //  Entries named |fileName| (any case) that a scan marked infected, as
+    //  basic FileEntry objects: for something that serves files by path
+    //  rather than by entry (a FREQ search directory) to tell whether a file
+    //  is one of them.
+    //
+    static getInfectedEntriesByFileName(fileName) {
+        return fileDb
+            .prepare(
+                `SELECT ${FILE_TABLE_MEMBERS.map(m => `f.${m}`).join(', ')}
+                FROM file f
+                WHERE f.file_name = ? COLLATE NOCASE
+                    AND ${infectedExistsSql('f')};`
+            )
+            .all(String(fileName))
+            .map(row => {
+                const entry = new FileEntry();
+                FILE_TABLE_MEMBERS.forEach(prop => {
+                    entry[_.camelCase(prop)] = row[prop];
+                });
+                entry.relPath = row.storage_tag_rel_path || null;
+                return entry;
+            });
+    }
+
     static getInfectedFileIds(fileIds) {
-        const ids = _.uniq((fileIds || []).filter(_.isFinite));
+        //  '12' is file 12; anything that is not a whole number is no file
+        //  and so never infected -- callers keep such an item only where it
+        //  is not a file entry at all (a bare path)
+        const ids = _.uniq(
+            (fileIds || []).map(FileEntry.toFileId).filter(id => !_.isNil(id))
+        );
         const infected = new Set();
         //  well under SQLite's bound parameter limit
         for (const chunk of _.chunk(ids, 500)) {

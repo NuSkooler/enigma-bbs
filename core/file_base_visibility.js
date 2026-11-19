@@ -32,7 +32,7 @@ const ACS = require('./acs.js');
 //  deps
 const _ = require('lodash');
 
-const DefaultInfectedVisibleAcs = 'GM[sysops]';
+const DefaultInfectedVisibleAcs = 'GM[sysops]|ID1';
 
 //  required lazily: file_entry.js captures the file database at load
 const FileEntry = () => require('./file_entry.js');
@@ -116,7 +116,7 @@ function filterHidden(subject, items) {
         return items;
     }
 
-    const idOf = item => (_.isObject(item) ? item.fileId : item);
+    const idOf = item => FileEntry().toFileId(_.isObject(item) ? item.fileId : item);
     const infected = FileEntry().getInfectedFileIds(items.map(idOf));
     if (0 === infected.size) {
         return items;
@@ -128,10 +128,29 @@ function filterHidden(subject, items) {
 //  Is the entry with |fileId| hidden from |subject|?
 //
 function isFileIdHidden(subject, fileId) {
-    if (!_.isFinite(fileId) || !hidesInfected(subject)) {
+    if (!hidesInfected(subject)) {
         return false;
     }
-    return FileEntry().getInfectedFileIds([fileId]).has(fileId);
+    //  '12' is file 12, so it is checked like 12. Anything that is no file
+    //  ID at all names no entry -- there is nothing to hide, and nothing it
+    //  could fetch.
+    const id = FileEntry().toFileId(fileId);
+    return null !== id && FileEntry().getInfectedFileIds([id]).has(id);
+}
+
+//
+//  The existing entries an upload of |uploadedFileName| duplicates, as
+//  |subject| may be told of them. It is still a dupe either way -- not
+//  imported -- but an entry hidden from them is not named: all hidden ones
+//  become a single { fileName: |uploadedFileName|, hiddenDupe: true }, so
+//  the dupes page can say "already on this board" and nothing more.
+//
+function maskHiddenDupes(subject, dupeEntries, uploadedFileName) {
+    const visible = filterHidden(subject, dupeEntries);
+    if (visible.length === dupeEntries.length) {
+        return dupeEntries;
+    }
+    return visible.concat([{ fileName: uploadedFileName, hiddenDupe: true }]);
 }
 
 //
@@ -151,5 +170,6 @@ module.exports = {
     visibleFilesFilter,
     filterHidden,
     isFileIdHidden,
+    maskHiddenDupes,
     isEntryInfected,
 };

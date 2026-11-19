@@ -150,7 +150,8 @@ describe('hiding infected file entries (#291)', function () {
             DELETE FROM file_meta; DELETE FROM file; DELETE FROM file_scan_allowlist;
         `);
         config.fileBase.scanning.hideInfected = true;
-        config.fileBase.scanning.infectedVisibleAcs = 'GM[sysops]';
+        config.fileBase.scanning.infectedVisibleAcs =
+            configDefault().fileBase.scanning.infectedVisibleAcs;
     });
 
     //  An entry in AREA with a real file behind it
@@ -430,7 +431,14 @@ describe('hiding infected file entries (#291)', function () {
             assert.equal(V.hidesInfected(null), true);
         });
 
-        it('not from sysops (GM[sysops] by default), whether client or User', () => {
+        it('not from user 1, even outside the sysops group (GM[sysops]|ID1)', () => {
+            assert.equal(mods.Visibility.DefaultInfectedVisibleAcs, 'GM[sysops]|ID1');
+            assert.equal(config.fileBase.scanning.infectedVisibleAcs, 'GM[sysops]|ID1');
+            assert.equal(mods.Visibility.hidesInfected(makeClient(['users'], 1)), false);
+            assert.equal(mods.Visibility.hidesInfected(makeUser(['users'], 1)), false);
+        });
+
+        it('not from sysops (by default), whether client or User', () => {
             const V = mods.Visibility;
             assert.equal(V.hidesInfected(makeClient(['users', 'sysops'])), false);
             assert.equal(V.hidesInfected(makeUser(['users', 'sysops'])), false);
@@ -487,6 +495,44 @@ describe('hiding infected file entries (#291)', function () {
                 filter.excludeInfected,
                 undefined,
                 'the caller filter is not changed'
+            );
+        });
+
+        it('an ID given as text is checked like the number; junk names nothing', () => {
+            addFile(2, { infected: true });
+            const user = makeClient(['users']);
+            const V = mods.Visibility;
+            assert.equal(V.isFileIdHidden(user, '2'), true);
+            assert.equal(V.isFileIdHidden(user, ' 2 '), true);
+            assert.deepEqual(V.filterHidden(user, [{ fileId: '2' }, { fileId: 3 }]), [
+                { fileId: 3 },
+            ]);
+            for (const junk of ['2abc', -2, 2.5, NaN, null, {}, '']) {
+                assert.equal(V.isFileIdHidden(user, junk), false, String(junk));
+            }
+            assert.deepEqual([...mods.FileEntry.getInfectedFileIds(['2', 'x', 2])], [2]);
+        });
+
+        it('a dupe of a hidden entry is still a dupe, but is not named', () => {
+            addFile(1);
+            addFile(2, { infected: true });
+            const V = mods.Visibility;
+            const dupes = () => [
+                { fileId: 1, areaTag: AREA },
+                { fileId: 2, areaTag: AREA },
+            ];
+
+            assert.deepEqual(
+                V.maskHiddenDupes(makeClient(['users']), dupes(), 'MINE.ZIP'),
+                [
+                    { fileId: 1, areaTag: AREA },
+                    { fileName: 'MINE.ZIP', hiddenDupe: true },
+                ]
+            );
+            assert.deepEqual(
+                V.maskHiddenDupes(makeClient(['users', 'sysops']), dupes(), 'MINE.ZIP'),
+                dupes(),
+                'a sysop is told which'
             );
         });
 
@@ -625,6 +671,38 @@ describe('hiding infected file entries (#291)', function () {
                 assert.equal(transfer.sendQueue.length, 1);
                 return done();
             });
+        });
+    });
+
+    describe('FREQ by magic name or search directory', () => {
+        it('does not serve a file whose entry is marked infected', async () => {
+            const { FreqResolver } = require('../core/binkp/freq.js');
+            addFile(1);
+            addFile(2, { infected: true });
+            const storage = paths.join(dir, 'vis');
+            //  a search directory reached through a symbolic link
+            const linked = paths.join(dir, 'linked');
+            fs.symlinkSync(storage, linked);
+
+            const resolver = new FreqResolver({
+                magic: {
+                    CLEAN: paths.join(storage, 'file1.zip'),
+                    BAD: paths.join(storage, 'file2.zip'),
+                },
+                dirs: [linked],
+            });
+            const names = async list =>
+                (await resolver.resolveNames(list)).map(r => r.name);
+
+            assert.deepEqual(await names(['CLEAN', 'BAD']), ['file1.zip']);
+            assert.deepEqual(await names(['file1.zip', 'FILE2.ZIP']), ['file1.zip']);
+
+            config.fileBase.scanning.hideInfected = false;
+            assert.deepEqual(await names(['BAD', 'file2.zip']), [
+                'file2.zip',
+                'file2.zip',
+            ]);
+            fs.unlinkSync(linked);
         });
     });
 

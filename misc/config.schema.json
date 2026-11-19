@@ -2364,7 +2364,7 @@
                         "infectedVisibleAcs": {
                             "description": "ACS of users who still see, flagged, and can download entries hidden by hideInfected.",
                             "type": "string",
-                            "default": "GM[sysops]"
+                            "default": "GM[sysops]|ID1"
                         }
                     },
                     "patternProperties": {

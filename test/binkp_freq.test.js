@@ -95,7 +95,27 @@ function runToEnd(clientSess, serverSess) {
 
 // ── FreqResolver unit tests ───────────────────────────────────────────────────
 
+//
+//  No file database here to ask whether a served file's entry is marked
+//  infected (#291; file_base_visibility.test.js covers that), so the suites
+//  that resolve files run with hideInfected off.
+//
+function withoutHidingInfected() {
+    const configModule = require('../core/config.js');
+    let previousConfig;
+    before(() => {
+        previousConfig = configModule._pushTestConfig(
+            Object.assign({}, configModule.get(), {
+                fileBase: { scanning: { hideInfected: false } },
+            })
+        );
+    });
+    after(() => configModule._popTestConfig(previousConfig));
+}
+
 describe('FreqResolver', () => {
+    withoutHidingInfected();
+
     let dir;
     let nodelistPath;
     let zipPath;
@@ -191,6 +211,8 @@ describe('FreqResolver', () => {
 // ── Glob magic tests ──────────────────────────────────────────────────────────
 
 describe('FreqResolver — glob magic', () => {
+    withoutHidingInfected();
+
     let dir;
 
     before(async () => {
@@ -252,6 +274,8 @@ describe('FreqResolver — glob magic', () => {
 // ── Area resolver tests (file base stub) ─────────────────────────────────────
 
 describe('FreqResolver — area resolver', () => {
+    withoutHidingInfected();
+
     //  We stub the file_entry module so these tests run without a real ENiGMA
     //  database.  The stub is injected via require.cache before FreqResolver
     //  uses lazy-require('../file_entry.js').
@@ -384,6 +408,8 @@ describe('REQ_FILE_RE', () => {
 // ── End-to-end FREQ session test ──────────────────────────────────────────────
 
 describe('BinkpSession — FREQ end-to-end', () => {
+    withoutHidingInfected();
+
     let freqDir;
     let nodelistFile;
 

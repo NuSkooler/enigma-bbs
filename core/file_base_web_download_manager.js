@@ -207,8 +207,11 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                         'YYYY-MMM-DD @ h:mm';
 
                     const config = Config();
+                    //  only what they may still take (#291: removeHiddenItems()
+                    //  ran when the module was built, but a rescan may have
+                    //  flagged something since)
                     async.each(
-                        self.dlQueue.items,
+                        self.dlQueue.allowedItems,
                         (fileEntry, nextFileEntry) => {
                             FileAreaWeb.getExistingTempDownloadServeItem(
                                 self.client,

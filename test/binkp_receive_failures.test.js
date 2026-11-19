@@ -329,6 +329,20 @@ describe('BinkpSession — zero-byte write after teardown (#1090)', function () 
 // ── Case 4: every FREQ hold is given back ────────────────────────────────────
 
 describe('FREQ — M_EOB holds for a .req that does not complete (#1090)', function () {
+    //  no file database here to ask whether a served file's entry is marked
+    //  infected (#291); binkp_freq.test.js and file_base_visibility.test.js
+    //  cover that
+    const configModule = require('../core/config.js');
+    let previousConfig;
+    before(() => {
+        previousConfig = configModule._pushTestConfig(
+            Object.assign({}, configModule.get(), {
+                fileBase: { scanning: { hideInfected: false } },
+            })
+        );
+    });
+    after(() => configModule._popTestConfig(previousConfig));
+
     this.timeout(DEADLINE_MS + 5000);
 
     let tmp;

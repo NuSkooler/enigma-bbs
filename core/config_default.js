@@ -1745,7 +1745,7 @@ module.exports = () => {
 
                 //  Who still sees (flagged) and can download hidden infected
                 //  entries
-                infectedVisibleAcs: 'GM[sysops]',
+                infectedVisibleAcs: 'GM[sysops]|ID1',
             },
 
             //

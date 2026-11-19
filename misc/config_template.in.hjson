@@ -623,7 +623,7 @@
         //      //  entries a rescan marked infected are hidden from users
         //      //  (default true) but not from those passing this ACS
         //      hideInfected: true
-        //      infectedVisibleAcs: "GM[sysops]"
+        //      infectedVisibleAcs: "GM[sysops]|ID1"
         //      scanners: [
         //          {
         //              scanner: command
