@@ -455,6 +455,14 @@
                 }
 
                 //
+                //  Where the caller goes once the upload is done (or failed).
+                //  Defaults to fileBaseMainMenu; if that menu does not exist,
+                //  the caller is sent back to the menu the upload was started
+                //  from, and a warning is logged.
+                //
+                // uploadDoneMenu: fileBaseMainMenu
+
+                //
                 //  File (virus) scanning, when fileBase.scanning is enabled.
                 //  The uploader is told a file was refused and, generally,
                 //  why -- not the signature a scanner found, unless

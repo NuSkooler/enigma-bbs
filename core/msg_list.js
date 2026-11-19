@@ -69,6 +69,22 @@ function focusedMessageIndex(formData) {
     return _.get(formData, 'value.messageIndex', formData.value.message);
 }
 
+//
+//  Which row a freshly entered list focuses when nothing in it is new:
+//  'first' (the default, and what any other value means) or 'last', the
+//  final row as displayed. Area lists are built oldest first, so that is the
+//  newest message. A list supplied through |messageList| counts every message
+//  as new for focus, so it always opens on its first row.
+//  Returns undefined when the list should keep its default focus (the first
+//  row, with |initialFocusIndex| left unset exactly as before this option
+//  existed): setting 'first', an invalid setting or an empty list.
+//
+function pickNoneNewFocusIndex(setting, itemCount) {
+    return 'last' === setting && itemCount > 0 ? itemCount - 1 : undefined;
+}
+
+exports.pickNoneNewFocusIndex = pickNoneNewFocusIndex;
+
 exports.getModule = class MessageListModule extends (
     MessageAreaConfTempSwitcher(MenuModule)
 ) {
@@ -415,6 +431,29 @@ exports.getModule = class MessageListModule extends (
 
                             listItem.text = `${listItem.msgNum} - ${listItem.subject} from ${listItem.fromUserName}`; //  default text
                         });
+
+                        //
+                        //  Nothing new and not returning from a message: focus per
+                        //  |focusWhenNoneNew| (menu config or extraArgs). A restored
+                        //  state has already set |initialFocusIndex|.
+                        //
+                        const setting = self.config.focusWhenNoneNew;
+                        if (
+                            undefined !== setting &&
+                            'first' !== setting &&
+                            'last' !== setting
+                        ) {
+                            self.client.log.warn(
+                                { focusWhenNoneNew: setting },
+                                'Invalid focusWhenNoneNew; expected "first" or "last"'
+                            );
+                        }
+                        if (self.initialFocusIndex === undefined) {
+                            self.initialFocusIndex = pickNoneNewFocusIndex(
+                                setting,
+                                self.config.messageList.length
+                            );
+                        }
                         return callback(null);
                     },
                     function populateAndDrawViews(callback) {

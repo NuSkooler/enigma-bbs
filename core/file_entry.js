@@ -159,6 +159,28 @@ const SORTABLE_FILE_COLUMNS = [
     'upload_timestamp',
 ];
 
+//
+//  |hashTags| as a new Set of trimmed, non-empty tags: from a string
+//  ("a,b" or "a b", as areas and users type them), an array or a Set. Null
+//  for anything else, so callers can keep what they have.
+//
+function toHashTagSet(hashTags) {
+    let tags;
+    if (_.isString(hashTags)) {
+        tags = hashTags.split(/[\s,]+/);
+    } else if (Array.isArray(hashTags) || hashTags instanceof Set) {
+        tags = Array.from(hashTags);
+    } else {
+        return null;
+    }
+
+    return new Set(
+        tags
+            .map(tag => (_.isString(tag) || _.isFinite(tag) ? String(tag).trim() : ''))
+            .filter(tag => tag.length > 0)
+    );
+}
+
 module.exports = class FileEntry {
     constructor(options) {
         options = options || {};
@@ -166,7 +188,9 @@ module.exports = class FileEntry {
         this.fileId = options.fileId || 0;
         this.areaTag = options.areaTag || '';
         this.meta = Object.assign({ dl_count: 0 }, options.meta);
-        this.hashTags = options.hashTags || new Set();
+        //  Areas give hashTags as a string ("a,b"), an array or a Set; a
+        //  string kept as is would be iterated as single characters
+        this.hashTags = toHashTagSet(options.hashTags) || new Set();
         this.fileName = options.fileName;
         this.storageTag = options.storageTag;
         this.fileSha256 = options.fileSha256;
@@ -731,12 +755,9 @@ module.exports = class FileEntry {
     }
 
     setHashTags(hashTags) {
-        if (_.isString(hashTags)) {
-            this.hashTags = new Set(hashTags.split(/[\s,]+/));
-        } else if (Array.isArray(hashTags)) {
-            this.hashTags = new Set(hashTags);
-        } else if (hashTags instanceof Set) {
-            this.hashTags = hashTags;
+        const tags = toHashTagSet(hashTags);
+        if (tags) {
+            this.hashTags = tags;
         }
     }
 

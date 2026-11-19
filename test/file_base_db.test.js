@@ -1023,3 +1023,98 @@ describe('FileEntry.findByFileNameWildcard()', function () {
         });
     });
 });
+
+// ─── hash tags ────────────────────────────────────────────────────────────────
+
+//
+//  An area's hashTags reach a new entry as configured: a string ("uploads",
+//  "a,b"), an array or a Set. A string kept as is was iterated as single
+//  characters, so uploads were tagged u,p,l,o,a,d,s.
+//
+describe('FileEntry hash tags', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec(
+            'DELETE FROM file; DELETE FROM file_hash_tag; DELETE FROM hash_tag;'
+        );
+        done();
+    });
+
+    const tagsOf = entry => Array.from(entry.hashTags).sort();
+
+    describe('constructor', () => {
+        it('takes a single tag string as one tag', () => {
+            assert.deepEqual(tagsOf(makeEntry({ hashTags: 'uploads' })), ['uploads']);
+        });
+
+        it('splits a string on commas and whitespace, dropping empty tags', () => {
+            const entry = makeEntry({ hashTags: ' msk, scene,,audio  bbs ' });
+            assert.deepEqual(tagsOf(entry), ['audio', 'bbs', 'msk', 'scene']);
+        });
+
+        it('takes an array, trimmed, without empty or duplicate tags', () => {
+            const entry = makeEntry({ hashTags: [' scene ', 'scene', '', 'art'] });
+            assert.deepEqual(tagsOf(entry), ['art', 'scene']);
+        });
+
+        it('keeps numeric tags (HJSON reads [ 1990 ] as a number)', () => {
+            assert.deepEqual(tagsOf(makeEntry({ hashTags: [1990, 'demo'] })), [
+                '1990',
+                'demo',
+            ]);
+        });
+
+        it('copies a Set rather than sharing it', () => {
+            //  an area's Set lives in the cached config; tagging one entry
+            //  must not tag the area
+            const areaTags = new Set(['uploads']);
+            const entry = makeEntry({ hashTags: areaTags });
+            entry.hashTags.add('extra');
+            assert.deepEqual(Array.from(areaTags), ['uploads']);
+            assert.deepEqual(tagsOf(entry), ['extra', 'uploads']);
+        });
+
+        it('is an empty Set without hashTags, or with something unusable', () => {
+            for (const hashTags of [undefined, null, 42, { a: 1 }]) {
+                const entry = makeEntry({ hashTags });
+                assert.ok(entry.hashTags instanceof Set);
+                assert.equal(entry.hashTags.size, 0);
+            }
+        });
+    });
+
+    describe('setHashTags()', () => {
+        it('replaces the tags from a string a user typed', () => {
+            const entry = makeEntry({ hashTags: 'uploads' });
+            entry.setHashTags('testfile, demo');
+            assert.deepEqual(tagsOf(entry), ['demo', 'testfile']);
+        });
+
+        it('keeps the current tags when given something unusable', () => {
+            const entry = makeEntry({ hashTags: 'uploads' });
+            entry.setHashTags(undefined);
+            assert.deepEqual(tagsOf(entry), ['uploads']);
+        });
+    });
+
+    describe('persist()', () => {
+        it('stores an area tag string as one tag, not one per character', done => {
+            const entry = makeEntry({ hashTags: 'uploads' });
+            entry.persist(err => {
+                assert.ifError(err);
+                const loaded = new FileEntry();
+                loaded.load(entry.fileId, loadErr => {
+                    assert.ifError(loadErr);
+                    assert.deepEqual(tagsOf(loaded), ['uploads']);
+                    const stored = _testDb
+                        .prepare('SELECT hash_tag FROM hash_tag ORDER BY hash_tag')
+                        .all()
+                        .map(r => r.hash_tag);
+                    assert.deepEqual(stored, ['uploads']);
+                    done();
+                });
+            });
+        });
+    });
+});

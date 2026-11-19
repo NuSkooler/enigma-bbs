@@ -252,3 +252,38 @@ describe('msg_list: the focused row', () => {
         });
     });
 });
+
+describe('msg_list: focusWhenNoneNew', () => {
+    const { pickNoneNewFocusIndex } = require('../core/msg_list.js');
+
+    it('focuses the last row for "last"', () => {
+        assert.equal(pickNoneNewFocusIndex('last', 5), 4);
+        assert.equal(pickNoneNewFocusIndex('last', 1), 0);
+    });
+
+    it('keeps the default focus for "first", unset and invalid values', () => {
+        [undefined, 'first', 'LAST', 'bogus', 3, null].forEach(v => {
+            assert.equal(pickNoneNewFocusIndex(v, 5), undefined);
+        });
+    });
+
+    it('copes with an empty list', () => {
+        assert.equal(pickNoneNewFocusIndex('last', 0), undefined);
+    });
+
+    it('is read from extraArgs ahead of the menu config', () => {
+        const mod = new MessageListModule({
+            menuName: 'x',
+            menuConfig: { config: { focusWhenNoneNew: 'first' } },
+            extraArgs: { focusWhenNoneNew: 'last' },
+            client: { log: { error: () => {}, info: () => {} }, user: { userId: 1 } },
+        });
+        assert.equal(mod.config.focusWhenNoneNew, 'last');
+    });
+
+    it('restores a saved focus untouched', () => {
+        const mod = makeList({ focusWhenNoneNew: 'last' });
+        mod.restoreSavedState({ initialFocusIndex: 1 });
+        assert.equal(mod.initialFocusIndex, 1);
+    });
+});
