@@ -43,9 +43,9 @@ The `msg_list` module lists the messages in an area. When the caller enters it, 
 | Value | Focus when nothing is new |
 |-------|---------------------------|
 | `first` | The first message (default; also used for any other value, which is logged) |
-| `last` | The last message as displayed. Area lists run oldest to newest, so that is the most recent message. A list given as `messageList` is used in its own order. |
+| `last` | The last message. Area lists run oldest to newest, so that is the most recent message. |
 
-It goes in the menu's `config` block, or in `extraArgs` from a module or menu action that opens the list (`extraArgs` wins over `config`). It only applies when the list is entered; coming back from reading a message returns to the message that was read.
+It goes in the menu's `config` block, or in `extraArgs` from a module or menu action that opens the list (`extraArgs` wins over `config`). It only applies when the list is entered; coming back from reading a message returns to the message that was read. It applies to area lists only: a list another module hands over as `messageList` (such as My Messages or search results) always opens on its first message.
 
 ```hjson
 messageBaseMessageList: {
