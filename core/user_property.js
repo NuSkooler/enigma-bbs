@@ -89,6 +89,10 @@ module.exports = {
 
     NewPrivateMailCount: 'new_private_mail_count', //  non-persistent
     NewAddressedToMessageCount: 'new_addr_to_msg_count', //  non-persistent
+    NewMessageCountCurrentArea: 'new_msg_count_cur_area', //  non-persistent
+    NewMessageCountCurrentConf: 'new_msg_count_cur_conf', //  non-persistent
+    NewMessageCountNewScan: 'new_msg_count_new_scan', //  non-persistent
+    MessageCountCurrentArea: 'msg_count_cur_area', //  non-persistent
     SSHPubKey: 'ssh_public_key', //  OpenSSH format (ssh-keygen, etc.)
     AuthFactor1Types: 'auth_factor1_types', //  List of User.AuthFactor1Types value(s)
     AuthFactor2OTP: 'auth_factor2_otp', //  If present, OTP type for 2FA. See OTPTypes
