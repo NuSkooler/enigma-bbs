@@ -284,50 +284,54 @@
                 //  Paths are under /_enig/api/v1/
                 restApi: {
                     enabled: false
+                }
+            }
 
-                    //  CORS allowed origins. [] = no CORS headers (default/safest).
-                    //  Set to ["*"] to allow any origin (public read endpoints only).
-                    //  Set to specific origins: ["https://example.com"]
-                    corsAllowedOrigins: []
+            //  ENiGMA½ REST API v1 settings. Switch the API on and off with
+            //  handlers.restApi.enabled above; everything else lives here.
+            restApi: {
+                //  CORS allowed origins. [] = no CORS headers (default/safest).
+                //  Set to ["*"] to allow any origin (public read endpoints only).
+                //  Set to specific origins: ["https://example.com"]
+                corsAllowedOrigins: []
 
-                    //  Optional: override the JWT signing secret (e.g. for multi-node
-                    //  setups that share a secret). If omitted, ENiGMA auto-generates
-                    //  one on first run and stores it in the database.
-                    //  Use @file: or @environment: to avoid storing it in plain text:
-                    //  jwtSecret: "@file:/run/secrets/jwt_secret"
+                //  Optional: override the JWT signing secret (e.g. for multi-node
+                //  setups that share a secret). If omitted, ENiGMA auto-generates
+                //  one on first run and stores it in the database.
+                //  Use @file: or @environment: to avoid storing it in plain text:
+                //  jwtSecret: "@file:/run/secrets/jwt_secret"
 
-                    //  Control which system endpoints are public vs. auth-required.
-                    //  Defaults: info, last-callers, stats = public; nodes = auth required.
-                    //  system: {
-                    //      public: {
-                    //          info: true
-                    //          nodes: false
-                    //          last-callers: true
-                    //          stats: true
-                    //      }
-                    //  }
+                //  Control which system endpoints are public vs. auth-required.
+                //  Defaults: info, last-callers, stats = public; nodes = auth required.
+                //  system: {
+                //      public: {
+                //          info: true
+                //          nodes: false
+                //          last-callers: true
+                //          stats: true
+                //      }
+                //  }
 
-                    //  Message areas exposed to unauthenticated (public) requests.
-                    //  ACS still applies for authenticated users.
-                    //  Uses include/exclude glob patterns against area tags.
-                    messages: {
-                        publicAccess: {
-                            //  Example: expose all local areas except private ones
-                            //  local: {
-                            //      include: ["*"]
-                            //      exclude: ["private*"]
-                            //  }
-                        }
+                //  Message areas exposed to unauthenticated (public) requests.
+                //  ACS still applies for authenticated users.
+                //  Uses include/exclude glob patterns against area tags.
+                messages: {
+                    publicAccess: {
+                        //  Example: expose all local areas except private ones
+                        //  local: {
+                        //      include: ["*"]
+                        //      exclude: ["private*"]
+                        //  }
                     }
+                }
 
-                    //  File areas exposed to unauthenticated (public) requests.
-                    files: {
-                        publicAccess: {
-                            //  Example:
-                            //  local: {
-                            //      include: ["*"]
-                            //  }
-                        }
+                //  File areas exposed to unauthenticated (public) requests.
+                files: {
+                    publicAccess: {
+                        //  Example:
+                        //  local: {
+                        //      include: ["*"]
+                        //  }
                     }
                 }
             }
@@ -614,12 +618,18 @@
         //      failAction: quarantine
         //      //  inbox recipients for rejection notices
         //      notifyUserIds: [ 1 ]
+        //      //  most scanners running at once; the rest wait their turn
+        //      maxConcurrent: 2
         //      scanners: [
         //          {
         //              scanner: command
         //              cmd: clamscan
+        //              //  --alert-exceeds-max=yes: a file too big for
+        //              //  ClamAV to finish is rejected, not passed as clean
+        //              //  (for clamdscan: "AlertExceedsMax yes" in clamd.conf)
         //              args: [
         //                  "--no-summary"
+        //                  "--alert-exceeds-max=yes"
         //                  "{filePath}"
         //              ]
         //              //  any other exit code is an error
@@ -632,7 +642,9 @@
         //              sources: [ "upload", "web", "tic" ]
         //              fileTypes: "*"
         //              timeout: 60000
-        //              //  hold (quarantine the file) | accept
+        //              //  hold (quarantine the file) | accept. Under accept an
+        //              //  attacker can make the scanner fail (time out) and
+        //              //  get the file through: not for a scanner you rely on
         //              onError: hold
         //          }
         //      ]
