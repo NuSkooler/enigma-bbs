@@ -1102,22 +1102,23 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     //
-    //  The format for custom view |id| of |formName|. An operator's setting
-    //  (menu `config` / theme) always wins, including an empty string, which
-    //  hides the view even when the module has a default for it. Absent that,
-    //  the module's default, else undefined. A format that comes out empty is
-    //  treated as unset by the callers (no view, nothing drawn).
+    //  The format for custom view |id| of |formName|. Anything an operator
+    //  sets (menu `config` / theme) always wins, including an empty string,
+    //  null or false, which hide the view even when the module has a default
+    //  for it. Absent that, the module's default, else undefined. A format
+    //  that comes out empty is treated as unset by the callers (no view,
+    //  nothing drawn).
     //
     getCustomInfoFormat(formName, id) {
         const config = (this.menuConfig && this.menuConfig.config) || {};
         const configured = config[`${formName}InfoFormat${id}`];
-        if ('string' === typeof configured) {
+        if (undefined !== configured) {
             return configured;
         }
 
         const defaults = this.getDefaultCustomInfoFormats(formName) || {};
         const dflt = defaults[id];
-        return 'string' === typeof dflt ? dflt : configured;
+        return 'string' === typeof dflt ? dflt : undefined;
     }
 
     getCustomViewsWithFilter(formName, startId, options) {

@@ -198,7 +198,7 @@ getDefaultCustomInfoFormats(formName) {
 ```
 
 * An operator's `config` (or theme) entry always wins over a default.
-* Setting an entry to an empty string (`mainInfoFormat10: ""`) hides that view even though the module has a default for it. For a module without a default, an empty string is the same as not setting it.
+* Setting an entry to an empty string or `null` (`mainInfoFormat10: ""`) hides that view even though the module has a default for it. For a module without a default, either is the same as not setting it.
 * Never write defaults into `this.menuConfig.config`: it is the shared, cached theme object. `getCustomInfoFormat(formName, id)` is the lookup, and `getCustomViewsWithFilter()` (including its `filter` option) and `updateCustomViewTextsWithFilter()` both use it.
 
 ## Custom Mods

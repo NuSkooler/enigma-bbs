@@ -82,6 +82,17 @@ describe('MenuModule custom info format defaults', () => {
         assert.equal(views[11].text, 'Hi Bo');
     });
 
+    it('an operator null or false hides a defaulted view', () => {
+        for (const value of [null, false]) {
+            const { mod, views } = makeModule(DefaultsModule, {
+                mainInfoFormat10: value,
+            });
+            assert.deepEqual(ids(mod.getCustomViewsWithFilter('main', 10)), [11]);
+            mod.updateCustomViewTextsWithFilter('main', 10, { count: 2, name: 'Bo' });
+            assert.equal(views[10].text, '');
+        }
+    });
+
     it('options.filter tests the default format', () => {
         const { mod } = makeModule(DefaultsModule, {});
         assert.deepEqual(
