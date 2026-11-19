@@ -68,7 +68,14 @@ const argvOptions = (exports.argvOptions = {
         'phys-file',
         'allow',
         'list',
+        //  minimist reads --no-scan as scan=false; listed so it never takes
+        //  the next positional
+        'no-scan',
     ],
+    //  Values that must stay text: a SHA-256 or a name can be all digits,
+    //  and minimist would otherwise make it a number (and a long one, an
+    //  inexact one).
+    string: ['remove', 'note', 'area', 'name'],
 });
 const argv = (exports.argv = require('minimist')(process.argv.slice(2), argvOptions));
 

@@ -14,7 +14,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const paths = require('path');
-const Database = require('better-sqlite3');
+const _ = require('lodash');
 
 const configModule = require('../core/config.js');
 const configDefault = require('../core/config_default.js');
@@ -62,38 +62,8 @@ describe('file scanning quarantine (#291)', function () {
         Allowlist = require('../core/file_scan_allowlist.js');
 
         prevFileDb = dbModule.dbs.file;
-        fileDb = new Database(':memory:');
-        fileDb.exec(`
-            CREATE TABLE file (
-                file_id                 INTEGER PRIMARY KEY,
-                area_tag                VARCHAR NOT NULL,
-                file_sha256             VARCHAR NOT NULL,
-                file_name,
-                storage_tag             VARCHAR NOT NULL,
-                storage_tag_rel_path    VARCHAR DEFAULT NULL,
-                desc,
-                desc_long,
-                upload_timestamp        DATETIME NOT NULL
-            );
-            CREATE TABLE file_meta (
-                file_id     INTEGER NOT NULL,
-                meta_name   VARCHAR NOT NULL,
-                meta_value  VARCHAR NOT NULL,
-                UNIQUE(file_id, meta_name, meta_value)
-            );
-            CREATE TABLE hash_tag (
-                hash_tag_id INTEGER PRIMARY KEY,
-                hash_tag    VARCHAR NOT NULL,
-                UNIQUE(hash_tag)
-            );
-            CREATE TABLE file_hash_tag (
-                hash_tag_id INTEGER NOT NULL,
-                file_id     INTEGER NOT NULL,
-                UNIQUE(hash_tag_id, file_id)
-            );
-            ${Allowlist.AllowlistTableSql}
-        `);
-        dbModule.dbs.file = fileDb;
+        //  the real schema: foreign keys, cascades and triggers included
+        fileDb = dbModule.createFileDatabase();
 
         FRESH.forEach(m => {
             const key = require.resolve(m);
@@ -120,9 +90,10 @@ describe('file scanning quarantine (#291)', function () {
 
     beforeEach(() => {
         fileDb.exec(`
-            DELETE FROM file; DELETE FROM file_meta; DELETE FROM file_hash_tag;
-            DELETE FROM hash_tag; DELETE FROM file_scan_allowlist;
+            DELETE FROM file_meta; DELETE FROM file_hash_tag; DELETE FROM hash_tag;
+            DELETE FROM file; DELETE FROM file_scan_allowlist;
         `);
+        scannerMode = 'normal';
         dir = fs.realpathSync(fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-quar-')));
         fs.mkdirSync(storageDir(), { recursive: true });
 
@@ -140,8 +111,35 @@ describe('file scanning quarantine (#291)', function () {
         };
         config.fileBase.scanning = Object.assign({}, configDefault().fileBase.scanning, {
             enabled: true,
-            scanners: [],
+            scanners: [{ scanner: STUB_SCANNER }],
         });
+    });
+
+    //
+    //  The scanner a release scans with: anything containing "VIRUS" is
+    //  infected, the rest clean -- or, in 'down' mode, it fails (held).
+    //
+    const STUB_SCANNER = `quarantine_stub_${process.pid}`;
+    let scannerMode = 'normal';
+    let scanned = [];
+    before(() => {
+        FileScanner.registerScanner(STUB_SCANNER, {
+            scan(filePath, ctx, cb) {
+                scanned.push({ filePath, ctx });
+                if ('down' === scannerMode) {
+                    return cb(null, { result: 'error', detail: 'clamd is not running' });
+                }
+                return cb(
+                    null,
+                    fs.readFileSync(filePath, 'latin1').includes('VIRUS')
+                        ? { result: 'infected', signature: 'Test-Virus' }
+                        : { result: 'clean' }
+                );
+            },
+        });
+    });
+    beforeEach(() => {
+        scanned = [];
     });
 
     afterEach(() => {
@@ -295,7 +293,7 @@ describe('file scanning quarantine (#291)', function () {
             assert.ok(byName['gone.zip'].sidecar);
         });
 
-        it("never takes a quarantined .json file for another file's sidecar", async () => {
+        it('never gives a quarantined file a sidecar name', async () => {
             //  the uploader sends "evil.json" first, forging a sidecar for
             //  the "evil" they send next
             const forged = JSON.stringify({
@@ -304,23 +302,56 @@ describe('file scanning quarantine (#291)', function () {
                 areaTag: 'other',
                 sha256: sha256('EICAR evil'),
             });
-            await quarantine('evil.json', forged);
+            assert.equal(await quarantine('evil.json', forged), 'evil.jso_');
+            assert.equal(await quarantine('EVIL.JSON', forged), 'EVIL.JSO_');
             await quarantine('evil', 'EICAR evil');
 
             assert.deepEqual(ls(quarantineDir()), [
+                'EVIL.JSO_',
+                'EVIL.JSO_.json',
                 'evil',
-                'evil.1.json',
+                'evil.jso_',
+                'evil.jso_.json',
                 'evil.json',
-                'evil.json.json',
             ]);
 
             const items = await list();
             const evil = items.find(i => 'evil' === i.quarantineName);
             assert.equal(evil.sidecar.originalName, 'evil', 'the real sidecar');
-            assert.ok(evil.sidecarPath.endsWith('evil.1.json'));
-            const json = items.find(i => 'evil.json' === i.quarantineName);
-            assert.ok(json, 'evil.json is listed as a quarantined file');
+            assert.ok(evil.sidecarPath.endsWith('evil.json'));
+            const json = items.find(i => 'evil.jso_' === i.quarantineName);
             assert.equal(json.sidecar.originalName, 'evil.json');
+        });
+
+        //  quarantine directories from before .json was defanged
+        it("never takes an old quarantined .json file for another file's sidecar", async () => {
+            const q = quarantineDir();
+            fs.mkdirSync(q, { recursive: true });
+            const write = (name, data) =>
+                fs.writeFileSync(
+                    paths.join(q, name),
+                    _.isString(data) ? data : JSON.stringify(data)
+                );
+            write('evil.json', {
+                quarantineName: 'evil',
+                originalName: 'nice.txt',
+                sha256: sha256('EICAR evil'),
+            });
+            write('evil.json.json', {
+                quarantineName: 'evil.json',
+                originalName: 'evil.json',
+            });
+            write('evil', 'EICAR evil');
+            write('evil.1.json', { quarantineName: 'evil', originalName: 'evil' });
+
+            const items = await list();
+            const evil = items.find(i => 'evil' === i.quarantineName);
+            assert.equal(evil.sidecar.originalName, 'evil');
+            assert.ok(evil.sidecarPath.endsWith('evil.1.json'));
+            assert.equal(
+                items.find(i => 'evil.json' === i.quarantineName).sidecar.originalName,
+                'evil.json'
+            );
         });
     });
 
@@ -360,7 +391,17 @@ describe('file scanning quarantine (#291)', function () {
             assert.equal(meta.upload_by_user_id, '7');
             assert.equal(meta.quarantine_released_by, 'oputil:test');
             assert.ok(meta.quarantine_released_at);
-            assert.equal(meta.scan_result, undefined, 'not scanned, not marked clean');
+            assert.equal(meta.scan_result, 'clean', 'scanned before release');
+            assert.equal(meta.scanner, STUB_SCANNER);
+            assert.equal(res.verdict.result, 'clean');
+            assert.equal(scanned.length, 1);
+            assert.equal(
+                scanned[0].filePath,
+                paths.join(quarantineDir(), 'cool.ex_'),
+                'scanned where it lay in quarantine'
+            );
+            assert.equal(scanned[0].ctx.source, 'oputil');
+            assert.equal(scanned[0].ctx.fileName, 'cool.exe');
 
             const tags = fileDb
                 .prepare(
@@ -557,6 +598,153 @@ describe('file scanning quarantine (#291)', function () {
             assert.equal(entries()[0].file_name, 'cool(1).exe');
         });
 
+        it('a file the scan still flags stays in quarantine; --allow releases it', async () => {
+            await quarantine('real.exe', 'a VIRUS');
+            let { err } = await release('real.ex_');
+            assert.ok(err && /rejected it/.test(err.message), err && err.message);
+            assert.ok(/--allow/.test(err.message));
+            assert.deepEqual(ls(quarantineDir()), ['real.ex_', 'real.ex_.json']);
+            assert.deepEqual(ls(storageDir()), []);
+            assert.equal(entries().length, 0);
+
+            //  the operator says it is a false positive
+            let res;
+            ({ err, res } = await release('real.ex_', { allow: true }));
+            assert.ifError(err);
+            assert.equal(res.verdict.result, 'clean');
+            assert.equal(res.verdict.scanner, 'allowlist', 'passed by the allowlist');
+            const meta = metaOf(entries()[0].file_id);
+            assert.equal(meta.scan_result, 'clean');
+            assert.equal(meta.scanner, 'allowlist');
+        });
+
+        it('a held file stays in quarantine while the scanner is down', async () => {
+            await quarantine('held.zip', 'maybe fine');
+            scannerMode = 'down';
+            let { err } = await release('held.zip');
+            assert.ok(err && /could not check it/.test(err.message), err && err.message);
+            assert.deepEqual(ls(quarantineDir()), ['held.zip', 'held.zip.json']);
+            assert.equal(entries().length, 0);
+
+            scannerMode = 'normal';
+            ({ err } = await release('held.zip'));
+            assert.ifError(err);
+            assert.equal(metaOf(entries()[0].file_id).scan_result, 'clean');
+        });
+
+        it('with nothing to scan it, a release is refused unless --no-scan', async () => {
+            config.fileBase.scanning.enabled = false;
+            await quarantine('a.zip', 'a VIRUS');
+            let { err, res } = await release('a.zip');
+            assert.ok(err && /--no-scan/.test(err.message), err && err.message);
+            assert.equal(entries().length, 0);
+
+            ({ err, res } = await release('a.zip', { noScan: true }));
+            assert.ifError(err);
+            assert.equal(res.verdict, null);
+            assert.equal(scanned.length, 0);
+            assert.equal(metaOf(entries()[0].file_id).scan_result, undefined);
+        });
+
+        it('--no-scan releases without scanning even a flagged file', async () => {
+            await quarantine('a.zip', 'a VIRUS');
+            const { err } = await release('a.zip', { noScan: true });
+            assert.ifError(err);
+            assert.equal(scanned.length, 0);
+            assert.equal(entries().length, 1);
+        });
+
+        it('--allow on a release that fails takes the hash off the allowlist again', async () => {
+            await quarantine('a.zip', 'fine bytes');
+            //  the import fails: the area's storage directory is a file
+            fs.rmSync(storageDir(), { recursive: true, force: true });
+            fs.writeFileSync(storageDir(), 'not a directory');
+
+            const { err } = await release('a.zip', { allow: true });
+            assert.ok(err);
+            assert.equal(err.allowlistRolledBack, true);
+            assert.equal(Allowlist.lookup(sha256('fine bytes')), null);
+            assert.deepEqual(ls(quarantineDir()), ['a.zip', 'a.zip.json']);
+        });
+
+        it('--allow leaves a hash that was already allowlisted there', async () => {
+            await new Promise(r =>
+                Allowlist.add({ sha256: sha256('fine bytes'), addedBy: 'earlier' }, r)
+            );
+            await quarantine('a.zip', 'fine bytes');
+            fs.rmSync(storageDir(), { recursive: true, force: true });
+            fs.writeFileSync(storageDir(), 'not a directory');
+
+            const { err } = await release('a.zip', { allow: true });
+            assert.ok(err);
+            assert.equal(err.allowlistRolledBack, undefined);
+            assert.equal(Allowlist.lookup(sha256('fine bytes')).addedBy, 'earlier');
+        });
+
+        it('a release that fails after the move puts the file back as it was', async () => {
+            await quarantine('a.zip', 'fine bytes');
+            //  swapped after the scan: the import's own hash will not match
+            const FileArea = require('../core/file_base_area.js');
+            const realScanFile = FileArea.scanFile;
+            FileArea.scanFile = (filePath, options, cb) => {
+                fs.writeFileSync(filePath, 'swapped');
+                return realScanFile(filePath, options, cb);
+            };
+            let result;
+            try {
+                result = await release('a.zip');
+            } finally {
+                FileArea.scanFile = realScanFile;
+            }
+            assert.ok(result.err && /changed/.test(result.err.message));
+            assert.deepEqual(ls(quarantineDir()), ['a.zip', 'a.zip.json']);
+            assert.deepEqual(ls(storageDir()), []);
+            if ('win32' !== process.platform) {
+                assert.equal(
+                    fs.statSync(paths.join(quarantineDir(), 'a.zip')).mode & 0o777,
+                    0o600,
+                    '0600 again'
+                );
+            }
+        });
+
+        it('a file put back under another name takes its sidecar with it', async () => {
+            await quarantine('a.zip', 'fine bytes');
+            const FileArea = require('../core/file_base_area.js');
+            const realScanFile = FileArea.scanFile;
+            FileArea.scanFile = (filePath, options, cb) => {
+                //  something takes its quarantine name meanwhile, and the
+                //  import fails
+                fs.writeFileSync(paths.join(quarantineDir(), 'a.zip'), 'interloper');
+                return cb(new Error('import failed'));
+            };
+            let result;
+            try {
+                result = await release('a.zip');
+            } finally {
+                FileArea.scanFile = realScanFile;
+            }
+            assert.ok(result.err);
+            assert.equal(paths.basename(result.err.movedBackTo), 'a(1).zip');
+            const items = await list();
+            const back = items.find(i => 'a(1).zip' === i.quarantineName);
+            assert.ok(back.sidecar, 'its sidecar follows it');
+            assert.equal(back.sidecar.quarantineName, 'a(1).zip');
+            assert.equal(back.sidecar.sha256, sha256('fine bytes'));
+            assert.ok(!ls(quarantineDir()).includes('a.zip.json'), 'the old one is gone');
+        });
+
+        it('refuses invisible format characters in a released name', async () => {
+            for (const bad of [
+                'evil\u202etxt.exe',
+                'zero\u200bwidth.zip',
+                'line\u2028sep.zip',
+            ]) {
+                assert.ok(Quarantine.releaseNameProblem(JSON.parse(`"${bad}"`)), bad);
+            }
+            assert.equal(Quarantine.releaseNameProblem('plain.zip'), null);
+        });
+
         it('refuses a file the file base already has', async () => {
             fs.writeFileSync(paths.join(storageDir(), 'have.zip'), 'EICAR dupe');
             fileDb
@@ -605,6 +793,44 @@ describe('file scanning quarantine (#291)', function () {
             assert.ifError((await del('a.ex_')).err);
             assert.ifError((await del('bare.zip')).err);
             assert.deepEqual(ls(quarantineDir()), []);
+        });
+
+        it('an ambiguous file goes with every sidecar that claims it', async () => {
+            await quarantine('a.zip', 'EICAR a');
+            fs.copyFileSync(
+                paths.join(quarantineDir(), 'a.zip.json'),
+                paths.join(quarantineDir(), 'a.zip.1.json')
+            );
+            const { err, res } = await del('a.zip');
+            assert.ifError(err);
+            assert.equal(res.removed.length, 3);
+            assert.deepEqual(ls(quarantineDir()), []);
+        });
+
+        it('reports what was already gone rather than deleting it', async () => {
+            await quarantine('a.zip', 'EICAR a');
+            const gfs = require('graceful-fs');
+            const realUnlink = gfs.unlink;
+            const target = paths.join(quarantineDir(), 'a.zip');
+            //  gone between the listing and the delete
+            gfs.unlink = (p, cb) => {
+                if (p === target) {
+                    fs.unlinkSync(p);
+                }
+                return realUnlink(p, cb);
+            };
+            let result;
+            try {
+                result = await del('a.zip');
+            } finally {
+                gfs.unlink = realUnlink;
+            }
+            assert.ifError(result.err);
+            assert.deepEqual(result.res.missing, [target]);
+            assert.deepEqual(
+                result.res.removed.map(p => paths.basename(p)),
+                ['a.zip.json']
+            );
         });
 
         it('refuses a name that is not in quarantine', async () => {

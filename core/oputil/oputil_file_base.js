@@ -979,15 +979,29 @@ function scanFileAreas() {
     );
 }
 
-//  Names and scanner output from the database: no control characters on the
-//  operator's terminal.
-function consoleText(s) {
-    // eslint-disable-next-line no-control-regex
-    return String(_.isUndefined(s) || null === s ? '' : s).replace(
-        /[\x00-\x1f\x7f-\x9f]/g,
+//
+//  Names and scanner output from the database, often from outside: no
+//  control characters on the operator's terminal, and none of the invisible
+//  format characters (U+202E RIGHT-TO-LEFT OVERRIDE, zero widths, ...) or
+//  line and paragraph separators that would make one line read as another.
+//  |maxLength| caps it, with "..." to show it was cut.
+//
+function consoleText(s, maxLength) {
+    const text = String(_.isUndefined(s) || null === s ? '' : s).replace(
+        // eslint-disable-next-line no-control-regex
+        /[\x00-\x1f\x7f-\x9f\p{Cf}\p{Zl}\p{Zp}]/gu,
         '?'
     );
+    if (_.isFinite(maxLength) && text.length > maxLength) {
+        return `${text.slice(0, maxLength)}...`;
+    }
+    return text;
 }
+
+//  What a remote field (an uploader's file name, a TIC origin, scanner
+//  output) may take up on a listing line
+const MAX_REMOTE_FIELD_CHARS = 128;
+const remoteText = s => consoleText(s, MAX_REMOTE_FIELD_CHARS);
 
 //
 //  virus-scan CRITERIA: each is an area tag (simple wildcards allowed; "*" is
@@ -1909,7 +1923,8 @@ function valueArg(name) {
     if (_.isUndefined(value)) {
         return { value: undefined };
     }
-    if (!_.isString(value) && !_.isNumber(value)) {
+    //  a string option given without a value is ''
+    if ((!_.isString(value) && !_.isNumber(value)) || '' === value) {
         return { error: Errors.Invalid(`--${name} needs a value`) };
     }
     return { value: String(value) };
@@ -1924,9 +1939,9 @@ function printQuarantineItem(item) {
     const when = sc.quarantinedAt || (item.mtime && item.mtime.toISOString());
 
     console.info(
-        `${consoleText(item.quarantineName)}  ${
+        `${remoteText(item.quarantineName)}  ${
             item.exists ? formatBytes(item.byteSize) : '(file missing)'
-        }  ${consoleText(when || '')}`
+        }  ${remoteText(when || '')}`
     );
 
     if (!item.sidecar) {
@@ -1939,7 +1954,7 @@ function printQuarantineItem(item) {
     }
 
     const line = (label, value) =>
-        console.info(`    ${label.padEnd(10)}${consoleText(value)}`);
+        console.info(`    ${label.padEnd(10)}${remoteText(value)}`);
 
     line('original', sc.originalName || '?');
     let from = sc.source || '?';
@@ -1991,7 +2006,7 @@ function quarantineList() {
 function quarantineRelease() {
     //
     //  oputil fb quarantine release NAME [--area TAG] [--name NEWNAME]
-    //      [--allow [--note TEXT]]
+    //      [--allow [--note TEXT]] [--no-scan]
     //
     const name = argv._[3];
     if (!name || argv._.length > 4) {
@@ -2006,6 +2021,7 @@ function quarantineRelease() {
         return printUsageAndSetExitCode(badArg.message, ExitCodes.BAD_ARGS);
     }
     const allow = true === argv.allow;
+    const noScan = false === argv.scan;
     if (note.value && !allow) {
         return printUsageAndSetExitCode(
             '--note is for the allowlist entry; it needs --allow',
@@ -2025,6 +2041,7 @@ function quarantineRelease() {
                         fileName: newName.value,
                         allow,
                         note: note.value,
+                        noScan,
                     },
                     callback
                 ),
@@ -2032,9 +2049,30 @@ function quarantineRelease() {
         (err, res) => {
             if (err) {
                 process.exitCode = ExitCodes.ERROR;
-                return console.error(err.message);
+                console.error(consoleText(err.message));
+                if (err.movedBackTo) {
+                    console.error(
+                        `It is back in quarantine as ${consoleText(err.movedBackTo)}`
+                    );
+                }
+                if (err.allowlistRolledBack) {
+                    console.error('Its SHA-256 was taken off the allowlist again');
+                } else if (err.allowlistRollbackFailed) {
+                    console.error(
+                        'Its SHA-256 is still on the allowlist: remove it with "fb mark-safe --remove SHA256"'
+                    );
+                }
+                return;
             }
             const e = res.fileEntry;
+            const v = res.verdict;
+            console.info(
+                v
+                    ? `Scanned before release: ${consoleText(v.result)} (${consoleText(
+                          v.scanner || _.uniq(v.results.map(r => r.scanner)).join(',')
+                      )})`
+                    : 'Not scanned before release (--no-scan)'
+            );
             console.info(
                 `Released ${consoleText(name)} as ${consoleText(res.path)} (file ID ${
                     e.fileId
@@ -2107,6 +2145,11 @@ function quarantineDelete() {
                 return console.error(err.message);
             }
             res.removed.forEach(p => console.info(`Deleted ${consoleText(p)}`));
+            res.missing.forEach(p => console.info(`Already gone: ${consoleText(p)}`));
+            if (0 === res.removed.length) {
+                process.exitCode = ExitCodes.ERROR;
+                console.error('Nothing was deleted');
+            }
         }
     );
 }
@@ -2127,16 +2170,16 @@ function quarantineCommand() {
 }
 
 function printAllowlistEntry(e) {
-    console.info(e.sha256);
-    console.info(`    added     ${consoleText(e.addedAt)} by ${consoleText(e.addedBy)}`);
+    console.info(consoleText(e.sha256));
+    console.info(`    added     ${remoteText(e.addedAt)} by ${remoteText(e.addedBy)}`);
     if (e.originalName) {
-        console.info(`    name      ${consoleText(e.originalName)}`);
+        console.info(`    name      ${remoteText(e.originalName)}`);
     }
     if (e.signature) {
-        console.info(`    signature ${consoleText(e.signature)}`);
+        console.info(`    signature ${remoteText(e.signature)}`);
     }
     if (e.note) {
-        console.info(`    note      ${consoleText(e.note)}`);
+        console.info(`    note      ${remoteText(e.note)}`);
     }
 }
 
@@ -2188,8 +2231,16 @@ function resolveMarkSafeTarget(target, cb) {
             if ('ENOENT' !== err.code) {
                 return cb(err);
             }
+            //  nothing on disk to check the recorded hash against
+            if (true !== argv.force) {
+                return cb(
+                    Errors.DoesNotExist(
+                        `${consoleText(filePath)} is missing, so its SHA-256 cannot be checked. Give the SHA-256 you mean to allow, or --force to use the one recorded for the entry`
+                    )
+                );
+            }
             console.warn(
-                `Warning: ${consoleText(filePath)} is missing; using the SHA-256 recorded for the entry`
+                `Warning: ${consoleText(filePath)} is missing; using the SHA-256 recorded for the entry (--force)`
             );
             return cb(null, info);
         });

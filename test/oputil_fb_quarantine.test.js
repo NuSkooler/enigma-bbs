@@ -170,6 +170,26 @@ describe('oputil fb quarantine / mark-safe', function () {
         assert.deepEqual(argv._, ['fb', 'quarantine', 'release', 'EVIL.EX_']);
         assert.equal(argv.allow, true);
         assert.equal(argv.note, 'fp');
+
+        //  --no-scan never takes the name
+        const noScan = minimist(
+            ['fb', 'quarantine', 'release', '--no-scan', 'EVIL.EX_'],
+            argvOptions
+        );
+        assert.deepEqual(noScan._, ['fb', 'quarantine', 'release', 'EVIL.EX_']);
+        assert.equal(noScan.scan, false);
+    });
+
+    it('keeps an all-digit SHA-256, note or name as text', () => {
+        const { argvOptions } = require('../core/oputil/oputil_common.js');
+        const digits = '1'.repeat(64);
+        const argv = require('minimist')(
+            ['fb', 'mark-safe', '--remove', digits, '--note', '0123', '--name', '007'],
+            argvOptions
+        );
+        assert.equal(argv.remove, digits);
+        assert.equal(argv.note, '0123');
+        assert.equal(argv.name, '007');
     });
 
     it('quarantines, lists, releases with --allow, then lets the same bytes through', async () => {
@@ -323,6 +343,76 @@ describe('oputil fb quarantine / mark-safe', function () {
             assert.notEqual(r.code, 0, `${args.join(' ')}: ${r.out}`);
         }
         assert.deepEqual(allowlist(root), []);
+    });
+
+    it('release scans first: a flagged file needs --allow; --no-scan skips the scan', async () => {
+        const { root, storage } = await makeFixture();
+        await fsp.writeFile(path.join(storage, 'EVIL.EXE'), EICAR);
+        await fsp.writeFile(path.join(storage, 'OTHER.EXE'), `${EICAR} 2`);
+        oputil(root, ['fb', 'scan', '--virus-scan', 'uploads']);
+        assert.deepEqual(quarantine(root), [
+            'EVIL.EX_',
+            'EVIL.EX_.json',
+            'OTHER.EX_',
+            'OTHER.EX_.json',
+        ]);
+
+        let r = oputil(root, ['fb', 'quarantine', 'release', 'EVIL.EX_']);
+        assert.notEqual(r.code, 0);
+        assert.ok(r.out.includes('rejected it'), r.out);
+        assert.ok(r.out.includes('--allow'), r.out);
+        assert.ok(quarantine(root).includes('EVIL.EX_'), 'still in quarantine');
+        assert.deepEqual(meta(root, 'scan_result'), []);
+
+        r = oputil(root, ['fb', 'quarantine', 'release', '--allow', 'EVIL.EX_']);
+        assert.equal(r.code, 0, r.out);
+        assert.ok(r.out.includes('Scanned before release: clean (allowlist)'), r.out);
+        assert.deepEqual(meta(root, 'scan_result'), ['EVIL.EXE=clean']);
+
+        r = oputil(root, ['fb', 'quarantine', 'release', '--no-scan', 'OTHER.EX_']);
+        assert.equal(r.code, 0, r.out);
+        assert.ok(r.out.includes('Not scanned before release (--no-scan)'), r.out);
+        assert.deepEqual(quarantine(root), []);
+    });
+
+    it('mark-safe refuses a FILE_ID whose file is missing, unless --force', async () => {
+        const { root, storage } = await makeFixture();
+        await fsp.writeFile(path.join(storage, 'GONE.TXT'), 'soon gone');
+        assert.equal(oputil(root, ['fb', 'scan', 'uploads']).code, 0);
+        await fsp.unlink(path.join(storage, 'GONE.TXT'));
+        const id = String(fileId(root, 'GONE.TXT'));
+
+        let r = oputil(root, ['fb', 'mark-safe', id]);
+        assert.notEqual(r.code, 0);
+        assert.ok(r.out.includes('--force'), r.out);
+        assert.deepEqual(allowlist(root), []);
+
+        r = oputil(root, ['fb', 'mark-safe', '--force', id]);
+        assert.equal(r.code, 0, r.out);
+        assert.equal(allowlist(root)[0].sha256, sha256('soon gone'));
+    });
+
+    it('quarantine list shows no invisible characters, and cuts long fields', async () => {
+        const { root } = await makeFixture();
+        const q = path.join(root, 'filebase', '.quarantine');
+        await fsp.mkdir(q, { recursive: true });
+        await fsp.writeFile(path.join(q, 'x.zip'), 'x');
+        await fsp.writeFile(
+            path.join(q, 'x.zip.json'),
+            JSON.stringify({
+                quarantineName: 'x.zip',
+                originalName: 'evil\u202etxt.exe',
+                source: 'web',
+                areaTag: 'A'.repeat(500),
+                sha256: sha256('x'),
+            })
+        );
+        const r = oputil(root, ['fb', 'quarantine', 'list']);
+        assert.equal(r.code, 0, r.out);
+        assert.ok(!/[\u202e\u200b\u2028\u2029]/.test(r.out), 'no format characters');
+        assert.ok(r.out.includes('evil?txt.exe'), r.out);
+        assert.ok(!r.out.includes('A'.repeat(129)), 'capped');
+        assert.ok(r.out.includes(`${'A'.repeat(128)}...`), r.out);
     });
 
     it('release refuses a tampered file; delete asks unless told not to', async () => {

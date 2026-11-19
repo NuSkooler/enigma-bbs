@@ -105,6 +105,7 @@ function readSidecar(sidecarPath, cb) {
 //      sidecarPath:    its path, when there is exactly one
 //      sidecarProblem: why there is no sidecar: 'missing' or 'ambiguous'
 //                      (more than one claims the file)
+//      candidateSidecarPaths:  with 'ambiguous', each that claims it
 //  }
 //
 //  A quarantine directory that does not exist is an empty list. Anything in
@@ -183,6 +184,8 @@ function parseSidecars(dir, files, cb) {
                 item.sidecar = parsed.get(candidates[0]);
             } else {
                 item.sidecarProblem = 0 === candidates.length ? 'missing' : 'ambiguous';
+                //  every sidecar that claims it, for a delete to remove
+                item.candidateSidecarPaths = candidates.map(c => paths.join(dir, c));
             }
             return item;
         };
@@ -274,6 +277,11 @@ function releaseNameProblem(name) {
     // eslint-disable-next-line no-control-regex
     if (/[\u0000-\u001f\u007f-\u009f]/.test(name)) {
         return 'it has control characters';
+    }
+    //  U+202E RIGHT-TO-LEFT OVERRIDE ("EVIL<RLO>txt.exe" shows as
+    //  "EVILexe.txt"), zero widths, line and paragraph separators
+    if (/[\p{Cf}\p{Zl}\p{Zp}]/u.test(name)) {
+        return 'it has invisible format or separator characters';
     }
     if (/[<>:"|?*]/.test(name)) {
         return 'it has characters Windows does not allow (< > : " | ? *)';
@@ -413,17 +421,55 @@ function releaseDetails(sidecar) {
     };
 }
 
-function moveBack(filePath, quarantineName, cb) {
-    const back = paths.join(FileScanner.getQuarantinePath(), quarantineName);
-    moveFileWithCollisionHandling(filePath, back, (err, movedTo) => {
+//
+//  Puts a file whose release failed back where it was: in quarantine, under
+//  its quarantine name, 0600 again, with its sidecar still matching it.
+//  Calls back (err, movedTo); an error means the file is still at
+//  |filePath|, in a storage directory, with no entry.
+//
+function moveBack(filePath, item, cb) {
+    moveFileWithCollisionHandling(filePath, item.path, (err, movedTo) => {
         if (err) {
             log(
                 'error',
-                { path: filePath, error: err.message },
-                'Could not move a file being released back into quarantine'
+                {
+                    path: filePath,
+                    quarantineName: item.quarantineName,
+                    error: err.message,
+                },
+                'Could not move a file whose release failed back into quarantine: it is left in the storage directory with no file entry'
             );
+            return cb(err);
         }
-        return cb(err, movedTo);
+
+        FileScanner.restrictQuarantinedFile(movedTo, () => {
+            if (movedTo === item.path || !item.sidecarPath) {
+                return cb(null, movedTo);
+            }
+
+            //  The name was taken in the meantime: the sidecar has to follow
+            //  the file, or nothing would match them up again.
+            const quarantineName = paths.basename(movedTo);
+            const data = Object.assign({}, item.sidecar, { quarantineName });
+            FileScanner.writeSidecar(movedTo, data, (err, sidecarPath) => {
+                if (err) {
+                    log(
+                        'error',
+                        { path: movedTo, error: err.message },
+                        'A file whose release failed is back in quarantine under another name, and its sidecar could not be rewritten for it'
+                    );
+                    return cb(null, movedTo);
+                }
+                fs.unlink(item.sidecarPath, () => {
+                    log(
+                        'warn',
+                        { path: movedTo, sidecarPath },
+                        'A file whose release failed is back in quarantine under another name'
+                    );
+                    return cb(null, movedTo);
+                });
+            });
+        });
     });
 }
 
@@ -434,14 +480,23 @@ function moveBack(filePath, quarantineName, cb) {
 //      operator:   who is releasing it (logged, and recorded with --allow)
 //      areaTag:    the area; default: the one in the sidecar
 //      fileName:   the name it gets; default: its original name
-//      allow:      also add its SHA-256 to the allowlist
+//      allow:      the operator says it is a false positive: add its
+//                  SHA-256 to the allowlist (then the scan passes it)
 //      note:       the allowlist note
+//      noScan:     release it without scanning it first: the operator
+//                  takes responsibility for it
 //  }
 //
-//  Calls back (err, { fileEntry, path, sha256, allowlisted, allowlistAdded }).
-//  On an error nothing has changed -- except that, with |allow|, the hash
-//  stays on the allowlist once it was added (it is the operator's decision
-//  about those bytes, not about this release).
+//  The file is scanned first, where it lies in quarantine (source "oputil",
+//  the allowlist included), and stays there if that scan rejects it, fails,
+//  or cannot run at all (scanning disabled, no entry for "oputil"). So a
+//  file a scanner flagged needs |allow|, and a held one is released once
+//  the scanner works again.
+//
+//  Calls back (err, { fileEntry, path, sha256, verdict, allowlisted,
+//  allowlistAdded }). On an error nothing has changed: a hash this release
+//  added to the allowlist is taken off again (err.allowlistRolledBack, or
+//  err.allowlistRollbackFailed if even that failed).
 //
 function releaseQuarantined(name, options, cb) {
     options = options || {};
@@ -543,8 +598,39 @@ function releaseQuarantined(name, options, cb) {
 }
 
 function allowThenImport(state, options, operator, cb) {
+    //  everything after the allowlist row: a failure takes it off again
+    const rollback = err => {
+        if (!state.allowlistAdded) {
+            return cb(err);
+        }
+        Allowlist.remove(state.sha256, operator, rmErr => {
+            if (rmErr) {
+                log(
+                    'error',
+                    { sha256: state.sha256, error: rmErr.message },
+                    'A release failed, and the hash it added to the allowlist could not be taken off again'
+                );
+                err.allowlistRollbackFailed = true;
+            } else {
+                err.allowlistRolledBack = true;
+            }
+            return cb(err);
+        });
+    };
+
+    const proceed = () =>
+        scanInQuarantine(state, options, operator, (err, verdict) => {
+            if (err) {
+                return rollback(err);
+            }
+            state.verdict = verdict;
+            return importReleased(state, options, operator, (err, res) =>
+                err ? rollback(err) : cb(null, res)
+            );
+        });
+
     if (!options.allow) {
-        return importReleased(state, options, operator, cb);
+        return proceed();
     }
 
     Allowlist.add(
@@ -560,7 +646,65 @@ function allowThenImport(state, options, operator, cb) {
                 return cb(err);
             }
             state.allowlistAdded = res.added;
-            return importReleased(state, options, operator, cb);
+            return proceed();
+        }
+    );
+}
+
+//
+//  The scan a release starts with, of the file where it lies in quarantine.
+//  Calls back (null, verdict) to go ahead -- verdict null with |noScan| --
+//  or (err) to leave the file where it is.
+//
+function scanInQuarantine(state, options, operator, cb) {
+    const { item, area, sha256 } = state;
+
+    if (options.noScan) {
+        log(
+            'info',
+            { operator, quarantineName: item.quarantineName, sha256 },
+            "Releasing a file from quarantine without scanning it, at the operator's word"
+        );
+        return cb(null, null);
+    }
+
+    const stays = 'it stays in quarantine';
+    FileScanner.scanFile(
+        item.path,
+        {
+            source: FileScanner.ScanSources.Oputil,
+            fileName: state.fileName,
+            areaTag: area.areaInfo.areaTag,
+            storageTag: area.storageTag,
+            //  worked out from its bytes just now, by hashRegularFile()
+            sha256,
+        },
+        (err, verdict) => {
+            if (FileScanner.isFileRejected(err)) {
+                const v = err.verdict || {};
+                return cb(
+                    Errors.Invalid(
+                        FileScanner.Verdicts.Infected === v.result
+                            ? `The scan before release rejected it: ${err.message}; ${stays}. If it is a false positive, release it with --allow`
+                            : `The scan before release could not check it: ${err.message}; ${stays}. Release it once the scanner works again`
+                    )
+                );
+            }
+            if (err) {
+                return cb(
+                    Errors.General(
+                        `The scan before release failed: ${err.message}; ${stays}`
+                    )
+                );
+            }
+            if (FileScanner.Verdicts.NotScanned === verdict.result && !options.allow) {
+                return cb(
+                    Errors.Invalid(
+                        `Nothing scans files released from quarantine (scanning is disabled, or no scanner entry takes the "oputil" source), so it cannot be checked first; ${stays}. Use --allow for a false positive, or --no-scan to release it unscanned on your own responsibility`
+                    )
+                );
+            }
+            return cb(null, verdict);
         }
     );
 }
@@ -580,13 +724,25 @@ function importReleased(state, options, operator, cb) {
             return cb(err);
         }
 
-        const undo = err => moveBack(finalPath, item.quarantineName, () => cb(err));
+        const undo = err =>
+            moveBack(finalPath, item, (moveErr, movedTo) => {
+                if (moveErr) {
+                    return cb(
+                        Errors.General(
+                            `${err.message}; and it could not be moved back into quarantine (${moveErr.message}): it is at ${finalPath}, with no file entry`
+                        )
+                    );
+                }
+                if (movedTo !== item.path) {
+                    err.movedBackTo = movedTo;
+                }
+                return cb(err);
+            });
 
         //  an ordinary file again: quarantine left it 0600. Never executable.
         //  Best effort (Windows has no such bits).
         fs.chmod(finalPath, 0o666 & ~process.umask(), () => {
-            //  no scanSource: it is not virus scanned again (the allowlist, if
-            //  asked for, already covers it for any later scan)
+            //  no scanSource: scanInQuarantine() already scanned it
             FileArea.scanFile(
                 finalPath,
                 {
@@ -625,10 +781,22 @@ function importReleased(state, options, operator, cb) {
                         quarantine_released_at: now,
                         quarantine_released_by: operator,
                     });
+                    const verdict = state.verdict;
                     if (options.allow) {
                         Object.assign(fileEntry.meta, {
                             scan_result: FileScanner.Verdicts.Clean,
                             scanner: Allowlist.ScannerName,
+                            scanned_at: now,
+                        });
+                    } else if (
+                        verdict &&
+                        FileScanner.Verdicts.NotScanned !== verdict.result
+                    ) {
+                        Object.assign(fileEntry.meta, {
+                            scan_result: verdict.result,
+                            scanner: _.uniq(verdict.results.map(r => r.scanner)).join(
+                                ','
+                            ),
                             scanned_at: now,
                         });
                     }
@@ -657,6 +825,8 @@ function importReleased(state, options, operator, cb) {
                                     fileName: fileEntry.fileName,
                                     sha256,
                                     allowlisted: !!options.allow,
+                                    scanned: !!verdict,
+                                    scanResult: verdict ? verdict.result : undefined,
                                 },
                                 'Released a file from quarantine'
                             );
@@ -665,6 +835,7 @@ function importReleased(state, options, operator, cb) {
                                 fileEntry,
                                 path: finalPath,
                                 sha256,
+                                verdict,
                                 allowlisted: !!options.allow,
                                 allowlistAdded: !!state.allowlistAdded,
                                 sidecarError: unlinkErr ? unlinkErr.message : undefined,
@@ -678,8 +849,10 @@ function importReleased(state, options, operator, cb) {
 }
 
 //
-//  Deletes quarantined file |name| and its sidecar; either may already be
-//  gone. Calls back (err, { removed: [ paths ] }).
+//  Deletes quarantined file |name| and its sidecar -- or every sidecar that
+//  claims it, when more than one does; any may already be gone. Calls back
+//  (err, { removed: [ paths ], missing: [ paths ] }): |missing| were gone
+//  by the time they were to be deleted.
 //
 function deleteQuarantined(name, operator, cb) {
     findQuarantined(name, (err, item) => {
@@ -690,10 +863,13 @@ function deleteQuarantined(name, operator, cb) {
             return cb(Errors.DoesNotExist(`No quarantined file named "${name}"`));
         }
 
-        const targets = [item.exists ? item.path : null, item.sidecarPath].filter(
-            Boolean
-        );
+        const targets = [
+            item.exists ? item.path : null,
+            item.sidecarPath,
+            ...(item.candidateSidecarPaths || []),
+        ].filter(Boolean);
         const removed = [];
+        const missing = [];
         const next = i => {
             if (i >= targets.length) {
                 log(
@@ -703,16 +879,17 @@ function deleteQuarantined(name, operator, cb) {
                         quarantineName: item.quarantineName,
                         sha256: _.get(item, 'sidecar.sha256'),
                         removed,
+                        missing,
                     },
                     'Deleted a file from quarantine'
                 );
-                return cb(null, { removed, item });
+                return cb(null, { removed, missing, item });
             }
             fs.unlink(targets[i], err => {
                 if (err && 'ENOENT' !== err.code) {
                     return cb(err);
                 }
-                removed.push(targets[i]);
+                (err ? missing : removed).push(targets[i]);
                 return next(i + 1);
             });
         };

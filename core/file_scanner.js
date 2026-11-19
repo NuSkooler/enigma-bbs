@@ -1289,10 +1289,21 @@ function quarantineFileName(fileName, ctx, defangExtensions) {
         name = `_${name}`;
     }
 
-    return defangFileName(name, defangExtensions);
+    name = defangFileName(name, defangExtensions);
+
+    //  Sidecars end in ".json", so a quarantined file never does: an upload
+    //  named "OTHER.ZIP.json" could otherwise take, or pose as, the sidecar
+    //  of another quarantined file.
+    if (/\.json$/i.test(name)) {
+        name = `${name.slice(0, -1)}_`;
+    }
+
+    return name;
 }
 
 exports._quarantineFileName = quarantineFileName;
+exports.restrictQuarantinedFile = restrictQuarantinedFile;
+exports.writeSidecar = writeSidecar;
 
 //
 //  Upload-time details that never reached an entry, kept in the sidecar so
@@ -1750,8 +1761,10 @@ function buildOperatorNotice(rejections, ctx) {
         lines.push(
             'A held file was not found to be infected: a scanner failed or timed out.'
         );
-        lines.push('It may be clean; check the scanner, then release it with');
-        lines.push('./oputil.js fb quarantine release NAME (see fb quarantine list).');
+        lines.push('It may be clean. Once the scanner works again, release it with');
+        lines.push('./oputil.js fb quarantine release NAME (see fb quarantine list):');
+        lines.push('the release scans it first, and it stays in quarantine if that');
+        lines.push('scan rejects it too.');
         lines.push('');
     }
 
