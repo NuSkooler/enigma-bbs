@@ -16,6 +16,7 @@ const {
 } = require('./oputil_common.js');
 const Errors = require('../enig_error.js').Errors;
 const FileScanner = require('../file_scanner.js');
+const { replaceInvisibleFormatChars } = require('../string_util.js');
 const {
     AreaListFormat,
     parseAreaList,
@@ -987,9 +988,12 @@ function scanFileAreas() {
 //  |maxLength| caps it, with "..." to show it was cut.
 //
 function consoleText(s, maxLength) {
-    const text = String(_.isUndefined(s) || null === s ? '' : s).replace(
-        // eslint-disable-next-line no-control-regex
-        /[\x00-\x1f\x7f-\x9f\p{Cf}\p{Zl}\p{Zp}]/gu,
+    const text = replaceInvisibleFormatChars(
+        String(_.isUndefined(s) || null === s ? '' : s).replace(
+            // eslint-disable-next-line no-control-regex
+            /[\x00-\x1f\x7f-\x9f]/g,
+            '?'
+        ),
         '?'
     );
     if (_.isFinite(maxLength) && text.length > maxLength) {

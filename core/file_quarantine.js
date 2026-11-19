@@ -35,6 +35,7 @@
 const FileScanner = require('./file_scanner.js');
 const Allowlist = require('./file_scan_allowlist.js');
 const { Errors } = require('./enig_error.js');
+const { hasInvisibleFormatChars } = require('./string_util.js');
 const { moveFileWithCollisionHandling, isWindowsDeviceName } = require('./file_util.js');
 
 //  Read through config.js; see core/user_time.js.
@@ -280,7 +281,7 @@ function releaseNameProblem(name) {
     }
     //  U+202E RIGHT-TO-LEFT OVERRIDE ("EVIL<RLO>txt.exe" shows as
     //  "EVILexe.txt"), zero widths, line and paragraph separators
-    if (/[\p{Cf}\p{Zl}\p{Zp}]/u.test(name)) {
+    if (hasInvisibleFormatChars(name)) {
         return 'it has invisible format or separator characters';
     }
     if (/[<>:"|?*]/.test(name)) {

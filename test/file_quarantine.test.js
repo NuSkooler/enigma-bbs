@@ -734,6 +734,48 @@ describe('file scanning quarantine (#291)', function () {
             assert.ok(!ls(quarantineDir()).includes('a.zip.json'), 'the old one is gone');
         });
 
+        it('no invisible format characters from a sidecar reach the entry', async () => {
+            const RLO = '\u202e';
+            const ZWSP = '\u200b';
+            const LSEP = '\u2028';
+            const name = await quarantine('x.zip', 'fine bytes', {
+                source: 'tic',
+                user: { userId: 5, username: `bob${RLO}` },
+                entryMeta: { upload_by_username: `bob${ZWSP}` },
+            });
+            //  edited, as though by hand: what release reads is the sidecar
+            const scPath = paths.join(quarantineDir(), `${name}.json`);
+            const sc = JSON.parse(fs.readFileSync(scPath, 'utf8'));
+            sc.desc = `nice${RLO}exe.txt${LSEP}second line`;
+            sc.hashTags = [`demo${ZWSP}`, `${RLO}dos`];
+            sc.meta = Object.assign({}, sc.meta, {
+                upload_by_username: `bob${RLO}by`,
+                tic_desc: `tic${ZWSP}desc`,
+                tic_ldesc: `long${LSEP}desc${RLO}`,
+                tic_origin: `21:1/1${RLO}00`,
+            });
+            fs.writeFileSync(scPath, JSON.stringify(sc));
+
+            const { err, res } = await release(name);
+            assert.ifError(err);
+
+            const row = entries()[0];
+            const meta = metaOf(row.file_id);
+            const tags = fileDb
+                .prepare(
+                    'SELECT hash_tag FROM hash_tag JOIN file_hash_tag USING (hash_tag_id)'
+                )
+                .all()
+                .map(r => r.hash_tag);
+            const all = JSON.stringify({ desc: row.desc, meta, tags });
+            assert.ok(!/[\u202e\u200b\u2028\u2029]/.test(all), all);
+            assert.equal(row.desc, 'nice exe.txt second line');
+            assert.equal(meta.upload_by_username, 'bob by');
+            assert.equal(meta.tic_ldesc, 'long desc');
+            assert.deepEqual(tags.sort(), ['demo', 'dos']);
+            assert.ok(res.fileEntry);
+        });
+
         it('refuses invisible format characters in a released name', async () => {
             for (const bad of [
                 'evil\u202etxt.exe',

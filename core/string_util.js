@@ -9,7 +9,27 @@ const PipeCodes = require('./pipe_codes.js');
 const iconv = require('iconv-lite');
 const _ = require('lodash');
 
+//
+//  Characters that draw nothing yet change how text around them reads:
+//  format characters (U+202E RIGHT-TO-LEFT OVERRIDE makes "EVIL<RLO>txt.exe"
+//  show as "EVILexe.txt"; zero widths) and the Unicode line and paragraph
+//  separators. Text from outside that reaches an operator or an entry drops
+//  them, alongside control characters.
+//
+const INVISIBLE_FORMAT_CHARS = /[\p{Cf}\p{Zl}\p{Zp}]/u;
+const INVISIBLE_FORMAT_CHARS_ALL = /[\p{Cf}\p{Zl}\p{Zp}]/gu;
+
+function hasInvisibleFormatChars(s) {
+    return INVISIBLE_FORMAT_CHARS.test(String(s));
+}
+
+function replaceInvisibleFormatChars(s, replacement = '') {
+    return String(s).replace(INVISIBLE_FORMAT_CHARS_ALL, replacement);
+}
+
 exports.stylizeString = stylizeString;
+exports.hasInvisibleFormatChars = hasInvisibleFormatChars;
+exports.replaceInvisibleFormatChars = replaceInvisibleFormatChars;
 exports.stylizePlainText = stylizePlainText;
 exports.pad = pad;
 exports.insert = insert;

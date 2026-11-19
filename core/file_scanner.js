@@ -39,6 +39,8 @@ const PipeCodes = require('./pipe_codes.js');
 const configModule = require('./config.js');
 const Config = () => (_.isFunction(configModule.get) ? configModule.get() : null);
 
+const { replaceInvisibleFormatChars } = require('./string_util.js');
+
 //  deps
 const _ = require('lodash');
 const async = require('async');
@@ -1339,7 +1341,8 @@ function sidecarText(value, limit, multiline) {
           text.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]+/g, ' ')
         : // eslint-disable-next-line no-control-regex
           text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ');
-    text = text.trim();
+    //  ...and what draws nothing but changes how the rest reads (#291)
+    text = replaceInvisibleFormatChars(text, ' ').trim();
     if (!text) {
         return undefined;
     }
