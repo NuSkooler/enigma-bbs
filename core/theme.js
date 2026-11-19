@@ -11,6 +11,7 @@ const ansi = require('./ansi_term.js');
 const Log = require('./logger.js').log;
 const asset = require('./asset.js');
 const ViewController = require('./view_controller.js').ViewController;
+const { DeepMergeProperties: TableViewDeepMergeProperties } = require('./table_view.js');
 const Errors = require('./enig_error.js').Errors;
 const Events = require('./events.js');
 const AnsiPrep = require('./ansi_prep.js');
@@ -328,10 +329,33 @@ exports.ThemeManager = class ThemeManager {
             return _.remove(Object.keys(obj), k => !isNaN(k));
         };
 
+        //
+        //  TableView (%TV) entries: TableView's own object-valued properties
+        //  deep-merge, so a theme can set e.g. columns.new.sgr alone (arrays
+        //  inside them still replace). Every other property, and every other
+        //  view type, keeps the replace behaviour above.
+        //
+        const tableViewMciCustomizer = (objVal, srcVal, key) => {
+            if (
+                TableViewDeepMergeProperties.includes(key) &&
+                _.isPlainObject(objVal) &&
+                _.isPlainObject(srcVal)
+            ) {
+                return _.mergeWith({}, objVal, srcVal, (o, s) =>
+                    Array.isArray(s) ? s : undefined
+                );
+            }
+            return mciCustomizer(objVal, srcVal, key);
+        };
+
         const mergeMciProperties = (dst, src) => {
             Object.keys(src).forEach(mci => {
                 if (dst[mci]) {
-                    _.mergeWith(dst[mci], src[mci], mciCustomizer);
+                    _.mergeWith(
+                        dst[mci],
+                        src[mci],
+                        /^TV\d+$/.test(mci) ? tableViewMciCustomizer : mciCustomizer
+                    );
                 } else {
                     //  theme contains a MCI that's not found in menu
                     dst[mci] = src[mci];
