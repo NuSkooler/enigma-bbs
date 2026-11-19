@@ -18,6 +18,7 @@ Available `config` block entries:
 | `newScanActivityPubList` | `newScanActivityPubList` | Menu used instead for an ActivityPub area. |
 | `newScanFileBaseList` | `newScanFileBaseList` | Menu that shows the new files (a `file_area_list` menu). |
 | `skipFileBase` | `false` | `true` scans the message base only: the file base is not scanned, its menu is never entered, and the caller's file base "last viewed" position is left as it was. |
+| `skipMessageBase` | `false` | `true` scans the file base only: the message base is not scanned and `newScanMessageList` is never entered. The mirror of `skipFileBase`; with both set there is nothing to scan and the module finishes at once, going to `next`. |
 | `omitMessageAreaTags` | none | Message area tags (a string or an array) not to scan. |
 | `omitFileAreaTags` | none | File area tags not to scan. |
 | `scanStartFmt` | `Scanning {confName} - {areaName}...` | Status text while an area is scanned. `{confName}`, `{confDesc}`, `{areaName}` and `{areaDesc}` are available. |
@@ -37,5 +38,21 @@ messageBaseNewScan: {
     }
 }
 ```
+
+`skipMessageBase` is for a board where something else, such as a mod's message reader, does the message part of the login new scan, and callers still get the file base scan. Chain a files-only entry after the reader:
+
+```hjson
+lampboardLoginFileScan: {
+    desc: New Files
+    module: new_scan
+    art: NEWSCAN
+    config: {
+        skipMessageBase: true
+    }
+    next: fullLoginSequenceUserStats
+}
+```
+
+A scan saved before the option was set, for example one left in the message base, carries on at the file base.
 
 When the scan finishes, the menu goes to its `next`, or back to the previous menu when it has none. A caller who leaves a message list with the full exit key (`fullExit` in `msg_list`) ends the whole scan.

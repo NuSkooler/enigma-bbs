@@ -381,6 +381,10 @@
         //          ]
         //      }
         //
+        //  A reader that only covers messages can be followed by a copy of
+        //  fullLoginSequenceNewScan whose config has "skipMessageBase: true",
+        //  which scans the file base alone.
+        //
         fullLoginSequenceNewScanConfirm: {
             desc: Logging In
             prompt: loginGlobalNewScan
