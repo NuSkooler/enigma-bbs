@@ -194,3 +194,33 @@ Most mods will also derive from `MenuModule`. Some things to be aware of:
 * Be sure to use `packageName` and `getModDatabasePath()` for any (database) peristence needs.
 * Custom mods in `mods/the_mod_name/` and the `MenuModule` entry point must be within a file of the same name: `mods/the_mod_name/the_mod_name.js`
 * To import ENiGMA modules `require()` from `../../core/`
+
+### Shipping art with a mod
+A mod kept in its own folder can ship its art in an `art` folder beside its code, and its menus name that art by plain name:
+
+```
+mods/the_mod_name/the_mod_name.js
+mods/the_mod_name/art/MYMOD.ANS
+mods/the_mod_name/art/MYMODHLP.ANS
+```
+
+```hjson
+myModMenu: {
+    module: @userModule:the_mod_name
+    art: MYMOD
+    config: {
+        art: {
+            help: MYMODHLP
+        }
+    }
+}
+```
+
+For a menu whose `module` is that mod, art is looked for in the user's theme, then the default theme, then `mods/the_mod_name/art/`, then `art/general` (see [General Art Information](../art/general.md#art-spec)). So the operator needs to copy nothing, the art updates with the mod, and an operator who wants a different look drops a file of the same name (`MYMOD.ANS`) into their theme, as for any other art. Everything that works in a theme folder works in the mod's: random selection (`MYMOD1.ANS`, `MYMOD2.ANS`, ...), UTF-8 variants, native `.seq` / `.ata` art and `.rip` art for RIP callers. The folder is yours and the operator's, as trusted as a theme.
+
+Some things to know:
+* Only plain names are looked for there: an art name holding a path (`art/foo/MYMOD.ANS`) means exactly that file, as before.
+* Only a mod in its own folder has one. A single file mod (`mods/the_mod_name.js`) shares `mods/` with every other mod and has no art folder: its art goes in a theme or `art/general`.
+* Art the menu shows through `MenuModule` gets the fallback: the menu's `art` and its `prompt`, `displayAsset()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` (`config.art.<name>`), paged art, and prompts shown with `promptForInput()`. Pause prompts are shared system screens and do not, even one a menu names with `pausePrompt`: for its own pause art, a mod's README should have the operator add a prompt with that art in their theme (or `art/general`) and set the menu's `pausePrompt` to it (see [Pause Prompts](../art/pause-prompts.md)). Code that calls `core/theme.js` directly can pass `modArtPath: this.modArtPath` in its options to get the same.
+* Pick names that are unlikely to clash with other art: a theme's file of the same name always wins, and the mod's file wins over one in `art/general`.
+* A missing `art` folder is fine: the lookup moves on to `art/general`.

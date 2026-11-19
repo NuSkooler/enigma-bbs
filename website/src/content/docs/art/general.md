@@ -12,6 +12,8 @@ As a general rule, art files live in one of two places:
 1. The `art/general` directory. This is where you place common/non-themed art files.
 2. Within a _theme_ such as `art/themes/super_fancy_theme`.
 
+A mod may also ship its own art in `mods/the_mod_name/art/`, used by that mod's menus when no theme has art of the same name. See [Shipping art with a mod](../modding/menu-modules.md#shipping-art-with-a-mod).
+
 ## MCI Codes
 All art can contain [MCI Codes](mci.md).
 
@@ -85,7 +87,8 @@ ENiGMA½ uses a fallback system for art selection. When a menu entry calls for a
 1. If a direct or relative path is supplied, look there first.
 2. In the users current theme directory.
 3. In the system default theme directory.
-4. In the `art/general` directory.
+4. For a menu whose `module` is a mod kept in its own folder (`@userModule:the_mod_name`, loaded from `mods/the_mod_name/the_mod_name.js`), in that mod's `art` folder: `mods/the_mod_name/art/`. Only plain names (`FOO`, `FOO.ANS`) are looked for there, never a name holding a path. See [Shipping art with a mod](../modding/menu-modules.md#shipping-art-with-a-mod).
+5. In the `art/general` directory.
 
 ### UTF-8 Art Variants
 
