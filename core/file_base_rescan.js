@@ -286,6 +286,45 @@ function fail(result, kind, error) {
 }
 
 //
+//  |parent| (a directory at or under |storageDir|) as a real path, or null if
+//  it is reached through a symbolic link or resolves outside the storage
+//  directory. The storage directory itself may be a link (another disk, say).
+//
+//  Two separate checks rather than comparing realpath(parent) with the path
+//  the entry spells out: on a case-insensitive file system (Windows, macOS)
+//  the entry's rel path may differ in case from the directory on disk, and
+//  the real path then never matches it. Instead every component below the
+//  storage directory must not be a link (lstat() answers that whatever the
+//  case), and the real path must be inside the real storage directory.
+//
+//  |fsImpl| is for tests: { realpath, lstat }, promise style.
+//
+async function checkParentDir(storageDir, parent, fsImpl = fsp) {
+    const realStorage = await fsImpl.realpath(storageDir);
+
+    const rel = paths.relative(storageDir, parent);
+    if (rel.startsWith('..') || paths.isAbsolute(rel)) {
+        return null;
+    }
+
+    let at = storageDir;
+    for (const part of rel ? rel.split(paths.sep) : []) {
+        at = paths.join(at, part);
+        if ((await fsImpl.lstat(at)).isSymbolicLink()) {
+            return null;
+        }
+    }
+
+    const realParent = await fsImpl.realpath(parent);
+    if (realParent !== realStorage && !realParent.startsWith(realStorage + paths.sep)) {
+        return null;
+    }
+    return realParent;
+}
+
+exports._checkParentDir = checkParentDir;
+
+//
 //  The entry's file, opened: { path, fd, stats, parent, realParent }, or
 //  null with |result| finished as Missing or Error. See the top of this file
 //  for what is refused.
@@ -318,11 +357,8 @@ async function openEntryFile(entry, result) {
 
     let realParent;
     try {
-        //  the storage directory itself may be a link (another disk, say)
-        const realStorage = await fsp.realpath(storageDir);
-        realParent = await fsp.realpath(parent);
-        const expected = paths.join(realStorage, paths.relative(storageDir, parent));
-        if (realParent !== expected) {
+        realParent = await checkParentDir(storageDir, parent);
+        if (!realParent) {
             return fail(
                 result,
                 RescanResults.Error,
@@ -399,8 +435,15 @@ function hashFd(fd) {
     });
 }
 
+//
 //  After the scan: the path still names the file that was hashed, unchanged,
-//  and still inside the storage directory.
+//  and still inside the storage directory. ctime catches a file swapped out
+//  and renamed back during the scan, which keeps its inode, size and (set
+//  back with utimes()) mtime. Opening and reading the file, as the hash and
+//  a scanner do, changes only atime. A scanner that changed the file's
+//  metadata (chmod, say) would make this fail and the result go unrecorded,
+//  but scanners must not touch the file (see file_scanner.js).
+//
 async function stillTheSameFile(opened) {
     try {
         const [now, atPath, realParent] = await Promise.all([
@@ -414,6 +457,7 @@ async function stillTheSameFile(opened) {
             atPath.dev === opened.stats.dev &&
             now.size === opened.stats.size &&
             now.mtimeMs === opened.stats.mtimeMs &&
+            now.ctimeMs === opened.stats.ctimeMs &&
             realParent === opened.realParent
         );
     } catch (e) {
@@ -868,8 +912,25 @@ function finishRun(options, summary, cb) {
         return cb(null, summary);
     }
 
-    const { subject, body } = buildRescanNotice(summary, options);
-    FileScanner.sendOperatorNotice(subject, body, () => cb(null, summary));
+    //  The notice is a courtesy: if building or sending it throws, say so in
+    //  the log, but the run still finishes (and the task still completes).
+    let called = false;
+    const done = () => {
+        if (!called) {
+            called = true;
+            return cb(null, summary);
+        }
+    };
+    try {
+        const { subject, body } = buildRescanNotice(summary, options);
+        FileScanner.sendOperatorNotice(subject, body, done);
+    } catch (e) {
+        if (called) {
+            throw e; //  from the caller's own callback, not the notice
+        }
+        log('error', { error: e.message }, 'File base rescan: sending the notice failed');
+        return done();
+    }
 }
 
 function logResult(result, dryRun) {

@@ -527,6 +527,25 @@ describe('file base rescan (#291)', function () {
             assert.deepEqual(meta(id, 'scan_result'), []);
         });
 
+        it('a file changed and put back during the scan (same inode, size, mtime) records nothing', async () => {
+            const id = addFile('Z.ZIP', 'clean inside');
+            const p = paths.join(storageDir(), 'Z.ZIP');
+            //  whole seconds, so that putting mtime back is exact
+            fs.utimesSync(p, 1700000000, 1700000000);
+            scanState.onScan = () => {
+                fs.writeFileSync(p, 'EICAR!inside');
+                fs.writeFileSync(p, 'clean inside');
+                fs.utimesSync(p, 1700000000, 1700000000);
+            };
+            const summary = await run();
+            assert.equal(summary.counts.error, 1);
+            assert.match(
+                summary.files[0].error,
+                /changed or moved while it was being scanned/
+            );
+            assert.deepEqual(meta(id, 'scan_result'), []);
+        });
+
         it('PoC B2: the file swapped for a link during the scan records nothing', async () => {
             fs.mkdirSync(outside());
             fs.writeFileSync(paths.join(outside(), 'target.txt'), 'outside clean data');
@@ -541,6 +560,58 @@ describe('file base rescan (#291)', function () {
             const summary = await run();
             assert.equal(summary.counts.error, 1);
             assert.deepEqual(meta(id, 'scan_result'), []);
+        });
+    });
+
+    describe('parent directory check', () => {
+        //  a case-insensitive file system, simulated: lookups ignore case,
+        //  realpath() answers with the case on disk
+        function fakeFs(dirs, links = []) {
+            const byLower = new Map(dirs.map(d => [d.toLowerCase(), d]));
+            const linkSet = new Set(links.map(l => l.toLowerCase()));
+            const find = p => {
+                const real = byLower.get(p.toLowerCase());
+                if (!real) {
+                    const err = new Error(`ENOENT: ${p}`);
+                    err.code = 'ENOENT';
+                    throw err;
+                }
+                return real;
+            };
+            return {
+                realpath: async p => find(p),
+                lstat: async p => {
+                    find(p);
+                    return { isSymbolicLink: () => linkSet.has(p.toLowerCase()) };
+                },
+            };
+        }
+
+        it('accepts a rel path whose case differs from the directory on disk', async () => {
+            const fake = fakeFs(['/base', '/base/Games', '/base/Games/DOS']);
+            assert.equal(
+                await Rescan._checkParentDir('/base', '/base/games/dos', fake),
+                '/base/Games/DOS'
+            );
+        });
+
+        it('still refuses a symlinked component, whatever its case', async () => {
+            const fake = fakeFs(
+                ['/base', '/base/Games', '/base/Games/DOS'],
+                ['/base/Games']
+            );
+            assert.equal(
+                await Rescan._checkParentDir('/base', '/base/games/dos', fake),
+                null
+            );
+        });
+
+        it('refuses a real path outside the storage directory', async () => {
+            const fake = {
+                realpath: async p => (p === '/base' ? '/base' : '/elsewhere/sub'),
+                lstat: async () => ({ isSymbolicLink: () => false }),
+            };
+            assert.equal(await Rescan._checkParentDir('/base', '/base/sub', fake), null);
         });
     });
 
@@ -829,6 +900,32 @@ describe('file base rescan (#291)', function () {
             assert.match(summary.files[0].error, /boom/);
             assert.equal(Rescan.isRunning(), false);
             assert.equal((await run()).counts.clean, 1);
+        });
+    });
+
+    describe('operator notice failure', () => {
+        it('still finishes the run when the notice writer throws', async () => {
+            addFile('EVIL.EXE', 'EICAR');
+            FileScanner._setNoticeWriter(() => {
+                throw new Error('writer exploded');
+            });
+            const summary = await run();
+            assert.equal(summary.counts.infected, 1);
+            assert.equal(Rescan.isRunning(), false);
+        });
+
+        it('lets the scheduler task complete too', async () => {
+            addFile('EVIL.EXE', 'EICAR');
+            FileScanner._setNoticeWriter(() => {
+                throw new Error('writer exploded');
+            });
+            const { err, output } = await new Promise(resolve =>
+                Rescan.rescanFileBaseScheduledEvent([], (err, output) =>
+                    resolve({ err, output })
+                )
+            );
+            assert.equal(err.message, '1 infected file in the file base');
+            assert.match(output, /1 infected/);
         });
     });
 
