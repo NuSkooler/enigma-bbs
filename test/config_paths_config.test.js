@@ -307,12 +307,42 @@ describe('paths.config default (#927)', function () {
             assert.equal(Config.getConfigFilePath(tempDir), want);
         });
 
-        it('falls back to the default directory', () => {
+        it('falls back to the default directory, warning only for a bare --config', () => {
             const { Config } = configModule;
             const want = paths.join(Config.getDefaultPath(), 'config.hjson');
-            assert.equal(Config.getConfigFilePath(undefined), want);
-            assert.equal(Config.getConfigFilePath(''), want);
-            assert.equal(Config.getConfigFilePath(true), want); //  a bare --config
+            const warnings = [];
+            const onWarning = w => warnings.push(w);
+            assert.equal(Config.getConfigFilePath(undefined, onWarning), want);
+            assert.deepEqual(warnings, []);
+            assert.equal(Config.getConfigFilePath('', onWarning), want);
+            assert.equal(Config.getConfigFilePath(true, onWarning), want); //  a bare --config
+            assert.equal(warnings.length, 2);
+            assert.match(warnings[0], /--config needs a directory/);
+            assert.equal(Config.getConfigFilePath(true), want); //  no callback: fine
+        });
+
+        it('takes a path to the config file itself', () => {
+            const { Config } = configModule;
+            const file = writeConfig(tempDir, '{}\n');
+            assert.equal(Config.getConfigFilePath(file), file);
+
+            const other = paths.join(tempDir, 'board.conf');
+            fs.writeFileSync(other, '{}\n');
+            assert.equal(Config.getConfigFilePath(other), other);
+
+            //  not there yet, but plainly a file name: ENOENT names it
+            const missing = paths.join(tempDir, 'nope', 'config.hjson');
+            assert.equal(Config.getConfigFilePath(missing), missing);
+        });
+
+        it('treats a directory named *.hjson as a directory', () => {
+            const { Config } = configModule;
+            const dirLike = paths.join(tempDir, 'odd.hjson');
+            fs.mkdirSync(dirLike);
+            assert.equal(
+                Config.getConfigFilePath(dirLike),
+                paths.join(dirLike, 'config.hjson')
+            );
         });
     });
 
@@ -351,6 +381,23 @@ describe('paths.config default (#927)', function () {
                 !output.includes(`${tempDir}config.hjson`),
                 `config.hjson was joined without a separator:\n${output}`
             );
+            assert.ok(
+                output.includes(paths.join(tempDir, 'my-menu.hjson')),
+                `expected a report on ${paths.join(tempDir, 'my-menu.hjson')}:\n${output}`
+            );
+        });
+
+        it('reads the config file a --config names directly', () => {
+            const configFile = writeConfig(
+                tempDir,
+                '{\n    general: {\n        boardName: Test\n        menuFile: my-menu.hjson\n    }\n}\n'
+            );
+            fs.writeFileSync(
+                paths.join(tempDir, 'my-menu.hjson'),
+                '{\n    menus: {\n        hello: {\n            art: hello\n        }\n    }\n}\n'
+            );
+
+            const output = runOputil(configFile);
             assert.ok(
                 output.includes(paths.join(tempDir, 'my-menu.hjson')),
                 `expected a report on ${paths.join(tempDir, 'my-menu.hjson')}:\n${output}`

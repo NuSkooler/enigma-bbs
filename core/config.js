@@ -5,6 +5,7 @@ const { routeArchiversToUnarc } = require('./config/unarc_archivers');
 
 const _ = require('lodash');
 const paths = require('path');
+const fs = require('graceful-fs');
 
 //  Global system configuration instance; see Config.create()
 let systemConfigInstance;
@@ -166,13 +167,45 @@ exports.Config = class Config extends ConfigLoader {
         return './config/';
     }
 
-    //  config.hjson in |configDir| -- what --config names, with or without a
-    //  trailing separator -- or in the default directory.
-    static getConfigFilePath(configDir) {
-        return paths.join(
-            _.isString(configDir) && configDir ? configDir : Config.getDefaultPath(),
-            'config.hjson'
-        );
+    //
+    //  The config file --config names. |configArg| is normally the directory
+    //  holding config.hjson, with or without a trailing separator. A path to
+    //  the file itself -- an existing file, or a name ending in .hjson that is
+    //  not an existing directory -- is used as it is, so
+    //  "--config /srv/bbs/config.hjson" does what it says rather than look
+    //  for config.hjson/config.hjson. With no --config, the default directory.
+    //
+    //  A --config given no value (minimist makes that |true| or '') also
+    //  falls back to the default directory, and |onWarning| (if given) is
+    //  told so: main.js and oputil print it, the logger not being up yet.
+    //
+    static getConfigFilePath(configArg, onWarning) {
+        if (_.isUndefined(configArg)) {
+            return paths.join(Config.getDefaultPath(), 'config.hjson');
+        }
+
+        if (!_.isString(configArg) || !configArg) {
+            const defaultFile = paths.join(Config.getDefaultPath(), 'config.hjson');
+            if (_.isFunction(onWarning)) {
+                onWarning(
+                    `--config needs a directory (the one holding config.hjson); using ${defaultFile}`
+                );
+            }
+            return defaultFile;
+        }
+
+        let stats;
+        try {
+            stats = fs.statSync(configArg);
+        } catch (e) {
+            stats = null;
+        }
+
+        if (stats ? stats.isFile() : /\.hjson$/i.test(configArg)) {
+            return configArg;
+        }
+
+        return paths.join(configArg, 'config.hjson');
     }
 };
 
