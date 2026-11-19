@@ -244,6 +244,64 @@ describe('file_scanner', function () {
             });
         });
 
+        //  Windows drops trailing dots and spaces: these run as .exe there
+        it('matches fileTypes past trailing dots and spaces', done => {
+            const calls = [];
+            const name = uniqueName('trail');
+            FileScanner.registerScanner(name, stubScanner({ result: 'clean' }, calls));
+            setScanning({
+                enabled: true,
+                scanners: [{ scanner: name, fileTypes: ['exe'] }],
+            });
+
+            const p = writeFile('tmp-trail');
+            FileScanner.scanFile(p, { source: 'upload', fileName: 'foo.exe.' }, err => {
+                assert.ifError(err);
+                FileScanner.scanFile(p, { source: 'upload', fileName: 'x.EXE ' }, err => {
+                    assert.ifError(err);
+                    FileScanner.scanFile(
+                        p,
+                        { source: 'upload', fileName: 'y.exe . .' },
+                        err => {
+                            assert.ifError(err);
+                            assert.equal(calls.length, 3);
+                            done();
+                        }
+                    );
+                });
+            });
+        });
+
+        //  A throw in the caller's own callback used to be caught as a scanner
+        //  failure and handed to a callback that had already run: the chain
+        //  then never finished, and the caller's bug vanished.
+        //  (A rejection ends the chain at once, from inside the scanner's
+        //  callback: that is where the caller's code used to run in the try.)
+        it('lets a throw from the caller callback surface, calling back once', () => {
+            const name = uniqueName('sync');
+            FileScanner.registerScanner(name, {
+                scan: (p, ctx, cb) => cb(null, { result: 'infected', signature: 'X' }),
+            });
+            setScanning({ enabled: true, scanners: [{ scanner: name }] });
+
+            //  hash and size known, and the scanner answers at once: the whole
+            //  chain runs synchronously, so the throw comes back out here
+            let calls = 0;
+            assert.throws(
+                () =>
+                    FileScanner.scanFile(
+                        writeFile('sync.zip'),
+                        { source: 'upload', sha256: 'ab'.repeat(32), byteSize: 10 },
+                        () => {
+                            ++calls;
+                            throw new Error('caller bug');
+                        }
+                    ),
+                /caller bug/
+            );
+            assert.equal(calls, 1);
+        });
+
         it('passes the entry as ctx.options and fills in sha256 / byteSize', done => {
             const calls = [];
             const name = uniqueName('ctx');
@@ -708,6 +766,164 @@ describe('file_scanner', function () {
                     assert.ifError(err);
                     assert.equal(d.action, 'quarantine');
                     assert.ok(fs.existsSync(d.path));
+                    done();
+                }
+            );
+        });
+
+        it('defangs past trailing dots and spaces, which Windows drops', () => {
+            assert.equal(FileScanner.defangFileName('foo.exe.'), 'foo.ex_');
+            assert.equal(FileScanner.defangFileName('x.EXE '), 'x.EX_');
+            assert.equal(FileScanner.defangFileName('y.bat . .'), 'y.ba_');
+            assert.equal(FileScanner.defangFileName('a.zip. '), 'a.zip');
+        });
+
+        //  "..", "." and friends made the move fail, leaving the file in place
+        it('quarantines a file whose name has nothing usable left', done => {
+            setScanning({ enabled: true });
+            //  (an empty fileName is not one: the file's own base name is used)
+            const names = ['..', '.', '...', '. .', 'x/..', 'x\\..'];
+            const results = [];
+
+            const next = () => {
+                if (results.length === names.length) {
+                    const q = fs.readdirSync(paths.join(dir, '.quarantine'));
+                    assert.equal(
+                        q.filter(n => !n.endsWith('.json')).length,
+                        names.length
+                    );
+                    results.forEach(({ name, disp }) => {
+                        assert.match(
+                            paths.basename(disp.path),
+                            /^unnamed-[0-9a-f]{16}(\(\d+\))?$/
+                        );
+                        const record = JSON.parse(
+                            fs.readFileSync(disp.sidecarPath, 'utf8')
+                        );
+                        assert.equal(record.originalName, name, 'kept in the sidecar');
+                    });
+                    return done();
+                }
+
+                const name = names[results.length];
+                const src = writeFile('tmp-hostile', `payload ${results.length}`);
+                FileScanner.applyFailAction(
+                    src,
+                    infected,
+                    { source: 'tic', fileName: name },
+                    (err, disp) => {
+                        assert.ifError(err);
+                        assert.equal(fs.existsSync(src), false);
+                        results.push({ name, disp });
+                        return next();
+                    }
+                );
+            };
+
+            next();
+        });
+
+        it('quarantines a name too long for the file system under a generated one', done => {
+            setScanning({ enabled: true });
+            const src = writeFile('tmp-long');
+            FileScanner.applyFailAction(
+                src,
+                infected,
+                { source: 'upload', fileName: `${'A'.repeat(300)}.exe` },
+                (err, disp) => {
+                    assert.ifError(err);
+                    assert.match(
+                        paths.basename(disp.path),
+                        /^unnamed-[0-9a-f]{16}\.ex_$/
+                    );
+                    done();
+                }
+            );
+        });
+
+        it('quarantines "FOO.EXE." defanged and without the trailing dot', done => {
+            setScanning({ enabled: true });
+            const src = writeFile('tmp-dot');
+            FileScanner.applyFailAction(
+                src,
+                infected,
+                { source: 'upload', fileName: 'FOO.EXE. ' },
+                (err, disp) => {
+                    assert.ifError(err);
+                    assert.equal(paths.basename(disp.path), 'FOO.EX_');
+                    done();
+                }
+            );
+        });
+
+        //  a quarantine directory that cannot be made: a file is in the way
+        const blockQuarantine = () => {
+            writeFile('blocker', 'not a directory');
+            setScanning({ enabled: true, quarantinePath: 'blocker' });
+        };
+
+        it('deletes an infected file that cannot be quarantined, and says so', done => {
+            blockQuarantine();
+            const src = writeFile('tmp-noq', 'EICAR');
+            FileScanner.applyFailAction(
+                src,
+                infected,
+                { source: 'oputil', fileName: 'BAD.EXE' },
+                (err, disp) => {
+                    assert.ifError(err);
+                    assert.equal(disp.action, 'delete');
+                    assert.ok(disp.quarantineError);
+                    assert.equal(fs.existsSync(src), false, 'never left in place');
+
+                    const { body } = FileScanner.buildOperatorNotice([
+                        {
+                            ctx: { fileName: 'BAD.EXE' },
+                            verdict: infected,
+                            disposition: disp,
+                        },
+                    ]);
+                    assert.match(body, /Action: {2}DELETED, could not be quarantined: /);
+                    done();
+                }
+            );
+        });
+
+        it('leaves a held file that cannot be quarantined where it is, with an error', done => {
+            blockQuarantine();
+            const src = writeFile('tmp-noq', 'maybe fine');
+            FileScanner.applyFailAction(
+                src,
+                held,
+                { source: 'oputil', fileName: 'maybe.zip' },
+                (err, disp) => {
+                    assert.ok(err);
+                    assert.equal(disp, undefined);
+                    assert.ok(fs.existsSync(src), 'a held file may be clean: kept');
+                    done();
+                }
+            );
+        });
+
+        it('is an error when an infected file can be neither quarantined nor deleted', function (done) {
+            if ('win32' === process.platform || 0 === process.getuid()) {
+                return this.skip(); //  permissions do not stop root
+            }
+            blockQuarantine();
+            const sub = paths.join(dir, 'ro');
+            fs.mkdirSync(sub);
+            const src = paths.join(sub, 'tmp-stuck');
+            fs.writeFileSync(src, 'EICAR');
+            fs.chmodSync(sub, 0o555);
+
+            FileScanner.applyFailAction(
+                src,
+                infected,
+                { source: 'oputil', fileName: 'STUCK.EXE' },
+                (err, disp) => {
+                    fs.chmodSync(sub, 0o755);
+                    assert.ok(err);
+                    assert.match(err.message, /quarantine .* or delete/);
+                    assert.equal(disp, undefined);
                     done();
                 }
             );

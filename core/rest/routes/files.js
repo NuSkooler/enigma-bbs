@@ -638,6 +638,9 @@ function _rejectUpload(rejectedErr, uploadInfo, user, log, cb) {
                 { err, fileName: uploadInfo.fileName },
                 'Failed to quarantine or delete rejected upload'
             );
+            disposition = {
+                error: `${err.message}; removed with the upload's temporary directory`,
+            };
         }
 
         FileScanner.notifyOperators(

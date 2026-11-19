@@ -670,6 +670,10 @@ exports.getModule = class UploadModule extends MenuModule {
                                 { fileName: rej.fileName, error: err.message },
                                 'Failed to quarantine or delete rejected upload'
                             );
+                            //  never imported: only newEntries leave it
+                            disposition = {
+                                error: `${err.message}; removed with the upload's temporary directory`,
+                            };
                         }
                         rej.disposition = disposition;
                         return nextRej(null);

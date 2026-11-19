@@ -258,9 +258,18 @@ function getQuarantinePath() {
 
 // ── Scanning ─────────────────────────────────────────────────────────────────
 
+//
+//  Windows drops trailing dots and spaces from a name, so "FOO.EXE." and
+//  "FOO.EXE " are FOO.EXE the moment they land on an NTFS or SMB volume, and
+//  run as one. Every extension decision here goes by the name without them.
+//
+function trimTrailingDotsAndSpaces(fileName) {
+    return String(fileName || '').replace(/[. ]+$/, '');
+}
+
 function extOf(fileName) {
     return paths
-        .extname(fileName || '')
+        .extname(trimTrailingDotsAndSpaces(fileName))
         .replace(/^\./, '')
         .toLowerCase();
 }
@@ -346,6 +355,12 @@ function runOneScanner(entry, filePath, ctx, cb) {
         abortSignal: abort.signal,
     });
 
+    //
+    //  |cb| runs the rest of the chain and then the caller's code. Once it
+    //  has been called, a throw that reaches the catch below came from there
+    //  -- or from the scanner after it answered -- and is rethrown: swallowing
+    //  it would leave the chain waiting for a callback that never comes.
+    //
     try {
         impl.scan(filePath, scanCtx, (err, res) => {
             if (err) {
@@ -369,6 +384,9 @@ function runOneScanner(entry, filePath, ctx, cb) {
             return finish(out);
         });
     } catch (e) {
+        if (done) {
+            throw e;
+        }
         return finish(errorResult(e.message));
     }
 }
@@ -556,12 +574,15 @@ function scanFile(filePath, ctx, cb) {
 //
 //  DOS convention: the last character of an executable-looking extension
 //  becomes "_" (FOO.EXE -> FOO.EX_). Case is kept. A one-character extension
-//  such as ".x" in the list becomes "._".
+//  such as ".x" in the list becomes "._". Trailing dots and spaces go first
+//  (see trimTrailingDotsAndSpaces()): "FOO.EXE." -> FOO.EX_.
 //
 function defangFileName(fileName, defangExtensions) {
     const list = (defangExtensions || DEFAULT_DEFANG_EXTENSIONS)
         .filter(_.isString)
         .map(e => e.replace(/^\./, '').toLowerCase());
+
+    fileName = trimTrailingDotsAndSpaces(fileName) || fileName;
 
     const ext = paths.extname(fileName);
     if (!ext || ext.length < 2 || !list.includes(ext.slice(1).toLowerCase())) {
@@ -572,11 +593,17 @@ function defangFileName(fileName, defangExtensions) {
 }
 
 //  Strips exec (and setuid/setgid/sticky) bits. Windows has none to strip, so
-//  a failure there is expected and only logged.
+//  a failure there is expected and only logged. Never fails: by now the file
+//  is in quarantine, and that is what matters.
 function stripExecBits(filePath, cb) {
     fs.stat(filePath, (err, stats) => {
         if (err) {
-            return cb(err);
+            log(
+                'warn',
+                { filePath, error: err.message },
+                'Could not stat quarantined file to strip its exec bits'
+            );
+            return cb(null);
         }
         const mode = stats.mode & 0o7777 & ~0o7111;
         fs.chmod(filePath, mode, err => {
@@ -612,6 +639,33 @@ function writeSidecar(finalPath, data, cb) {
     attempt();
 }
 
+//  Longest name, in bytes, a quarantined file is given; most file systems
+//  stop at 255, and a collision suffix and ".json" still have to fit.
+const MAX_QUARANTINE_NAME_BYTES = 200;
+
+//
+//  The name a rejected file gets in quarantine. It comes from outside --
+//  an uploader, a TIC -- so it is made safe here: no directory part, no
+//  trailing dots or spaces, defanged. A name with nothing usable left ("..",
+//  ".", all dots, empty) or too long for the file system gets a generated
+//  one, so a hostile name can never make the quarantine fail. The original
+//  is kept in the sidecar either way.
+//
+function quarantineFileName(fileName, ctx, defangExtensions) {
+    let name = trimTrailingDotsAndSpaces(
+        paths.basename(String(fileName || '').replace(/\\/g, '/'))
+    ).replace(/\0/g, '');
+
+    if (!name || Buffer.byteLength(name) > MAX_QUARANTINE_NAME_BYTES) {
+        const ext = paths.extname(name).slice(0, 16);
+        const id =
+            _.isString(ctx.sha256) && ctx.sha256 ? ctx.sha256.slice(0, 16) : Date.now();
+        name = `unnamed-${id}${ext}`;
+    }
+
+    return defangFileName(name, defangExtensions);
+}
+
 function userInfo(ctx) {
     const user = ctx.user;
     if (!user) {
@@ -628,11 +682,20 @@ function userInfo(ctx) {
 //  delete. A |held| file -- the scanner failed, so it may be perfectly
 //  clean -- is always quarantined, whatever failAction says.
 //
+//  An |infected| file that cannot be quarantined (a full disk, a quarantine
+//  directory that cannot be made, ...) is deleted instead, loudly: it must
+//  never stay where it is, where a later import could pick it up. Only if
+//  that fails too is it an error. A |held| file that cannot be quarantined
+//  is an error at once and is left where it is -- it may be clean -- for the
+//  caller to report.
+//
 //  Calls back (err, disposition):
 //  {
 //      action:         'quarantine' | 'delete'
 //      path:           final quarantine path (quarantine only)
 //      sidecarPath:    the JSON record beside it (quarantine only)
+//      quarantineError: why quarantine failed, when an infected file was
+//                      deleted instead
 //  }
 //
 function applyFailAction(filePath, verdict, ctx, cb) {
@@ -665,19 +728,51 @@ function applyFailAction(filePath, verdict, ctx, cb) {
     }
 
     const quarantineDir = getQuarantinePath();
-    const quarantineName = defangFileName(
-        //  never let a name pick its own directory
-        paths.basename(fileName.replace(/\\/g, '/')),
-        scanning.defangExtensions
-    );
-
     let finalPath;
+
+    const quarantineFailed = err => {
+        if (exports.Verdicts.Infected !== verdict.result) {
+            return cb(err);
+        }
+
+        log(
+            'error',
+            { fileName, path: filePath, source: ctx.source, error: err.message },
+            'Could not quarantine an infected file; deleting it instead'
+        );
+
+        fs.unlink(filePath, unlinkErr => {
+            //  gone already is as good as deleted
+            if (unlinkErr && 'ENOENT' !== unlinkErr.code) {
+                log(
+                    'error',
+                    { fileName, path: filePath, error: unlinkErr.message },
+                    'Could not delete an infected file either; it is still in place'
+                );
+                return cb(
+                    Errors.General(
+                        `Could not quarantine (${err.message}) or delete (${unlinkErr.message}) it`
+                    )
+                );
+            }
+            return cb(null, {
+                action: exports.FailActions.Delete,
+                quarantineError: cleanText(err.message),
+            });
+        });
+    };
 
     async.series(
         [
             callback => fillHashAndSize(filePath, ctx, callback),
             callback => fse.mkdirs(quarantineDir, err => callback(err)),
             callback => {
+                //  after fillHashAndSize(): a generated name uses the hash
+                const quarantineName = quarantineFileName(
+                    fileName,
+                    ctx,
+                    scanning.defangExtensions
+                );
                 moveFileWithCollisionHandling(
                     filePath,
                     paths.join(quarantineDir, quarantineName),
@@ -691,7 +786,7 @@ function applyFailAction(filePath, verdict, ctx, cb) {
         ],
         err => {
             if (err) {
-                return cb(err);
+                return quarantineFailed(err);
             }
 
             const record = {
@@ -749,7 +844,9 @@ function applyFailAction(filePath, verdict, ctx, cb) {
 //
 //  rejections: [ { ctx?, verdict, disposition? } ]
 //      |ctx| is per file and wins over the call's |ctx| (a rescan spans many
-//      areas); |disposition| is what applyFailAction() called back.
+//      areas); |disposition| is what applyFailAction() called back. When it
+//      called back an error instead, a caller passes { error, path? }: the
+//      file was not moved, and |path| says where it still is.
 //
 //  Returns { subject, body }. The body is 7-bit ASCII with CRLF line ends,
 //  like the other system notices; file names and scanner output are cleaned
@@ -780,7 +877,14 @@ function buildOperatorNotice(rejections, ctx) {
                 : `held, scanner failed: ${v.detail || 'unknown error'}`;
 
         let action;
-        if (exports.FailActions.Delete === d.action) {
+        if (d.error) {
+            action = `NOT moved: ${d.error}`;
+            if (d.path) {
+                action += `; still at ${d.path}`;
+            }
+        } else if (exports.FailActions.Delete === d.action && d.quarantineError) {
+            action = `DELETED, could not be quarantined: ${d.quarantineError}`;
+        } else if (exports.FailActions.Delete === d.action) {
             action = 'deleted';
         } else if (d.path) {
             action = `quarantined to ${d.path}`;

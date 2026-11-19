@@ -738,6 +738,12 @@ function displayFileOrAreaInfo() {
 //  (quarantine or delete), and keep it for the run's one operator notice. It
 //  is never imported.
 //
+//  It is in the storage tree, though, where a later plain "fb scan" would
+//  import it unscanned, so failing to move it is loud. An infected file that
+//  cannot be quarantined is deleted instead (see applyFailAction()); one
+//  that cannot be deleted either fails the run. A held file -- the scanner
+//  failed, so it may be clean -- is left where it is, and said to be.
+//
 function rejectScannedFile(fullPath, storageTag, relPath, rejectedErr, options, cb) {
     const FileEntry = require('../file_entry.js');
     const verdict = rejectedErr.verdict;
@@ -762,7 +768,21 @@ function rejectScannedFile(fullPath, storageTag, relPath, rejectedErr, options, 
             rejectedErr.scanContext,
             (err, disposition) => {
                 if (err) {
-                    console.error(`  Could not quarantine or delete it: ${err.message}`);
+                    disposition = { error: err.message, path: fullPath };
+                    if (FileScanner.Verdicts.Infected === verdict.result) {
+                        process.exitCode = ExitCodes.ERROR;
+                        console.error(
+                            `  ERROR: ${err.message}. This INFECTED file is still at ${fullPath}; remove it by hand before the next "fb scan".`
+                        );
+                    } else {
+                        console.error(
+                            `  Could not quarantine it: ${err.message}. It is still at ${fullPath}, NOT scanned; a plain "fb scan" would import it.`
+                        );
+                    }
+                } else if (disposition.quarantineError) {
+                    console.error(
+                        `  Could not quarantine it (${disposition.quarantineError}); DELETED it instead`
+                    );
                 } else if (FileScanner.FailActions.Delete === disposition.action) {
                     console.info('  Deleted');
                 } else {
