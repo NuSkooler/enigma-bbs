@@ -302,6 +302,31 @@ describe('ThemeManager._finalizeTheme() — TableView MCI merge', () => {
         assert.equal(mci.TV1.height, 10);
     });
 
+    it("a theme replaces a column's whole rules list (arrays replace)", () => {
+        const mci = finalize(
+            {
+                TV1: {
+                    columns: {
+                        new: {
+                            width: 5,
+                            sgr: '|08',
+                            rules: [
+                                { when: '> 0', sgr: '|10' },
+                                { when: '= 0', text: '-' },
+                            ],
+                        },
+                    },
+                },
+            },
+            { TV1: { columns: { new: { rules: [{ when: '> 9', sgr: '|12' }] } } } }
+        );
+        assert.deepEqual(mci.TV1.columns.new, {
+            width: 5,
+            sgr: '|08',
+            rules: [{ when: '> 9', sgr: '|12' }],
+        });
+    });
+
     it('keeps immutable properties on TV entries', () => {
         const mci = finalize({ TV1: { submit: true } }, { TV1: { submit: false } });
         assert.equal(mci.TV1.submit, true);

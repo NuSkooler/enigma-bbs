@@ -80,12 +80,65 @@ Each entry in `columns` describes one column:
 | `pipeCodes` | `true` or `false`: whether pipe codes in this column's values are shown as colour. Overrides the module's `plainFields` |
 | `minTermWidth` | Hide the column on terminals narrower than this, e.g. `80`. `fill` columns take the space it leaves, which helps on 40-column terminals |
 | `sortOrder` | `asc` or `desc`: the order used when the user's sort key moves to this column. Defaults to `asc` |
+| `maxLines` | Wrap the value onto up to this many lines. Defaults to `1` (no wrap). See **Wrapping** below |
+| `rules` | Conditional colours and text, see **Rules** below |
 
 A `date` column takes a Date, a moment, an ISO 8601 string (`2026-11-17T21:04:00`) or epoch milliseconds from the module. Set `type: date` for the last two; only real dates are recognised without it. Any other value is shown as given.
 
 :::note
 CP437 has no ellipsis character: a `…` reaches CP437 callers as `?`. Use `..`, `~` or `»` (CP437 `0xAF`) for `textOverflow`.
 :::
+
+### Wrapping
+
+A column with `maxLines` above `1` wraps its values onto several lines, at spaces; a word longer than the column is broken. A row is as tall as its tallest cell, each cell capped at its column's `maxLines`, and the other cells of the row are padded with blank lines in their own colours. A value that needs more lines than `maxLines` ends its last line with the column's `textOverflow` marker. Group rows and the header are always one line.
+
+```hjson
+subject: {
+    field: subject
+    label: Subject
+    width: fill
+    maxLines: 2
+    textOverflow: ".."
+}
+```
+
+- The lightbar covers every line of the focused row (or of the `focusColumns`), and `altRowSGR` stripes whole rows.
+- Colours carry onto a cell's wrapped lines; plain fields wrap as typed.
+- A row that does not fit whole at the bottom of the view is left for the next screen. When it is focused, the list scrolls to show all of it. A row taller than the whole view is shown from its top, cut at the bottom.
+- `height` counts screen lines, and Page Up / Page Down move by a screen of lines.
+
+### Rules
+
+`rules` changes a cell's colour, its text, or both, depending on its value:
+
+```hjson
+new: {
+    field: newCount
+    label: New
+    type: number
+    width: 5
+    sgr: "|08"
+    rules: [
+        {
+            when: "> 0"
+            sgr: "|10"
+        }
+        {
+            when: "= 0"
+            text: "-"
+        }
+    ]
+}
+```
+
+- `when` is `empty`, `notEmpty`, or one of `=`, `!=`, `<`, `<=`, `>`, `>=` followed by a value, e.g. `"> 0"`, `"= new"`, `">= 2026-11-01"`. Quote a value to keep spaces: `"= 'no subject'"`.
+- Values compare by the column's `type`: numbers as numbers, dates as dates (give an ISO 8601 date such as `2026-11-01`), `bool` as `true`/`false` (`yes`/`no`, `on`/`off`, `1`/`0` also work), and text **ignoring case** (and accents), with numbers inside text compared as numbers, the same order the column sorts in.
+- An empty value only matches `empty`; it never matches a comparison, not even `!=`. A value that does not read as the column's type (`n/a` in a `number` column) never matches a comparison either.
+- The first rule that matches is used. A rule can have `sgr`, `text` or both.
+- `sgr` is the highest colour (see **Colours** below).
+- `text` is shown instead of the value: it is your text, so pipe codes show as colour, and it goes through the column's `format`, justification and `textOverflow` like a value. It also replaces `nullText` for a rule that matches an empty value.
+- A rule whose `when` cannot be read is skipped, and logged once.
 
 ### Colours
 
@@ -95,8 +148,9 @@ A cell's colour is built up in this order, each later colour overriding only wha
 2. the column's `sgr`
 3. the row's `stateSGR`
 4. the column's `focusSGR`, on the focused row only
+5. the `sgr` of the first matching rule
 
-Because the lightbar comes first, a column colour such as `|03` stays visible inside it; set the column's `focusSGR` to change that. Colours inside a `format` or a value apply after all of these.
+Because the lightbar comes first, a column colour such as `|03` stays visible inside it, and a rule's colour (a lit "New" count) stays lit inside it; set the column's `focusSGR` to change that. Colours inside a `format` or a value apply after all of these.
 
 ### Sorting
 
@@ -121,7 +175,7 @@ Pipe codes in formats, labels, `separator`, `group`, `emptyText` and other text 
 ## Navigation
 
 - Up and Down move to the next or previous row that can be selected, and wrap around at the ends of the list, as on a vertical menu.
-- Page Up and Page Down move by a screen. At the last row Page Down goes to the first, and at the first row Page Up goes to the last.
+- Page Up and Page Down move by a screen of lines (rows can be taller than one line, see **Wrapping**). At the last row Page Down goes to the first, and at the first row Page Up goes to the last.
 - Home and End go to the first and last rows that can be selected.
 - A hot key that points at a row that cannot be selected is ignored.
 - When the list scrolls back up to the first row of a group, its group row is brought into view with it.
@@ -159,6 +213,7 @@ TV1: {
             field: areaName
             label: Area
             width: fill
+            maxLines: 2
             textOverflow: ".."
         }
         total: {
@@ -174,7 +229,17 @@ TV1: {
             label: New
             type: number
             width: 5
-            sgr: "|10"
+            sgr: "|08"
+            rules: [
+                {
+                    when: "> 0"
+                    sgr: "|10"
+                }
+                {
+                    when: "= 0"
+                    text: "-"
+                }
+            ]
         }
         yours: {
             field: yours
@@ -224,7 +289,7 @@ mci: {
 }
 ```
 
-Lists inside them (`sort.then`) and every other property are replaced as usual.
+Lists inside them are replaced as a whole: a theme that sets a column's `rules` replaces that column's rules list, and `sort.then` likewise. Every other property is replaced as usual.
 
 :::note
 The merge applies only to MCI entries named `TV`, e.g. `TV1`. On every other view, a nested value in `theme.hjson`, such as a status bar's `panels`, **replaces** the menu's value as a whole, as it always has. A menu that keeps a `VM1` entry for `%TV1` art still works, but its nested values are replaced; rename the entry to `TV1` to get the merge.
@@ -237,7 +302,7 @@ A module fills the table and reacts to it through the view:
 | Method | Description |
 |--------|-------------|
 | `setItems(rows, { keepFocus })` | Set the rows. With `keepFocus: true` focus stays on the same row (by `key`, else at the same index), moving to the nearest selectable row if that one cannot be selected now; without it focus goes to the first row that can be selected. A sort set with `setSort()` or `cycleSort()` is kept. Does not redraw |
-| `updateItem(key, fields)` | Merge `fields` into the row with this `key` (falling back to `data`; numbers are keys too) and redraw that row only; focus and scroll stay put. The row is not moved by the sort; call `setSort()` to re-sort. A change of `kind` or `selectable` redraws the table. Returns `false` if there is no such row |
+| `updateItem(key, fields)` | Merge `fields` into the row with this `key` (falling back to `data`; numbers are keys too) and redraw that row only (from that row down, if its height changes); focus and scroll stay put. The row is not moved by the sort; call `setSort()` to re-sort. A change of `kind` or `selectable` redraws the table. Returns `false` if there is no such row |
 | `updateItemAt(index, fields)` | The same, by the row's position on screen (after sorting) |
 | `getFocusedItem()` | The focused row, or `null` when nothing can be selected |
 | `findIndex(fn)` | Index of the first row for which `fn(row, index)` is true, else `-1` |

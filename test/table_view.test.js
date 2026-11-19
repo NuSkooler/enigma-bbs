@@ -1545,4 +1545,509 @@ describe('TableView', function () {
             );
         });
     });
+
+    describe('cell wrap (maxLines)', function () {
+        const S = code => pipeToAnsi(code);
+        //  a two-column table: a one-line key column and a wrapping text column
+        const wrapView = (rows, extra = {}, opts) =>
+            makeView(
+                Object.assign(
+                    {
+                        dimens: { width: 12, height: 6 },
+                        styleSGR1: S('|07'),
+                        focusSGR: '|17',
+                        columns: {
+                            k: { width: 2 },
+                            t: { width: 10, maxLines: 3 },
+                        },
+                        columnOrder: ['k', 't'],
+                    },
+                    extra
+                ),
+                rows,
+                opts
+            );
+
+        it('wraps at word boundaries; the row is as tall as its tallest cell', function () {
+            const { view, client } = wrapView([
+                { k: 'a', t: 'the quick brown fox' },
+                { k: 'b', t: 'short' },
+            ]);
+            assert.equal(drawnOnRow(client, 1), 'a the quick ');
+            assert.equal(drawnOnRow(client, 2), '  brown fox ');
+            assert.equal(drawnOnRow(client, 3), 'b short     ');
+            assert.equal(view._rowHeight(0), 2);
+        });
+
+        it('breaks words longer than the cell', function () {
+            const { client } = wrapView([{ k: 'a', t: 'abcdefghijklmnopqrst' }]);
+            assert.equal(drawnOnRow(client, 1), 'a abcdefghij');
+            assert.equal(drawnOnRow(client, 2), '  klmnopqrst');
+        });
+
+        it('caps at maxLines; the last line kept ends in the overflow marker', function () {
+            const { client } = wrapView(
+                [{ k: 'a', t: 'one two three four five six seven eight' }],
+                {
+                    columns: {
+                        k: { width: 2 },
+                        t: { width: 10, maxLines: 2, textOverflow: '..' },
+                    },
+                }
+            );
+            //  the marker replaces the end of the last line kept, as a cut does
+            assert.equal(drawnOnRow(client, 1), 'a one two   ');
+            assert.equal(drawnOnRow(client, 2), '  three fo..');
+            assert.equal(drawnOnRow(client, 3).trim(), '');
+        });
+
+        it('a marker on a full last line replaces its end', function () {
+            const { client } = wrapView([{ k: 'a', t: 'abcdefghij klmnopqrst uv' }], {
+                columns: {
+                    k: { width: 2 },
+                    t: { width: 10, maxLines: 2, textOverflow: '>' },
+                },
+            });
+            assert.equal(drawnOnRow(client, 2), '  klmnopqrs>');
+        });
+
+        it('pads shorter cells with blank lines in their colours', function () {
+            const { client } = wrapView(
+                [
+                    { k: 'a', t: 'one two three' },
+                    { k: 'b', t: 'x' },
+                ],
+                {
+                    columns: {
+                        k: { width: 2, sgr: '|03' },
+                        t: { width: 10, maxLines: 3 },
+                    },
+                }
+            );
+            //  row 1 (focused): the key column's second line is blank, still lit
+            assert.ok(rawOnRow(client, 2).startsWith(`${S('|17')}${S('|03')}  `));
+        });
+
+        it('the lightbar covers every line of the focused row', function () {
+            const { view, client } = wrapView([
+                { k: 'a', t: 'x' },
+                { k: 'b', t: 'one two three' },
+            ]);
+            view.focusNext();
+            assert.ok(rawOnRow(client, 2).startsWith(`${S('|17')}b`));
+            assert.ok(rawOnRow(client, 3).startsWith(S('|17')));
+            assert.equal(drawnOnRow(client, 3), '  three     ');
+            assert.ok(rawOnRow(client, 1).startsWith(`${S('|07')}a`));
+        });
+
+        it('focusColumns: only the listed columns are lit, on every line', function () {
+            const { client } = wrapView([{ k: 'a', t: 'one two three' }], {
+                focusColumns: ['t'],
+            });
+            [1, 2].forEach(row => {
+                const raw = rawOnRow(client, row);
+                assert.ok(raw.startsWith(S('|07')), `row ${row}`);
+                assert.ok(raw.includes(S('|17')), `row ${row}`);
+            });
+        });
+
+        it('zebra stripes are per row, not per line', function () {
+            const { client } = wrapView(
+                [
+                    { k: 'a', t: 'x' },
+                    { k: 'b', t: 'one two three' },
+                    { k: 'c', t: 'y' },
+                ],
+                { altRowSGR: '|08' }
+            );
+            assert.ok(rawOnRow(client, 2).startsWith(`${S('|07')}${S('|08')}b`));
+            assert.ok(rawOnRow(client, 3).startsWith(`${S('|07')}${S('|08')}`));
+            assert.ok(rawOnRow(client, 4).startsWith(`${S('|07')}c`));
+        });
+
+        it('a row that does not fit at the bottom is left out, not cut', function () {
+            const { view, client } = wrapView(
+                [
+                    { k: 'a', t: 'x' },
+                    { k: 'b', t: 'y' },
+                    { k: 'c', t: 'one two three' },
+                ],
+                { dimens: { width: 12, height: 3 } }
+            );
+            assert.deepEqual(view.viewWindow, { top: 0, bottom: 1 });
+            assert.equal(drawnOnRow(client, 3).trim(), '');
+        });
+
+        it('focusing a tall row scrolls it whole into view', function () {
+            const { view, client } = wrapView(
+                [
+                    { k: 'a', t: 'x' },
+                    { k: 'b', t: 'y' },
+                    { k: 'c', t: 'one two three' },
+                ],
+                { dimens: { width: 12, height: 3 } }
+            );
+            view.focusLast();
+            assert.deepEqual(view.viewWindow, { top: 1, bottom: 2 });
+            assert.equal(drawnOnRow(client, 1), 'b y         ');
+            assert.equal(drawnOnRow(client, 2), 'c one two   ');
+            assert.equal(drawnOnRow(client, 3), '  three     ');
+        });
+
+        it('a row taller than the view is drawn clipped from its top', function () {
+            const { view, client } = wrapView(
+                [
+                    { k: 'a', t: 'one two three four five' },
+                    { k: 'b', t: 'y' },
+                ],
+                {
+                    dimens: { width: 12, height: 2 },
+                    columns: { k: { width: 2 }, t: { width: 5, maxLines: 5 } },
+                }
+            );
+            assert.equal(view._rowHeight(0), 5);
+            assert.equal(drawnOnRow(client, 1), 'a one       ');
+            assert.equal(drawnOnRow(client, 2), '  two       ');
+            assert.ok(!client.writes.join('').includes('\x1b[3;'));
+            view.focusNext();
+            assert.deepEqual(view.viewWindow, { top: 1, bottom: 1 });
+            assert.equal(drawnOnRow(client, 1), 'b y         ');
+            view.focusPrevious();
+            assert.deepEqual(view.viewWindow, { top: 0, bottom: 0 });
+        });
+
+        it('paging moves by screen lines', function () {
+            const rows = [];
+            for (let i = 0; i < 8; ++i) {
+                rows.push({ k: `${i}`, t: 'one two three' }); //  two lines each
+            }
+            const { view } = wrapView(rows, { dimens: { width: 12, height: 4 } });
+            view.focusNextPageItem();
+            assert.equal(view.getFocusItemIndex(), 2);
+            assert.deepEqual(view.viewWindow, { top: 1, bottom: 2 });
+            view.focusNextPageItem();
+            assert.equal(view.getFocusItemIndex(), 4);
+            view.focusPreviousPageItem();
+            assert.equal(view.getFocusItemIndex(), 2);
+        });
+
+        it('paging past a row taller than the view still moves', function () {
+            const { view } = wrapView(
+                [
+                    { k: 'a', t: 'x' },
+                    { k: 'b', t: 'one two three four five six' },
+                    { k: 'c', t: 'y' },
+                ],
+                {
+                    dimens: { width: 12, height: 2 },
+                    columns: { k: { width: 2 }, t: { width: 5, maxLines: 6 } },
+                }
+            );
+            view.focusNextPageItem();
+            assert.equal(view.getFocusItemIndex(), 1);
+            view.focusNextPageItem();
+            assert.equal(view.getFocusItemIndex(), 2);
+        });
+
+        it('a read-only table with tall rows scrolls by rows and pages by lines', function () {
+            const rows = [0, 1, 2, 3].map(i => ({
+                k: `${i}`,
+                t: 'one two three',
+                selectable: false,
+            }));
+            const { view, client } = wrapView(rows, { dimens: { width: 12, height: 4 } });
+            assert.deepEqual(view.viewWindow, { top: 0, bottom: 1 });
+            view.focusNext();
+            assert.deepEqual(view.viewWindow, { top: 1, bottom: 2 });
+            view.focusNextPageItem();
+            assert.deepEqual(view.viewWindow, { top: 2, bottom: 3 });
+            assert.equal(drawnOnRow(client, 3), '3 one two   ');
+            view.focusPreviousPageItem();
+            assert.deepEqual(view.viewWindow, { top: 0, bottom: 1 });
+        });
+
+        it("updateItem that changes a row's height redraws from that row down", function () {
+            const { view, client } = wrapView(
+                [
+                    { key: 'a', k: 'a', t: 'x' },
+                    { key: 'b', k: 'b', t: 'y' },
+                    { key: 'c', k: 'c', t: 'z' },
+                ],
+                { dimens: { width: 12, height: 5 } }
+            );
+            view.focusLast();
+            client.writes.length = 0;
+            view.updateItem('b', { t: 'one two three' });
+            assert.deepEqual(rowsWritten(client), [2, 3, 4, 5]);
+            assert.equal(drawnOnRow(client, 2), 'b one two   ');
+            assert.equal(drawnOnRow(client, 3), '  three     ');
+            assert.equal(drawnOnRow(client, 4), 'c z         ');
+            assert.equal(view.getFocusItemIndex(), 2);
+
+            view.updateItem('b', { t: 'y' }); //  back to one line
+            assert.equal(drawnOnRow(client, 3), 'c z         ');
+            assert.equal(drawnOnRow(client, 4).trim(), '');
+        });
+
+        it('an auto-sized table blanks the lines its tall rows drew when it shrinks', function () {
+            const client = makeClient();
+            const view = new TableView({
+                client,
+                id: 1,
+                position: { row: 1, col: 1 },
+                width: 12,
+                columns: { k: { width: 2 }, t: { width: 10, maxLines: 3 } },
+                columnOrder: ['k', 't'],
+            });
+            view.setItems([
+                { k: 'a', t: 'one two three' },
+                { k: 'b', t: 'four five six' },
+            ]);
+            view.redraw();
+            assert.equal(view.getHeight(), 4);
+            assert.equal(drawnOnRow(client, 4), '  six       ');
+            view.setItems([{ k: 'c', t: 'x' }]);
+            view.redraw();
+            assert.equal(view.getHeight(), 1);
+            [2, 3, 4].forEach(row =>
+                assert.equal(drawnOnRow(client, row), '            ', `row ${row}`)
+            );
+        });
+
+        it('pipe colours carry onto wrapped lines; plain fields wrap as typed', function () {
+            const { client } = wrapView(
+                [{ k: 'a', t: '|14red blue', s: '|12ab |12cd' }],
+                {
+                    dimens: { width: 12, height: 3 },
+                    columns: {
+                        t: { width: 5, maxLines: 2 },
+                        s: { width: 7, maxLines: 2 },
+                    },
+                    columnOrder: ['t', 's'],
+                    plainFields: ['s'],
+                }
+            );
+            assert.equal(drawnOnRow(client, 1), 'red  |12ab  ');
+            assert.equal(drawnOnRow(client, 2), 'blue |12cd  ');
+            assert.ok(rawOnRow(client, 2).includes(`${S('|14')}blue`));
+        });
+
+        it('measures CP437 glyphs and wide characters by their columns', function () {
+            const { client } = wrapView(
+                [
+                    { k: 'a', t: '░░░ ▒▒▒' },
+                    { k: 'b', t: '日本語 abc' },
+                ],
+                {
+                    dimens: { width: 6, height: 5 },
+                    columns: { k: { width: 2 }, t: { width: 4, maxLines: 3 } },
+                }
+            );
+            assert.equal(drawnOnRow(client, 1), 'a ░░░ ');
+            assert.equal(drawnOnRow(client, 2), '  ▒▒▒ ');
+            assert.equal(drawnOnRow(client, 3), 'b 日本');
+            assert.equal(drawnOnRow(client, 4), '  語  ');
+            assert.equal(drawnOnRow(client, 5), '  abc ');
+        });
+    });
+
+    describe('cell rules', function () {
+        const S = code => pipeToAnsi(code);
+        const shown = (when, value, type) => {
+            const { client } = makeView(
+                {
+                    dimens: { width: 3, height: 1 },
+                    columns: {
+                        v: { width: 3, type, rules: [{ when, text: 'Y' }] },
+                    },
+                },
+                [{ v: value }]
+            );
+            return 'Y' === drawnOnRow(client, 1).trim();
+        };
+
+        [
+            //  number
+            ['= 5', 5, 'number', true],
+            ['= 5', 6, 'number', false],
+            ['!= 5', 6, 'number', true],
+            ['!= 5', 5, 'number', false],
+            ['< 5', 4, 'number', true],
+            ['< 5', 5, 'number', false],
+            ['<= 5', 5, 'number', true],
+            ['<= 5', 6, 'number', false],
+            ['> 5', 6, 'number', true],
+            ['> 5', 5, 'number', false],
+            ['>= 5', 5, 'number', true],
+            ['>= 5', 4, 'number', false],
+            ['> 9', 10, 'number', true],
+            ['> 5', '7', 'number', true],
+            ['> 5', 'n/a', 'number', false],
+            ['> -1.5', 0, 'number', true],
+            //  text: ignores case, numbers inside compare as numbers
+            ['= new', 'New', 'text', true],
+            ['= "new"', 'new', 'text', true],
+            ['!= new', 'old', 'text', true],
+            ['!= new', 'NEW', 'text', false],
+            ['< b', 'a', 'text', true],
+            ['<= b', 'B', 'text', true],
+            ['> b', 'c', 'text', true],
+            ['>= b', 'a', 'text', false],
+            ['< 10', '9', 'text', true],
+            //  date (ISO operands)
+            ['> 2026-11-01', '2026-11-17T21:04:00', 'date', true],
+            ['< 2026-11-01', '2026-11-17T21:04:00', 'date', false],
+            ['= 2026-11-17', '2026-11-17', 'date', true],
+            ['>= 2026-11-17', new Date(2026, 10, 18), 'date', true],
+            ['> soon', '2026-11-17', 'date', false],
+            //  bool
+            ['= true', true, 'bool', true],
+            ['= true', false, 'bool', false],
+            ['= no', false, 'bool', true],
+            ['!= yes', true, 'bool', false],
+            ['= maybe', true, 'bool', false],
+            //  empty / notEmpty
+            ['empty', '', 'text', true],
+            ['empty', null, 'number', true],
+            ['empty', 'x', 'text', false],
+            ['notEmpty', 'x', 'text', true],
+            ['notEmpty', undefined, 'text', false],
+            ['NotEmpty', 0, 'number', true],
+            ['< 5', null, 'number', false],
+            ['!= 5', null, 'number', false],
+        ].forEach(([when, value, type, expected]) => {
+            it(`${type}: "${when}" ${expected ? 'matches' : 'does not match'} ${JSON.stringify(
+                value
+            )}`, function () {
+                assert.equal(shown(when, value, type), expected);
+            });
+        });
+
+        it('the first matching rule wins', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 4, height: 1 },
+                    columns: {
+                        v: {
+                            width: 4,
+                            rules: [
+                                { when: '> 0', text: 'pos' },
+                                { when: '> 5', text: 'big' },
+                            ],
+                        },
+                    },
+                },
+                [{ v: 9 }]
+            );
+            assert.equal(drawnOnRow(client, 1), ' pos');
+        });
+
+        it('text replaces the value and is formatted, justified and coloured like one', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 12, height: 2 },
+                    columns: {
+                        n: {
+                            width: 6,
+                            format: '{value:,}',
+                            rules: [{ when: '= 0', text: '|12-' }],
+                        },
+                        e: {
+                            width: 6,
+                            nullText: '?',
+                            rules: [{ when: 'empty', text: 'none' }],
+                        },
+                    },
+                    columnOrder: ['n', 'e'],
+                },
+                [{ n: 0 }, { n: 1234, e: 'x' }]
+            );
+            assert.equal(drawnOnRow(client, 1), '     -none  ');
+            assert.ok(rawOnRow(client, 1).includes(`${S('|12')}-`));
+            assert.equal(drawnOnRow(client, 2), ' 1,234x     ');
+        });
+
+        it("a rule's sgr is highest in the colour precedence", function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 6, height: 2 },
+                    styleSGR1: S('|07'),
+                    focusSGR: '|17',
+                    stateSGR: { new: '|15' },
+                    columns: {
+                        v: {
+                            width: 6,
+                            sgr: '|03',
+                            focusSGR: '|14',
+                            rules: [{ when: '> 0', sgr: '|10' }],
+                        },
+                    },
+                },
+                [{ v: 5, state: 'new' }, { v: 7 }]
+            );
+            assert.ok(
+                rawOnRow(client, 1).startsWith(
+                    `${S('|17')}${S('|03')}${S('|15')}${S('|14')}${S('|10')}`
+                )
+            );
+            assert.ok(
+                rawOnRow(client, 2).startsWith(`${S('|07')}${S('|03')}${S('|10')}`)
+            );
+            assert.equal(drawnOnRow(client, 1), '     5'); //  sgr only: value kept
+        });
+
+        it('rules apply to wrapped cells too', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 6, height: 2 },
+                    columns: {
+                        t: {
+                            width: 6,
+                            maxLines: 2,
+                            rules: [{ when: '= long', text: 'replaced text' }],
+                        },
+                    },
+                },
+                [{ t: 'long' }]
+            );
+            assert.equal(drawnOnRow(client, 1), 'replac');
+            assert.equal(drawnOnRow(client, 2), 'ed    ');
+        });
+
+        it('an invalid when is ignored with one warning per view', function () {
+            const warned = [];
+            const client = makeClient();
+            client.log.warn = (...args) => warned.push(args);
+            const view = new TableView({
+                client,
+                id: 1,
+                position: { row: 1, col: 1 },
+                dimens: { width: 4, height: 1 },
+                columns: {
+                    a: {
+                        width: 2,
+                        rules: [
+                            { when: '~ 5', text: 'X' },
+                            { when: '> 0', text: 'P' },
+                        ],
+                    },
+                    b: {
+                        width: 2,
+                        rules: [{ when: 'between 1 3' }, { sgr: '|01' }, 'x'],
+                    },
+                },
+                columnOrder: ['a', 'b'],
+            });
+            //  re-applying the config (as each menu property does) parses again
+            view.setPropertyValue('columns', {
+                a: { width: 2, rules: [{ when: '' }, { when: '> 0', text: 'P' }] },
+                b: { width: 2, rules: [{ when: 'between 1 3' }] },
+            });
+            view.setPropertyValue('emptyText', 'none');
+            view.setItems([{ a: 1, b: 2 }]);
+            assert.doesNotThrow(() => view.redraw());
+            assert.equal(warned.length, 1);
+            assert.equal(drawnOnRow(client, 1), ' P 2');
+        });
+    });
 });

@@ -183,6 +183,236 @@ function compareTyped(a, b, type) {
     });
 }
 
+//  ── Wrapping ───────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line no-control-regex
+const ANSI_SEQ = /\x1b\[[0-9;?]*[ -/]*[@-~]/y;
+// eslint-disable-next-line no-control-regex
+const ANSI_SEQ_G = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+
+const escapesIn = s => (s.match(ANSI_SEQ_G) || []).join('');
+
+//  Rendered text (only ANSI escapes are codes) as words and runs of spaces;
+//  escapes ride along in the word they precede or sit in
+function wordsOf(text) {
+    const words = [];
+    let cur = null;
+    let i = 0;
+    while (i < text.length) {
+        if ('\x1b' === text[i]) {
+            ANSI_SEQ.lastIndex = i;
+            const m = ANSI_SEQ.exec(text);
+            if (m) {
+                if (!cur || cur.space) {
+                    cur = { s: '', w: 0, space: false };
+                    words.push(cur);
+                }
+                cur.s += m[0];
+                i += m[0].length;
+                continue;
+            }
+        }
+        const ch = String.fromCodePoint(text.codePointAt(i));
+        const space = ' ' === ch;
+        if (!cur || cur.space !== space) {
+            cur = { s: '', w: 0, space };
+            words.push(cur);
+        }
+        cur.s += ch;
+        cur.w += strUtil.charDisplayWidth(ch);
+        i += ch.length;
+    }
+    return words;
+}
+
+//
+//  Word-wrap rendered |text| to |width| columns: breaks at spaces, and words
+//  longer than a line are broken hard (never inside a wide character). A
+//  wrapped line starts with the escapes in effect so far, so colours carry.
+//  Stops once more than |maxLines| lines are known.
+//
+function wrapRendered(text, width, maxLines) {
+    const lines = [];
+    let codes = '';
+    let line = '';
+    let lineW = 0;
+    let pend = '';
+    let pendW = 0;
+
+    const pushLine = () => {
+        lines.push(line);
+        line = codes;
+        lineW = 0;
+    };
+
+    for (const word of wordsOf(text)) {
+        if (lines.length > maxLines) {
+            break;
+        }
+        if (word.space) {
+            if (lineW > 0 || 0 === lines.length) {
+                pend += word.s;
+                pendW += word.w;
+            }
+            continue;
+        }
+
+        if (lineW + pendW + word.w <= width) {
+            line += pend + word.s;
+            lineW += pendW + word.w;
+        } else if (word.w <= width) {
+            if (lineW > 0) {
+                pushLine();
+            }
+            line += word.s;
+            lineW = word.w;
+        } else {
+            if (lineW > 0) {
+                pushLine();
+            }
+            let rest = word.s;
+            while (strUtil.renderStringLength(rest, ANSI_ONLY) > width) {
+                let pos = strUtil.renderSplitPos(rest, width, false);
+                if (pos <= 0) {
+                    //  a character wider than the cell: take it anyway
+                    pos = strUtil.renderSplitPos(rest, width + 1, false) || rest.length;
+                }
+                const chunk = rest.slice(0, pos);
+                line += chunk;
+                codes += escapesIn(chunk);
+                pushLine();
+                rest = rest.slice(pos);
+                if (lines.length > maxLines) {
+                    break;
+                }
+            }
+            line += rest;
+            lineW = strUtil.renderStringLength(rest, ANSI_ONLY);
+        }
+        pend = '';
+        pendW = 0;
+        codes += escapesIn(word.s);
+    }
+
+    if (lineW > 0 || 0 === lines.length) {
+        lines.push(line);
+    }
+    return lines;
+}
+
+//  ── Rules ──────────────────────────────────────────────────────────────────
+
+const RuleOpRegExp = /^(<=|>=|!=|=|<|>)\s*(.*)$/;
+
+function unquote(s) {
+    const m = s.match(/^(["'])(.*)\1$/);
+    return m ? m[2] : s;
+}
+
+function parseBool(s) {
+    const v = String(s).trim().toLowerCase();
+    if (['true', 'yes', 'on', '1'].includes(v)) {
+        return true;
+    }
+    if (['false', 'no', 'off', '0'].includes(v)) {
+        return false;
+    }
+    return null;
+}
+
+//  { op, operand } for a rule's 'when', or null if it cannot be read
+function parseWhen(when) {
+    if (!_.isString(when)) {
+        return null;
+    }
+    when = when.trim();
+    if (/^empty$/i.test(when)) {
+        return { op: 'empty' };
+    }
+    if (/^notEmpty$/i.test(when)) {
+        return { op: 'notEmpty' };
+    }
+    const m = when.match(RuleOpRegExp);
+    if (!m || '' === m[2].trim()) {
+        return null;
+    }
+    return { op: m[1], operand: unquote(m[2].trim()) };
+}
+
+//
+//  Does |raw| (a column of |type|) pass |test|? Comparisons use the column's
+//  type: numbers as numbers, dates as dates (ISO 8601 operand), bools as
+//  true/false (yes/no, on/off, 1/0), text ignoring case and accents, in the
+//  order the column sorts. An empty value only matches 'empty' (and
+//  never a comparison); a value that does not read as the type never
+//  matches a comparison.
+//
+function ruleMatches(test, raw, type) {
+    const empty = isEmptyValue(raw);
+    if ('empty' === test.op) {
+        return empty;
+    }
+    if ('notEmpty' === test.op) {
+        return !empty;
+    }
+    if (empty) {
+        return false;
+    }
+
+    let c;
+    switch (type) {
+        case 'number':
+            if (!isNumeric(raw) || !isNumeric(test.operand)) {
+                return false;
+            }
+            c = compareValues(Number(raw), Number(test.operand));
+            break;
+
+        case 'date': {
+            const a = toMoment(raw);
+            const b = toMoment(test.operand);
+            if (!a.isValid() || !b.isValid()) {
+                return false;
+            }
+            c = compareValues(a.valueOf(), b.valueOf());
+            break;
+        }
+
+        case 'bool': {
+            const b = parseBool(test.operand);
+            if (null === b) {
+                return false;
+            }
+            c = compareValues(raw ? 1 : 0, b ? 1 : 0);
+            break;
+        }
+
+        default:
+            c = String(raw).localeCompare(test.operand, undefined, {
+                sensitivity: 'base',
+                numeric: true,
+            });
+            c = Math.sign(c);
+            break;
+    }
+
+    switch (test.op) {
+        case '=':
+            return 0 === c;
+        case '!=':
+            return 0 !== c;
+        case '<':
+            return c < 0;
+        case '<=':
+            return c <= 0;
+        case '>':
+            return c > 0;
+        case '>=':
+            return c >= 0;
+    }
+    return false;
+}
+
 function normalizeOrder(order) {
     return 'desc' === String(order || '').toLowerCase() ? 'desc' : 'asc';
 }
@@ -443,7 +673,48 @@ class TableView extends MenuView {
             pipeCodes: _.isBoolean(def.pipeCodes) ? def.pipeCodes : undefined,
             minTermWidth: parseInt(def.minTermWidth) || 0,
             sortOrder: def.sortOrder ? normalizeOrder(def.sortOrder) : 'asc',
+            maxLines: Math.max(1, parseInt(def.maxLines) || 1),
+            rules: this._parseRules(id, def.rules),
         };
+    }
+
+    //  A column's rules; one that cannot be read is skipped, with one
+    //  warning per view
+    _parseRules(columnId, rules) {
+        if (!Array.isArray(rules)) {
+            return [];
+        }
+        return rules
+            .map(rule => {
+                const test = _.isPlainObject(rule) ? parseWhen(rule.when) : null;
+                if (!test) {
+                    this._warnRule(columnId, _.isPlainObject(rule) ? rule.when : rule);
+                    return null;
+                }
+                return {
+                    test,
+                    sgr: this._pipe(rule.sgr),
+                    text:
+                        _.isString(rule.text) || _.isNumber(rule.text)
+                            ? String(rule.text)
+                            : undefined,
+                };
+            })
+            .filter(Boolean);
+    }
+
+    _warnRule(column, when) {
+        if (this._ruleWarned) {
+            return;
+        }
+        this._ruleWarned = true;
+        const log = this.client.log;
+        if (log && _.isFunction(log.warn)) {
+            log.warn(
+                { viewId: this.id, column, when },
+                'TableView rule ignored: "when" must be empty, notEmpty, or =, !=, <, <=, >, >= and a value'
+            );
+        }
     }
 
     hasColumns() {
@@ -507,6 +778,8 @@ class TableView extends MenuView {
         });
 
         this._layoutCols = cols;
+        this._wrapCols = this.hasColumns() ? cols.filter(col => col.maxLines > 1) : [];
+        this._heights = [];
     }
 
     _columnType(col) {
@@ -541,6 +814,9 @@ class TableView extends MenuView {
         }
         this._layoutDirty = false;
 
+        //  widths first: row heights depend on them
+        this._layoutColumns();
+
         if (this.autoAdjustHeight) {
             let lines = this._headerLines();
             if (this.hasItemRows()) {
@@ -555,8 +831,6 @@ class TableView extends MenuView {
                 Math.min(lines, this.client.term.termHeight - this.position.row + 1)
             );
         }
-
-        this._layoutColumns();
     }
 
     setPropertyValue(propName, value) {
@@ -786,6 +1060,7 @@ class TableView extends MenuView {
         const hadSelectable = this.hasSelectable();
         const hadItemRows = this.hasItemRows();
         const prevKind = item.kind;
+        const prevHeight = this._rowHeight(index);
 
         Object.assign(item, patch);
         this.removeRenderCacheItem(index);
@@ -809,6 +1084,23 @@ class TableView extends MenuView {
             this._ensureVisible(this.focusedItemIndex);
             if (this._drawn) {
                 this.redraw();
+            }
+            return true;
+        }
+
+        if (this._rowHeight(index) !== prevHeight) {
+            //  rows below move: lay out again and redraw from this row down
+            const prevTop = this._top;
+            if (this.autoAdjustHeight) {
+                this._layoutDirty = true;
+            }
+            this._ensureVisible(this.focusedItemIndex);
+            if (this._drawn) {
+                if (prevTop !== this._top || this.autoAdjustHeight) {
+                    this.redraw();
+                } else if (this._rowScreen.has(index)) {
+                    this._drawBody(index);
+                }
             }
             return true;
         }
@@ -1023,9 +1315,43 @@ class TableView extends MenuView {
 
     //  ── Navigation ───────────────────────────────────────────────────────────
 
+    //  Screen lines of a row: the most lines any of its cells wraps to, each
+    //  capped at its column's maxLines. Group rows and column-less rows are
+    //  one line.
     _rowHeight(index) {
-        //  one line per row; PR 2 (wrap) makes this variable
-        return this.items[index] ? 1 : 0;
+        const item = this.items[index];
+        if (!item) {
+            return 0;
+        }
+        if (this._layoutDirty) {
+            this._updateLayout();
+        }
+        if (!this._wrapCols || !this._wrapCols.length || 'group' === item.kind) {
+            return 1;
+        }
+        if (undefined === this._heights[index]) {
+            let height = 1;
+            this._wrapCols.forEach(col => {
+                height = Math.max(
+                    height,
+                    this._cellLines(col, item, this._ruleFor(col, item)).length
+                );
+            });
+            this._heights[index] = height;
+        }
+        return this._heights[index];
+    }
+
+    invalidateRenderCache() {
+        super.invalidateRenderCache();
+        this._heights = [];
+    }
+
+    removeRenderCacheItem(index) {
+        super.removeRenderCacheItem(index);
+        if (this._heights) {
+            delete this._heights[index];
+        }
     }
 
     _linesBetween(from, to) {
@@ -1214,6 +1540,9 @@ class TableView extends MenuView {
             }
             lines += this._rowHeight(next);
             if (lines > body) {
+                if (i === from) {
+                    i = next; //  a row taller than the view: still move
+                }
                 break;
             }
             i = next;
@@ -1224,7 +1553,7 @@ class TableView extends MenuView {
     //  Page down; at the last selectable row it wraps to the top (VM parity)
     focusNextPageItem() {
         if (!this.hasSelectable()) {
-            return this._scrollTo(this._top + Math.max(1, this._bodyHeight()));
+            return this._scrollTo(this._bottomFrom(this._top) + 1);
         }
         if (this.focusedItemIndex >= this._lastSelectable()) {
             return this.focusNext();
@@ -1239,7 +1568,7 @@ class TableView extends MenuView {
 
     focusPreviousPageItem() {
         if (!this.hasSelectable()) {
-            return this._scrollTo(this._top - Math.max(1, this._bodyHeight()));
+            return this._scrollTo(this._top > 0 ? this._pageRows(this._top, -1) : 0);
         }
         if (this.focusedItemIndex <= this._firstSelectable()) {
             return this.focusPrevious();
@@ -1353,24 +1682,29 @@ class TableView extends MenuView {
         return (item && !isEmptyValue(item.state) && this._stateSGR[item.state]) || '';
     }
 
-    //  Hook for conditional cell rules (PR 2): highest colour precedence
-    _cellRuleSGR(/* col, item, value */) {
-        return '';
+    //  The first of a column's rules that the row's value passes, or null
+    _ruleFor(col, item) {
+        if (!col.rules || !col.rules.length) {
+            return null;
+        }
+        const raw = _.get(item, col.field);
+        const type = this._columnType(col);
+        return col.rules.find(rule => ruleMatches(rule.test, raw, type)) || null;
     }
 
     //
     //  A cell's colour, lowest precedence first so each layer only overrides
     //  the attributes it sets:
     //    view default (lightbar on the focused row) < column sgr < row
-    //    stateSGR < column focusSGR (focused row) < cell rule
+    //    stateSGR < column focusSGR (focused row) < matching rule's sgr
     //
-    _cellSGR(col, item, index, focused, value) {
+    _cellSGR(col, item, index, focused, rule) {
         return (
             this._rowBaseSGR(index, focused, col) +
             col.sgr +
             this._stateSGRFor(item) +
             (focused && this._lit(col) ? col.focusSGR : '') +
-            this._cellRuleSGR(col, item, value)
+            (rule ? rule.sgr : '')
         );
     }
 
@@ -1441,14 +1775,28 @@ class TableView extends MenuView {
     }
 
     //  What a cell shows, rendered (ANSI)
-    _cellText(col, item) {
+    _cellText(col, item, rule) {
         const raw = _.get(item, col.field);
+        const mode =
+            true === col.pipeCodes ? 'none' : false === col.pipeCodes ? 'all' : 'default';
+
+        //  a rule's text is operator text: it stands in for the value
+        if (rule && undefined !== rule.text) {
+            if (col.format) {
+                return this._format(
+                    col.format,
+                    Object.assign({}, this._formatFields(item, mode), {
+                        value: rule.text,
+                    })
+                );
+            }
+            return this._pipe(rule.text);
+        }
+
         if (isEmptyValue(raw)) {
             return this._pipe(col.nullText);
         }
 
-        const mode =
-            true === col.pipeCodes ? 'none' : false === col.pipeCodes ? 'all' : 'default';
         const plain =
             'all' === mode || ('default' === mode && this._plainFields.has(col.field));
 
@@ -1579,17 +1927,64 @@ class TableView extends MenuView {
         return out;
     }
 
-    _renderCell(col, item, index, focused) {
-        const sgr = this._cellSGR(col, item, index, focused, _.get(item, col.field));
-        const omission = _.isString(col.textOverflow)
-            ? col.textOverflow
-            : this.textOverflow;
-        return this._padCell(
-            Object.assign({}, col, { textOverflow: omission }),
-            this._cellText(col, item),
-            sgr,
-            this._justifyFor(col)
-        );
+    _omission(col) {
+        return _.isString(col.textOverflow) ? col.textOverflow : this.textOverflow;
+    }
+
+    _contentWidth(col) {
+        const [padL, padR] = col.padding;
+        const left = Math.min(padL, col._width);
+        const right = Math.max(0, Math.min(padR, col._width - left));
+        return Math.max(0, col._width - left - right);
+    }
+
+    //
+    //  A cell's text as lines. maxLines 1 is one line (cut by _padCell);
+    //  otherwise word-wrapped to the column, and when it needs more than
+    //  maxLines the last line kept ends in the overflow marker.
+    //
+    _cellLines(col, item, rule) {
+        const text = this._cellText(col, item, rule);
+        if (col.maxLines <= 1) {
+            return [text];
+        }
+        const width = this._contentWidth(col);
+        if (width <= 0) {
+            return [''];
+        }
+        const lines = wrapRendered(text, width, col.maxLines);
+        if (lines.length <= col.maxLines) {
+            return lines;
+        }
+        lines.length = col.maxLines;
+        let marker = this._omission(col) || '';
+        if (strUtil.renderStringLength(marker, ANSI_ONLY) > width) {
+            marker = strUtil.renderSubstr(marker, 0, width, ANSI_ONLY);
+        }
+        const last = lines[col.maxLines - 1];
+        const room = width - strUtil.renderStringLength(marker, ANSI_ONLY);
+        const kept =
+            strUtil.renderStringLength(last, ANSI_ONLY) > room
+                ? last.slice(0, strUtil.renderSplitPos(last, room, false))
+                : last;
+        lines[col.maxLines - 1] = `${kept}${marker}`;
+        return lines;
+    }
+
+    //  The lines of one cell, each padded to the column
+    _renderCell(col, item, index, focused, height = 1) {
+        const rule = this._ruleFor(col, item);
+        const sgr = this._cellSGR(col, item, index, focused, rule);
+        const cellCol = Object.assign({}, col, { textOverflow: this._omission(col) });
+        const justify = this._justifyFor(col);
+        const lines = this._cellLines(col, item, rule);
+        const out = [];
+        for (let i = 0; i < height; ++i) {
+            out.push(
+                this._padCell(cellCol, i < lines.length ? lines[i] : '', sgr, justify)
+            );
+        }
+        return out;
     }
 
     //  Pad / cut a rendered line to exactly the view width
@@ -1604,13 +1999,21 @@ class TableView extends MenuView {
         return this.clipToTerminalWidth(`${line}${this.getSGR()}`);
     }
 
+    //  Every line of a row; shorter cells pad with blank lines in their colours
     _renderColumnsRow(item, index, focused) {
         const cols = this._layoutCols || [];
-        const sep = `${this._rowBaseSGR(index, focused, null)}${this._separator}`;
-        const line = cols
-            .map(col => this._renderCell(col, item, index, focused))
-            .join(this._separatorWidth || this._separator ? sep : '');
-        return this._finishLine(line, this._rowBaseSGR(index, focused, null));
+        const height = this._rowHeight(index);
+        const base = this._rowBaseSGR(index, focused, null);
+        const sep =
+            this._separatorWidth || this._separator ? `${base}${this._separator}` : '';
+        const cells = cols.map(col =>
+            this._renderCell(col, item, index, focused, height)
+        );
+        const lines = [];
+        for (let i = 0; i < height; ++i) {
+            lines.push(this._finishLine(cells.map(cell => cell[i]).join(sep), base));
+        }
+        return lines;
     }
 
     _renderGroupRow(item) {
@@ -1670,14 +2073,15 @@ class TableView extends MenuView {
         return this._finishLine(line, this.getSGR());
     }
 
+    //  A row as an array of screen lines
     _renderRow(index, focused) {
         const item = this.items[index];
         if ('group' === item.kind) {
-            return this._renderGroupRow(item);
+            return [this._renderGroupRow(item)];
         }
         return this.hasColumns()
             ? this._renderColumnsRow(item, index, focused)
-            : this._renderFormatRow(item, index, focused);
+            : [this._renderFormatRow(item, index, focused)];
     }
 
     _renderHeader() {
@@ -1733,15 +2137,22 @@ class TableView extends MenuView {
         }
 
         const focused = index === this.focusedItemIndex && this.isSelectable(index);
-        let line = this.getRenderCacheItem(index, focused);
-        if (!line) {
-            line = this._renderRow(index, focused);
-            this.setRenderCacheItem(index, line, focused);
+        let lines = this.getRenderCacheItem(index, focused);
+        if (!lines) {
+            lines = this._renderRow(index, focused);
+            this.setRenderCacheItem(index, lines, focused);
         }
 
-        this.client.term.write(
-            `${ansi.goto(this._rowScreen.get(index), this.position.col)}${line}`
-        );
+        //  a row taller than the view is drawn from its top, clipped
+        const start = this._rowScreen.get(index);
+        const lastRow = this.position.row + this.dimens.height - 1;
+        lines.forEach((line, i) => {
+            if (start + i <= lastRow) {
+                this.client.term.write(
+                    `${ansi.goto(start + i, this.position.col)}${line}`
+                );
+            }
+        });
     }
 
     _blankLine(row) {
@@ -1785,18 +2196,8 @@ class TableView extends MenuView {
 
         if (this.hasItemRows()) {
             this._ensureVisible(this.focusedItemIndex);
-
-            let i = this._top;
-            for (; i < this.items.length; ++i) {
-                const height = this._rowHeight(i);
-                if (row + height - 1 > lastRow) {
-                    break;
-                }
-                this._rowScreen.set(i, row);
-                this.drawItem(i);
-                row += height;
-            }
-            this.viewWindow = { top: this._top, bottom: i - 1 };
+            this._drawn = true;
+            return this._drawBody(this._top);
         } else {
             this.viewWindow = { top: 0, bottom: -1 };
             if (row <= lastRow) {
@@ -1819,6 +2220,43 @@ class TableView extends MenuView {
         }
 
         this._drawn = true;
+    }
+
+    //
+    //  Draw the window's rows from |from| (the top row, or one already on
+    //  screen) down, and blank the lines below them. A row that does not fit
+    //  whole at the bottom is left out; only the top row may be taller than
+    //  the view (it is drawn clipped).
+    //
+    _drawBody(from) {
+        const bodyTop = this.position.row + this._headerLines();
+        const lastRow = this.position.row + this.dimens.height - 1;
+
+        let row = from === this._top ? bodyTop : this._rowScreen.get(from);
+        if (undefined === row) {
+            return this.redraw();
+        }
+        for (const i of [...this._rowScreen.keys()]) {
+            if (i >= from) {
+                this._rowScreen.delete(i);
+            }
+        }
+
+        let i = from;
+        for (; i < this.items.length && row <= lastRow; ++i) {
+            const height = this._rowHeight(i);
+            if (row + height - 1 > lastRow && i !== this._top) {
+                break;
+            }
+            this._rowScreen.set(i, row);
+            this.drawItem(i);
+            row += height;
+        }
+        this.viewWindow = { top: this._top, bottom: i - 1 };
+
+        for (; row <= lastRow; ++row) {
+            this._blankLine(row);
+        }
     }
 
     setFocus(focused) {
