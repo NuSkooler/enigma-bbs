@@ -179,49 +179,88 @@ describe('oputil fb virus-scan', function () {
         }
     };
 
-    it('--dry-run (before the criteria) reports and changes nothing', async () => {
+    const meta = (root, name) =>
+        withDb(root, 'file', db =>
+            db
+                .prepare(
+                    `SELECT f.file_name, m.meta_value
+                    FROM file f JOIN file_meta m ON m.file_id = f.file_id
+                    WHERE m.meta_name = ?
+                    ORDER BY f.file_name`
+                )
+                .all(name)
+                .map(r => `${r.file_name}=${r.meta_value}`)
+        );
+
+    const fileId = (root, name) =>
+        withDb(root, 'file', db =>
+            db.prepare('SELECT file_id FROM file WHERE file_name = ?').get(name)
+        ).file_id;
+
+    it('--dry-run (before the criteria) reports and records nothing', async () => {
         const { root, storage } = await makeFixture();
 
         const { code, out } = oputil(root, ['fb', 'virus-scan', '--dry-run', 'uploads']);
-        assert.equal(code, 0, out);
+        assert.notEqual(code, 0, 'an infected file was found');
         assert.match(out, /dry run/);
-        assert.match(out, /INFECTED\s+uploads {2}EVIL\.EXE: Eicar-Test-Signature/);
-        assert.match(out, /clean\s+uploads {2}GOOD\.TXT/);
-        assert.match(out, /DRY RUN, nothing changed\. Checked 2 of 2/);
+        assert.match(out, /INFECTED\s+#\d+\s+uploads {2}EVIL\.EXE: Eicar-Test-Signature/);
+        assert.match(out, /clean\s+#\d+\s+uploads {2}GOOD\.TXT/);
+        assert.match(out, /DRY RUN, nothing recorded\. Checked 2 of 2/);
+
+        assert.deepEqual(entries(root), ['EVIL.EXE', 'GOOD.TXT']);
+        assert.deepEqual(fs.readdirSync(storage).sort(), ['EVIL.EXE', 'GOOD.TXT']);
+        assert.deepEqual(scanMeta(root), []);
+        assert.deepEqual(meta(root, 'rescan_attempted_at'), []);
+        assert.equal(notices(root).length, 0);
+    });
+
+    it('reports an infected file with the command to remove it, and moves nothing', async () => {
+        const { root, storage } = await makeFixture();
+        const evilId = fileId(root, 'EVIL.EXE');
+
+        const { code, out } = oputil(root, ['fb', 'virus-scan', 'uploads']);
+        assert.notEqual(code, 0, 'non-zero: something was found');
+        assert.match(out, /report only/);
+        assert.match(out, new RegExp(`INFECTED\\s+#${evilId}\\s+uploads {2}EVIL\\.EXE`));
+        assert.match(
+            out,
+            new RegExp(`remove with: \\./oputil\\.js fb rm ${evilId} --phys-file`)
+        );
 
         assert.deepEqual(entries(root), ['EVIL.EXE', 'GOOD.TXT']);
         assert.deepEqual(fs.readdirSync(storage).sort(), ['EVIL.EXE', 'GOOD.TXT']);
         assert.deepEqual(quarantine(root), []);
-        assert.deepEqual(scanMeta(root), []);
-        assert.equal(notices(root).length, 0);
-    });
-
-    it('quarantines an infected file, removes its entry, records the clean one, one notice', async () => {
-        const { root, storage } = await makeFixture();
-
-        const { code, out } = oputil(root, ['fb', 'virus-scan', 'uploads']);
-        assert.equal(code, 0, out);
-        assert.match(
-            out,
-            /INFECTED.*EVIL\.EXE.*quarantined to .*EVIL\.EX_, entry removed/
-        );
-        assert.match(out, /1 infected \(1 removed\)/);
-
-        assert.deepEqual(entries(root), ['GOOD.TXT']);
-        assert.deepEqual(fs.readdirSync(storage), ['GOOD.TXT']);
-        assert.deepEqual(quarantine(root), ['EVIL.EX_', 'EVIL.EX_.json']);
-        assert.deepEqual(scanMeta(root), ['GOOD.TXT=clean']);
+        assert.deepEqual(scanMeta(root), ['EVIL.EXE=infected', 'GOOD.TXT=clean']);
+        assert.deepEqual(meta(root, 'scan_signature'), ['EVIL.EXE=Eicar-Test-Signature']);
 
         const sent = notices(root);
         assert.equal(sent.length, 1);
-        assert.match(sent[0].subject, /File base rescan: 1 problem, 1 infected/);
+        assert.match(sent[0].subject, /File base rescan: 1 file to check, 1 infected/);
         assert.match(sent[0].message, /oputil fb virus-scan/);
+        assert.match(
+            sent[0].message,
+            new RegExp(`Remove:\\s+\\./oputil\\.js fb rm ${evilId} --phys-file`)
+        );
+
+        //  ...and that command does what the notice says
+        const rm = oputil(root, ['fb', 'rm', String(evilId), '--phys-file']);
+        assert.equal(rm.code, 0, rm.out);
+        assert.deepEqual(entries(root), ['GOOD.TXT']);
+        assert.deepEqual(fs.readdirSync(storage), ['GOOD.TXT']);
+    });
+
+    it('fb rm takes --phys-file before the file ID too', async () => {
+        const { root, storage } = await makeFixture();
+        const evilId = fileId(root, 'EVIL.EXE');
+        const rm = oputil(root, ['fb', 'rm', '--phys-file', String(evilId)]);
+        assert.equal(rm.code, 0, rm.out);
+        assert.deepEqual(entries(root), ['GOOD.TXT']);
+        assert.deepEqual(fs.readdirSync(storage), ['GOOD.TXT']);
     });
 
     it('takes a file name and --older-than / --max before the criteria', async () => {
         const { root } = await makeFixture();
 
-        //  GOOD.TXT only, by name
         let res = oputil(root, ['fb', 'virus-scan', '--older-than', '30', 'GOOD.TXT']);
         assert.equal(res.code, 0, res.out);
         assert.match(res.out, /Checked 1 of 1 matching file:/);
@@ -237,11 +276,18 @@ describe('oputil fb virus-scan', function () {
             '5',
             'uploads',
         ]);
-        assert.equal(res.code, 0, res.out);
         assert.match(
             res.out,
             /Checked 1 of 1 matching file: 0 clean, 0 skipped, 1 infected/
         );
+    });
+
+    it('an AREA@STORAGE that selects nothing scans nothing, rather than every area', async () => {
+        const { root } = await makeFixture();
+        const res = oputil(root, ['fb', 'virus-scan', 'uploads@no_such_storage']);
+        assert.notEqual(res.code, 0);
+        assert.match(res.out, /Nothing matched the criteria/);
+        assert.deepEqual(scanMeta(root), []);
     });
 
     it('rejects a bad --max', async () => {
@@ -254,10 +300,10 @@ describe('oputil fb virus-scan', function () {
         res = oputil(root, ['fb', 'virus-scan', '--max', 'uploads']);
         assert.notEqual(res.code, 0);
         assert.match(res.out, /usage: oputil\.js fb/);
-        assert.deepEqual(entries(root), ['EVIL.EXE', 'GOOD.TXT']);
+        assert.deepEqual(scanMeta(root), []);
     });
 
-    it('leaves files alone and exits non-zero when the scanner fails', async () => {
+    it('records nothing but the attempt and exits non-zero when the scanner fails', async () => {
         const { root, storage } = await makeFixture();
         writeConfig(root, {
             scanners: [{ scanner: 'command', cmd: path.join(tmpDir, 'no-such-scanner') }],
@@ -266,10 +312,9 @@ describe('oputil fb virus-scan', function () {
         const { code, out } = oputil(root, ['fb', 'virus-scan', 'uploads']);
         assert.notEqual(code, 0, out);
         assert.match(out, /could not be checked/);
-        assert.deepEqual(entries(root), ['EVIL.EXE', 'GOOD.TXT']);
         assert.deepEqual(fs.readdirSync(storage).sort(), ['EVIL.EXE', 'GOOD.TXT']);
-        assert.deepEqual(quarantine(root), []);
-        assert.equal(notices(root).length, 1);
+        assert.deepEqual(scanMeta(root), []);
+        assert.equal(meta(root, 'rescan_attempted_at').length, 2);
         assert.match(notices(root)[0].message, /COULD NOT BE CHECKED/);
     });
 
@@ -284,6 +329,5 @@ describe('oputil fb virus-scan', function () {
         res = oputil(root, ['fb', 'virus-scan', 'uploads']);
         assert.notEqual(res.code, 0);
         assert.match(res.out, /needs file scanning enabled/);
-        assert.deepEqual(entries(root), ['EVIL.EXE', 'GOOD.TXT']);
     });
 });

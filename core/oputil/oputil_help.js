@@ -175,6 +175,7 @@ Actions:
       exclude files or directories from scanning.
 
   virus-scan CRITERIA [...]    Rescan existing entries with the file scanners
+                               (report only)
 
   CRITERIA may be any of the following:
     - Area tag, with simple wildcards ("*" is every area)
@@ -240,17 +241,21 @@ scan arguments:
 virus-scan arguments:
   --older-than DAYS            Only entries never scanned, or last scanned more
                                than DAYS days ago
-  --max N                      Check at most N entries (those scanned longest
-                               ago first); the rest are left for a later run
-  --dry-run                    Scan and report only; change nothing
+  --max N                      Check at most N entries (never tried by a rescan
+                               first, then the oldest try); the rest are left
+                               for a later run
+  --dry-run                    Scan and report only; record nothing
 
-  Needs fileBase.scanning enabled and uses the entries whose "sources" include
-  "rescan", or that list no sources. One file at a time. Clean or skipped:
-  the entry's scan result and time are updated. Infected: the file is
-  quarantined or deleted per fileBase.scanning.failAction and its entry is
-  removed. Could not be checked (a scanner failed) or missing: nothing is
-  changed. The operators get one inbox notice for the run if anything needs
-  them. Exits non-zero if a file could not be checked or on any error.
+  REPORT ONLY: nothing is moved, quarantined, deleted or removed. Needs
+  fileBase.scanning enabled and uses the entries whose "sources" include
+  "rescan", or that list no sources; files no entry's fileTypes covers are
+  left out. One file at a time. Each entry's scan result is recorded
+  (scan_result, scanned_at, scanner, scan_signature). An infected file is
+  listed with the command that removes it and its entry:
+    ./oputil.js fb rm FILE_ID --phys-file
+  and is reported again on every run until removed. The operators get one
+  inbox notice for the run if anything needs them. Exits non-zero if an
+  infected file was found, a file could not be checked, or on any error.
 
 info arguments:
   --show-desc                  Display short description, if any

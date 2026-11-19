@@ -1051,9 +1051,9 @@ function resolveVirusScanCriteria(criteria, cb) {
 }
 
 function printRescanResult(result, dryRun) {
-    const R = require('../../core/file_base_rescan.js').RescanResults;
+    const Rescan = require('../../core/file_base_rescan.js');
+    const R = Rescan.RescanResults;
     const v = result.verdict || {};
-    const d = result.disposition || {};
     let label = result.result;
     let what = '';
 
@@ -1061,33 +1061,22 @@ function printRescanResult(result, dryRun) {
         case R.Infected:
             label = 'INFECTED';
             what = `: ${v.signature || 'unnamed threat'} (${v.scanner})`;
-            if (dryRun) {
-                what += '; dry run, nothing changed';
-            } else if (d.error) {
-                what += `; NOT moved: ${d.error}; it is still at ${d.path}`;
-            } else if (result.disposition) {
-                if (FileScanner.FailActions.Delete === d.action) {
-                    what += d.quarantineError
-                        ? `; could not be quarantined (${d.quarantineError}), DELETED`
-                        : '; deleted';
-                } else {
-                    what += `; quarantined to ${d.path}`;
-                }
-                what += result.entryRemoved ? ', entry removed' : '';
-            }
             break;
         case R.Held:
             what = `: could not be checked, ${v.scanner} failed: ${
                 v.detail || 'unknown error'
-            }; left in place`;
+            }`;
             break;
         case R.Missing:
-            what = `: missing, ${result.path}; entry kept`;
-            break;
-        case R.Error:
-            what = '';
+            what = `: missing, ${result.path}`;
             break;
         default:
+            if (FileScanner.Verdicts.Infected === result.keptResult) {
+                label = 'INFECTED';
+                what = `: still marked infected (${
+                    result.keptSignature || 'unnamed threat'
+                }); the scanners had no opinion this time`;
+            }
             break;
     }
 
@@ -1095,9 +1084,13 @@ function printRescanResult(result, dryRun) {
         what += ' (changed since import)';
     }
 
-    const line = `  ${label.padEnd(12)}${consoleText(result.areaTag)}  ${consoleText(
-        result.fileName
-    )}${consoleText(what)}`;
+    let line = `  ${label.padEnd(12)}#${String(result.fileId).padEnd(6)}${consoleText(
+        result.areaTag
+    )}  ${consoleText(result.fileName)}${consoleText(what)}`;
+
+    if ('INFECTED' === label && !dryRun) {
+        line += `\n${' '.repeat(14)}remove with: ${Rescan.removeCommand(result.fileId)}`;
+    }
 
     if (result.error) {
         console.error(
@@ -1198,10 +1191,20 @@ function virusScanFileBase() {
                         return callback(err);
                     }
 
+                    //  an explicit selection that comes to nothing is nothing,
+                    //  never "every area"
+                    if (0 === resolved.areaTags.length && 0 === resolved.fileIds.length) {
+                        return callback(
+                            Errors.DoesNotExist(
+                                'Nothing matched the criteria; nothing scanned'
+                            )
+                        );
+                    }
+
                     console.info(
                         dryRun
-                            ? 'Scanning (dry run: nothing will be changed)...'
-                            : 'Scanning...'
+                            ? 'Scanning (dry run: nothing will be recorded)...'
+                            : 'Scanning (report only: nothing is moved or removed)...'
                     );
 
                     Rescan.rescanFileBase(
@@ -1229,14 +1232,17 @@ function virusScanFileBase() {
             if (err) {
                 process.exitCode = ExitCodes.ERROR;
                 console.error(err.message);
-            } else if (
-                summary &&
-                (summary.errors > 0 ||
-                    summary.counts[
-                        require('../../core/file_base_rescan.js').RescanResults.Held
-                    ] > 0)
-            ) {
-                process.exitCode = ExitCodes.ERROR;
+            } else if (summary) {
+                //  like a virus scanner: non-zero when anything was found
+                const R = require('../../core/file_base_rescan.js').RescanResults;
+                if (
+                    summary.errors > 0 ||
+                    summary.stoppedEarly ||
+                    summary.counts[R.Held] > 0 ||
+                    summary.counts[R.Infected] + summary.stillInfected > 0
+                ) {
+                    process.exitCode = ExitCodes.ERROR;
+                }
             }
 
             //  a mod may keep the process alive just by being loaded (see
