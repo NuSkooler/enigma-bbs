@@ -69,6 +69,7 @@ exports.isFileRejected = isFileRejected;
 exports.applyFailAction = applyFailAction;
 exports.notifyOperators = notifyOperators;
 exports.sendOperatorNotice = sendOperatorNotice;
+exports.hasMatchingScanner = hasMatchingScanner;
 exports.defangFileName = defangFileName;
 exports.getQuarantinePath = getQuarantinePath;
 exports.buildOperatorNotice = buildOperatorNotice;
@@ -597,6 +598,16 @@ function entryMatches(entry, ctx) {
         exts.push(extOf(name.slice(0, name.indexOf(':'))));
     }
     return exts.some(ext => wanted.includes(ext));
+}
+
+//
+//  Would any configured entry scan this file? ctx: { source, fileName }. For
+//  a caller choosing files to scan, e.g. a rescan skipping those no entry's
+//  fileTypes covers. False when scanning is disabled.
+//
+function hasMatchingScanner(ctx) {
+    const scanning = getScanningConfig();
+    return scanning.enabled && scanning.scanners.some(e => entryMatches(e, ctx || {}));
 }
 
 //  Scanner output goes into logs, sidecars and mail: printable ASCII only.

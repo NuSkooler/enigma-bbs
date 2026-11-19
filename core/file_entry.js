@@ -49,6 +49,8 @@ const FILE_WELL_KNOWN_META = {
     scan_result: null, //  a file_scanner Verdicts value: clean, skipped, ...
     scanned_at: null, //  ISO 8601 timestamp
     scanner: null, //  scanner name(s) that ran, comma separated
+    scan_signature: null, //  what an infected verdict found (rescan)
+    rescan_attempted_at: null, //  ISO 8601: last rescan attempt, whatever came of it
 };
 
 //
@@ -393,7 +395,8 @@ module.exports = class FileEntry {
 
     //
     //  Sets single-valued meta: every existing row for each name in |values|
-    //  is replaced by the one value given, in one transaction.
+    //  is replaced by the one value given, in one transaction. A null or
+    //  undefined value removes the name.
     //
     //  persistMetaValue() cannot do that: file_meta is UNIQUE on (file_id,
     //  meta_name, meta_value), so its REPLACE adds a second row for a new
@@ -413,7 +416,9 @@ module.exports = class FileEntry {
             fileDb.transaction(() => {
                 for (const [name, value] of Object.entries(values)) {
                     del.run(fileId, name);
-                    ins.run(fileId, name, coerceToText(value));
+                    if (!_.isNil(value)) {
+                        ins.run(fileId, name, coerceToText(value));
+                    }
                 }
             })();
             return cb(null);
@@ -425,9 +430,10 @@ module.exports = class FileEntry {
     //
     //  Entries for a file base rescan (#291): those in |areaTags|, plus those
     //  in |fileIds|, never those in |excludeAreaTags|. Neither areaTags nor
-    //  fileIds given: none. Calls back (err, [ { fileId, scannedAt } ]), where
-    //  |scannedAt| is the entry's scanned_at meta (the latest, should there be
-    //  more than one row) or null if it has never been scanned.
+    //  fileIds given: none. Calls back (err, [ { fileId, fileName, scannedAt,
+    //  attemptedAt, scanResult } ]): the scanned_at, rescan_attempted_at and
+    //  scan_result meta (the latest, should there be more than one row), or
+    //  null where an entry has none.
     //
     static getRescanCandidates(filter, cb) {
         const areaTags = (filter.areaTags || []).filter(_.isString);
@@ -450,11 +456,14 @@ module.exports = class FileEntry {
             params.push(...fileIds);
         }
 
-        let sql = `SELECT f.file_id,
-                (SELECT MAX(m.meta_value)
+        const metaColumn = name => `(SELECT MAX(m.meta_value)
                 FROM file_meta m
-                WHERE m.file_id = f.file_id AND m.meta_name = 'scanned_at')
-                AS scanned_at
+                WHERE m.file_id = f.file_id AND m.meta_name = '${name}')`;
+
+        let sql = `SELECT f.file_id, f.file_name,
+                ${metaColumn('scanned_at')} AS scanned_at,
+                ${metaColumn('rescan_attempted_at')} AS attempted_at,
+                ${metaColumn('scan_result')} AS scan_result
             FROM file f
             WHERE (${which.join(' OR ')})`;
         if (excludeAreaTags.length > 0) {
@@ -467,7 +476,13 @@ module.exports = class FileEntry {
             const rows = fileDb.prepare(sql).all(...params);
             return cb(
                 null,
-                rows.map(r => ({ fileId: r.file_id, scannedAt: r.scanned_at || null }))
+                rows.map(r => ({
+                    fileId: r.file_id,
+                    fileName: r.file_name,
+                    scannedAt: r.scanned_at || null,
+                    attemptedAt: r.attempted_at || null,
+                    scanResult: r.scan_result || null,
+                }))
             );
         } catch (err) {
             return cb(err);

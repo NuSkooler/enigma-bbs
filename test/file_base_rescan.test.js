@@ -125,13 +125,16 @@ describe('file base rescan (#291)', function () {
             tree: { name: 'Tree', storageTags: ['tree'] },
         };
 
-        scanState = { active: 0, maxActive: 0, calls: [], delayMs: 0 };
+        scanState = { active: 0, maxActive: 0, calls: [], delayMs: 0, onScan: null };
         scannerName = `rescan_stub_${process.pid}_${++nameSeq}`;
         FileScanner.registerScanner(scannerName, {
             scan(filePath, ctx, cb) {
                 scanState.active += 1;
                 scanState.maxActive = Math.max(scanState.maxActive, scanState.active);
                 scanState.calls.push({ filePath, ctx });
+                if (scanState.onScan) {
+                    scanState.onScan(filePath, ctx);
+                }
                 const content = fs.readFileSync(filePath, 'latin1');
                 setTimeout(() => {
                     scanState.active -= 1;
@@ -225,10 +228,28 @@ describe('file base rescan (#291)', function () {
 
     const daysAgo = n => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
 
-    describe('results', () => {
-        it('updates scan meta for clean and skipped files, replacing the old value', async () => {
+    const outside = () => paths.join(dir, 'OUTSIDE');
+
+    //  an entry with any name / rel path, no file written
+    const insertRaw = (fileName, relPath) =>
+        Number(
+            fileDb
+                .prepare(
+                    `INSERT INTO file (area_tag, file_sha256, file_name, storage_tag, storage_tag_rel_path, desc, desc_long, upload_timestamp)
+                    VALUES ('uploads', 'x', ?, 'uploads_main', ?, '', '', '2026-01-01')`
+                )
+                .run(fileName, relPath).lastInsertRowid
+        );
+
+    describe('results (report only)', () => {
+        it('records clean and skipped, replacing the old values', async () => {
             const clean = addFile('GOOD.ZIP', 'clean bytes', {
-                meta: { scan_result: 'clean', scanned_at: daysAgo(40), scanner: 'old' },
+                meta: {
+                    scan_result: 'infected',
+                    scan_signature: 'Old-Sig',
+                    scanned_at: daysAgo(40),
+                    scanner: 'old',
+                },
             });
             const skipped = addFile('SKIP.ZIP', 'SKIP me');
 
@@ -238,14 +259,39 @@ describe('file base rescan (#291)', function () {
             assert.equal(summary.errors, 0);
 
             assert.deepEqual(meta(clean, 'scan_result'), ['clean']);
+            assert.deepEqual(meta(clean, 'scan_signature'), [], 'old signature dropped');
             assert.deepEqual(meta(clean, 'scanner'), [scannerName]);
-            const [at] = meta(clean, 'scanned_at');
             assert.equal(meta(clean, 'scanned_at').length, 1, 'one scanned_at row');
-            assert.ok(Date.now() - Date.parse(at) < 60000);
+            assert.ok(Date.now() - Date.parse(meta(clean, 'scanned_at')[0]) < 60000);
+            assert.equal(meta(clean, 'rescan_attempted_at').length, 1);
             assert.deepEqual(meta(skipped, 'scan_result'), ['skipped']);
-
-            assert.deepEqual(ls(storageDir()), ['GOOD.ZIP', 'SKIP.ZIP']);
             assert.equal(notices.length, 0, 'nothing to tell the operators');
+        });
+
+        it('does not let skipped overturn an earlier clean', async () => {
+            const at = daysAgo(40);
+            const id = addFile('SKIP.ZIP', 'SKIP me', {
+                meta: { scan_result: 'clean', scanned_at: at, scanner: 'upload_av' },
+            });
+            const summary = await run();
+            assert.equal(summary.counts.skipped, 1);
+            assert.equal(summary.files[0].keptResult, 'clean');
+            assert.deepEqual(meta(id, 'scan_result'), ['clean']);
+            assert.deepEqual(meta(id, 'scanned_at'), [at]);
+            assert.deepEqual(meta(id, 'scanner'), [scannerName]);
+            assert.equal(meta(id, 'rescan_attempted_at').length, 1);
+        });
+
+        it('keeps reporting an infected entry that the scanners now skip', async () => {
+            const id = addFile('SKIP.EXE', 'SKIP me', {
+                meta: { scan_result: 'infected', scan_signature: 'Old-Sig' },
+            });
+            const summary = await run();
+            assert.equal(summary.stillInfected, 1);
+            assert.deepEqual(meta(id, 'scan_result'), ['infected']);
+            assert.deepEqual(meta(id, 'scan_signature'), ['Old-Sig']);
+            assert.equal(notices.length, 1);
+            assert.match(notices[0].body, /still marked infected: Old-Sig/);
         });
 
         it('passes the source, real name, area and a freshly computed hash to scanners', async () => {
@@ -258,10 +304,9 @@ describe('file base rescan (#291)', function () {
             assert.equal(ctx.sha256, sha256('clean bytes'), 'not the stale stored hash');
             assert.equal(ctx.byteSize, 11);
             assert.equal(summary.hashChanged, 1);
-            assert.equal(summary.files[0].hashChanged, true);
         });
 
-        it('quarantines an infected file and removes its entry', async () => {
+        it('reports an infected file, records it, and moves or removes nothing', async () => {
             const bad = addFile('EVIL.EXE', 'X5O EICAR test', {
                 meta: { dl_count: '3' },
             });
@@ -269,70 +314,40 @@ describe('file base rescan (#291)', function () {
 
             const summary = await run();
             assert.equal(summary.counts.infected, 1);
-            assert.equal(summary.removed, 1);
             assert.equal(summary.errors, 0);
 
-            assert.equal(entryExists(bad), false);
-            assert.deepEqual(meta(bad, 'dl_count'), [], 'meta goes with the entry');
+            assert.equal(entryExists(bad), true);
             assert.equal(entryExists(good), true);
-            assert.deepEqual(ls(storageDir()), ['GOOD.ZIP']);
-            assert.deepEqual(ls(quarantineDir()), ['EVIL.EX_', 'EVIL.EX_.json']);
-
-            const sidecar = JSON.parse(
-                fs.readFileSync(paths.join(quarantineDir(), 'EVIL.EX_.json'), 'utf8')
-            );
-            assert.equal(sidecar.source, 'rescan');
-            assert.equal(sidecar.areaTag, 'uploads');
-            assert.equal(sidecar.signature, 'Stub-Found-It');
+            assert.deepEqual(ls(storageDir()), ['EVIL.EXE', 'GOOD.ZIP']);
+            assert.deepEqual(ls(quarantineDir()), [], 'nothing quarantined');
+            assert.deepEqual(meta(bad, 'scan_result'), ['infected']);
+            assert.deepEqual(meta(bad, 'scan_signature'), ['Stub-Found-It']);
+            assert.deepEqual(meta(bad, 'scanner'), [scannerName]);
+            assert.deepEqual(meta(bad, 'dl_count'), ['3']);
 
             assert.equal(notices.length, 1);
-            assert.match(notices[0].subject, /1 infected/);
-            assert.match(notices[0].body, /EVIL\.EXE/);
-            assert.match(notices[0].body, /quarantined/);
-            assert.match(notices[0].body, /removed from the file base/);
-        });
-
-        it('deletes an infected file with failAction: delete, and removes its entry', async () => {
-            config.fileBase.scanning.failAction = 'delete';
-            const bad = addFile('EVIL.EXE', 'EICAR');
-            const summary = await run();
-            assert.equal(summary.removed, 1);
-            assert.equal(entryExists(bad), false);
-            assert.deepEqual(ls(storageDir()), []);
-            assert.deepEqual(ls(quarantineDir()), []);
-            assert.match(notices[0].body, /Action:\s+deleted/);
-        });
-
-        it('keeps the entry, loudly, when the fail action fails', async function () {
-            if (0 === process.getuid()) {
-                this.skip(); //  root ignores the directory mode
-            }
-            config.fileBase.scanning.failAction = 'delete';
-            const bad = addFile('EVIL.EXE', 'EICAR');
-            fs.chmodSync(storageDir(), 0o500); //  the file cannot be unlinked
-            let summary;
-            try {
-                summary = await run();
-            } finally {
-                fs.chmodSync(storageDir(), 0o700);
-            }
-
-            assert.equal(summary.counts.infected, 1);
-            assert.equal(summary.removed, 0);
-            assert.equal(summary.errors, 1);
-            assert.equal(
-                entryExists(bad),
-                true,
-                'no entry removed for a file still there'
+            assert.match(notices[0].subject, /1 file to check, 1 infected/);
+            const body = notices[0].body;
+            assert.match(body, /File:\s+EVIL\.EXE/);
+            assert.match(body, new RegExp(`File ID:\\s+${bad}\\r\\n`));
+            assert.match(body, /Area:\s+uploads/);
+            assert.match(body, /Result:\s+infected: Stub-Found-It/);
+            assert.match(
+                body,
+                new RegExp(`Remove:\\s+\\./oputil\\.js fb rm ${bad} --phys-file`)
             );
-            assert.deepEqual(ls(storageDir()), ['EVIL.EXE']);
-            assert.match(summary.files[0].error, /Could not quarantine or delete it/);
-            assert.equal(notices.length, 1);
-            assert.match(notices[0].body, /NOT moved/);
-            assert.match(notices[0].body, /Still at:.*EVIL\.EXE/);
+            assert.match(body, /nothing was moved or removed/);
         });
 
-        it('leaves a held file and its entry exactly as they are', async () => {
+        it('reports an infected file again on the next run', async () => {
+            addFile('EVIL.EXE', 'EICAR');
+            await run();
+            await run();
+            assert.equal(notices.length, 2);
+            notices.forEach(n => assert.match(n.body, /EVIL\.EXE/));
+        });
+
+        it('leaves a held file alone apart from the attempt time', async () => {
             const at = daysAgo(40);
             const held = addFile('MAYBE.ZIP', 'FAIL', {
                 meta: { scan_result: 'clean', scanned_at: at, scanner: 'old' },
@@ -340,14 +355,10 @@ describe('file base rescan (#291)', function () {
 
             const summary = await run();
             assert.equal(summary.counts.held, 1);
-            assert.equal(summary.errors, 0);
-            assert.equal(entryExists(held), true);
-            assert.deepEqual(ls(storageDir()), ['MAYBE.ZIP']);
-            assert.deepEqual(ls(quarantineDir()), [], 'not quarantined');
             assert.deepEqual(meta(held, 'scanned_at'), [at], 'scanned_at not touched');
             assert.deepEqual(meta(held, 'scan_result'), ['clean']);
-
-            assert.equal(notices.length, 1);
+            assert.deepEqual(meta(held, 'scanner'), ['old']);
+            assert.equal(meta(held, 'rescan_attempted_at').length, 1);
             assert.match(notices[0].body, /COULD NOT BE CHECKED/);
             assert.match(notices[0].body, /scanner unreachable/);
         });
@@ -359,37 +370,16 @@ describe('file base rescan (#291)', function () {
             assert.equal(scanState.calls.length, 0);
             assert.equal(entryExists(gone), true);
             assert.deepEqual(meta(gone, 'scanned_at'), []);
-            assert.equal(notices.length, 1);
             assert.match(notices[0].body, /MISSING/);
-            assert.match(notices[0].body, /GONE\.ZIP/);
         });
 
         it('does not scan an entry whose storage tag is no longer configured', async () => {
             fs.writeFileSync(paths.join(prefix(), 'ORPHAN.ZIP'), 'EICAR');
-            const orphan = addFile('ORPHAN.ZIP', null, { storageTag: 'gone_tag' });
+            addFile('ORPHAN.ZIP', null, { storageTag: 'gone_tag' });
             const summary = await run();
             assert.equal(summary.counts.error, 1);
             assert.match(summary.files[0].error, /Unknown storage tag/);
             assert.equal(scanState.calls.length, 0);
-            assert.equal(entryExists(orphan), true);
-            assert.ok(fs.existsSync(paths.join(prefix(), 'ORPHAN.ZIP')));
-        });
-
-        it('never moves an infected symbolic link or the file it points at', async () => {
-            const outside = paths.join(dir, 'outside.exe');
-            fs.writeFileSync(outside, 'EICAR');
-            fs.symlinkSync(outside, paths.join(storageDir(), 'LINK.EXE'));
-            const link = addFile('LINK.EXE', null);
-
-            const summary = await run();
-            assert.equal(summary.counts.infected, 1);
-            assert.equal(summary.errors, 1);
-            assert.equal(entryExists(link), true);
-            assert.ok(fs.existsSync(outside));
-            assert.ok(
-                fs.lstatSync(paths.join(storageDir(), 'LINK.EXE')).isSymbolicLink()
-            );
-            assert.match(summary.files[0].error, /symbolic link/);
         });
 
         it('does not scan something that is not a regular file', async () => {
@@ -397,65 +387,228 @@ describe('file base rescan (#291)', function () {
             addFile('ADIR.ZIP', null);
             const summary = await run();
             assert.equal(summary.counts.error, 1);
+            assert.match(summary.files[0].error, /Not a regular file/);
+            assert.equal(scanState.calls.length, 0);
+        });
+
+        it('does not hang on a FIFO', async function () {
+            if ('win32' === process.platform) {
+                this.skip();
+            }
+            const fifo = paths.join(storageDir(), 'PIPE.ZIP');
+            require('child_process').execFileSync('mkfifo', [fifo]);
+            addFile('PIPE.ZIP', null);
+            const summary = await run();
+            assert.equal(summary.counts.error, 1);
             assert.equal(scanState.calls.length, 0);
         });
 
         it('finds files in a recursive storage tag by their relative path', async () => {
-            const bad = addFile('EVIL.COM', 'EICAR', {
+            addFile('EVIL.COM', 'EICAR', {
                 storageTag: 'tree',
                 areaTag: 'tree',
                 relPath: 'games/dos',
             });
-            const good = addFile('GOOD.ZIP', 'clean', {
-                storageTag: 'tree',
-                areaTag: 'tree',
-                relPath: 'games',
-            });
-
             const summary = await run({ areaTags: ['tree'] });
             assert.equal(summary.counts.infected, 1);
-            assert.equal(summary.counts.clean, 1);
             assert.equal(
                 scanState.calls[0].filePath,
                 paths.join(prefix(), 'tree', 'games', 'dos', 'EVIL.COM')
             );
-            assert.equal(entryExists(bad), false);
-            assert.equal(entryExists(good), true);
-            assert.deepEqual(ls(paths.join(prefix(), 'tree', 'games', 'dos')), []);
-            assert.deepEqual(ls(quarantineDir()), ['EVIL.CO_', 'EVIL.CO_.json']);
         });
 
-        it('sends ONE notice for a run with several problems', async () => {
+        it('sends ONE notice for a run, counting each file once', async () => {
             addFile('A.EXE', 'EICAR');
             addFile('B.EXE', 'EICAR');
             addFile('C.ZIP', 'FAIL');
             addFile('D.ZIP', null);
             addFile('E.ZIP', 'clean');
 
-            const summary = await run();
+            //  infected AND an error recording it: still one file
+            const FileEntry = require('../core/file_entry.js');
+            const prev = FileEntry.replaceMetaValues;
+            FileEntry.replaceMetaValues = (id, values, cb) =>
+                'infected' === values.scan_result
+                    ? cb(new Error('db locked'))
+                    : prev(id, values, cb);
+            let summary;
+            try {
+                summary = await run();
+            } finally {
+                FileEntry.replaceMetaValues = prev;
+            }
             assert.equal(notices.length, 1);
             assert.equal(summary.counts.infected, 2);
-            assert.equal(summary.counts.held, 1);
-            assert.equal(summary.counts.missing, 1);
-            assert.match(notices[0].subject, /4 problems, 2 infected/);
-            ['A.EXE', 'B.EXE', 'C.ZIP', 'D.ZIP'].forEach(n =>
-                assert.ok(notices[0].body.includes(n), n)
-            );
+            assert.equal(summary.errors, 2);
+            assert.match(notices[0].subject, /4 files to check, 2 infected/);
             notices[0].body
                 .split('\r\n')
                 .forEach(line => assert.ok(line.length <= 79, line));
         });
+    });
 
-        it('strips pipe codes from names in the notice', async () => {
-            addFile('EVIL|00|10FAKE.EXE', 'EICAR');
-            await run();
-            assert.equal(notices.length, 1);
-            assert.doesNotMatch(notices[0].body, /\|\d\d/);
+    describe('paths (security review)', () => {
+        it('PoC A: never reads a file through a symlinked subdirectory', async () => {
+            fs.mkdirSync(outside());
+            fs.writeFileSync(
+                paths.join(outside(), 'precious.exe'),
+                'EICAR operator file'
+            );
+            fs.symlinkSync(outside(), paths.join(storageDir(), 'sub'));
+            const id = insertRaw('precious.exe', 'sub');
+
+            const summary = await run();
+            assert.equal(summary.counts.error, 1);
+            assert.match(summary.files[0].error, /symbolic link/);
+            assert.equal(scanState.calls.length, 0, 'not scanned');
+            assert.deepEqual(ls(outside()), ['precious.exe']);
+            assert.equal(entryExists(id), true);
+        });
+
+        it('never reads a file that is itself a symbolic link', async () => {
+            fs.mkdirSync(outside());
+            fs.writeFileSync(paths.join(outside(), 'x.exe'), 'EICAR');
+            fs.symlinkSync(
+                paths.join(outside(), 'x.exe'),
+                paths.join(storageDir(), 'LINK.EXE')
+            );
+            addFile('LINK.EXE', null);
+            const summary = await run();
+            assert.equal(summary.counts.error, 1);
+            assert.match(summary.files[0].error, /symbolic link/);
+            assert.equal(scanState.calls.length, 0);
+        });
+
+        it('allows a storage directory that is itself a link', async () => {
+            const real = paths.join(dir, 'realstore');
+            fs.mkdirSync(real);
+            fs.writeFileSync(paths.join(real, 'OK.ZIP'), 'clean');
+            fs.symlinkSync(real, paths.join(prefix(), 'linked'));
+            config.fileBase.storageTags.linked = 'linked';
+            addFile('OK.ZIP', null, { storageTag: 'linked' });
+            const summary = await run();
+            assert.equal(summary.counts.clean, 1);
+        });
+
+        it('PoC A3: crafted names and rel paths are errors, never scanned', async () => {
+            [
+                ['../../x', null],
+                ['x', '../..'],
+                ['x', '/etc'],
+                ['/etc/passwd', null],
+                ['', null],
+                ['..', 'a'],
+                ['.', null],
+            ].forEach(([fn, rp]) => insertRaw(fn, rp));
+            const summary = await run({ dryRun: true });
+            assert.equal(scanState.calls.length, 0);
+            summary.files.forEach(f =>
+                assert.ok(['error', 'missing'].includes(f.result), JSON.stringify(f))
+            );
+        });
+
+        it('PoC B: a directory swapped for a link during the scan records nothing', async () => {
+            fs.mkdirSync(outside());
+            fs.writeFileSync(paths.join(outside(), 'X.EXE'), 'clean outside');
+            const id = addFile('X.EXE', 'EICAR', { relPath: 'sub' });
+            scanState.onScan = () => {
+                fs.renameSync(
+                    paths.join(storageDir(), 'sub'),
+                    paths.join(dir, 'moved_away')
+                );
+                fs.symlinkSync(outside(), paths.join(storageDir(), 'sub'));
+            };
+            const summary = await run();
+            assert.equal(summary.counts.error, 1);
+            assert.match(
+                summary.files[0].error,
+                /changed or moved while it was being scanned/
+            );
+            assert.deepEqual(meta(id, 'scan_result'), []);
+        });
+
+        it('PoC B2: the file swapped for a link during the scan records nothing', async () => {
+            fs.mkdirSync(outside());
+            fs.writeFileSync(paths.join(outside(), 'target.txt'), 'outside clean data');
+            const id = addFile('Y.EXE', 'clean inside');
+            scanState.onScan = () => {
+                fs.unlinkSync(paths.join(storageDir(), 'Y.EXE'));
+                fs.symlinkSync(
+                    paths.join(outside(), 'target.txt'),
+                    paths.join(storageDir(), 'Y.EXE')
+                );
+            };
+            const summary = await run();
+            assert.equal(summary.counts.error, 1);
+            assert.deepEqual(meta(id, 'scan_result'), []);
+        });
+    });
+
+    describe('notice text (security review)', () => {
+        it('keeps hostile names, areas and signatures on their own line, without codes', () => {
+            const names = [
+                'EVIL.ZIP\r\nResult:  clean\r\nAction:  none',
+                'A|00|08HIDDEN',
+                'X\x1b[2J\x1b[8mHIDE',
+                'Y Result: clean\u0085Z',
+                '@X0FPCB@',
+                `${'N'.repeat(60)} Remove:   nothing`,
+                '\t\t\tFile:    FAKE.ZIP',
+            ];
+            const files = names.map((n, i) => ({
+                fileId: i + 1,
+                fileName: n,
+                areaTag: 'a|04b',
+                result: 'infected',
+                sha256: 'ab',
+                verdict: {
+                    scanner: 'clam|00',
+                    signature: `Sig\r\nRemove: rm -rf / ${'x'.repeat(100)}`,
+                },
+            }));
+            const summary = {
+                dryRun: false,
+                checked: 7,
+                matched: 7,
+                unmatched: 0,
+                remaining: 0,
+                counts: {
+                    clean: 0,
+                    skipped: 0,
+                    not_scanned: 0,
+                    infected: 7,
+                    held: 0,
+                    missing: 0,
+                    error: 0,
+                },
+                stillInfected: 0,
+                errors: 0,
+                hashChanged: 0,
+                files,
+            };
+            const { subject, body } = Rescan.buildRescanNotice(summary, {
+                ranBy: 'x\r\ny|00',
+            });
+            assert.match(subject, /7 files to check, 7 infected/);
+            const lines = body.split('\r\n');
+            lines.forEach(line => {
+                assert.ok(line.length <= 79, line);
+                assert.doesNotMatch(line, /\|\d\d/, line);
+                // eslint-disable-next-line no-control-regex
+                assert.doesNotMatch(line, /[\x00-\x1f\x7f-\x9f]/, JSON.stringify(line));
+            });
+            //  the only Remove: lines are ours, one per file
+            const removes = lines.filter(l => /^Remove:/.test(l));
+            assert.equal(removes.length, 7);
+            removes.forEach(l =>
+                assert.match(l, /^Remove:\s+\.\/oputil\.js fb rm \d+ --phys-file$/)
+            );
+            assert.equal(lines.filter(l => /^File:/.test(l)).length, 7);
         });
     });
 
     describe('dry run', () => {
-        it('scans and reports but changes nothing and sends no notice', async () => {
+        it('scans and reports but records nothing and sends no notice', async () => {
             const at = daysAgo(40);
             const bad = addFile('EVIL.EXE', 'EICAR');
             const good = addFile('GOOD.ZIP', 'clean', {
@@ -464,23 +617,18 @@ describe('file base rescan (#291)', function () {
             addFile('MAYBE.ZIP', 'FAIL');
 
             const summary = await run({ dryRun: true });
-            assert.equal(summary.dryRun, true);
             assert.equal(summary.counts.infected, 1);
             assert.equal(summary.counts.clean, 1);
             assert.equal(summary.counts.held, 1);
-            assert.equal(summary.removed, 0);
-
-            assert.equal(entryExists(bad), true);
-            assert.deepEqual(ls(storageDir()), ['EVIL.EXE', 'GOOD.ZIP', 'MAYBE.ZIP']);
-            assert.deepEqual(ls(quarantineDir()), []);
             assert.deepEqual(meta(good, 'scanned_at'), [at]);
             assert.deepEqual(meta(bad, 'scan_result'), []);
+            assert.deepEqual(meta(bad, 'rescan_attempted_at'), []);
             assert.equal(notices.length, 0);
-            assert.match(Rescan.formatSummary(summary), /^DRY RUN, nothing changed\./);
+            assert.match(Rescan.formatSummary(summary), /^DRY RUN, nothing recorded\./);
         });
     });
 
-    describe('filters', () => {
+    describe('selection and order', () => {
         it('olderThanDays: only never-scanned entries and those scanned too long ago', async () => {
             const never = addFile('NEVER.ZIP', 'a');
             const old = addFile('OLD.ZIP', 'b', { meta: { scanned_at: daysAgo(31) } });
@@ -494,32 +642,77 @@ describe('file base rescan (#291)', function () {
             );
         });
 
-        it('maxFiles: never scanned first, then oldest scan; the rest are left over', async () => {
+        it('maxFiles: never attempted first, then the oldest attempt', async () => {
             const mid = addFile('MID.ZIP', 'a', { meta: { scanned_at: daysAgo(10) } });
             const oldest = addFile('OLDEST.ZIP', 'b', {
-                meta: { scanned_at: daysAgo(50) },
+                meta: { scanned_at: daysAgo(50), rescan_attempted_at: daysAgo(3) },
             });
             const never = addFile('NEVER.ZIP', 'c');
             addFile('NEWEST.ZIP', 'd', { meta: { scanned_at: daysAgo(1) } });
 
             const summary = await run({ maxFiles: 3 });
             assert.equal(summary.matched, 4);
-            assert.equal(summary.checked, 3);
             assert.equal(summary.remaining, 1);
             assert.deepEqual(
                 summary.files.map(f => f.fileId),
-                [never, oldest, mid]
+                [never, mid, oldest]
             );
-            assert.match(Rescan.formatSummary(summary), /1 left for a later run/);
+        });
+
+        it('PoC C2: missing and held entries do not pin a capped run', async () => {
+            addFile('GONE0.ZIP', null);
+            addFile('GONE1.ZIP', null);
+            addFile('FAIL.ZIP', 'FAIL');
+            const evil = addFile('EVIL.ZIP', 'EICAR');
+            const good = addFile('GOOD.ZIP', 'clean');
+
+            const seen = new Set();
+            for (let r = 0; r < 3; ++r) {
+                const s = await run({ maxFiles: 2 });
+                s.files.forEach(f => seen.add(f.fileId));
+            }
+            assert.ok(seen.has(evil), 'the infected file was reached');
+            assert.ok(seen.has(good));
+            assert.deepEqual(meta(evil, 'scan_result'), ['infected']);
+        });
+
+        it('PoC C: files no scanner covers are left out before the cap, and counted', async () => {
+            config.fileBase.scanning.scanners = [
+                { scanner: scannerName, fileTypes: ['zip'] },
+            ];
+            for (let i = 0; i < 3; ++i) {
+                addFile(`README${i}.TXT`, 'text');
+            }
+            const z1 = addFile('LATER1.ZIP', 'EICAR inside');
+            const z2 = addFile('LATER2.ZIP', 'clean');
+
+            const summary = await run({ maxFiles: 3 });
+            assert.equal(summary.unmatched, 3);
+            assert.equal(summary.matched, 2);
+            assert.deepEqual(summary.files.map(f => f.fileId).sort(), [z1, z2].sort());
+            assert.match(
+                Rescan.formatSummary(summary),
+                /3 left out: no scanner entry scans their type/
+            );
+        });
+
+        it('warns when nothing was actually scanned', async () => {
+            addFile('GONE.ZIP', null);
+            const summary = await run();
+            assert.equal(summary.warning, 'No file was actually scanned this run');
+            assert.match(
+                Rescan.formatSummary(summary),
+                /Warning: No file was actually scanned/
+            );
         });
 
         it('areaTags: wildcards, and never the internal areas', async () => {
-            addFile('A.ZIP', 'a', { areaTag: 'retro_dos' });
-            addFile('B.ZIP', 'b', { areaTag: 'uploads' });
             config.fileBase.areas.system_temporary_download = {
                 name: 'Temp',
                 storageTags: ['uploads_main'],
             };
+            addFile('A.ZIP', 'a', { areaTag: 'retro_dos' });
+            addFile('B.ZIP', 'b', { areaTag: 'uploads' });
             const t = addFile('T.ZIP', 'EICAR', { areaTag: 'system_temporary_download' });
 
             let summary = await run({ areaTags: ['retro_*'] });
@@ -534,7 +727,6 @@ describe('file base rescan (#291)', function () {
                 'B.ZIP',
             ]);
 
-            //  not even by ID
             summary = await run({ fileIds: [t] });
             assert.equal(summary.matched, 0);
             await assert.rejects(
@@ -550,6 +742,20 @@ describe('file base rescan (#291)', function () {
             );
         });
 
+        it('an explicitly empty selection is nothing, never every area', async () => {
+            addFile('A.ZIP', 'a');
+            for (const sel of [
+                { fileIds: [] },
+                { areaTags: [] },
+                { areaTags: [], fileIds: [] },
+            ]) {
+                const summary = await run(sel);
+                assert.equal(summary.checked, 0, JSON.stringify(sel));
+                assert.equal(summary.warning, 'Nothing was selected');
+            }
+            assert.equal(scanState.calls.length, 0);
+        });
+
         it('fileIds: just those entries', async () => {
             addFile('A.ZIP', 'a');
             const b = addFile('B.ZIP', 'b');
@@ -561,8 +767,8 @@ describe('file base rescan (#291)', function () {
         });
     });
 
-    describe('serial', () => {
-        it('never runs more than one scan at a time, whatever maxConcurrent allows', async () => {
+    describe('robustness', () => {
+        it('never runs more than one scan at a time', async () => {
             scanState.delayMs = 15;
             for (let i = 0; i < 6; ++i) {
                 addFile(`F${i}.ZIP`, `clean ${i}`);
@@ -570,6 +776,59 @@ describe('file base rescan (#291)', function () {
             const summary = await run();
             assert.equal(summary.counts.clean, 6);
             assert.equal(scanState.maxActive, 1);
+        });
+
+        it('stops after several files in a row could not be checked', async () => {
+            for (let i = 0; i < 8; ++i) {
+                addFile(`F${i}.ZIP`, 'FAIL');
+            }
+            const summary = await run({ stopAfterHeld: 3 });
+            assert.equal(summary.checked, 3);
+            assert.equal(summary.remaining, 5);
+            assert.match(
+                summary.stoppedEarly,
+                /scanner appears to be down: 3 files in a row/
+            );
+            assert.match(notices[0].body, /run stopped after 3 files/);
+        });
+
+        it('reports an entry it cannot load as an error, and frees the run', async () => {
+            addFile('A.ZIP', 'a');
+            const FileEntry = require('../core/file_entry.js');
+            const prev = FileEntry.loadBasicEntry;
+            FileEntry.loadBasicEntry = (id, dest, cb) => cb(new Error('disk I/O error'));
+            let summary;
+            try {
+                summary = await run();
+            } finally {
+                FileEntry.loadBasicEntry = prev;
+            }
+            assert.equal(summary.counts.error, 1);
+            assert.match(summary.files[0].error, /disk I\/O error/);
+            assert.equal(Rescan.isRunning(), false);
+        });
+
+        it('frees the run if the progress callback or a step throws', async () => {
+            addFile('A.ZIP', 'a');
+            const FileEntry = require('../core/file_entry.js');
+            const prev = FileEntry.replaceMetaValues;
+            FileEntry.replaceMetaValues = () => {
+                throw new Error('boom');
+            };
+            let summary;
+            try {
+                summary = await run({
+                    onFileResult: () => {
+                        throw new Error('callback boom');
+                    },
+                });
+            } finally {
+                FileEntry.replaceMetaValues = prev;
+            }
+            assert.equal(summary.counts.error, 1);
+            assert.match(summary.files[0].error, /boom/);
+            assert.equal(Rescan.isRunning(), false);
+            assert.equal((await run()).counts.clean, 1);
         });
     });
 
@@ -586,7 +845,7 @@ describe('file base rescan (#291)', function () {
             await assert.rejects(run(), /"rescan" source/);
         });
 
-        it('runs when an entry lists no sources, or lists rescan', async () => {
+        it('runs when an entry lists rescan', async () => {
             addFile('A.ZIP', 'a');
             config.fileBase.scanning.scanners = [
                 { scanner: scannerName, sources: ['rescan'] },
@@ -617,8 +876,19 @@ describe('file base rescan (#291)', function () {
                 );
             });
 
+        it('is a built-in, manual-only event', () => {
+            const ev = configDefault().eventScheduler.events.rescanFileBase;
+            assert.equal(
+                ev.action,
+                '@method:core/file_base_rescan.js:rescanFileBaseScheduledEvent'
+            );
+            assert.equal(ev.schedule, undefined);
+            assert.ok(ev.desc);
+        });
+
         it('parses its args and rejects unknown keys', () => {
             assert.deepEqual(Rescan.parseTaskArgs([]).options, {});
+            assert.deepEqual(Rescan.parseTaskArgs(undefined).options, {});
             assert.deepEqual(
                 Rescan.parseTaskArgs([
                     { areas: 'retro_*', olderThanDays: 30, maxFiles: 100, dryRun: true },
@@ -635,33 +905,37 @@ describe('file base rescan (#291)', function () {
             assert.ok(Rescan.parseTaskArgs([{ areas: [] }]).error);
         });
 
-        it('succeeds with the summary as its output', async () => {
+        it('succeeds with the summary as its output when all is clean', async () => {
             addFile('A.ZIP', 'a');
-            addFile('EVIL.EXE', 'EICAR');
             const { err, output } = await task([{ areas: ['uploads'] }]);
             assert.equal(err, null);
-            assert.match(
-                output,
-                /Checked 2 of 2 matching files: 1 clean, .*1 infected \(1 removed\)/
-            );
-            assert.equal(notices.length, 1);
+            assert.match(output, /Checked 1 of 1 matching file: 1 clean/);
+        });
+
+        it('fails, so the WFC flags it, when an infected file is in the base', async () => {
+            addFile('EVIL.EXE', 'EICAR');
+            const { err, output } = await task([]);
+            assert.equal(err.message, '1 infected file in the file base');
+            assert.match(output, /1 infected/);
             assert.match(notices[0].body, /scheduled task/);
         });
 
         it('fails when a file could not be checked, still with the summary', async () => {
             addFile('MAYBE.ZIP', 'FAIL');
             const { err, output } = await task([]);
-            assert.ok(err);
-            assert.match(output, /1 could not be checked/);
             assert.equal(err.message, '1 file could not be checked');
+            assert.match(output, /1 could not be checked/);
         });
 
-        it('fails without running on bad args or when not ready', async () => {
+        it('fails cleanly without running on bad args or when scanning is not set up', async () => {
             addFile('A.ZIP', 'a');
             let res = await task([{ nope: 1 }]);
             assert.match(res.err.message, /Unknown argument/);
             config.fileBase.scanning.enabled = false;
             res = await task([]);
+            assert.match(res.err.message, /disabled/);
+            delete config.fileBase.scanning;
+            res = await task(undefined);
             assert.match(res.err.message, /disabled/);
             assert.equal(scanState.calls.length, 0);
         });
