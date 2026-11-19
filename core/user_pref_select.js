@@ -24,9 +24,20 @@ const _ = require('lodash');
         defaultDesc           its description
         currentIndicator      marks the current choice (default "*")
         notCurrentIndicator   marks the others (default " ")
+        notAvailableSuffix    added to currentName when the stored value is
+                              not offered here (default " (not available here)")
 
-    Choices whose acs the caller does not pass are not shown. A choice whose
-    value PV could not test, and a pref outside pref__, are refused at load.
+    Choices whose acs the caller does not pass are not shown; an acs that is
+    empty or not a string hides the choice too (fails closed). A choice whose
+    value PV could not test, or that repeats an earlier choice's value, is
+    skipped with one warning per load; a pref outside pref__ stops the menu
+    loading.
+
+    "(board default)" is current only while the preference is unset. A stored
+    value this caller is not offered (the choice was removed, or its acs does
+    not pass now) is kept, since an acs such as TE[ansi] can differ from one
+    call to the next; nothing is marked current, and currentName shows the
+    stored value with notAvailableSuffix.
 
     Item fields (VM1 / TV1 itemFormat, focusItemFormat or TV columns, and the
     TL10+ custom range):
@@ -38,8 +49,10 @@ const _ = require('lodash');
         isCurrent         true for the current choice
         isDefault         true for the "(board default)" entry
     The TL10+ custom range also gets:
-        currentName       name of the current choice
-        currentValue      value of the current choice; empty for the default
+        currentName       name of the current choice; for a stored value not
+                          offered here, the value + notAvailableSuffix
+        currentValue      the stored value; empty while unset
+        currentAvailable  false when the stored value is not offered here
         pref              the preference name
 */
 
@@ -60,7 +73,11 @@ const Defaults = {
     defaultDesc: 'Use the default this board has chosen',
     currentIndicator: '*',
     notCurrentIndicator: ' ',
+    notAvailableSuffix: ' (not available here)',
 };
+
+//  _currentKey() when the stored value is not one of the choices offered
+const NoCurrentKey = -1;
 
 exports.getModule = class UserPrefSelectModule extends MenuModule {
     constructor(options) {
@@ -120,6 +137,8 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
         this.pref = config.pref;
 
         const rejected = [];
+        const duplicates = [];
+        const seen = new Set();
         const choices = Array.isArray(config.choices) ? config.choices : [];
         this.choices = [];
 
@@ -133,7 +152,14 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
                 return;
             }
 
-            if (_.isString(choice.acs) && !this._passesAcs(choice.acs)) {
+            //  the first choice with a value wins, whoever it is offered to
+            if (seen.has(value)) {
+                duplicates.push(value);
+                return;
+            }
+            seen.add(value);
+
+            if (_.has(choice, 'acs') && !this._passesAcs(choice.acs)) {
                 return;
             }
 
@@ -144,17 +170,21 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
             });
         });
 
-        if (rejected.length > 0) {
+        if (rejected.length > 0 || duplicates.length > 0) {
             this.client.log.warn(
-                { pref: this.pref, rejected },
-                'Skipping user preference choices with invalid values (must match [A-Za-z0-9\\-_+])'
+                { pref: this.pref, rejected, duplicates },
+                'Skipping user preference choices: values must match [A-Za-z0-9\\-_+] and be unique'
             );
         }
 
         return null;
     }
 
+    //  an empty or non-string acs hides the choice rather than offering it
     _passesAcs(acs) {
+        if (!_.isString(acs) || '' === acs.trim()) {
+            return false;
+        }
         return this.client.acs.check({ acs }, 'acs');
     }
 
@@ -170,12 +200,45 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
         };
     }
 
-    //  key of the item that matches the user's stored preference
-    _currentKey() {
+    _storedValue() {
         const stored = this.client.user.getProperty(this.pref);
+        return undefined === stored || null === stored ? undefined : stored;
+    }
+
+    //
+    //  Key of the item that matches the user's stored preference: the board
+    //  default (0) while it is unset, NoCurrentKey when the stored value is
+    //  not offered to this caller.
+    //
+    _currentKey() {
+        const stored = this._storedValue();
+        if (undefined === stored) {
+            return 0;
+        }
         const index = this.choices.findIndex(c => c.value === stored);
-        //  an unset (or no longer offered) preference shows the board default
-        return -1 === index ? 0 : index + 1;
+        return -1 === index ? NoCurrentKey : index + 1;
+    }
+
+    _currentInfo() {
+        const current = this.items.find(i => i.isCurrent);
+        if (current) {
+            return {
+                currentName: current.name,
+                currentValue: current.value,
+                currentAvailable: true,
+            };
+        }
+
+        const config = this._config();
+        const stored = String(this._storedValue());
+        const suffix = _.isString(config.notAvailableSuffix)
+            ? config.notAvailableSuffix
+            : Defaults.notAvailableSuffix;
+        return {
+            currentName: `${stored}${suffix}`,
+            currentValue: stored,
+            currentAvailable: false,
+        };
     }
 
     //
@@ -222,6 +285,7 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
 
     //  screen index of the row with |key|; a TableView may have sorted them
     _indexOfKey(view, key) {
+        key = Math.max(key, 0); //  nothing current: start on the board default
         if (_.isFunction(view.findIndex)) {
             return Math.max(
                 view.findIndex(item => item.key === key),
@@ -261,6 +325,14 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
         return cb(null);
     }
 
+    //  rebuild the list from the live preference, focus on |key|, redraw
+    _refreshList(view, key) {
+        view.setItems(this._buildItems(), { keepFocus: true });
+        view.setFocusItemIndex(this._indexOfKey(view, key));
+        view.redraw();
+        this._onFocusChange(view);
+    }
+
     _selectFocused(cb) {
         const view = this._choiceListView();
         const item = view && this._focusedItem(view);
@@ -272,19 +344,16 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
         const value = item.isDefault ? null : item.value;
         UserPreference.setUserPreference(this.client.user, this.pref, value, err => {
             if (err) {
+                //  the live preference is back as it was; show that
                 this.client.log.warn(
                     { error: err.message, pref: this.pref, value },
                     'Failed setting user preference'
                 );
-                return cb(null);
+            } else {
+                this.client.log.debug({ pref: this.pref, value }, 'User preference set');
             }
 
-            this.client.log.debug({ pref: this.pref, value }, 'User preference set');
-
-            view.setItems(this._buildItems(), { keepFocus: true });
-            view.setFocusItemIndex(this._indexOfKey(view, item.key));
-            view.redraw();
-            this._onFocusChange(view);
+            this._refreshList(view, item.key);
             return cb(null);
         });
     }
@@ -297,15 +366,10 @@ exports.getModule = class UserPrefSelectModule extends MenuModule {
 
         this.setViewText('main', MciViewIds.desc, item.desc);
 
-        const current = this.items.find(i => i.isCurrent) || this.items[0];
         this.updateCustomViewTextsWithFilter(
             'main',
             MciViewIds.customRangeStart,
-            Object.assign({}, item, {
-                currentName: current.name,
-                currentValue: current.value,
-                pref: this.pref,
-            })
+            Object.assign({}, item, this._currentInfo(), { pref: this.pref })
         );
     }
 };

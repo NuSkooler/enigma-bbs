@@ -88,7 +88,7 @@ Key bindings are configured in the menu HJSON `actionKeys` block. The following 
 
 | Action | Default key(s) | Description |
 |--------|---------------|-------------|
-| `toggleArea` | `space`, `enter` | Toggle the focused area on or off. |
+| `toggleArea` | `space`, `return` (Enter) | Toggle the focused area on or off. |
 | `toggleAllAreas` | `a` | If all areas are selected, deselect all. Otherwise, select all. |
 | `setFloorDate` | `g` | Navigate to the floor-date entry menu (configurable via `setFloorDateMenu`). |
 | `done` | `q`, `escape` | Return to the previous menu. |
@@ -126,7 +126,7 @@ messageBaseConfigureNewscan: {
             }
             actionKeys: [
                 {
-                    keys: [ "space", "enter" ]
+                    keys: [ "space", "return" ]
                     action: @method:toggleArea
                 }
                 {

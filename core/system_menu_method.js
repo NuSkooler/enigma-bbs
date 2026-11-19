@@ -351,13 +351,15 @@ function optimizeDatabases(callingMenu, formData, extraArgs, cb) {
 //
 //  extraArgs (menu configuration only; formData is never read):
 //    pref    the property name; must match ^pref__[A-Za-z0-9\-_+]+$
-//    value   the value; must match ^[A-Za-z0-9\-_+]+$ (a number or boolean is
-//            taken as its text). null removes the property, so the board
+//    value   the value; must match ^[A-Za-z0-9\-_+]+$ (an integer or boolean
+//            is taken as its text). null removes the property, so the board
 //            default (the entry without an acs) applies again.
-//    next    optional menu to go to afterwards; without it, the previous menu
+//    next    optional menu to go to afterwards (a step in the menu history);
+//            without it, back to the previous menu
 //
-//  Anything else is refused with a warning, nothing is written and the
-//  caller stays on the menu.
+//  Anything else is refused, nothing is written and the caller stays on the
+//  menu. This method owns the warning: it calls back without an error, so
+//  the dispatcher does not log the same refusal a second time.
 //
 function setUserPreference(callingMenu, formData, extraArgs, cb) {
     cb = cb || _.noop;
@@ -368,17 +370,25 @@ function setUserPreference(callingMenu, formData, extraArgs, cb) {
         if (err) {
             client.log.warn(
                 { error: err.message, pref, value },
-                'Refusing to set user preference'
+                'User preference not set'
             );
-            return cb(err);
+            return cb(null);
         }
 
         client.log.debug({ pref, value: stored }, 'User preference set');
 
-        if (next) {
-            return callingMenu.gotoMenu(next, cb);
+        if (undefined === next) {
+            return callingMenu.prevMenu(cb);
         }
 
-        return callingMenu.prevMenu(cb);
+        if (!_.isString(next) || '' === next) {
+            client.log.warn(
+                { next },
+                'Invalid "next" for setUserPreference: going to the previous menu'
+            );
+            return callingMenu.prevMenu(cb);
+        }
+
+        return callingMenu.gotoMenu(next, cb);
     });
 }

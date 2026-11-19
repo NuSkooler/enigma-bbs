@@ -1244,7 +1244,7 @@
         //                  }
         //                  actionKeys: [
         //                      {
-        //                          keys: [ "enter", "space" ]
+        //                          keys: [ "return", "space" ]
         //                          action: @method:select
         //                      }
         //                      {

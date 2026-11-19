@@ -30,8 +30,9 @@ const { TableView } = require('../core/table_view.js');
 
 //
 //  A user with the persist API's shape: persistProperty() / removeProperty()
-//  update the live properties as the real ones do, and record what reached
-//  the database.
+//  update the live properties before writing, as the real ones do, and
+//  record what reached the database. Set |failWrites| to make the write fail
+//  (after the live property has changed, again as the real ones do).
 //
 function makeUser(props = {}, groups = ['users']) {
     return {
@@ -39,6 +40,7 @@ function makeUser(props = {}, groups = ['users']) {
         groups,
         properties: Object.assign({}, props),
         writes: [],
+        failWrites: false,
         isGroupMember(names) {
             names = Array.isArray(names) ? names : [names];
             return names.some(n => this.groups.includes(n));
@@ -48,11 +50,17 @@ function makeUser(props = {}, groups = ['users']) {
         },
         persistProperty(name, value, cb) {
             this.properties[name] = value;
+            if (this.failWrites) {
+                return cb(new Error('SQLITE_BUSY'));
+            }
             this.writes.push({ op: 'set', name, value });
             return cb(null, value);
         },
         removeProperty(name, cb) {
             delete this.properties[name];
+            if (this.failWrites) {
+                return cb(new Error('SQLITE_BUSY'));
+            }
             this.writes.push({ op: 'remove', name });
             return cb(null);
         },
@@ -247,7 +255,7 @@ describe('User preferences (#447)', function () {
                 const menu = makeCallingMenu(user);
                 const err = await setPref(menu, { pref, value: 'x' });
 
-                assert.ok(err, 'refused');
+                assert.equal(err, null, 'warned here, not again by the dispatcher');
                 assert.deepEqual(user.writes, []);
                 assert.equal(menu.went, null, 'stays on the menu');
                 assert.equal(menu.client.log.warnings.length, 1);
@@ -264,6 +272,10 @@ describe('User preferences (#447)', function () {
             ['a missing value', undefined],
             ['an object', { x: 1 }],
             ['a fraction', 1.5],
+            ['a number whose text has an exponent', 1e21],
+            ['an unsafe integer', 2 ** 60],
+            ['NaN', NaN],
+            ['Infinity', Infinity],
         ];
         badValues.forEach(([what, value]) => {
             it(`refuses ${what} as the value, with a warning and no write`, async () => {
@@ -271,7 +283,7 @@ describe('User preferences (#447)', function () {
                 const menu = makeCallingMenu(user);
                 const err = await setPref(menu, { pref: 'pref__msg_reader', value });
 
-                assert.ok(err, 'refused');
+                assert.equal(err, null, 'warned here, not again by the dispatcher');
                 assert.deepEqual(user.writes, []);
                 assert.equal(menu.went, null);
                 assert.equal(menu.client.log.warnings.length, 1);
@@ -296,16 +308,108 @@ describe('User preferences (#447)', function () {
                     pref: 'pref__msg_reader',
                 }
             );
-            assert.ok(err, 'refused: nothing in extraArgs');
-            assert.deepEqual(user.writes, []);
+            assert.equal(err, null);
+            assert.deepEqual(user.writes, [], 'refused: nothing in extraArgs');
+            assert.equal(menu.client.log.warnings.length, 1);
         });
 
         it('refuses when extraArgs is missing', async () => {
             const user = makeUser();
             const menu = makeCallingMenu(user);
-            const err = await setPref(menu, undefined);
-            assert.ok(err);
+            await setPref(menu, undefined);
             assert.deepEqual(user.writes, []);
+            assert.equal(menu.went, null);
+            assert.equal(menu.client.log.warnings.length, 1);
+        });
+
+        it('stores a negative integer as text', async () => {
+            const user = makeUser();
+            await setPref(makeCallingMenu(user), { pref: 'pref__style', value: -3 });
+            assert.equal(user.properties.pref__style, '-3');
+        });
+
+        [
+            ['an empty string', ''],
+            ['a number', 42],
+            ['null', null],
+            ['an object', { menu: 'x' }],
+        ].forEach(([what, next]) => {
+            it(`warns about ${what} as next and goes to the previous menu`, async () => {
+                const user = makeUser();
+                const menu = makeCallingMenu(user);
+                await setPref(menu, { pref: 'pref__msg_reader', value: 'x', next });
+                assert.equal(user.properties.pref__msg_reader, 'x', 'still stored');
+                assert.deepEqual(menu.went, { prev: true });
+                assert.equal(menu.client.log.warnings.length, 1);
+            });
+        });
+
+        //
+        //  The whole dispatch, as a key press runs it: the view controller's
+        //  wrapper logs any error handed back, so a refusal the method has
+        //  already warned about must not come back as one.
+        //
+        it('logs one warning per refusal through the menu dispatcher', done => {
+            const { ViewController } = require('../core/view_controller.js');
+            const user = makeUser();
+            const menu = makeCallingMenu(user);
+            menu.client.currentMenuModule = menu;
+            const vc = { client: menu.client, waitActionCompletion: false };
+
+            ViewController.prototype.handleActionWrapper.call(
+                vc,
+                {},
+                {
+                    action: '@systemMethod:setUserPreference',
+                    extraArgs: { pref: 'account_status', value: '1' },
+                },
+                () => {
+                    assert.deepEqual(user.writes, []);
+                    assert.equal(menu.client.log.warnings.length, 1);
+                    done();
+                }
+            );
+        });
+
+        describe('when the write fails', () => {
+            it('puts back the previous value and stays on the menu', async () => {
+                const user = makeUser({ pref__msg_reader: 'classic' });
+                user.failWrites = true;
+                const menu = makeCallingMenu(user);
+                await setPref(menu, { pref: 'pref__msg_reader', value: 'lampboard' });
+
+                assert.equal(user.properties.pref__msg_reader, 'classic');
+                assert.equal(pv(user, 'PV[pref__msg_reader,lampboard]'), false);
+                assert.equal(menu.went, null);
+                assert.equal(menu.client.log.warnings.length, 1);
+            });
+
+            it('leaves an unset preference unset', async () => {
+                const user = makeUser();
+                user.failWrites = true;
+                await setPref(makeCallingMenu(user), {
+                    pref: 'pref__msg_reader',
+                    value: 'lampboard',
+                });
+                assert.equal(
+                    Object.prototype.hasOwnProperty.call(
+                        user.properties,
+                        'pref__msg_reader'
+                    ),
+                    false
+                );
+            });
+
+            it('puts back a value it failed to clear', async () => {
+                const user = makeUser({ pref__msg_reader: 'lampboard' });
+                user.failWrites = true;
+                await setPref(makeCallingMenu(user), {
+                    pref: 'pref__msg_reader',
+                    value: null,
+                });
+                assert.equal(user.properties.pref__msg_reader, 'lampboard');
+                assert.equal(pv(user, 'PV[pref__msg_reader,lampboard]'), true);
+            });
         });
     });
 
@@ -526,12 +630,136 @@ describe('User preferences (#447)', function () {
             });
         });
 
-        it('shows a preference no longer offered as the board default', async () => {
+        describe('a stored value not offered here', () => {
+            //  sysop-only is stored, but this caller is not a sysop
+            const staleUser = () => makeUser({ pref__msg_reader: 'sysop-only' });
+
+            it('marks nothing as current and keeps the stored value', async () => {
+                const user = staleUser();
+                const mod = makeModule({ user });
+                await init(mod);
+
+                assert.deepEqual(
+                    mod.items.map(i => i.isCurrent),
+                    [false, false, false]
+                );
+                assert.deepEqual(
+                    mod.items.map(i => i.currentIndicator),
+                    [' ', ' ', ' ']
+                );
+                assert.equal(user.properties.pref__msg_reader, 'sysop-only');
+                assert.deepEqual(user.writes, []);
+                assert.equal(mod.views[1].focusedItemIndex, 0, 'starts on the default');
+            });
+
+            it('shows the stored value with the not-available suffix', async () => {
+                const mod = makeModule({
+                    user: staleUser(),
+                    config: {
+                        mainInfoFormat10: '{currentName}|{currentValue}',
+                    },
+                });
+                await init(mod);
+                assert.equal(
+                    mod.views[10].text,
+                    'sysop-only (not available here)|sysop-only'
+                );
+                assert.equal(mod._currentInfo().currentAvailable, false);
+            });
+
+            it('takes the suffix from config', async () => {
+                const mod = makeModule({
+                    user: staleUser(),
+                    config: { notAvailableSuffix: ' [elsewhere]' },
+                });
+                await init(mod);
+                assert.equal(mod.views[10].text.split('|')[0], 'sysop-only [elsewhere]');
+            });
+        });
+
+        it('rebuilds the list from the live preference when the write fails', async () => {
+            const user = makeUser({ pref__msg_reader: 'lampboard' });
+            const mod = makeModule({ user });
+            await init(mod);
+            user.failWrites = true;
+            mod.views[1].setFocusItemIndex(1);
+            const redraws = mod.views[1].redraws;
+
+            await select(mod);
+            assert.equal(user.properties.pref__msg_reader, 'lampboard');
+            assert.deepEqual(
+                mod.views[1].items.map(i => i.isCurrent),
+                [false, false, true],
+                'still marks what is stored'
+            );
+            assert.ok(mod.views[1].redraws > redraws, 'redrawn');
+            assert.equal(mod.views[1].focusedItemIndex, 1, 'focus stays');
+            assert.equal(mod.client.log.warnings.length, 1);
+        });
+
+        it('persists the right choice from a sorted TV1', async () => {
+            const mod = makeModule({ kind: 'TV' });
+            //  replace the list view with one sorted by name, descending:
+            //  Index reader, Classic new scan, (board default)
+            const view = new TableView({
+                client: makeClient(makeUser()),
+                id: 1,
+                position: { row: 1, col: 1 },
+                dimens: { width: 40, height: 6 },
+                sort: { column: 'name', order: 'desc' },
+            });
+            view.redraw();
+            mod.views[1] = view;
+            await init(mod);
+
+            assert.deepEqual(
+                view.items.map(i => i.name),
+                ['Index reader', 'Classic new scan', '(board default)']
+            );
+            assert.equal(view.focusedItemIndex, 2, 'starts on the board default');
+
+            view.setFocusItemIndex(0);
+            await select(mod);
+            assert.deepEqual(mod.user.writes, [
+                { op: 'set', name: 'pref__msg_reader', value: 'lampboard' },
+            ]);
+            assert.equal(view.focusedItemIndex, 0, 'focus stays on the row');
+            assert.equal(view.getFocusedItem().isCurrent, true);
+        });
+
+        it('hides a choice whose acs is empty or not a string', async () => {
             const mod = makeModule({
-                user: makeUser({ pref__msg_reader: 'sysop-only' }),
+                config: {
+                    choices: [
+                        { value: 'a', text: 'A' },
+                        { value: 'b', text: 'B', acs: '' },
+                        { value: 'c', text: 'C', acs: '   ' },
+                        { value: 'd', text: 'D', acs: 5 },
+                        { value: 'e', text: 'E', acs: null },
+                    ],
+                },
             });
             await init(mod);
-            assert.equal(mod.items[0].isCurrent, true);
+            assert.deepEqual(names(mod), ['(board default)', 'A']);
+        });
+
+        it('keeps the first of choices with the same value, in the one warning', async () => {
+            const mod = makeModule({
+                config: {
+                    choices: [
+                        { value: 'a', text: 'First A' },
+                        { value: 'bad.value', text: 'Bad' },
+                        { value: 'a', text: 'Second A' },
+                        { value: 2, text: 'Two' },
+                        { value: '2', text: 'Two again' },
+                    ],
+                },
+            });
+            await init(mod);
+            assert.deepEqual(names(mod), ['(board default)', 'First A', 'Two']);
+            assert.equal(mod.client.log.warnings.length, 1);
+            assert.deepEqual(mod.client.log.warnings[0].obj.duplicates, ['a', '2']);
+            assert.deepEqual(mod.client.log.warnings[0].obj.rejected, ['bad.value']);
         });
 
         it('offers a choice to callers its acs passes', async () => {
