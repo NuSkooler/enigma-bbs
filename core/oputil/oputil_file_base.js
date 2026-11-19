@@ -843,23 +843,38 @@ function scanFileAreas() {
                 }
 
                 //
-                //  oputil does not load mods, so a scanner a mod provides is
-                //  not here, and every file would be held. Refuse instead.
+                //  Scanners mods provide: only their registerFileScanners()
+                //  runs here, never moduleInitialize(). One still missing
+                //  after that would hold every file, so refuse instead.
                 //
-                const missing = FileScanner.getUnavailableScanners(
-                    FileScanner.ScanSources.Oputil
+                const modsPath = _.get(
+                    require('../../core/config.js').get(),
+                    'paths.mods'
                 );
-                if (missing.length > 0) {
-                    return callback(
-                        Errors.MissingConfig(
-                            `--virus-scan: scanner(s) not available to oputil: ${missing.join(
-                                ', '
-                            )}. Leave "oputil" out of their "sources", or set onError: accept.`
-                        )
-                    );
-                }
+                FileScanner.loadModFileScanners(modsPath, err => {
+                    if (err) {
+                        return callback(err);
+                    }
 
-                return callback(null);
+                    FileScanner.getConfigWarnings().forEach(warning => {
+                        console.warn(`Warning: ${warning}`);
+                    });
+
+                    const missing = FileScanner.getUnavailableScanners(
+                        FileScanner.ScanSources.Oputil
+                    );
+                    if (missing.length > 0) {
+                        return callback(
+                            Errors.MissingConfig(
+                                `--virus-scan: scanner(s) not registered by any mod in ${modsPath}: ${missing.join(
+                                    ', '
+                                )}. Check the mod exports registerFileScanners(), leave "oputil" out of the entry's "sources", or set onError: accept.`
+                            )
+                        );
+                    }
+
+                    return callback(null);
+                });
             },
             function initGlobalDescHandler(callback) {
                 //

@@ -158,8 +158,19 @@ function getModulePaths() {
     ];
 }
 
+//
+//  Requires every module and calls, for each that exports them:
+//
+//    registerFileScanners(registry, cb?)   file scanners; see core/file_scanner.js
+//    moduleInitialize(initInfo, cb)
+//
+//  in that order, so a mod's scanners are registered before anything else it
+//  does. oputil calls only the former, through file_scanner.js
+//  loadModFileScanners().
+//
 function initializeModules(cb) {
     const Events = require('./events.js');
+    const FileScanner = require('./file_scanner.js');
 
     const modulePaths = getModulePaths().concat(__dirname);
 
@@ -178,10 +189,23 @@ function initializeModules(cb) {
                                 return nextModule(null);
                             }
 
+                            let mod;
                             try {
-                                const mod = require(fullModulePath);
+                                mod = require(fullModulePath);
+                            } catch (e) {
+                                logger.log.warn(
+                                    { error: e.message, fullModulePath },
+                                    'Exception during "moduleInitialize"'
+                                );
+                                return nextModule(null);
+                            }
 
-                                if (_.isFunction(mod.moduleInitialize)) {
+                            const initialize = () => {
+                                if (!_.isFunction(mod.moduleInitialize)) {
+                                    return nextModule(null);
+                                }
+
+                                try {
                                     const initInfo = {
                                         events: Events,
                                     };
@@ -198,16 +222,21 @@ function initializeModules(cb) {
                                         }
                                         return nextModule(null);
                                     });
-                                } else {
+                                } catch (e) {
+                                    logger.log.warn(
+                                        { error: e.message, fullModulePath },
+                                        'Exception during "moduleInitialize"'
+                                    );
                                     return nextModule(null);
                                 }
-                            } catch (e) {
-                                logger.log.warn(
-                                    { error: e.message, fullModulePath },
-                                    'Exception during "moduleInitialize"'
-                                );
-                                return nextModule(null);
-                            }
+                            };
+
+                            //  never fails: a mod that throws is logged
+                            return FileScanner.registerModFileScanners(
+                                mod,
+                                fullModulePath,
+                                initialize
+                            );
                         },
                         err => {
                             return nextPath(err);

@@ -10,7 +10,7 @@
 //
 
 const { strict: assert } = require('assert');
-const { execFileSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const fsp = require('fs/promises');
 const fs = require('fs');
 const path = require('path');
@@ -45,7 +45,12 @@ describe('oputil fb scan --virus-scan', function () {
         await fsp.rm(tmpDir, { recursive: true, force: true });
     });
 
-    async function makeFixture({ scanningEnabled = true, scanner } = {}) {
+    async function makeFixture({
+        scanningEnabled = true,
+        scanner,
+        scanning = {},
+        mods,
+    } = {}) {
         const root = path.join(tmpDir, `f${seq++}`);
         const storage = path.join(root, 'filebase', 'uploads');
         for (const d of [path.join(root, 'db'), path.join(root, 'logs'), storage]) {
@@ -67,7 +72,11 @@ describe('oputil fb scan --virus-scan', function () {
             JSON.stringify(
                 {
                     general: { boardName: 'Scan Test' },
-                    paths: { db: path.join(root, 'db'), logs: path.join(root, 'logs') },
+                    paths: {
+                        db: path.join(root, 'db'),
+                        logs: path.join(root, 'logs'),
+                        mods: path.join(root, 'mods'),
+                    },
                     loginServers: {
                         telnet: { enabled: false },
                         ssh: { enabled: false },
@@ -82,17 +91,28 @@ describe('oputil fb scan --virus-scan', function () {
                                 storageTags: ['uploads_main'],
                             },
                         },
-                        scanning: {
-                            enabled: scanningEnabled,
-                            notifyUserIds: [1],
-                            scanners: [scannerEntry],
-                        },
+                        scanning: Object.assign(
+                            {
+                                enabled: scanningEnabled,
+                                notifyUserIds: [1],
+                                scanners: [scannerEntry],
+                            },
+                            scanning
+                        ),
                     },
                 },
                 null,
                 4
             )
         );
+
+        await fsp.mkdir(path.join(root, 'mods'));
+        for (const [rel, source] of Object.entries(mods || {})) {
+            await fsp.mkdir(path.dirname(path.join(root, 'mods', rel)), {
+                recursive: true,
+            });
+            await fsp.writeFile(path.join(root, 'mods', rel), source);
+        }
 
         await fsp.writeFile(path.join(storage, 'EVIL.EXE'), 'X5O!P%@AP EICAR test');
         await fsp.writeFile(path.join(storage, 'GOOD.TXT'), 'a perfectly clean file');
@@ -101,17 +121,14 @@ describe('oputil fb scan --virus-scan', function () {
     }
 
     //  oputil's getConfigPath() concatenates rather than joins.
+    //  stdout and stderr both: warnings and quarantine failures go to stderr
     function oputil(root, args) {
-        try {
-            const out = execFileSync(
-                process.execPath,
-                ['./oputil.js', '-c', `${root}${path.sep}`, ...args],
-                { cwd: REPO_ROOT, encoding: 'utf8', stdio: 'pipe' }
-            );
-            return { code: 0, out };
-        } catch (err) {
-            return { code: err.status, out: `${err.stdout || ''}${err.stderr || ''}` };
-        }
+        const res = spawnSync(
+            process.execPath,
+            ['./oputil.js', '-c', `${root}${path.sep}`, ...args],
+            { cwd: REPO_ROOT, encoding: 'utf8' }
+        );
+        return { code: res.status, out: `${res.stdout || ''}${res.stderr || ''}` };
     }
 
     function withDb(root, name, fn) {
@@ -228,6 +245,108 @@ describe('oputil fb scan --virus-scan', function () {
         assert.deepEqual(quarantine(root), ['EVIL.EX_', 'EVIL.EX_.json']);
     });
 
+    //  first run makes the databases with nothing to import; then the files
+    async function primed(fixtureOpts) {
+        const fx = await makeFixture(fixtureOpts);
+        const held = path.join(fx.root, 'held');
+        await fsp.rename(fx.storage, held);
+        await fsp.mkdir(fx.storage);
+        assert.equal(oputil(fx.root, ['fb', 'scan', 'uploads']).code, 0);
+        addSysop(fx.root);
+        await fsp.rm(fx.storage, { recursive: true });
+        await fsp.rename(held, fx.storage);
+        return fx;
+    }
+
+    //  quarantine fails: a file sits where the quarantine directory would go
+    async function blockQuarantine(root) {
+        await fsp.writeFile(path.join(root, 'filebase', '.quarantine'), 'in the way');
+    }
+
+    it('deletes an infected file it cannot quarantine, rather than leave it importable', async () => {
+        const { root, storage } = await primed();
+        await blockQuarantine(root);
+
+        const { code, out } = oputil(root, ['fb', 'scan', '--virus-scan', 'uploads']);
+        assert.equal(code, 0, out);
+        assert.match(out, /Could not quarantine it \(.+\); DELETED it instead/);
+        assert.deepEqual(fs.readdirSync(storage), ['GOOD.TXT']);
+        assert.deepEqual(importedNames(root), ['GOOD.TXT']);
+
+        const notice = withDb(root, 'message', db =>
+            db
+                .prepare(`SELECT message FROM message WHERE area_tag = 'private_mail'`)
+                .get()
+        );
+        assert.match(notice.message, /DELETED, could not be quarantined/);
+    });
+
+    it('says a held file it cannot quarantine is still in the tree, unscanned', async () => {
+        //  a scanner that cannot start: every file is held
+        const { root, storage } = await primed({
+            scanner: { scanner: 'command', cmd: path.join(tmpDir, 'no-such-scanner') },
+        });
+        await blockQuarantine(root);
+
+        const { code, out } = oputil(root, ['fb', 'scan', '--virus-scan', 'uploads']);
+        assert.equal(code, 0, out);
+        assert.match(
+            out,
+            /Could not quarantine it: .+ It is still at .*EVIL\.EXE, NOT scanned/
+        );
+        assert.deepEqual(fs.readdirSync(storage).sort(), ['EVIL.EXE', 'GOOD.TXT']);
+        assert.deepEqual(importedNames(root), []);
+
+        const notice = withDb(root, 'message', db =>
+            db
+                .prepare(`SELECT message FROM message WHERE area_tag = 'private_mail'`)
+                .get()
+        );
+        assert.match(notice.message, /NOT moved: .*; still at /);
+    });
+
+    it('uses a scanner a mod registers with registerFileScanners, never moduleInitialize', async () => {
+        const marker = path.join(tmpDir, `init-ran-${seq}`);
+        const { root, storage } = await primed({
+            scanner: { scanner: 'mod_av' },
+            mods: {
+                'mod_av/mod_av.js': `
+                    exports.moduleInitialize = (i, cb) => {
+                        require('fs').writeFileSync(${JSON.stringify(marker)}, 'x');
+                        cb(null);
+                    };
+                    exports.registerFileScanners = (registry, cb) => {
+                        registry.registerScanner('mod_av', {
+                            scan(filePath, ctx, done) {
+                                const bad = require('fs').readFileSync(filePath, 'latin1').includes('EICAR');
+                                return done(null, bad ? { result: 'infected', signature: 'Mod-Found-It' } : { result: 'clean' });
+                            },
+                        });
+                        return cb(null);
+                    };`,
+                'broken.js': `throw new Error('a broken mod is skipped');`,
+            },
+        });
+
+        const { code, out } = oputil(root, ['fb', 'scan', '--virus-scan', 'uploads']);
+        assert.equal(code, 0, out);
+        assert.match(out, /Rejected \(mod_av infected: Mod-Found-It\)/);
+        assert.deepEqual(importedNames(root), ['GOOD.TXT']);
+        assert.deepEqual(fs.readdirSync(storage), ['GOOD.TXT']);
+        assert.equal(
+            fs.existsSync(marker),
+            false,
+            'moduleInitialize must not run in oputil'
+        );
+    });
+
+    it('warns when scanning is enabled with nothing that can run', async () => {
+        const { root } = await primed({ scanning: { scanners: [] } });
+        const { code, out } = oputil(root, ['fb', 'scan', '--virus-scan', 'uploads']);
+        assert.equal(code, 0, out);
+        assert.match(out, /Warning: .*scanners is empty.*every file is accepted/);
+    });
+
     it('refuses to run when file scanning is not enabled', async () => {
         const { root } = await makeFixture({ scanningEnabled: false });
         const { code, out } = oputil(root, ['fb', 'scan', 'uploads', '--virus-scan']);
@@ -242,7 +361,7 @@ describe('oputil fb scan --virus-scan', function () {
         const { code, out } = oputil(root, ['fb', 'scan', 'uploads', '--virus-scan']);
 
         assert.notEqual(code, 0);
-        assert.match(out, /not available to oputil: clamav/);
+        assert.match(out, /not registered by any mod in .*: clamav/);
         assert.deepEqual(importedNames(root), []);
     });
 });

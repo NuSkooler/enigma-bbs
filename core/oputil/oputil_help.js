@@ -221,10 +221,12 @@ scan arguments:
   --virus-scan                 Run file (virus) scanning on each new file first
 
   --virus-scan needs fileBase.scanning enabled and uses the scanners whose
-  "sources" include "oputil", or that list no sources. Scanners from mods are
-  not available to oputil. A file that fails is reported, not imported, and
-  quarantined or deleted per fileBase.scanning.failAction; the operators get
-  one inbox notice for the run. Without the flag nothing is virus scanned.
+  "sources" include "oputil", or that list no sources. Scanners from mods
+  are loaded through their registerFileScanners() export (only that; mods
+  are not otherwise initialized). A file that fails is reported, not
+  imported, and quarantined or deleted per fileBase.scanning.failAction; the
+  operators get one inbox notice for the run. Without the flag nothing is
+  virus scanned.
 
 info arguments:
   --show-desc                  Display short description, if any

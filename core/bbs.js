@@ -694,6 +694,10 @@ function initialize(cb) {
             function genericModulesInit(callback) {
                 return require('./module_util.js').initializeModules(callback);
             },
+            function readyFileScanning(callback) {
+                //  after the modules: they register the scanners it checks for
+                return require('./file_scanner.js').startup(callback);
+            },
             function listenConnections(callback) {
                 return require('./listening_server.js').startup(callback);
             },

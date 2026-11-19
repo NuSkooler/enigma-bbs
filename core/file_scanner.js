@@ -7,9 +7,10 @@
 //
 //  Core owns the registry, the chain, the policy and what happens to a file
 //  that fails. Scanners themselves -- ClamAV, a VirusTotal hash lookup,
-//  anything a sysop writes -- register here by name, normally from a mod's
-//  moduleInitialize(). The one scanner core ships is |command|: run a program,
-//  look at its exit code, the old BBS "test batch file" contract.
+//  anything a sysop writes -- register here by name, from a mod's
+//  registerFileScanners() export (see loadModFileScanners()), which both the
+//  BBS and oputil call. The one scanner core ships is |command|: run a
+//  program, look at its exit code, the old BBS "test batch file" contract.
 //
 //  Nothing here is on unless fileBase.scanning.enabled is set. Disabled,
 //  scanFile() answers "not scanned" at once and touches nothing.
@@ -54,8 +55,12 @@ exports.DefaultTimeoutMs = 60 * 1000;
 
 exports.registerScanner = registerScanner;
 exports.getScanner = getScanner;
+exports.registerModFileScanners = registerModFileScanners;
+exports.loadModFileScanners = loadModFileScanners;
 exports.isEnabled = isEnabled;
 exports.getUnavailableScanners = getUnavailableScanners;
+exports.getConfigWarnings = getConfigWarnings;
+exports.startup = startup;
 exports.scanFile = scanFile;
 exports.isFileRejected = isFileRejected;
 exports.applyFailAction = applyFailAction;
@@ -191,6 +196,107 @@ function getScanner(name) {
     return scanners.get(name);
 }
 
+// ── Scanners from mods ───────────────────────────────────────────────────────
+
+//
+//  A mod provides scanners with a dedicated export:
+//
+//      exports.registerFileScanners = (registry, cb) => {
+//          registry.registerScanner('clamav', impl);
+//          return cb(null);
+//      };
+//
+//  |cb| is optional: a function declared with one parameter is taken to be
+//  done when it returns. |registry| has registerScanner() and ScanResults.
+//
+//  It is a separate export rather than something done in moduleInitialize()
+//  because oputil needs the scanners too, and oputil must not run a mod's
+//  moduleInitialize(), which may start servers, timers or event listeners.
+//
+const modRegistry = Object.freeze({
+    registerScanner: (name, impl) => registerScanner(name, impl),
+    ScanResults: ScanResults(),
+});
+
+//  Calls |mod|.registerFileScanners() if it has one. Never fails: a mod that
+//  throws or calls back an error is logged and skipped.
+function registerModFileScanners(mod, modulePath, cb) {
+    if (!mod || !_.isFunction(mod.registerFileScanners)) {
+        return cb(null);
+    }
+
+    let called = false;
+    const done = err => {
+        if (called) {
+            return;
+        }
+        called = true;
+        if (err) {
+            log(
+                'warn',
+                { modulePath, error: err.message || String(err) },
+                'Error registering file scanners from mod'
+            );
+        }
+        return cb(null);
+    };
+
+    try {
+        if (mod.registerFileScanners.length < 2) {
+            mod.registerFileScanners(modRegistry);
+            return done(null);
+        }
+        mod.registerFileScanners(modRegistry, done);
+    } catch (e) {
+        if (called) {
+            throw e; //  thrown by what |cb| went on to do, not by the mod
+        }
+        return done(e);
+    }
+}
+
+//
+//  oputil's way in: load every mod under |modsPath| the way the BBS does at
+//  startup (core/module_util.js initializeModules(), the same glob) and call
+//  registerFileScanners() on each that has it -- and nothing else. A mod that
+//  fails to load is logged and skipped.
+//
+function loadModFileScanners(modsPath, cb) {
+    if (!_.isString(modsPath) || !modsPath) {
+        return cb(null);
+    }
+
+    const registerAll = files => {
+        async.eachSeries(
+            files.sort(),
+            (file, nextFile) => {
+                const modulePath = paths.join(modsPath, file);
+                let mod;
+                try {
+                    mod = require(modulePath);
+                } catch (e) {
+                    log(
+                        'warn',
+                        { modulePath, error: e.message },
+                        'Failed to load mod while looking for file scanners'
+                    );
+                    return nextFile(null);
+                }
+                return registerModFileScanners(mod, modulePath, () => nextFile(null));
+            },
+            () => cb(null)
+        );
+    };
+
+    //  out of the promise chain, so a throw further on is not taken for a
+    //  glob failure and called back a second time
+    const { glob } = require('glob');
+    glob('*{.js,/*.js}', { cwd: modsPath }).then(
+        files => process.nextTick(registerAll, files),
+        err => process.nextTick(cb, err)
+    );
+}
+
 // ── Config ───────────────────────────────────────────────────────────────────
 
 function getScanningConfig() {
@@ -219,10 +325,10 @@ function isEnabled() {
 
 //
 //  Names of configured scanners that would run for |source| but are not
-//  registered -- typically because the mod providing one has not loaded, as
-//  in oputil, which does not initialize mods. Every file such an entry sees
-//  is held (unless it says onError: accept), so a caller may want to refuse
-//  to start instead.
+//  registered -- typically because the mod providing one failed to load, or
+//  registers it from moduleInitialize(), which oputil never runs. Every file
+//  such an entry sees is held (unless it says onError: accept), so a caller
+//  may want to refuse to start instead.
 //
 function getUnavailableScanners(source) {
     const scanning = getScanningConfig();
@@ -241,6 +347,97 @@ function getUnavailableScanners(source) {
             .filter(e => 'accept' !== e.onError && !scanners.has(e.scanner))
             .map(e => e.scanner)
     );
+}
+
+//
+//  Configurations that look like they scan but let files through unscanned,
+//  or hold all of them. Advisory: each is a string to log or print, and
+//  nothing refuses to start over them.
+//
+//  |options.checkRegistered|: also report entries naming a scanner nobody
+//  has registered. Only meaningful once mods have registered theirs.
+//
+function getConfigWarnings(options = {}) {
+    const scanning = getScanningConfig();
+    if (!scanning.enabled) {
+        return [];
+    }
+
+    if (0 === scanning.scanners.length) {
+        return [
+            'File scanning is enabled but fileBase.scanning.scanners is empty: no file is scanned, and every file is accepted',
+        ];
+    }
+
+    const warnings = [];
+    const knownSources = _.values(exports.ScanSources);
+    let runnable = 0;
+
+    scanning.scanners.forEach((entry, index) => {
+        const name = `fileBase.scanning.scanners[${index}]`;
+
+        if (!entry || !_.isString(entry.scanner) || !entry.scanner) {
+            warnings.push(`${name} has no "scanner" name and never runs`);
+            return;
+        }
+
+        const what = `${name} (${entry.scanner})`;
+
+        if (false === entry.enabled) {
+            return;
+        }
+
+        if (Array.isArray(entry.fileTypes) && !entry.fileTypes.some(_.isString)) {
+            warnings.push(
+                `${what} has an empty "fileTypes" list and never runs; use "*" for every file`
+            );
+            return;
+        }
+
+        if (Array.isArray(entry.sources)) {
+            const unknown = entry.sources.filter(src => !knownSources.includes(src));
+            if (unknown.length > 0) {
+                warnings.push(
+                    `${what} has unknown "sources" ${unknown.join(
+                        ', '
+                    )}; known sources are ${knownSources.join(', ')}`
+                );
+            }
+            if (!entry.sources.some(src => knownSources.includes(src))) {
+                warnings.push(`${what} has no known "sources" and never runs`);
+                return;
+            }
+        }
+
+        if (options.checkRegistered && !scanners.has(entry.scanner)) {
+            warnings.push(
+                'accept' === entry.onError
+                    ? `${what} names a scanner that is not registered; every file it would scan is accepted with a warning`
+                    : `${what} names a scanner that is not registered; every file it would scan is held`
+            );
+        }
+
+        ++runnable;
+    });
+
+    if (0 === runnable) {
+        warnings.push(
+            'File scanning is enabled but no scanner entry can run: no file is scanned, and every file is accepted'
+        );
+    }
+
+    return warnings;
+}
+
+//
+//  At startup, once mods have registered their scanners: say what in the
+//  configuration will not do what it looks like it does.
+//
+function startup(cb) {
+    getConfigWarnings({ checkRegistered: true }).forEach(warning => {
+        log('warn', {}, warning);
+    });
+    return cb(null);
 }
 
 //

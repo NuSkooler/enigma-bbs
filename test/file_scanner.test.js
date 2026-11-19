@@ -1023,6 +1023,180 @@ describe('file_scanner', function () {
         });
     });
 
+    describe('getConfigWarnings()', () => {
+        it('says nothing when scanning is off, or set up sensibly', () => {
+            setScanning({ enabled: false, scanners: [] });
+            assert.deepEqual(FileScanner.getConfigWarnings(), []);
+
+            setScanning({ enabled: true, scanners: [{ scanner: 'command', cmd: 'x' }] });
+            assert.deepEqual(
+                FileScanner.getConfigWarnings({ checkRegistered: true }),
+                []
+            );
+        });
+
+        it('warns that enabled with no scanners accepts everything', () => {
+            setScanning({ enabled: true, scanners: [] });
+            const w = FileScanner.getConfigWarnings();
+            assert.equal(w.length, 1);
+            assert.match(w[0], /scanners is empty.*every file is accepted/);
+        });
+
+        it('warns about entries that never run, and when none can', () => {
+            setScanning({
+                enabled: true,
+                scanners: [
+                    { scanner: 'command', fileTypes: [] },
+                    { scanner: 'command', sources: ['uploads'] },
+                    { cmd: 'nameless' },
+                    { scanner: 'command', enabled: false, fileTypes: [] },
+                ],
+            });
+            const w = FileScanner.getConfigWarnings();
+            assert.ok(
+                w.some(s => /scanners\[0\] \(command\) has an empty "fileTypes"/.test(s))
+            );
+            assert.ok(w.some(s => /scanners\[1\].*unknown "sources" uploads/.test(s)));
+            assert.ok(w.some(s => /scanners\[1\].*no known "sources"/.test(s)));
+            assert.ok(w.some(s => /scanners\[2\] has no "scanner" name/.test(s)));
+            assert.ok(!w.some(s => /scanners\[3\]/.test(s)), 'a disabled entry is fine');
+            assert.ok(
+                w.some(s => /no scanner entry can run.*every file is accepted/.test(s))
+            );
+        });
+
+        it('reports unregistered scanners only when asked', () => {
+            setScanning({
+                enabled: true,
+                scanners: [
+                    { scanner: 'nobody_registered_this' },
+                    { scanner: 'nor_this', onError: 'accept' },
+                ],
+            });
+            assert.deepEqual(FileScanner.getConfigWarnings(), []);
+            const w = FileScanner.getConfigWarnings({ checkRegistered: true });
+            assert.equal(w.length, 2);
+            assert.match(
+                w[0],
+                /nobody_registered_this.*every file it would scan is held/
+            );
+            assert.match(w[1], /nor_this.*accepted with a warning/);
+        });
+    });
+
+    //
+    //  Scanners from mods: the registerFileScanners() export, which the BBS
+    //  calls at startup (module_util.js) and oputil through
+    //  loadModFileScanners().
+    //
+    describe('loadModFileScanners()', () => {
+        let modsDir;
+
+        const writeMod = (rel, source) => {
+            const p = paths.join(modsDir, rel);
+            fs.mkdirSync(paths.dirname(p), { recursive: true });
+            fs.writeFileSync(p, source);
+        };
+
+        beforeEach(() => {
+            modsDir = paths.join(dir, 'mods');
+            fs.mkdirSync(modsDir);
+        });
+
+        it('registers scanners from mods that export registerFileScanners, and nothing else', done => {
+            const fake = uniqueName('fake_av');
+            const syncFake = uniqueName('sync_av');
+            const marker = paths.join(dir, 'initialized');
+
+            //  in a directory of its own, with a callback
+            writeMod(
+                'fake_av/fake_av.js',
+                `exports.moduleInitialize = (i, cb) => {
+                    require('fs').writeFileSync(${JSON.stringify(marker)}, 'x');
+                    cb(null);
+                };
+                exports.registerFileScanners = (registry, cb) => {
+                    registry.registerScanner(${JSON.stringify(fake)}, {
+                        scan: (p, ctx, done) => done(null, { result: registry.ScanResults.Clean }),
+                    });
+                    setImmediate(cb, null);
+                };`
+            );
+            //  a single file, no callback
+            writeMod(
+                'sync_av.js',
+                `exports.registerFileScanners = registry => {
+                    registry.registerScanner(${JSON.stringify(syncFake)}, {
+                        scan: (p, ctx, done) => done(null, { result: 'skipped' }),
+                    });
+                };`
+            );
+            //  throws on require
+            writeMod('broken.js', `throw new Error('broken mod');`);
+            //  no export at all
+            writeMod('plain.js', `exports.moduleInfo = { name: 'plain' };`);
+            //  the export throws
+            writeMod(
+                'throws.js',
+                `exports.registerFileScanners = () => { throw new Error('oops'); };`
+            );
+
+            FileScanner.loadModFileScanners(modsDir, err => {
+                assert.ifError(err);
+                assert.ok(FileScanner.getScanner(fake), 'callback style registered');
+                assert.ok(FileScanner.getScanner(syncFake), 'sync style registered');
+                assert.equal(fs.existsSync(marker), false, 'moduleInitialize never ran');
+                done();
+            });
+        });
+
+        it('makes a mod scanner available to the oputil check', done => {
+            const name = uniqueName('oputil_av');
+            setScanning({ enabled: true, scanners: [{ scanner: name }] });
+            assert.deepEqual(FileScanner.getUnavailableScanners('oputil'), [name]);
+
+            writeMod(
+                'oputil_av.js',
+                `exports.registerFileScanners = r =>
+                    r.registerScanner(${JSON.stringify(name)}, { scan: (p, c, cb) => cb(null, { result: 'clean' }) });`
+            );
+            FileScanner.loadModFileScanners(modsDir, err => {
+                assert.ifError(err);
+                assert.deepEqual(FileScanner.getUnavailableScanners('oputil'), []);
+                done();
+            });
+        });
+
+        it('is fine with no mods directory', done => {
+            FileScanner.loadModFileScanners(paths.join(dir, 'nope'), err => {
+                assert.ifError(err);
+                FileScanner.loadModFileScanners(undefined, done);
+            });
+        });
+
+        it('registerModFileScanners() calls registerFileScanners and nothing else', done => {
+            const name = uniqueName('startup_av');
+            const order = [];
+            const mod = {
+                registerFileScanners: registry => {
+                    order.push('register');
+                    registry.registerScanner(name, {
+                        scan: (p, c, cb) => cb(null, { result: 'clean' }),
+                    });
+                },
+                moduleInitialize: (initInfo, cb) => {
+                    order.push('init');
+                    cb(null);
+                },
+            };
+            FileScanner.registerModFileScanners(mod, 'test', () => {
+                assert.deepEqual(order, ['register']);
+                assert.ok(FileScanner.getScanner(name));
+                done();
+            });
+        });
+    });
+
     //
     //  file_base_area.scanFile(): the hook sits after hashing and before
     //  anything looks inside the file.
