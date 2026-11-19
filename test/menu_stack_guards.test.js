@@ -24,6 +24,29 @@ let MenuModule;
 let moduleUtil;
 let ErrorReasons;
 let originalLoadModuleEx;
+let previousLog;
+let previousConfig;
+let loggerSwapped = false;
+let configPushed = false;
+let savedModules;
+
+//
+//  menu_util.js (and its neighbours) capture logger.log, and menu_module.js
+//  config.js's get(), when they load. Run alone, this file would load them
+//  before anything sets either up, and loadMenu()'s Log.trace() would throw
+//  (#1122). Give them a silent logger with every level and a minimal config,
+//  loading them fresh, and put everything back afterwards.
+//
+const FreshModules = [
+    '../core/menu_util.js',
+    '../core/menu_stack.js',
+    '../core/menu_module.js',
+].map(m => require.resolve(m));
+
+const SilentLog = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].reduce(
+    (log, level) => Object.assign(log, { [level]: () => {} }),
+    { child: () => SilentLog }
+);
 
 //  name -> getModule class; set per test
 let fakeModules = {};
@@ -126,6 +149,22 @@ function menuConfig(module, extra = {}) {
 
 describe('MenuStack navigation guards', function () {
     before(() => {
+        const loggerModule = require('../core/logger.js');
+        previousLog = loggerModule.log;
+        loggerModule.log = SilentLog;
+        loggerSwapped = true;
+
+        //  MenuModule reads Config() as it is built; push a minimal one
+        previousConfig = require('../core/config.js')._pushTestConfig({
+            menus: {},
+            general: {},
+            debug: { assertsEnabled: false },
+        });
+        configPushed = true;
+
+        savedModules = FreshModules.map(path => [path, require.cache[path]]);
+        FreshModules.forEach(path => delete require.cache[path]);
+
         //  required lazily: these capture Config at first require
         MenuStack = require('../core/menu_stack.js');
         MenuModule = require('../core/menu_module.js').MenuModule;
@@ -149,8 +188,33 @@ describe('MenuStack navigation guards', function () {
         };
     });
 
+    //  undoes whatever before() got to, even if it threw part-way, so a
+    //  failure here never leaves the test logger or config behind for the
+    //  rest of the run
     after(() => {
-        moduleUtil.loadModuleEx = originalLoadModuleEx;
+        try {
+            if (moduleUtil && originalLoadModuleEx) {
+                moduleUtil.loadModuleEx = originalLoadModuleEx;
+            }
+            (savedModules || []).forEach(([path, cached]) => {
+                if (cached) {
+                    require.cache[path] = cached;
+                } else {
+                    delete require.cache[path];
+                }
+            });
+        } finally {
+            if (configPushed) {
+                require('../core/config.js')._popTestConfig(previousConfig);
+                configPushed = false;
+            }
+            //  previousLog may legitimately be undefined (nothing set the
+            //  logger up yet): put back exactly what was there
+            if (loggerSwapped) {
+                require('../core/logger.js').log = previousLog;
+                loggerSwapped = false;
+            }
+        }
     });
 
     beforeEach(() => {
