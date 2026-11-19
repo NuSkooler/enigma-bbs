@@ -89,11 +89,17 @@ function loadMenu(options, cb) {
                         !modSupplied || 'systemModule' === modAsset.type ? null : 'mods',
                 };
 
-                moduleUtil.loadModuleEx(modLoadOpts, (err, mod) => {
+                moduleUtil.loadModuleEx(modLoadOpts, (err, mod, modPath) => {
                     const modData = {
                         name: modLoadOpts.name,
                         config: menuConfig,
                         mod: mod,
+                        //  a user mod's own art/ folder, looked in for the
+                        //  menu's art after the themes (see theme.getThemeArt())
+                        modArtPath:
+                            'mods' === modLoadOpts.category
+                                ? moduleUtil.getModArtPath(modLoadOpts, modPath)
+                                : undefined,
                     };
 
                     return callback(err, modData);
@@ -118,6 +124,7 @@ function loadMenu(options, cb) {
                         extraArgs: options.extraArgs,
                         client: options.client,
                         lastMenuResult: options.lastMenuResult,
+                        modArtPath: modData.modArtPath,
                     });
                 } catch (e) {
                     return callback(e);

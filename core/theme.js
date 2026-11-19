@@ -892,6 +892,12 @@ function getThemeArt(options, cb) {
     //                  ART): only when |name| is the operator's choice, never
     //                  a name a user supplied or influenced. Never applies to
     //                  a name holding a path.
+    //      modArtPath - a folder mod's art/ folder (mods/<name>/art), for art
+    //                  shown by a menu whose module is that mod (MenuModule
+    //                  passes it). Looked in after the themes, before the
+    //                  general art directory, for a plain name only. It is an
+    //                  operator-installed place, like a theme directory: the
+    //                  options above apply there as in a theme.
     //
     const config = Config();
 
@@ -920,7 +926,8 @@ function getThemeArt(options, cb) {
     //  1)  Direct/relative path
     //  2)  Via theme supplied by |themeId|
     //  3)  Via default theme
-    //  4)  General art directory
+    //  4)  The mod's own art/ folder (|modArtPath|), plain names only
+    //  5)  General art directory
     //
     async.waterfall(
         [
@@ -964,6 +971,24 @@ function getThemeArt(options, cb) {
                 }
 
                 options.basePath = paths.join(config.paths.themes, defaultThemeId);
+                art.getArt(options.name, options, (err, artInfo) => {
+                    return callback(null, artInfo);
+                });
+            },
+            function fromModArtDir(artInfo, callback) {
+                //  a name holding a path was the operator pointing at a file:
+                //  it is never looked for in a mod's folder
+                if (
+                    artInfo ||
+                    !_.isString(options.modArtPath) ||
+                    0 === options.modArtPath.length ||
+                    art.nameHasPath(options.name)
+                ) {
+                    return callback(null, artInfo);
+                }
+
+                //  a missing folder is no error: on to the general art
+                options.basePath = options.modArtPath;
                 art.getArt(options.name, options, (err, artInfo) => {
                     return callback(null, artInfo);
                 });
@@ -1078,7 +1103,11 @@ function displayThemedPrompt(name, client, options, cb) {
                 //  doing so messes things up -- most terminals that support font
                 //  changing can only display a single font at at time.
                 //
-                const dispOptions = Object.assign({}, options, promptConfig.config);
+                //  |modArtPath| is the menu's (see MenuModule.promptForInput()),
+                //  never a prompt config key
+                const dispOptions = Object.assign({}, options, promptConfig.config, {
+                    modArtPath: options.modArtPath,
+                });
                 //  :TODO: We can use term detection to do nifty things like avoid this kind of kludge:
                 // if(!options.clearScreen) {
                 //     dispOptions.font = 'not_really_a_font!';    //  kludge :)

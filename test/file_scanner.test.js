@@ -1479,10 +1479,11 @@ describe('file_scanner', function () {
                 const pending = {}; //  each scan finishes only when the test says
                 FileScanner.registerScanner(name, {
                     scan(p, ctx, cb) {
+                        //  the files hash before they queue, so either can
+                        //  take the one slot first: what matters is that the
+                        //  second starts while the first still holds it
                         pending[paths.basename(p)] = cb;
-                        if (pending['b.zip']) {
-                            //  b started while a still holds its slot
-                            assert.ok(pending['a.zip']);
+                        if (2 === Object.keys(pending).length) {
                             Object.values(pending).forEach(c =>
                                 c(null, { result: 'clean' })
                             );
@@ -1520,36 +1521,41 @@ describe('file_scanner', function () {
             });
 
             it('a wait past maxQueueWaitMs is a scanner error', done => {
+                //  Whichever file hashes first takes the one slot and keeps it
+                //  until the other has been given up on, so the outcome does
+                //  not hang on how long either took to hash.
                 const name = uniqueName('hog');
-                FileScanner.registerScanner(
-                    name,
-                    stubScanner({ result: 'clean' }, [], 150)
-                );
+                let releaseHog;
+                FileScanner.registerScanner(name, {
+                    scan(p, ctx, cb) {
+                        releaseHog = () => cb(null, { result: 'clean' });
+                    },
+                });
                 setScanning({
                     enabled: true,
                     maxConcurrent: 1,
                     maxQueueWaitMs: 30,
-                    scanners: [{ scanner: name }],
+                    scanners: [{ scanner: name, timeout: 4000 }],
                 });
 
-                let n = 0;
-                const results = {};
-                const finish = () => {
-                    if (2 === ++n) {
-                        assert.equal(results.first, 'clean');
-                        assert.equal(results.second.result, 'held');
-                        assert.match(results.second.detail, /No scanner slot came free/);
-                        done();
+                const verdicts = [];
+                const finish = (err, v) => {
+                    verdicts.push(v);
+                    if (1 === verdicts.length) {
+                        //  the queued one gave up while the hog held the slot;
+                        //  a held file calls back a FileRejected and its verdict
+                        assert.ok(err);
+                        assert.equal(v.result, 'held');
+                        assert.match(v.detail, /No scanner slot came free/);
+                        assert.ok(releaseHog, 'the other scan holds the slot');
+                        return releaseHog();
                     }
+                    assert.ifError(err);
+                    assert.equal(v.result, 'clean');
+                    done();
                 };
-                FileScanner.scanFile(writeFile('a.zip'), { source: 'web' }, (err, v) => {
-                    results.first = v.result;
-                    finish();
-                });
-                FileScanner.scanFile(writeFile('b.zip'), { source: 'web' }, (err, v) => {
-                    results.second = v;
-                    finish();
-                });
+                FileScanner.scanFile(writeFile('a.zip'), { source: 'web' }, finish);
+                FileScanner.scanFile(writeFile('b.zip'), { source: 'web' }, finish);
             });
         });
 
