@@ -619,7 +619,20 @@ function cleanText(s, maxLength = MAX_DETAIL_LENGTH) {
 //  A wait longer than maxQueueWaitMs (0: no limit) is an |error| result, and
 //  so goes by the entry's onError like any other failure.
 //
-const scanQueue = { running: 0, waiting: [] };
+//  The limit is read when a slot is asked for, freed, or the config changes:
+//  a hot-reload that raises maxConcurrent starts waiting scans at once rather
+//  than when a running one finishes.
+//
+const scanQueue = { running: 0, waiting: [], listening: false };
+
+function drainScanQueueOnConfigChange() {
+    if (scanQueue.listening) {
+        return;
+    }
+    scanQueue.listening = true;
+    const Events = require('./events.js');
+    Events.on(Events.getSystemEvents().ConfigChanged, drainScanQueue);
+}
 
 function makeSlotRelease() {
     let released = false;
@@ -634,6 +647,9 @@ function makeSlotRelease() {
 }
 
 function drainScanQueue() {
+    if (0 === scanQueue.waiting.length) {
+        return;
+    }
     const { maxConcurrent } = getScanningConfig();
     while (scanQueue.running < maxConcurrent && scanQueue.waiting.length > 0) {
         const waiter = scanQueue.waiting.shift();
@@ -653,6 +669,7 @@ function acquireScanSlot(cb) {
         return cb(null, makeSlotRelease());
     }
 
+    drainScanQueueOnConfigChange();
     const waiter = { cb, timer: null };
     if (maxQueueWaitMs > 0) {
         waiter.timer = setTimeout(() => {

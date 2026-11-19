@@ -1256,6 +1256,52 @@ describe('file_scanner', function () {
                 }
             });
 
+            it('starts waiting scans when a hot-reload raises maxConcurrent', done => {
+                const Events = require('../core/events.js');
+                const name = uniqueName('raise');
+                const pending = {}; //  each scan finishes only when the test says
+                FileScanner.registerScanner(name, {
+                    scan(p, ctx, cb) {
+                        pending[paths.basename(p)] = cb;
+                        if (pending['b.zip']) {
+                            //  b started while a still holds its slot
+                            assert.ok(pending['a.zip']);
+                            Object.values(pending).forEach(c =>
+                                c(null, { result: 'clean' })
+                            );
+                        }
+                    },
+                });
+                const scanning = maxConcurrent => ({
+                    enabled: true,
+                    maxConcurrent,
+                    scanners: [{ scanner: name, timeout: 4000 }],
+                });
+                setScanning(scanning(1));
+
+                let n = 0;
+                const finish = (err, v) => {
+                    assert.ifError(err);
+                    assert.equal(v.result, 'clean');
+                    if (2 === ++n) {
+                        done();
+                    }
+                };
+                FileScanner.scanFile(writeFile('a.zip'), { source: 'web' }, finish);
+                FileScanner.scanFile(writeFile('b.zip'), { source: 'web' }, finish);
+
+                //  once b is queued behind a, raise the limit
+                const whenQueued = () => {
+                    const stats = FileScanner._scanQueueStats();
+                    if (1 !== stats.running || 1 !== stats.waiting) {
+                        return setTimeout(whenQueued, 5);
+                    }
+                    setScanning(scanning(2));
+                    Events.emit(Events.getSystemEvents().ConfigChanged);
+                };
+                whenQueued();
+            });
+
             it('a wait past maxQueueWaitMs is a scanner error', done => {
                 const name = uniqueName('hog');
                 FileScanner.registerScanner(
