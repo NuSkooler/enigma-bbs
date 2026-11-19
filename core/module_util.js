@@ -165,8 +165,9 @@ function getModulePaths() {
 //    moduleInitialize(initInfo, cb)
 //
 //  in that order, so a mod's scanners are registered before anything else it
-//  does. oputil calls only the former, through file_scanner.js
-//  loadModFileScanners().
+//  does. For mods under paths.mods that has already happened, earlier in
+//  startup (bbs.js, file_scanner.js loadModFileScanners(), the way oputil
+//  does it), and registerModFileScanners() skips them here.
 //
 function initializeModules(cb) {
     const Events = require('./events.js');

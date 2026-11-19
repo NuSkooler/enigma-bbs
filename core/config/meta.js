@@ -396,6 +396,18 @@ module.exports = {
         description:
             'Scanners run in order: { scanner, sources, fileTypes, timeout, onError, ... }. The first to find something rejects the file.',
     },
+    'fileBase.scanning.maxConcurrent': {
+        type: 'number',
+        min: 1,
+        description:
+            'Most file scanners running at once, across every source; the rest wait their turn.',
+    },
+    'fileBase.scanning.maxQueueWaitMs': {
+        type: 'number',
+        min: 0,
+        description:
+            'Longest a file waits for a free scanner before that counts as a scanner error (onError applies). 0 waits as long as it takes.',
+    },
     'fileBase.web.expireMinutes': {
         type: 'number',
         min: 1,
@@ -728,6 +740,24 @@ module.exports = {
     },
     //  The handler toggle lives under handlers.restApi; its settings live here
     'contentServers.web.restApi': { type: 'object' },
+    'contentServers.web.restApi.corsAllowedOrigins': {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Origins sent CORS headers; [] sends none, ["*"] allows any.',
+    },
+    'contentServers.web.restApi.jwtSecret': {
+        type: 'string',
+        description:
+            'JWT signing secret; generated and stored in the database when omitted.',
+    },
+    //  per endpoint booleans: info, nodes, last-callers, stats
+    'contentServers.web.restApi.system': { type: 'object', openMap: true },
+    //  networks -> { include, exclude } glob lists
+    'contentServers.web.restApi.messages.publicAccess': {
+        type: 'object',
+        openMap: true,
+    },
+    'contentServers.web.restApi.files.publicAccess': { type: 'object', openMap: true },
 
     //  ── Login servers ────────────────────────────────────────────────────
     'loginServers.telnet.port': PORT,

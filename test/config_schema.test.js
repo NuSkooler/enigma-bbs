@@ -387,6 +387,8 @@ describe('config schema against config_default.js', () => {
             'fileBase.scanning.defangExtensions',
             'fileBase.scanning.enabled',
             'fileBase.scanning.failAction',
+            'fileBase.scanning.maxConcurrent',
+            'fileBase.scanning.maxQueueWaitMs',
             'fileBase.scanning.notifyUserIds',
             'fileBase.scanning.quarantinePath',
             'fileBase.scanning.scanners',

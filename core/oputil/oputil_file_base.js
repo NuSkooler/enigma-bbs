@@ -947,16 +947,34 @@ function scanFileAreas() {
                 console.error(err.message);
             }
 
+            //
+            //  --virus-scan loaded every mod, and a mod may start a timer or
+            //  a server just by being loaded, which would keep oputil from
+            //  ever exiting. Once the notice is written and the output is
+            //  flushed, exit (with process.exitCode as set).
+            //
+            const finished = () => {
+                if (!options.virusScan) {
+                    return;
+                }
+                process.stdout.write('', () => {
+                    process.stderr.write('', () => process.exit());
+                });
+            };
+
             //  whatever stopped the run, what was rejected is reported, once
             const count = options.scanRejections.length;
-            if (count > 0) {
-                console.info(
-                    `${count} file${1 === count ? '' : 's'} rejected by file scanning`
-                );
-                FileScanner.notifyOperators(options.scanRejections, {
-                    source: FileScanner.ScanSources.Oputil,
-                });
+            if (0 === count) {
+                return finished();
             }
+            console.info(
+                `${count} file${1 === count ? '' : 's'} rejected by file scanning`
+            );
+            FileScanner.notifyOperators(
+                options.scanRejections,
+                { source: FileScanner.ScanSources.Oputil },
+                finished
+            );
         }
     );
 }

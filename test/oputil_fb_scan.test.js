@@ -122,13 +122,17 @@ describe('oputil fb scan --virus-scan', function () {
 
     //  oputil's getConfigPath() concatenates rather than joins.
     //  stdout and stderr both: warnings and quarantine failures go to stderr
-    function oputil(root, args) {
+    function oputil(root, args, { timeout } = {}) {
         const res = spawnSync(
             process.execPath,
             ['./oputil.js', '-c', `${root}${path.sep}`, ...args],
-            { cwd: REPO_ROOT, encoding: 'utf8' }
+            { cwd: REPO_ROOT, encoding: 'utf8', timeout, killSignal: 'SIGKILL' }
         );
-        return { code: res.status, out: `${res.stdout || ''}${res.stderr || ''}` };
+        return {
+            code: res.status,
+            signal: res.signal,
+            out: `${res.stdout || ''}${res.stderr || ''}`,
+        };
     }
 
     function withDb(root, name, fn) {
@@ -302,7 +306,7 @@ describe('oputil fb scan --virus-scan', function () {
                 .prepare(`SELECT message FROM message WHERE area_tag = 'private_mail'`)
                 .get()
         );
-        assert.match(notice.message, /NOT moved: .*; still at /);
+        assert.match(notice.message, /NOT moved: .*\r\nStill at: .*EVIL\.EXE/);
     });
 
     it('uses a scanner a mod registers with registerFileScanners, never moduleInitialize', async () => {
@@ -338,6 +342,36 @@ describe('oputil fb scan --virus-scan', function () {
             false,
             'moduleInitialize must not run in oputil'
         );
+    });
+
+    it('exits when done even though a mod it loaded keeps the event loop busy', async function () {
+        this.timeout(30000);
+        const { root } = await primed({
+            scanner: { scanner: 'busy_av' },
+            mods: {
+                'busy.js': `
+                    //  a server or timer started just by loading the mod
+                    setInterval(() => {}, 1000);
+                    exports.registerFileScanners = registry => {
+                        registry.registerScanner('busy_av', {
+                            scan(filePath, ctx, done) {
+                                const bad = require('fs').readFileSync(filePath, 'latin1').includes('EICAR');
+                                return done(null, { result: bad ? 'infected' : 'clean' });
+                            },
+                        });
+                    };`,
+            },
+        });
+
+        const { code, signal, out } = oputil(
+            root,
+            ['fb', 'scan', '--virus-scan', 'uploads'],
+            { timeout: 20000 }
+        );
+        assert.equal(signal, null, `oputil did not exit by itself: ${out}`);
+        assert.equal(code, 0, out);
+        assert.match(out, /1 file rejected by file scanning/);
+        assert.deepEqual(importedNames(root), ['GOOD.TXT']);
     });
 
     it('warns when scanning is enabled with nothing that can run', async () => {

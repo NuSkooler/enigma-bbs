@@ -1726,6 +1726,15 @@ module.exports = () => {
                 //  timeout, onError, ... scanner specific options }.
                 //
                 scanners: [],
+
+                //  Most scanners running at once, across every source; the
+                //  rest wait their turn. A scanner's timeout starts when it
+                //  does.
+                maxConcurrent: 2,
+
+                //  Longest a file waits for a free scanner before that is a
+                //  scanner error (onError applies). 0 waits as long as it takes.
+                maxQueueWaitMs: 600000, //  10 minutes
             },
 
             //

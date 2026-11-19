@@ -27,8 +27,9 @@
 
 //  ENiGMA½
 const { Errors, ErrorCodes, ErrorReasons } = require('./enig_error.js');
-const { moveFileWithCollisionHandling } = require('./file_util.js');
+const { moveFileWithCollisionHandling, isWindowsDeviceName } = require('./file_util.js');
 const stringFormat = require('./string_format.js');
+const PipeCodes = require('./pipe_codes.js');
 
 //
 //  Read through config.js rather than capturing its |get|: config.js replaces
@@ -45,13 +46,15 @@ const fs = require('graceful-fs');
 const fse = require('fs-extra');
 const paths = require('path');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { spawn } = require('child_process');
 
 exports.ScanResults = ScanResults();
 exports.ScanSources = ScanSources();
 exports.Verdicts = Verdicts();
 exports.FailActions = { Quarantine: 'quarantine', Delete: 'delete' };
 exports.DefaultTimeoutMs = 60 * 1000;
+exports.DefaultMaxConcurrent = 2;
+exports.DefaultMaxQueueWaitMs = 10 * 60 * 1000;
 
 exports.registerScanner = registerScanner;
 exports.getScanner = getScanner;
@@ -150,7 +153,8 @@ const scanners = new Map();
 //  warning. That lets a mod that is reloaded register again, and lets a sysop
 //  deliberately replace a scanner; it is all trusted code either way.
 //
-function registerScanner(name, impl, cb) {
+//  |logInfo|: extra fields for the log lines, e.g. the mod registering it.
+function registerScanner(name, impl, cb, logInfo) {
     cb = cb || _.noop;
 
     if (!_.isString(name) || !name || !impl || !_.isFunction(impl.scan)) {
@@ -160,7 +164,11 @@ function registerScanner(name, impl, cb) {
     }
 
     if (scanners.has(name)) {
-        log('warn', { scanner: name }, 'File scanner registered again; replacing it');
+        log(
+            'warn',
+            Object.assign({ scanner: name }, logInfo),
+            'File scanner registered again under the same name; the last one registered is used'
+        );
     }
 
     scanners.set(name, impl);
@@ -213,24 +221,69 @@ function getScanner(name) {
 //  because oputil needs the scanners too, and oputil must not run a mod's
 //  moduleInitialize(), which may start servers, timers or event listeners.
 //
-const modRegistry = Object.freeze({
-    registerScanner: (name, impl) => registerScanner(name, impl),
-    ScanResults: ScanResults(),
-});
+//  How long a mod's registerFileScanners() may take to call back before
+//  startup (or oputil) goes on without it.
+const REGISTER_TIMEOUT_MS = 30 * 1000;
 
-//  Calls |mod|.registerFileScanners() if it has one. Never fails: a mod that
-//  throws or calls back an error is logged and skipped.
+//  Mods whose registerFileScanners() has been called, by resolved path: the
+//  BBS registers them before message networks start (see bbs.js) and
+//  initializeModules() then sees the same mods again.
+const registeredMods = new Set();
+
+//
+//  False until the mods have had their say. A scanner that is not
+//  registered before then may simply not be registered *yet*, so a file it
+//  would scan is held whatever its entry's onError says.
+//
+let modRegistrationComplete = false;
+
+function markModRegistrationComplete() {
+    modRegistrationComplete = true;
+}
+
+exports.markModRegistrationComplete = markModRegistrationComplete;
+exports.isModRegistrationComplete = () => modRegistrationComplete;
+
+//  For tests: back to the state before startup registered anything.
+exports._resetModRegistration = () => {
+    modRegistrationComplete = false;
+    registeredMods.clear();
+};
+
+function makeModRegistry(modulePath) {
+    return Object.freeze({
+        registerScanner: (name, impl) =>
+            registerScanner(name, impl, undefined, { modulePath }),
+        ScanResults: ScanResults(),
+    });
+}
+
+//
+//  Calls |mod|.registerFileScanners() if it has one, once per |modulePath|.
+//  Never fails: a mod that throws, calls back an error or never calls back
+//  (within REGISTER_TIMEOUT_MS) is logged and skipped.
+//
 function registerModFileScanners(mod, modulePath, cb) {
     if (!mod || !_.isFunction(mod.registerFileScanners)) {
         return cb(null);
     }
 
+    const key = modulePath ? paths.resolve(modulePath) : null;
+    if (key && registeredMods.has(key)) {
+        return cb(null); //  already done, earlier in startup
+    }
+    if (key) {
+        registeredMods.add(key);
+    }
+
     let called = false;
+    let timer;
     const done = err => {
         if (called) {
             return;
         }
         called = true;
+        clearTimeout(timer);
         if (err) {
             log(
                 'warn',
@@ -241,10 +294,24 @@ function registerModFileScanners(mod, modulePath, cb) {
         return cb(null);
     };
 
+    const modRegistry = makeModRegistry(modulePath);
+
     try {
         if (mod.registerFileScanners.length < 2) {
             mod.registerFileScanners(modRegistry);
             return done(null);
+        }
+        timer = setTimeout(
+            () =>
+                done(
+                    Errors.General(
+                        `registerFileScanners() did not call back within ${REGISTER_TIMEOUT_MS}ms`
+                    )
+                ),
+            exports._registerTimeoutMs || REGISTER_TIMEOUT_MS
+        );
+        if (timer.unref) {
+            timer.unref();
         }
         mod.registerFileScanners(modRegistry, done);
     } catch (e) {
@@ -256,14 +323,28 @@ function registerModFileScanners(mod, modulePath, cb) {
 }
 
 //
-//  oputil's way in: load every mod under |modsPath| the way the BBS does at
-//  startup (core/module_util.js initializeModules(), the same glob) and call
+//  Loads every mod under |modsPath| the way the BBS does at startup
+//  (core/module_util.js initializeModules(), the same glob) and calls
 //  registerFileScanners() on each that has it -- and nothing else. A mod that
 //  fails to load is logged and skipped.
 //
+//  One at a time, in sorted order, so that two mods registering the same
+//  name resolve the same way every time, in the BBS and in oputil: the one
+//  loaded last wins, and the duplicate is logged.
+//
+//  The BBS calls this before message networks start, so that a TIC import
+//  triggered at startup never runs ahead of the scanners; oputil calls it
+//  before scanning. Either way, once it is done an unregistered scanner is
+//  really missing (see markModRegistrationComplete()).
+//
 function loadModFileScanners(modsPath, cb) {
+    const complete = err => {
+        markModRegistrationComplete();
+        return cb(err || null);
+    };
+
     if (!_.isString(modsPath) || !modsPath) {
-        return cb(null);
+        return complete(null);
     }
 
     const registerAll = files => {
@@ -284,7 +365,7 @@ function loadModFileScanners(modsPath, cb) {
                 }
                 return registerModFileScanners(mod, modulePath, () => nextFile(null));
             },
-            () => cb(null)
+            () => complete(null)
         );
     };
 
@@ -293,7 +374,7 @@ function loadModFileScanners(modsPath, cb) {
     const { glob } = require('glob');
     glob('*{.js,/*.js}', { cwd: modsPath }).then(
         files => process.nextTick(registerAll, files),
-        err => process.nextTick(cb, err)
+        err => process.nextTick(complete, err)
     );
 }
 
@@ -316,6 +397,14 @@ function getScanningConfig() {
             ? scanning.defangExtensions
             : DEFAULT_DEFANG_EXTENSIONS,
         scanners: Array.isArray(scanning.scanners) ? scanning.scanners : [],
+        maxConcurrent:
+            _.isFinite(scanning.maxConcurrent) && scanning.maxConcurrent >= 1
+                ? Math.floor(scanning.maxConcurrent)
+                : exports.DefaultMaxConcurrent,
+        maxQueueWaitMs:
+            _.isFinite(scanning.maxQueueWaitMs) && scanning.maxQueueWaitMs >= 0
+                ? scanning.maxQueueWaitMs
+                : exports.DefaultMaxQueueWaitMs,
     };
 }
 
@@ -489,11 +578,24 @@ function entryMatches(entry, ctx) {
         return true;
     }
 
-    const ext = extOf(ctx.fileName);
     const wanted = (Array.isArray(fileTypes) ? fileTypes : [fileTypes])
         .filter(_.isString)
         .map(ft => ft.replace(/^\./, '').toLowerCase());
-    return wanted.includes('*') || wanted.includes(ext);
+    if (wanted.includes('*')) {
+        return true;
+    }
+
+    //
+    //  On Windows "EVIL.EXE:x" and "EVIL.EXE::$DATA" are EVIL.EXE (a stream
+    //  of it): match the name up to the first ':' as well as the whole name,
+    //  so a ':' can only make an entry run, never skip it.
+    //
+    const name = String(ctx.fileName || '');
+    const exts = [extOf(name)];
+    if (name.includes(':')) {
+        exts.push(extOf(name.slice(0, name.indexOf(':'))));
+    }
+    return exts.some(ext => wanted.includes(ext));
 }
 
 //  Scanner output goes into logs, sidecars and mail: printable ASCII only.
@@ -507,6 +609,75 @@ function cleanText(s, maxLength = MAX_DETAIL_LENGTH) {
     return cleaned.length > maxLength ? cleaned.slice(0, maxLength) : cleaned;
 }
 
+//
+//  At most fileBase.scanning.maxConcurrent scanners run at once, across every
+//  source: a REST user firing uploads in parallel would otherwise start a
+//  scanner process per file, and clamscan loads its whole database each time.
+//  The rest wait their turn, first come first served. A scanner's timeout
+//  starts when it starts, not while it waits.
+//
+//  A wait longer than maxQueueWaitMs (0: no limit) is an |error| result, and
+//  so goes by the entry's onError like any other failure.
+//
+const scanQueue = { running: 0, waiting: [] };
+
+function makeSlotRelease() {
+    let released = false;
+    return () => {
+        if (released) {
+            return;
+        }
+        released = true;
+        --scanQueue.running;
+        drainScanQueue();
+    };
+}
+
+function drainScanQueue() {
+    const { maxConcurrent } = getScanningConfig();
+    while (scanQueue.running < maxConcurrent && scanQueue.waiting.length > 0) {
+        const waiter = scanQueue.waiting.shift();
+        clearTimeout(waiter.timer);
+        ++scanQueue.running;
+        process.nextTick(waiter.cb, null, makeSlotRelease());
+    }
+}
+
+//  Calls back (null, release) once a slot is free, or (err) after waiting
+//  maxQueueWaitMs. |release| must be called exactly once; extra calls are
+//  ignored.
+function acquireScanSlot(cb) {
+    const { maxConcurrent, maxQueueWaitMs } = getScanningConfig();
+    if (scanQueue.running < maxConcurrent && 0 === scanQueue.waiting.length) {
+        ++scanQueue.running;
+        return cb(null, makeSlotRelease());
+    }
+
+    const waiter = { cb, timer: null };
+    if (maxQueueWaitMs > 0) {
+        waiter.timer = setTimeout(() => {
+            _.pull(scanQueue.waiting, waiter);
+            return cb(
+                Errors.General(
+                    `No scanner slot came free within ${maxQueueWaitMs}ms (maxConcurrent ${maxConcurrent})`
+                )
+            );
+        }, maxQueueWaitMs);
+    }
+    scanQueue.waiting.push(waiter);
+}
+
+exports._scanQueueStats = () => ({
+    running: scanQueue.running,
+    waiting: scanQueue.waiting.length,
+});
+
+//
+//  Calls back (res, { forceHold }): |forceHold| is set when the scanner is
+//  not registered and mods have not finished registering theirs (see
+//  markModRegistrationComplete()): such a file is held whatever onError
+//  says, since the scanner may well exist a moment later.
+//
 function runOneScanner(entry, filePath, ctx, cb) {
     const name = entry.scanner;
     const impl = scanners.get(name);
@@ -518,7 +689,14 @@ function runOneScanner(entry, filePath, ctx, cb) {
 
     if (!impl) {
         //  most likely the mod providing it is missing or failed to load
-        return cb(errorResult(`No scanner named "${name}" is registered`));
+        return cb(
+            errorResult(
+                modRegistrationComplete
+                    ? `No scanner named "${name}" is registered`
+                    : `No scanner named "${name}" is registered yet`
+            ),
+            { forceHold: !modRegistrationComplete }
+        );
     }
 
     const timeout =
@@ -526,66 +704,81 @@ function runOneScanner(entry, filePath, ctx, cb) {
             ? entry.timeout
             : exports.DefaultTimeoutMs;
 
-    const abort = new AbortController();
-    const started = Date.now();
-    let done = false;
-    let timer;
-
-    const finish = res => {
-        if (done) {
-            return;
+    acquireScanSlot((err, release) => {
+        if (err) {
+            return cb(errorResult(err.message), {});
         }
-        done = true;
-        clearTimeout(timer);
-        res.durationMs = Date.now() - started;
-        return cb(res);
-    };
 
-    timer = setTimeout(() => {
-        abort.abort();
-        return finish(errorResult(`Timed out after ${timeout}ms`));
-    }, timeout);
+        const abort = new AbortController();
+        const started = Date.now();
+        let done = false;
+        let timedOut = false;
+        let timer;
 
-    const scanCtx = Object.assign({}, ctx, {
-        options: entry,
-        timeout,
-        abortSignal: abort.signal,
-    });
-
-    //
-    //  |cb| runs the rest of the chain and then the caller's code. Once it
-    //  has been called, a throw that reaches the catch below came from there
-    //  -- or from the scanner after it answered -- and is rethrown: swallowing
-    //  it would leave the chain waiting for a callback that never comes.
-    //
-    try {
-        impl.scan(filePath, scanCtx, (err, res) => {
-            if (err) {
-                return finish(errorResult(err.message || String(err)));
+        const finish = res => {
+            if (done) {
+                return;
             }
+            done = true;
+            clearTimeout(timer);
+            release();
+            res.durationMs = Date.now() - started;
+            return cb(res, {});
+        };
 
-            const result = _.get(res, 'result');
-            if (!_.values(exports.ScanResults).includes(result)) {
-                return finish(errorResult(`Unrecognised scan result "${result}"`));
-            }
+        timer = setTimeout(() => {
+            //  a scanner may answer from inside abort(): that answer is not
+            //  the one that counts
+            timedOut = true;
+            abort.abort();
+            return finish(errorResult(`Timed out after ${timeout}ms`));
+        }, timeout);
 
-            const out = { result, scanner: name };
-            const signature = cleanText(res.signature);
-            const detail = cleanText(res.detail);
-            if (signature) {
-                out.signature = signature;
-            }
-            if (detail) {
-                out.detail = detail;
-            }
-            return finish(out);
+        const scanCtx = Object.assign({}, ctx, {
+            options: entry,
+            timeout,
+            abortSignal: abort.signal,
         });
-    } catch (e) {
-        if (done) {
-            throw e;
+
+        //
+        //  |cb| runs the rest of the chain and then the caller's code. Once it
+        //  has been called, a throw that reaches the catch below came from
+        //  there -- or from the scanner after it answered -- and is rethrown:
+        //  swallowing it would leave the chain waiting for a callback that
+        //  never comes.
+        //
+        try {
+            impl.scan(filePath, scanCtx, (err, res) => {
+                if (timedOut) {
+                    return;
+                }
+                if (err) {
+                    return finish(errorResult(err.message || String(err)));
+                }
+
+                const result = _.get(res, 'result');
+                if (!_.values(exports.ScanResults).includes(result)) {
+                    return finish(errorResult(`Unrecognised scan result "${result}"`));
+                }
+
+                const out = { result, scanner: name };
+                const signature = cleanText(res.signature);
+                const detail = cleanText(res.detail);
+                if (signature) {
+                    out.signature = signature;
+                }
+                if (detail) {
+                    out.detail = detail;
+                }
+                return finish(out);
+            });
+        } catch (e) {
+            if (done) {
+                throw e;
+            }
+            return finish(errorResult(e.message));
         }
-        return finish(errorResult(e.message));
-    }
+    });
 }
 
 //  Hash and size for scanners that want them (VirusTotal looks up the SHA-256),
@@ -685,7 +878,7 @@ function scanFile(filePath, ctx, cb) {
         async.eachSeries(
             entries,
             (entry, nextEntry) => {
-                runOneScanner(entry, filePath, ctx, res => {
+                runOneScanner(entry, filePath, ctx, (res, how) => {
                     verdict.results.push(res);
 
                     switch (res.result) {
@@ -697,7 +890,7 @@ function scanFile(filePath, ctx, cb) {
                             return nextEntry(true); //  stop the chain
 
                         case exports.ScanResults.Error:
-                            if ('accept' === entry.onError) {
+                            if ('accept' === entry.onError && !how.forceHold) {
                                 log(
                                     'warn',
                                     {
@@ -789,26 +982,26 @@ function defangFileName(fileName, defangExtensions) {
     return `${fileName.slice(0, -1)}_`;
 }
 
-//  Strips exec (and setuid/setgid/sticky) bits. Windows has none to strip, so
-//  a failure there is expected and only logged. Never fails: by now the file
-//  is in quarantine, and that is what matters.
-function stripExecBits(filePath, cb) {
-    fs.stat(filePath, (err, stats) => {
+//  Mode 0600: read/write for the owner only, no exec, setuid, setgid or
+//  sticky bits. Windows has no such bits, so a failure there is expected and
+//  only logged. Never fails: by now the file is in quarantine, and that is
+//  what matters.
+function restrictQuarantinedFile(filePath, cb) {
+    fs.stat(filePath, err => {
         if (err) {
             log(
                 'warn',
                 { filePath, error: err.message },
-                'Could not stat quarantined file to strip its exec bits'
+                'Could not stat quarantined file to restrict its mode'
             );
             return cb(null);
         }
-        const mode = stats.mode & 0o7777 & ~0o7111;
-        fs.chmod(filePath, mode, err => {
+        fs.chmod(filePath, 0o600, err => {
             if (err) {
                 log(
                     'debug',
                     { filePath, error: err.message },
-                    'Could not strip exec bits from quarantined file'
+                    'Could not restrict the mode of quarantined file'
                 );
             }
             return cb(null);
@@ -824,7 +1017,7 @@ function writeSidecar(finalPath, data, cb) {
 
     const attempt = () => {
         const sidecarPath = 0 === n ? `${finalPath}.json` : `${finalPath}.${n}.json`;
-        fs.writeFile(sidecarPath, body, { flag: 'wx', mode: 0o640 }, err => {
+        fs.writeFile(sidecarPath, body, { flag: 'wx', mode: 0o600 }, err => {
             if (err && 'EEXIST' === err.code && n < 100) {
                 ++n;
                 return attempt();
@@ -848,10 +1041,17 @@ const MAX_QUARANTINE_NAME_BYTES = 200;
 //  one, so a hostile name can never make the quarantine fail. The original
 //  is kept in the sidecar either way.
 //
+//  Safe on Windows too: the characters Windows refuses become "_" -- ':'
+//  above all, as "EVIL.EXE::$DATA" *is* EVIL.EXE there -- and a reserved
+//  device name (CON, NUL, COM1.ZIP, ...) gets a leading "_".
+//
 function quarantineFileName(fileName, ctx, defangExtensions) {
     let name = trimTrailingDotsAndSpaces(
-        paths.basename(String(fileName || '').replace(/\\/g, '/'))
-    ).replace(/\0/g, '');
+        paths
+            .basename(String(fileName || '').replace(/\\/g, '/'))
+            // eslint-disable-next-line no-control-regex
+            .replace(/[\u0000-\u001f<>:"|?*]/g, '_')
+    );
 
     if (!name || Buffer.byteLength(name) > MAX_QUARANTINE_NAME_BYTES) {
         const ext = paths.extname(name).slice(0, 16);
@@ -860,8 +1060,14 @@ function quarantineFileName(fileName, ctx, defangExtensions) {
         name = `unnamed-${id}${ext}`;
     }
 
+    if (isWindowsDeviceName(name)) {
+        name = `_${name}`;
+    }
+
     return defangFileName(name, defangExtensions);
 }
+
+exports._quarantineFileName = quarantineFileName;
 
 function userInfo(ctx) {
     const user = ctx.user;
@@ -962,7 +1168,8 @@ function applyFailAction(filePath, verdict, ctx, cb) {
     async.series(
         [
             callback => fillHashAndSize(filePath, ctx, callback),
-            callback => fse.mkdirs(quarantineDir, err => callback(err)),
+            //  operators only: what is in here is hostile, or may be
+            callback => fse.mkdirs(quarantineDir, 0o700, err => callback(err)),
             callback => {
                 //  after fillHashAndSize(): a generated name uses the hash
                 const quarantineName = quarantineFileName(
@@ -979,7 +1186,7 @@ function applyFailAction(filePath, verdict, ctx, cb) {
                     }
                 );
             },
-            callback => stripExecBits(finalPath, callback),
+            callback => restrictQuarantinedFile(finalPath, callback),
         ],
         err => {
             if (err) {
@@ -1038,6 +1245,70 @@ function applyFailAction(filePath, verdict, ctx, cb) {
 
 // ── Operator notice ──────────────────────────────────────────────────────────
 
+//  Widest line a notice has: the message reader wraps at 79 columns, and a
+//  wrapped line could put text from outside at the start of a line of its
+//  own -- a forged "Result:" line, say.
+const NOTICE_LINE_WIDTH = 79;
+//  Longest single value from outside in a notice.
+const MAX_NOTICE_FIELD_LENGTH = 68;
+
+//
+//  Text from outside -- a file name, a scanner's output, a TIC field -- made
+//  fit for a notice. The message reader renders bodies with pipe codes
+//  (controlCodesToAnsi(), the body dialect), so "NODELIST.ZIP|00" would black
+//  out everything after it: every code is stripped, and a '|' still standing
+//  becomes '!' so that none can form again. Runs of white space collapse to
+//  one space, and the result is capped.
+//
+function stripDisplayCodes(text) {
+    const stripAll = t => {
+        //  stripping can join the pieces of a new code: "|0|001" -> "|01"
+        for (let i = 0; i < 8; ++i) {
+            const stripped = PipeCodes.strip(t, { dialect: 'body', ansi: true });
+            if (stripped === t) {
+                return t;
+            }
+            t = stripped;
+        }
+        return null;
+    };
+
+    const stripped = stripAll(text);
+    if (null === stripped) {
+        return text.replace(/[|@]/g, '_'); //  pathological: no code survives this
+    }
+    return stripped.replace(/\|/g, '!');
+}
+
+function noticeText(s, maxLength = MAX_NOTICE_FIELD_LENGTH) {
+    let text = cleanText(s, Infinity);
+    if (!text) {
+        return text;
+    }
+    text = stripDisplayCodes(text).replace(/\s+/g, ' ').trim();
+    return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
+}
+
+//  A path keeps its end, where the file name is.
+function noticePath(s) {
+    const text = noticeText(s, Infinity);
+    if (!text || text.length <= MAX_NOTICE_FIELD_LENGTH) {
+        return text;
+    }
+    return `...${text.slice(-(MAX_NOTICE_FIELD_LENGTH - 3))}`;
+}
+
+function noticeLine(label, value) {
+    const line = `${`${label} `.padEnd(9)}${value}`;
+    return line.length > NOTICE_LINE_WIDTH
+        ? `${line.slice(0, NOTICE_LINE_WIDTH - 3)}...`
+        : line;
+}
+
+//  Also for any other screen that shows these fields, e.g. the upload
+//  module's rejected page.
+exports.cleanDisplayText = noticeText;
+
 //
 //  rejections: [ { ctx?, verdict, disposition? } ]
 //      |ctx| is per file and wins over the call's |ctx| (a rescan spans many
@@ -1045,14 +1316,35 @@ function applyFailAction(filePath, verdict, ctx, cb) {
 //      called back an error instead, a caller passes { error, path? }: the
 //      file was not moved, and |path| says where it still is.
 //
+//  ctx.coalesced: { windowMs, notListed } when this is the summary of
+//  rejections held back by notifyOperatorsCoalesced().
+//
 //  Returns { subject, body }. The body is 7-bit ASCII with CRLF line ends,
-//  like the other system notices; file names and scanner output are cleaned
-//  of anything else, since both come from outside.
+//  like the other system notices. Everything from outside -- file names,
+//  scanner output, TIC fields -- goes through noticeText(): no pipe codes,
+//  no runs of white space, and no line wider than the reader wraps at.
 //
 function buildOperatorNotice(rejections, ctx) {
     ctx = ctx || {};
-    const count = rejections.length;
-    const lines = [`${count} file${1 === count ? '' : 's'} failed file scanning.`, ''];
+    const coalesced = ctx.coalesced;
+    const notListed = (coalesced && coalesced.notListed) || 0;
+    const count = rejections.length + notListed;
+    const files = `${count} file${1 === count ? '' : 's'}`;
+
+    const lines = [];
+    if (coalesced) {
+        const minutes = Math.round(coalesced.windowMs / 60000);
+        lines.push(`${files} from the same uploader failed file scanning`);
+        lines.push(
+            `within ${minutes} minute${1 === minutes ? '' : 's'} of the last notice.`
+        );
+        if (notListed > 0) {
+            lines.push(`${notListed} of them are not listed here; see the log.`);
+        }
+    } else {
+        lines.push(`${files} failed file scanning.`);
+    }
+    lines.push('');
 
     rejections.forEach(rej => {
         const c = Object.assign({}, ctx, rej.ctx);
@@ -1060,57 +1352,64 @@ function buildOperatorNotice(rejections, ctx) {
         const d = rej.disposition || {};
         const user = userInfo(c);
 
-        let from = cleanText(c.source) || 'unknown';
+        let from = noticeText(c.source) || 'unknown';
         if (user && (user.name || user.id)) {
-            from += ` (user ${cleanText(user.name) || '?'} #${user.id || '?'})`;
+            from += ` (user ${noticeText(user.name, 30) || '?'} #${
+                noticeText(String(user.id || ''), 12) || '?'
+            })`;
         }
         if (c.ticInfo && c.ticInfo.origin) {
-            from += ` (TIC origin ${cleanText(c.ticInfo.origin)})`;
+            from += ` (TIC origin ${noticeText(c.ticInfo.origin, 30)})`;
         }
 
-        let outcome =
+        const outcome =
             exports.Verdicts.Infected === v.result
-                ? `infected: ${v.signature || 'unnamed threat'}`
-                : `held, scanner failed: ${v.detail || 'unknown error'}`;
+                ? `infected: ${noticeText(v.signature) || 'unnamed threat'}`
+                : `held, scanner failed: ${noticeText(v.detail) || 'unknown error'}`;
 
         let action;
+        let path;
         if (d.error) {
-            action = `NOT moved: ${d.error}`;
-            if (d.path) {
-                action += `; still at ${d.path}`;
-            }
+            action = `NOT moved: ${noticeText(d.error)}`;
+            path = d.path;
         } else if (exports.FailActions.Delete === d.action && d.quarantineError) {
-            action = `DELETED, could not be quarantined: ${d.quarantineError}`;
+            action = `DELETED, could not be quarantined: ${noticeText(d.quarantineError)}`;
         } else if (exports.FailActions.Delete === d.action) {
             action = 'deleted';
         } else if (d.path) {
-            action = `quarantined to ${d.path}`;
+            action = 'quarantined';
+            path = d.path;
         } else {
             action = 'none recorded';
         }
 
-        lines.push(`File:    ${cleanText(c.fileName) || '?'}`);
-        lines.push(`From:    ${from}`);
+        lines.push(noticeLine('File:', noticeText(c.fileName) || '?'));
+        lines.push(noticeLine('From:', from));
         if (c.areaTag) {
-            lines.push(`Area:    ${cleanText(c.areaTag)}`);
+            lines.push(noticeLine('Area:', noticeText(c.areaTag)));
         }
         if (c.ticInfo) {
             const t = c.ticInfo;
-            let tic = `${cleanText(t.area) || '?'} from ${cleanText(t.from) || '?'}`;
-            if (t.ticFileName) {
-                tic += ` in ${cleanText(t.ticFileName)}`;
-            }
+            let tic = `${noticeText(t.area, 30) || '?'} from ${
+                noticeText(t.from, 30) || '?'
+            }`;
             if (t.passthrough) {
                 tic += ' (passthrough)';
             }
-            lines.push(`TIC:     ${tic}`);
+            lines.push(noticeLine('TIC:', tic));
+            if (t.ticFileName) {
+                lines.push(noticeLine('TIC file:', noticeText(t.ticFileName)));
+            }
         }
         if (c.sha256) {
-            lines.push(`SHA-256: ${cleanText(c.sha256)}`);
+            lines.push(noticeLine('SHA-256:', noticeText(c.sha256, 64)));
         }
-        lines.push(`Scanner: ${cleanText(v.scanner) || '?'}`);
-        lines.push(`Result:  ${cleanText(outcome)}`);
-        lines.push(`Action:  ${cleanText(action, 1024)}`);
+        lines.push(noticeLine('Scanner:', noticeText(v.scanner) || '?'));
+        lines.push(noticeLine('Result:', outcome));
+        lines.push(noticeLine('Action:', action));
+        if (path) {
+            lines.push(noticeLine(d.error ? 'Still at:' : 'Path:', noticePath(path)));
+        }
         lines.push('');
     });
 
@@ -1126,7 +1425,7 @@ function buildOperatorNotice(rejections, ctx) {
     }
 
     return {
-        subject: `File scan: ${count} file${1 === count ? '' : 's'} rejected`,
+        subject: `File scan: ${files} rejected${coalesced ? ' (summary)' : ''}`,
         body: lines.join('\r\n'),
     };
 }
@@ -1204,6 +1503,113 @@ function notifyOperators(rejections, ctx, cb) {
     );
 }
 
+//
+//  notifyOperators() for a source that one person can drive as hard as they
+//  like -- a REST user can send rejected uploads back to back. The first
+//  rejection under |key| (e.g. the uploader's user ID) is sent at once and
+//  opens a window of |windowMs|; rejections under the same key within it are
+//  held back and sent as ONE summary when it closes, which opens the next
+//  window, so a flood yields a notice per window at most. Logging stays per
+//  file: this only limits mail.
+//
+//  The timers are unref()'d. flushCoalescedNotices() sends what is held back
+//  at shutdown; anything that still never goes out was logged per file.
+//
+const NOTICE_COALESCE_WINDOW_MS = 10 * 60 * 1000;
+//  most rejections a summary lists; the rest are counted
+const MAX_COALESCED_REJECTIONS = 50;
+
+const coalescedNotices = new Map();
+
+function openNoticeWindow(key, ctx, windowMs) {
+    const window = { ctx, windowMs, pending: [], notListed: 0 };
+    window.timer = setTimeout(() => closeNoticeWindow(key, true), windowMs);
+    if (window.timer.unref) {
+        window.timer.unref();
+    }
+    coalescedNotices.set(key, window);
+}
+
+function closeNoticeWindow(key, reopen, cb) {
+    cb = cb || _.noop;
+    const window = coalescedNotices.get(key);
+    if (!window) {
+        return cb(null);
+    }
+    coalescedNotices.delete(key);
+    clearTimeout(window.timer);
+
+    if (0 === window.pending.length) {
+        return cb(null);
+    }
+
+    if (reopen) {
+        //  still busy: keep holding back what comes next
+        openNoticeWindow(key, window.ctx, window.windowMs);
+    }
+
+    return notifyOperators(
+        window.pending,
+        Object.assign({}, window.ctx, {
+            coalesced: { windowMs: window.windowMs, notListed: window.notListed },
+        }),
+        cb
+    );
+}
+
+function notifyOperatorsCoalesced(key, rejections, ctx, cb) {
+    cb = cb || _.noop;
+    rejections = (rejections || []).filter(Boolean);
+    if (0 === rejections.length) {
+        return cb(null);
+    }
+
+    const window = coalescedNotices.get(key);
+    if (window) {
+        rejections.forEach(rej => {
+            if (window.pending.length < MAX_COALESCED_REJECTIONS) {
+                window.pending.push(rej);
+            } else {
+                ++window.notListed;
+            }
+        });
+        log(
+            'debug',
+            { key, pending: window.pending.length + window.notListed },
+            'File scanning notice held back for the next summary'
+        );
+        return cb(null);
+    }
+
+    openNoticeWindow(
+        key,
+        ctx,
+        exports._noticeCoalesceWindowMs || NOTICE_COALESCE_WINDOW_MS
+    );
+    return notifyOperators(rejections, ctx, cb);
+}
+
+//  Sends every summary held back, now. For shutdown, and tests.
+function flushCoalescedNotices(cb) {
+    cb = cb || _.noop;
+    const keys = Array.from(coalescedNotices.keys());
+    const held = keys.reduce((n, key) => {
+        const w = coalescedNotices.get(key);
+        return n + w.pending.length + w.notListed;
+    }, 0);
+    if (held > 0) {
+        log('info', { held }, 'Sending held-back file scanning notices');
+    }
+    async.eachSeries(
+        keys,
+        (key, nextKey) => closeNoticeWindow(key, false, () => nextKey(null)),
+        () => cb(null)
+    );
+}
+
+exports.notifyOperatorsCoalesced = notifyOperatorsCoalesced;
+exports.flushCoalescedNotices = flushCoalescedNotices;
+
 // ── Built-in: command ────────────────────────────────────────────────────────
 
 //
@@ -1232,6 +1638,160 @@ function notifyOperators(rejections, ctx, cb) {
 //  Regex options are strings, applied with the "m" flag so ^ and $ work per
 //  line.
 //
+//  The program runs without a shell. On a timeout the whole process tree is
+//  killed, not just the program named: a wrapper script's own children (the
+//  real scanner) go too. On POSIX it runs in a process group of its own and
+//  the group gets SIGKILL; on Windows "taskkill /T /F" ends the tree. A
+//  wrapper should still exec the real scanner where it can.
+//
+//  Output is bounded: past MAX_COMMAND_OUTPUT bytes on either stream the
+//  program is killed and the result is an error.
+//
+const MAX_COMMAND_OUTPUT = 4 * 1024 * 1024;
+
+function killProcessTree(child) {
+    if (!child || !child.pid) {
+        return;
+    }
+
+    const killChild = () => {
+        try {
+            child.kill('SIGKILL');
+        } catch (e) {
+            //  already gone
+        }
+    };
+
+    if ('win32' === process.platform) {
+        try {
+            const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+                windowsHide: true,
+                stdio: 'ignore',
+            });
+            killer.on('error', killChild);
+        } catch (e) {
+            killChild();
+        }
+        return;
+    }
+
+    try {
+        process.kill(-child.pid, 'SIGKILL'); //  the group: the child is its leader
+    } catch (e) {
+        killChild();
+    }
+}
+
+//
+//  execFile()'s callback contract -- (err, stdout, stderr), err.code the
+//  exit code or a string code, err.killed / err.signal when killed -- with
+//  a kill that takes the whole tree. Calls back exactly once.
+//
+function runCommand(cmd, args, options, cb) {
+    const out = { stdout: [], stderr: [] };
+    const size = { stdout: 0, stderr: 0 };
+    let done = false;
+    let timer;
+    let child;
+
+    const text = which => Buffer.concat(out[which]).toString('utf8');
+
+    const finish = err => {
+        if (done) {
+            return;
+        }
+        done = true;
+        clearTimeout(timer);
+        if (options.signal) {
+            options.signal.removeEventListener('abort', onAbort);
+        }
+        return cb(err, text('stdout'), text('stderr'));
+    };
+
+    const killAndFinish = err => {
+        killProcessTree(child);
+        //  a grandchild that escaped the kill may hold the pipes open:
+        //  do not wait for them
+        if (child) {
+            child.stdout && child.stdout.destroy();
+            child.stderr && child.stderr.destroy();
+        }
+        return finish(err);
+    };
+
+    const killed = () => {
+        const err = new Error(`${cmd} was killed`);
+        err.killed = true;
+        err.signal = 'SIGKILL';
+        return err;
+    };
+
+    function onAbort() {
+        return killAndFinish(killed());
+    }
+
+    try {
+        child = spawn(cmd, args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+            //  its own process group on POSIX, so the group can be killed
+            detached: 'win32' !== process.platform,
+        });
+    } catch (e) {
+        return finish(e);
+    }
+
+    ['stdout', 'stderr'].forEach(which => {
+        child[which].on('data', chunk => {
+            if (done) {
+                return;
+            }
+            size[which] += chunk.length;
+            if (size[which] > MAX_COMMAND_OUTPUT) {
+                const err = new Error(
+                    `${which} exceeded ${MAX_COMMAND_OUTPUT} bytes; ${cmd} was killed`
+                );
+                err.code = 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+                return killAndFinish(err);
+            }
+            out[which].push(chunk);
+        });
+        child[which].on('error', () => {}); //  destroyed above, or the child died
+    });
+
+    child.on('error', err => finish(err)); //  failed to start: err.code is a string
+    child.on('close', (code, signal) => {
+        if (_.isNumber(code) && 0 === code) {
+            return finish(null);
+        }
+        const err = new Error(
+            _.isNumber(code)
+                ? `${cmd} exited with code ${code}`
+                : `${cmd} was killed by ${signal}`
+        );
+        if (_.isNumber(code)) {
+            err.code = code;
+        } else {
+            err.code = null;
+            err.signal = signal;
+        }
+        return finish(err);
+    });
+
+    if (options.signal) {
+        if (options.signal.aborted) {
+            return onAbort();
+        }
+        options.signal.addEventListener('abort', onAbort);
+    }
+
+    if (_.isFinite(options.timeout) && options.timeout > 0) {
+        timer = setTimeout(onAbort, options.timeout);
+    }
+}
+
+exports._runCommand = runCommand;
+
 function compileRegex(source) {
     if (!_.isString(source) || !source) {
         return null;
@@ -1279,15 +1839,12 @@ const commandScanner = {
         const codeIn = (list, code) =>
             (Array.isArray(list) ? list : [list]).map(Number).includes(code);
 
-        execFile(
+        runCommand(
             opts.cmd,
             args,
             {
                 timeout: ctx.timeout,
-                killSignal: 'SIGKILL',
                 signal: ctx.abortSignal,
-                windowsHide: true,
-                maxBuffer: 4 * 1024 * 1024,
             },
             (err, stdout, stderr) => {
                 const output = `${stdout || ''}\n${stderr || ''}`;

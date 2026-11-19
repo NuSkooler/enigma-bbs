@@ -709,12 +709,14 @@ exports.getModule = class UploadModule extends MenuModule {
             return config.rejectedInfectedReason || 'failed the upload check';
         };
 
+        //  the name and a scanner's output come from outside: no pipe codes
+        const clean = FileScanner.cleanDisplayText;
         const lines = rejected.map(rej =>
             stringFormat(infoFormat, {
-                fileName: rej.fileName,
+                fileName: clean(rej.fileName) || '?',
                 reason: reasonFor(rej.verdict),
                 scanResult: _.get(rej, 'verdict.result', ''),
-                signature: _.get(rej, 'verdict.signature', ''),
+                signature: clean(_.get(rej, 'verdict.signature')) || '',
             })
         );
 

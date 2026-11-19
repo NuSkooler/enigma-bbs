@@ -180,5 +180,21 @@ describe('REST request bodies', function () {
             );
             assert.equal(r.fileBuffer, null);
         });
+
+        //  #291 security review: the name becomes a temp file and a stored file
+        it('makes an upload name safe on Windows too', function () {
+            const safe = require('../core/rest/routes/files.js')._safeUploadFileName;
+            assert.equal(safe('NUL'), '_NUL');
+            assert.equal(safe('con.txt'), '_con.txt');
+            assert.equal(safe('COM1.zip'), '_COM1.zip');
+            assert.equal(safe('lpt1'), '_lpt1');
+            assert.equal(safe('CONSOLE.TXT'), 'CONSOLE.TXT');
+            assert.equal(safe('evil.exe.'), 'evil.exe');
+            assert.equal(safe('evil.exe::$DATA'), 'evil.exe___DATA');
+            assert.equal(safe('..'), '');
+            assert.equal(safe('...'), '');
+            assert.equal(safe('../../etc/passwd'), 'passwd');
+            assert.equal(safe('a b|c.zip'), 'a_b_c.zip');
+        });
     });
 });

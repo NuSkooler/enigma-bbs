@@ -21,7 +21,7 @@ const {
 
 const FileEntry = require('../../file_entry');
 const FileScanner = require('../../file_scanner');
-const { moveFileWithCollisionHandling } = require('../../file_util');
+const { moveFileWithCollisionHandling, isWindowsDeviceName } = require('../../file_util');
 const ACS = require('../../acs');
 const Config = require('../../config').get;
 const User = require('../../user');
@@ -643,7 +643,10 @@ function _rejectUpload(rejectedErr, uploadInfo, user, log, cb) {
             };
         }
 
-        FileScanner.notifyOperators(
+        //  one request per file: coalesced per uploader, so that a stream of
+        //  rejected uploads cannot flood the operators' mail
+        FileScanner.notifyOperatorsCoalesced(
+            `web:${user.userId}`,
             [{ ctx, verdict, disposition }],
             { source: FileScanner.ScanSources.Web, user },
             () => {
@@ -722,7 +725,7 @@ function _parseMultipartBuffer(buf, boundaryStr) {
         }
         const fileNameMatch = dispMatch[0].match(/filename="([^"]+)"/i);
         if (fileNameMatch) {
-            result.fileName = paths.basename(fileNameMatch[1]).replace(/[^\w.-]/g, '_');
+            result.fileName = _safeUploadFileName(fileNameMatch[1]);
             result.fileBuffer = body;
         } else if (nameMatch[1] === 'desc') {
             result.desc = body.toString('utf8').trim();
@@ -731,7 +734,22 @@ function _parseMultipartBuffer(buf, boundaryStr) {
     return result;
 }
 
+//
+//  The uploader's file name, made safe to use as a path component on any OS:
+//  word characters, '.' and '-' only; no trailing dots, which Windows drops
+//  ("EVIL.EXE." is EVIL.EXE there); and a name Windows reserves for a device
+//  (NUL, CON.TXT, COM1.ZIP, ...) gets a leading '_'. May come back empty.
+//
+function _safeUploadFileName(name) {
+    const safe = paths
+        .basename(String(name))
+        .replace(/[^\w.-]/g, '_')
+        .replace(/\.+$/, '');
+    return isWindowsDeviceName(safe) ? `_${safe}` : safe;
+}
+
 exports._parseMultipartBuffer = _parseMultipartBuffer;
+exports._safeUploadFileName = _safeUploadFileName;
 exports._parseMultipartUpload = _parseMultipartUpload;
 exports._storeUpload = _storeUpload;
 exports._maybeStrip = _maybeStrip;
@@ -767,12 +785,12 @@ function _parseMultipartUpload(req, resp, log, cb) {
         const { fileName, fileBuffer, desc } = _parseMultipartBuffer(buf, boundary);
         const fileSize = fileBuffer ? fileBuffer.length : 0;
 
-        if (!fileName || !fileBuffer) {
+        if (undefined === fileName || !fileBuffer) {
             return cb(new Error('No file part found in multipart body'));
         }
 
-        //  '.' and '..' survive the parser's character filter
-        if (/^\.+$/.test(fileName)) {
+        //  '.', '..' and the like are left empty by _safeUploadFileName()
+        if (!fileName) {
             return cb(new Error('Invalid filename'));
         }
 

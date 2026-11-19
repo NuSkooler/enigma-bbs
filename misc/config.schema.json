@@ -1231,7 +1231,42 @@
                             "type": "string"
                         },
                         "restApi": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "corsAllowedOrigins": {
+                                    "description": "Origins sent CORS headers; [] sends none, [\"*\"] allows any.",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "files": {
+                                    "type": "object",
+                                    "properties": {
+                                        "publicAccess": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                },
+                                "jwtSecret": {
+                                    "description": "JWT signing secret; generated and stored in the database when omitted.",
+                                    "type": "string"
+                                },
+                                "messages": {
+                                    "type": "object",
+                                    "properties": {
+                                        "publicAccess": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                },
+                                "system": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
                         },
                         "tryFiles": {
                             "description": "File names tried, in order, when a request names a directory under staticRoot. Unset tries index.html, then index.htm.",
@@ -2308,6 +2343,18 @@
                                 "type": "object"
                             },
                             "default": []
+                        },
+                        "maxConcurrent": {
+                            "description": "Most file scanners running at once, across every source; the rest wait their turn.",
+                            "type": "number",
+                            "minimum": 1,
+                            "default": 2
+                        },
+                        "maxQueueWaitMs": {
+                            "description": "Longest a file waits for a free scanner before that counts as a scanner error (onError applies). 0 waits as long as it takes.",
+                            "type": "number",
+                            "minimum": 0,
+                            "default": 600000
                         }
                     },
                     "patternProperties": {
