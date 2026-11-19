@@ -6346,7 +6346,8 @@ FTNMessageScanTossModule.prototype.forgetTicHold = function (ticFileInfo) {
 //  The hold window itself is unchanged: the first attempt after it has run
 //  out still rejects (quarantines) the payload, at most one wait late.
 //
-//  Kept in memory, by .tic path: a restart simply tries everything again.
+//  Kept in memory, by .tic path: a restart simply tries everything again,
+//  and so does a config change (see startup()).
 //
 FTNMessageScanTossModule.prototype.noteTicScanHeld = function (ticFileInfo, cb) {
     const self = this;
@@ -7054,6 +7055,14 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
         //  ...likewise for a secureInOnly that has just been changed
         this._ticUnsecureWarned = false;
         this._autoAreaUnsecureWarned = false;
+
+        //  ...and scan held TIC payloads again on the next pass, not after
+        //  their backoff: the change may be the scanner the sysop has just
+        //  fixed or registered. Cleared, not replaced: noteTicScanHeld() may
+        //  be part way through adding to it.
+        if (this._ticScanRetries) {
+            this._ticScanRetries.clear();
+        }
 
         //  ...and re-check what the new config says about the outbound spool:
         //  a reload can introduce a bad defaultNetwork, or move the default
