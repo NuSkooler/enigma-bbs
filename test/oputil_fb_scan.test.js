@@ -210,6 +210,24 @@ describe('oputil fb scan --virus-scan', function () {
         assert.deepEqual(scanMeta, [{ meta_value: 'clean' }]);
     });
 
+    //  minimist binds the next positional to a flag it does not know is
+    //  boolean: "--virus-scan uploads" once made the area the flag's value,
+    //  and the run imported everything unscanned
+    it('scans with the flag before the area', async () => {
+        const { root, storage } = await makeFixture();
+
+        await fsp.rename(path.join(storage, 'EVIL.EXE'), path.join(root, 'EVIL.EXE'));
+        assert.equal(oputil(root, ['fb', 'scan', 'uploads']).code, 0);
+        addSysop(root);
+        await fsp.rename(path.join(root, 'EVIL.EXE'), path.join(storage, 'EVIL.EXE'));
+
+        const { code, out } = oputil(root, ['fb', 'scan', '--virus-scan', 'uploads']);
+        assert.equal(code, 0, out);
+        assert.match(out, /Rejected \(command infected: Eicar-Test-Signature\)/);
+        assert.deepEqual(importedNames(root), ['GOOD.TXT']);
+        assert.deepEqual(quarantine(root), ['EVIL.EX_', 'EVIL.EX_.json']);
+    });
+
     it('refuses to run when file scanning is not enabled', async () => {
         const { root } = await makeFixture({ scanningEnabled: false });
         const { code, out } = oputil(root, ['fb', 'scan', 'uploads', '--virus-scan']);

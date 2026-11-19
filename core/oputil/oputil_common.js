@@ -64,6 +64,7 @@ const argvOptions = (exports.argvOptions = {
         'dry-run',
         'force',
         'allow-large',
+        'virus-scan',
     ],
 });
 const argv = (exports.argv = require('minimist')(process.argv.slice(2), argvOptions));
