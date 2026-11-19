@@ -66,7 +66,7 @@ system-wide members live as well:
 |--------|---------------|------------------|
 | `secureInOnly` | No | Only process TIC files found in the **secure** inbound (`paths.secInbound`). Defaults to `true`. TIC files in the unsecure inbound are left where they are, not imported and not deleted |
 | `requireAreaAuthorization` | No | Also require the sender to be an `uplinks` entry of the area when **importing**, not only when forwarding. Defaults to `false`. See [Restricting who may import](#restricting-who-may-import) |
-| `holdMaxAgeMs` | No | How long to keep a TIC whose file has not arrived yet. Defaults to 48 hours; set to `0` to hold indefinitely. See [Files arriving after their TIC](#files-arriving-after-their-tic) |
+| `holdMaxAgeMs` | No | How long to keep a TIC whose file has not arrived yet, or whose file [file scanning](file-scanning.md#tic-imports-and-passthrough-echoes) could not check because a scanner failed. Defaults to 48 hours; set to `0` to hold indefinitely. See [Files arriving after their TIC](#files-arriving-after-their-tic) |
 
 ### Files arriving after their TIC
 A `.tic` and the file it announces frequently arrive in **separate mailer
