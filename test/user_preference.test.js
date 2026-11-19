@@ -9,8 +9,22 @@ const acsParser = require('../core/acs_parser.js');
 const ACS = require('../core/acs.js');
 const UserProps = require('../core/user_property.js');
 const UserPreference = require('../core/user_preference.js');
-const SystemMenuMethod = require('../core/system_menu_method.js');
-const UserPrefSelect = require('../core/user_pref_select.js');
+const configModule = require('../core/config.js');
+
+//
+//  menu_module.js (under user_pref_select.js and system_menu_method.js)
+//  captures config.js's get() when it loads, and get() only exists once a
+//  config is pushed. Push one, then load these fresh in before(), so the
+//  file runs alone as well as after whatever test loaded them first.
+//
+const FreshModules = [
+    '../core/menu_module.js',
+    '../core/system_menu_method.js',
+    '../core/user_pref_select.js',
+].map(m => require.resolve(m));
+
+let SystemMenuMethod;
+let UserPrefSelect;
 const { VerticalMenuView } = require('../core/vertical_menu_view.js');
 const { TableView } = require('../core/table_view.js');
 
@@ -120,6 +134,32 @@ function setPref(menu, extraArgs, formData = untouchableFormData) {
 }
 
 describe('User preferences (#447)', function () {
+    let prevConfig;
+    let savedModules;
+
+    before(() => {
+        prevConfig = configModule._pushTestConfig({
+            menus: {},
+            general: {},
+            debug: { assertsEnabled: false },
+        });
+        savedModules = FreshModules.map(path => [path, require.cache[path]]);
+        FreshModules.forEach(path => delete require.cache[path]);
+        SystemMenuMethod = require('../core/system_menu_method.js');
+        UserPrefSelect = require('../core/user_pref_select.js');
+    });
+
+    after(() => {
+        savedModules.forEach(([path, cached]) => {
+            if (cached) {
+                require.cache[path] = cached;
+            } else {
+                delete require.cache[path];
+            }
+        });
+        configModule._popTestConfig(prevConfig);
+    });
+
     describe('pref__ is reserved', () => {
         it('no UserProps value starts with pref__', () => {
             const taken = Object.entries(UserProps).filter(
