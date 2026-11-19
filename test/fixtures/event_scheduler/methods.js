@@ -29,6 +29,12 @@ exports.fail = (args, cb) => {
     return cb(new Error('boom'));
 };
 
+//  calls back with output text, as a run summary would
+exports.withOutput = (args, cb) => {
+    state.calls.push({ method: 'withOutput', args });
+    return cb(args[0] ? new Error(args[0]) : null, 'Checked 2 files\nall clean\x1b[0m');
+};
+
 exports.hold = (args, cb) => {
     state.calls.push({ method: 'hold', args });
     state.pending.push(cb);

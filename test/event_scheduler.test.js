@@ -779,6 +779,44 @@ describe('event scheduler', function () {
         });
     });
 
+    describe('@method output', () => {
+        it('keeps the text a method calls back with as the run output, and in TaskFinished', async () => {
+            await start({
+                ok: { action: `@method:${METHODS}:withOutput` },
+                bad: { action: `@method:${METHODS}:withOutput`, args: ['3 held'] },
+            });
+
+            const finished = [];
+            const onFinished = e => finished.push(e);
+            Events.on(SystemEvents.TaskFinished, onFinished);
+            try {
+                scheduler.runNow('ok');
+                scheduler.runNow('bad');
+            } finally {
+                Events.removeListener(SystemEvents.TaskFinished, onFinished);
+            }
+
+            const rows = _rows => Object.fromEntries(_rows.map(r => [r.name, r]));
+            const byName = rows(scheduler.listTasks());
+            //  plain text, like an @execute's output
+            assert.equal(byName.ok.lastRun.outputTail, 'Checked 2 files\nall clean');
+            assert.equal(byName.ok.lastRun.ok, true);
+            assert.equal(byName.bad.lastRun.ok, false);
+            assert.equal(byName.bad.lastRun.error, '3 held');
+            assert.equal(byName.bad.lastRun.outputTail, 'Checked 2 files\nall clean');
+            assert.deepEqual(
+                finished.map(e => e.outputTail),
+                ['Checked 2 files\nall clean', 'Checked 2 files\nall clean']
+            );
+        });
+
+        it('keeps no output for a method that calls back without any', async () => {
+            await start({ t: { action: `@method:${METHODS}:ok` } });
+            scheduler.runNow('t');
+            assert.equal(scheduler.listTasks()[0].lastRun.outputTail, null);
+        });
+    });
+
     describe('listTasks({ all: true })', () => {
         it('includes manual: false entries, so a running one can be counted', async () => {
             await start({
