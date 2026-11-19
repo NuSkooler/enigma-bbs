@@ -110,6 +110,8 @@ An event with an `action` and no `schedule` is never run on its own. It is liste
 Manual-only scheduled events (no schedule, run on demand): optimizeDatabases, checkpointDatabases, backupDatabases, tossInboundNow, exportOutboundNow, binkpPullNow
 ```
 
+An event with an `@watch:` trigger runs once at every startup if its trigger file exists, as well as whenever the file changes.
+
 A `schedule` that is there but cannot be parsed is still an error: the event is logged as an `Invalid scheduled event entry` and dropped, as before.
 
 ## Built-in Events
@@ -131,10 +133,7 @@ ENiGMA½ ships with these events. Each can be switched off with `enabled: false`
 | `tossInboundNow` | manual-only | Asks the FTN BSO scanner/tosser to import and toss its inbound directories now. It finishes as soon as the request is made (the toss is logged by the tosser), and fails if the FTN BSO scanner/tosser is not running. |
 | `exportOutboundNow` | manual-only | Asks the FTN BSO scanner/tosser to scan the FTN message areas and export new mail to the outbound now, as its `schedule.export` does. It finishes when the export does, and fails if the export fails. If an export is already running, or FTN is not configured (no `scannerTossers.ftn_bso.nodes` or `messageNetworks.ftn.areas`), or the scanner/tosser is not running, nothing is exported, the log says why, and the task still succeeds. |
 | `binkpPullNow` | manual-only | Runs the native [BinkP](../messageareas/binkp.md#binkppullschedule) mailer's pull cycle now: dials every node `binkp.pullSchedule` would (each concrete address in `binkp.nodes` without `pull: false`), plus any node with mail waiting, whether or not a `pullSchedule` is set. It finishes once every call has ended. A node already in a session is skipped (its `.bsy` lock is held), and a pull cycle already running, from the schedule or by hand, is not started again. If FTN is not configured or the mailer is not running, nothing is dialed, the log says why, and the task still succeeds. |
-
-:::tip
-To rescan the file base with the file scanners on a schedule (or by hand from the WFC), add a `rescanFileBase` event; see [File Scanning: Rescanning the file base](../filebase/file-scanning.md#on-a-schedule-the-event-scheduler). It is not a built-in event, since it needs `fileBase.scanning` set up first.
-:::
+| `rescanFileBase` | manual-only | Rescans the file base with the [file scanners](../filebase/file-scanning.md#rescanning-the-file-base) and reports what it finds (one inbox notice per run); it never moves or removes anything. Fails, saying why, until `fileBase.scanning` is set up. Takes `args: [ { areas, olderThanDays, maxFiles, dryRun } ]`, and fails (so the WFC flags it) when an infected file is in the file base. |
 
 :::note
 There is deliberately no `VACUUM` task: SQLite rebuilds the whole database during a VACUUM and the BBS would be frozen until it finished.
