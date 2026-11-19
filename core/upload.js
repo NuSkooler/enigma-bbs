@@ -17,7 +17,7 @@ const moveFileWithCollisionHandling =
 const pathWithTerminatingSeparator =
     require('./file_util.js').pathWithTerminatingSeparator;
 const Log = require('./logger.js').log;
-const Errors = require('./enig_error.js').Errors;
+const { Errors, ErrorCodes } = require('./enig_error.js');
 const FileEntry = require('./file_entry.js');
 const isAnsi = require('./string_util.js').isAnsi;
 const Events = require('./events.js');
@@ -99,6 +99,7 @@ exports.getModule = class UploadModule extends MenuModule {
         if (_.has(options, 'lastMenuResult.areaInfo')) {
             this.areaInfo = options.lastMenuResult.areaInfo;
             this.uploadType = options.lastMenuResult.uploadType;
+            this.uploadFromMenu = options.lastMenuResult.uploadFromMenu;
         }
 
         this.availAreas = getSortedAvailableFileAreas(this.client, { writeAcs: true });
@@ -275,6 +276,8 @@ exports.getModule = class UploadModule extends MenuModule {
                     direction: 'recv',
                     uploadAreaInfo: this.availAreas[areaIndex],
                     uploadType: this.uploadType,
+                    //  where to send the caller if |uploadDoneMenu| is missing
+                    uploadFromMenu: this.menuBelow(),
                 },
             };
 
@@ -964,9 +967,66 @@ exports.getModule = class UploadModule extends MenuModule {
                     self.cleanupTempFiles(); //  normally called after moveAndPersistUploadsToDatabase() is completed.
                 }
 
-                return self.gotoMenu('fileBaseMainMenu');
+                return self.gotoUploadDoneMenu();
             }
         );
+    }
+
+    //  The name of the menu under this one: where the upload was started from
+    menuBelow() {
+        const below = _.invoke(this.client, 'menuStack.peekPrev');
+        return _.isString(_.get(below, 'name')) ? below.name : undefined;
+    }
+
+    //
+    //  Where the caller goes once the upload is done, or has failed: the
+    //  menu's |uploadDoneMenu|, else the stock 'fileBaseMainMenu'. A board
+    //  without that menu (its file base menu has another name) sends the
+    //  caller back to the menu they started the upload from, with a warning,
+    //  rather than ending their session.
+    //
+    gotoUploadDoneMenu(cb) {
+        const doneMenu = this.menuConfig.config.uploadDoneMenu || 'fileBaseMainMenu';
+        const fallbackMenu = this.uploadFromMenu;
+        const fail = err => {
+            if (cb) {
+                return cb(err);
+            }
+            //  as the menu stack does without a callback: an ended session
+            //  or a menu the caller may not enter goes nowhere; anything
+            //  else ends the session
+            if (this.client.clientEnded || ErrorCodes.AccessDenied === err.code) {
+                return;
+            }
+            return this.client.defaultHandlerMissingMod()(err);
+        };
+
+        return this.gotoMenu(doneMenu, {}, err => {
+            if (!err) {
+                return cb ? cb(null) : undefined;
+            }
+
+            if (
+                this.client.clientEnded ||
+                !fallbackMenu ||
+                fallbackMenu === doneMenu ||
+                fallbackMenu === this.menuName
+            ) {
+                return fail(err);
+            }
+
+            this.client.log.warn(
+                { uploadDoneMenu: doneMenu, fallbackMenu, error: err.message },
+                'Upload done menu unavailable; returning to the menu the upload started from. Set "uploadDoneMenu" in the upload menu\'s config'
+            );
+
+            return this.gotoMenu(fallbackMenu, {}, fallbackErr => {
+                if (fallbackErr) {
+                    return fail(fallbackErr);
+                }
+                return cb ? cb(null) : undefined;
+            });
+        });
     }
 
     displayOptionsPage(cb) {
