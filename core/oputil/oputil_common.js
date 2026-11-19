@@ -66,6 +66,8 @@ const argvOptions = (exports.argvOptions = {
         'allow-large',
         'virus-scan',
         'phys-file',
+        'allow',
+        'list',
     ],
 });
 const argv = (exports.argv = require('minimist')(process.argv.slice(2), argvOptions));
