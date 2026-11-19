@@ -3,6 +3,11 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.0-beta
 
+* **New MCI codes for message counts: `|NA`, `|NC`, `|NS` and `|AT`** ([#447](https://github.com/NuSkooler/enigma-bbs/issues/447)). Any art can now show the new messages in the caller's current area (`|NA`), in their current conference (`|NC`) and across their new scan areas (`|NS`, roughly what a new scan would find), and the total in the current area (`|AT`). "New" is what the new scan and the message list already count as new: after the caller's last read message, raised to their new scan date. They are cached for 10 seconds like `|NM` and `|NP`, but changing area or conference, changing the new scan selection or date, or reading messages counts again at once.
+
+  * **`|NM` and `|NP` show the current count on first read.** They used to show the count from the previous read, so the first screen after logging in showed `0`, and a screen shown right after reading mail still showed the old count. They now count before they are shown, and reading mail counts again at once.
+  * **For mods: `getMessageAreaStats()` and `markMessageAreaRead()`** in `core/message_area.js`. The first returns total, new, new-to-you and the last post for a list of areas in one database query, using the same "new" as above; the second marks an area read.
+
 * **v86 and Z-Machine doors handle time-up, hangups and a door that never starts** ([#1066](https://github.com/NuSkooler/enigma-bbs/issues/1066), [#1065](https://github.com/NuSkooler/enigma-bbs/issues/1065), [#1067](https://github.com/NuSkooler/enigma-bbs/issues/1067)). See [When the caller leaves mid-game](website/src/content/docs/doors/v86.md#when-the-caller-leaves-mid-game).
 
   * **Time-up.** When a caller's time for the day ran out inside one of these doors, they were sent to the time-up logoff, but the door kept running, and its output kept reaching their terminal over the logoff screen, until the connection closed. Both doors now detach the caller as soon as the time is up, or whenever the menu moves on while the door runs (an idle logoff, say), so the logoff screen draws with nothing from the door after it. A Z-Machine game is ended at once, as on a hangup.

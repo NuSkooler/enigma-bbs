@@ -351,6 +351,34 @@ const PREDEFINED_MCI_GENERATORS = {
             UserProps.NewPrivateMailCount
         ).toString();
     },
+    //
+    //  New as new_scan and msg_list count it: after the lastread pointer,
+    //  raised to the user's new scan floor. See getMessageAreaStats().
+    //
+    NA: function userNewMessagesInCurrentAreaCount(client) {
+        return StatLog.getUserStatNumByClient(
+            client,
+            UserProps.NewMessageCountCurrentArea
+        ).toString();
+    },
+    NC: function userNewMessagesInCurrentConfCount(client) {
+        return StatLog.getUserStatNumByClient(
+            client,
+            UserProps.NewMessageCountCurrentConf
+        ).toString();
+    },
+    NS: function userNewMessagesInNewScanAreasCount(client) {
+        return StatLog.getUserStatNumByClient(
+            client,
+            UserProps.NewMessageCountNewScan
+        ).toString();
+    },
+    AT: function userCurrentAreaMessageCount(client) {
+        return StatLog.getUserStatNumByClient(
+            client,
+            UserProps.MessageCountCurrentArea
+        ).toString();
+    },
     IA: function userStatusAvailableIndicator(client) {
         const indicators = client.currentTheme.helpers.getStatusAvailIndicators();
         return client.user.isAvailable() ? indicators[0] || 'Y' : indicators[1] || 'N';

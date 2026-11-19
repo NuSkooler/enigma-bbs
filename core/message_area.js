@@ -63,6 +63,11 @@ exports.getLastReadIdForTimestampByArea = getLastReadIdForTimestampByArea;
 exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
 exports.getEffectiveNewScanLastReadId = getEffectiveNewScanLastReadId;
 exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
+exports.getMessageAreaStats = getMessageAreaStats;
+exports.markMessageAreaRead = markMessageAreaRead;
+exports.getMessageAreaLastReadGeneration = getMessageAreaLastReadGeneration;
+exports.getReadableMessageAreaTagsInConf = getReadableMessageAreaTagsInConf;
+exports.getNewScanMessageAreaTags = getNewScanMessageAreaTags;
 exports.persistMessage = persistMessage;
 exports.trimMessageAreasScheduledEvent = trimMessageAreasScheduledEvent;
 
@@ -733,6 +738,18 @@ function getMessageAreaLastReadId(userId, areaTag, cb) {
     return cb(null, row ? row.message_id : 0);
 }
 
+//
+//  The caller's new scan floor (NewScanMinTimestamp) as a valid moment, or
+//  null for none. Parsed here rather than by SQLite, which answers NULL for a
+//  date it cannot read -- and an area with "nothing after" a NULL floor would
+//  count as read.
+//
+function getNewScanFloor(user) {
+    const floorValue = user.getProperty(UserProps.NewScanMinTimestamp);
+    const floor = floorValue ? moment(floorValue, moment.ISO_8601) : null;
+    return floor && floor.isValid() ? floor : null;
+}
+
 function getEffectiveNewScanLastReadId(user, areaTag, cb) {
     getMessageAreaLastReadId(user.userId, areaTag, (err, rawLastRead) => {
         if (err) {
@@ -741,15 +758,8 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
 
         //  mail addressed to the caller is never backlog, and the %NP count
         //  reads the raw pointer too
-        const floorValue = Message.isPrivateAreaTag(areaTag)
-            ? null
-            : user.getProperty(UserProps.NewScanMinTimestamp);
-
-        //  parsed here rather than by SQLite, which answers NULL for a date
-        //  it cannot read -- and an area with "nothing after" a NULL floor
-        //  would count as read
-        const floor = floorValue ? moment(floorValue, moment.ISO_8601) : null;
-        if (!floor || !floor.isValid()) {
+        const floor = Message.isPrivateAreaTag(areaTag) ? null : getNewScanFloor(user);
+        if (!floor) {
             return cb(null, rawLastRead || 0);
         }
 
@@ -762,6 +772,245 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
             return cb(null, Math.max(rawLastRead || 0, floorLastReadId));
         });
     });
+}
+
+//
+//  Per-area message stats for |user|, for every area in one statement rather
+//  than two or three queries per area. Each figure is a correlated subquery
+//  per area rather than one GROUP BY over a join: SQLite answers COUNT(*) and
+//  MAX() over the (area_tag) index range without reading a row, and on a real
+//  message base that was several times faster than the joined GROUP BY. Each area's start ID is
+//  getEffectiveNewScanLastReadId()'s: the lastread pointer, raised to the new
+//  scan floor exactly as getLastReadIdForTimestampByArea() turns a date into a
+//  pointer (one short of the lowest ID dated after it, else the area's highest
+//  ID). Private mail counts only the caller's own mail, as findMessages()'
+//  privateTagUserId does, and has no floor.
+//
+//  Area tags are matched against messages as given and against the lastread
+//  table in lower case, as the per-area functions do. A private mail tag in any
+//  case means private_mail.
+//
+//  ACS-blind: callers pass tags they have already filtered.
+//
+const MESSAGE_AREA_STATS_SQL = `
+    WITH req AS MATERIALIZED (
+        SELECT
+            json_extract(value, '$[0]') AS tag,
+            json_extract(value, '$[1]') AS msg_tag,
+            json_extract(value, '$[2]') AS lr_tag,
+            json_extract(value, '$[3]') AS is_private
+        FROM json_each(@areas)
+    ),
+    own_private AS MATERIALIZED (
+        SELECT message_id
+        FROM message_meta
+        WHERE meta_category = 'System' AND meta_name = @toUserIdMeta AND meta_value = @userIdText
+    ),
+    area AS MATERIALIZED (
+        SELECT
+            r.*,
+            COALESCE(lr.message_id, 0) AS raw_id,
+            CASE WHEN r.is_private = 0
+                THEN (SELECT MAX(m.message_id) FROM message m WHERE m.area_tag = r.msg_tag)
+                ELSE (
+                    SELECT MAX(m.message_id)
+                    FROM own_private o JOIN message m ON m.message_id = o.message_id
+                    WHERE m.area_tag = r.msg_tag
+                )
+            END AS last_id,
+            --  getMessageIdNewerThanTimestampByArea()
+            CASE WHEN r.is_private = 0 AND @floor IS NOT NULL
+                THEN (
+                    SELECT MIN(m.message_id)
+                    FROM message m
+                    WHERE m.area_tag = r.msg_tag
+                    AND DATETIME(m.modified_timestamp) > DATETIME(@floor, '+1 seconds')
+                )
+            END AS floor_min_id
+        FROM req r
+        LEFT JOIN user_message_area_last_read lr
+            ON lr.user_id = @userId AND lr.area_tag = r.lr_tag
+    ),
+    eff AS MATERIALIZED (
+        SELECT
+            a.*,
+            --  getLastReadIdForTimestampByArea(), then the larger of the two
+            MAX(
+                a.raw_id,
+                CASE WHEN a.is_private = 0 AND @floor IS NOT NULL
+                    THEN COALESCE(a.floor_min_id - 1, a.last_id, 0)
+                    ELSE 0
+                END
+            ) AS start_id
+        FROM area a
+    )
+    SELECT
+        e.tag, e.last_id,
+        CASE WHEN e.is_private = 0
+            THEN (SELECT COUNT(*) FROM message m WHERE m.area_tag = e.msg_tag)
+            ELSE (
+                SELECT COUNT(*)
+                FROM own_private o JOIN message m ON m.message_id = o.message_id
+                WHERE m.area_tag = e.msg_tag
+            )
+        END AS total,
+        CASE WHEN e.is_private = 0
+            THEN (
+                SELECT COUNT(*)
+                FROM message m
+                WHERE m.area_tag = e.msg_tag AND m.message_id > e.start_id
+            )
+            ELSE (
+                SELECT COUNT(*)
+                FROM own_private o JOIN message m ON m.message_id = o.message_id
+                WHERE m.area_tag = e.msg_tag AND m.message_id > e.start_id
+            )
+        END AS new_count,
+        --  NULL where every new message counts: private mail, or no name to match
+        CASE WHEN e.is_private = 0 AND @toUserName IS NOT NULL
+            THEN (
+                SELECT COUNT(*)
+                FROM message m
+                WHERE m.area_tag = e.msg_tag AND m.message_id > e.start_id
+                AND m.to_user_name LIKE @toUserName
+            )
+        END AS yours,
+        (SELECT modified_timestamp FROM message WHERE message_id = e.last_id) AS last_ts
+    FROM eff e;`;
+
+//
+//  cb(err, { [areaTag]: { total, newCount, yours, lastPostId, lastPostTs } })
+//
+//  total       messages in the area (private mail: the caller's own)
+//  newCount    messages after the effective new scan pointer
+//  yours       new messages addressed to the caller by name, as
+//              getNewMessageCountInAreaForUser()'s addrToOnly matches them
+//              (LIKE, so ASCII case-insensitive); all new private mail
+//  lastPostId  the highest message ID (0 for an empty area)
+//  lastPostTs  its modified_timestamp as stored, or null
+//
+function getMessageAreaStats(user, areaTags, cb) {
+    const tags = [...new Set(areaTags || [])].filter(t => _.isString(t) && t.length > 0);
+    if (0 === tags.length) {
+        return cb(null, {});
+    }
+
+    const floor = getNewScanFloor(user);
+    const areas = tags.map(tag => {
+        const isPrivate = Message.isPrivateAreaTag(tag);
+        return [
+            tag,
+            isPrivate ? Message.WellKnownAreaTags.Private : tag,
+            tag.toLowerCase(),
+            isPrivate ? 1 : 0,
+        ];
+    });
+
+    //  answered outside the try: an exception thrown by the caller's callback
+    //  would otherwise call it a second time, with an error
+    let rows;
+    try {
+        rows = msgDb.prepare(MESSAGE_AREA_STATS_SQL).all({
+            areas: JSON.stringify(areas),
+            toUserIdMeta: Message.SystemMetaNames.LocalToUserID,
+            //  stored as text; a number would not compare equal
+            userIdText: String(user.userId),
+            userId: user.userId,
+            floor: floor ? getISOTimestampString(floor) : null,
+            //  findMessages() skips an empty toUserName rather than match it
+            toUserName: user.username || null,
+        });
+    } catch (err) {
+        return cb(err);
+    }
+
+    const stats = {};
+    for (const row of rows) {
+        stats[row.tag] = {
+            total: row.total,
+            newCount: row.new_count,
+            yours: null === row.yours ? row.new_count : row.yours,
+            lastPostId: row.last_id || 0,
+            lastPostTs: row.last_ts || null,
+        };
+    }
+    return cb(null, stats);
+}
+
+//
+//  Moves |user|'s lastread pointer for |areaTag| to the area's highest message
+//  ID. Forward only, as updateMessageAreaLastReadId() is by default.
+//
+function markMessageAreaRead(user, areaTag, cb) {
+    //  as getMessageAreaStats() reads it; the pointer itself is per tag
+    const msgAreaTag = Message.isPrivateAreaTag(areaTag)
+        ? Message.WellKnownAreaTags.Private
+        : areaTag;
+    getHighestMessageIdByArea(msgAreaTag, (err, highestId) => {
+        if (err) {
+            return cb(err);
+        }
+        if (!highestId) {
+            return cb(null); //  empty area; nothing to mark
+        }
+        return updateMessageAreaLastReadId(user.userId, areaTag, highestId, cb);
+    });
+}
+
+//
+//  Bumped whenever one of a user's lastread pointers moves. StatLog keys its
+//  cached per-user message counts on it, so a count read after the pointer
+//  moved is recounted rather than served from the cache window. It is
+//  per-process: a pointer moved by another process (oputil, say) is picked
+//  up when the cache window ends.
+//
+const lastReadGenerations = new Map(); //  userId -> n
+
+function getMessageAreaLastReadGeneration(userId) {
+    return lastReadGenerations.get(userId) || 0;
+}
+
+//
+//  The areas in |confTag| that |client| can read, hidden ones included, as
+//  new_scan scans them. [] for a conference the caller cannot read.
+//
+function getReadableMessageAreaTagsInConf(client, confTag) {
+    const confs = getAvailableMessageConferences(client, {
+        includeSystemInternal: true,
+        includeHidden: true,
+    });
+    if (!confTag || !confs[confTag]) {
+        return [];
+    }
+    return Object.keys(
+        getAvailableMessageAreasByConfTag(confTag, { client, includeHidden: true }) || {}
+    );
+}
+
+//
+//  The areas new_scan would scan for |client|: every readable area, private
+//  mail and hidden conferences included, narrowed to the caller's
+//  NewScanAreaTags selection when they have made one. A menu's
+//  omitMessageAreaTags is new_scan's own and not applied here.
+//
+function getNewScanMessageAreaTags(client) {
+    const areaTags = getAllAvailableMessageAreaTags(client, {
+        includeSystemInternal: true,
+        includeHidden: true,
+    });
+
+    let selected = null;
+    const raw = client.user.getProperty(UserProps.NewScanAreaTags);
+    if (raw) {
+        try {
+            const tags = JSON.parse(raw);
+            selected = Array.isArray(tags) && tags.length > 0 ? tags : null;
+        } catch (e) {
+            selected = null;
+        }
+    }
+
+    return selected ? areaTags.filter(tag => selected.includes(tag)) : areaTags;
 }
 
 function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb) {
@@ -794,6 +1043,10 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
                     } catch (err) {
                         return callback(err);
                     }
+                    lastReadGenerations.set(
+                        userId,
+                        getMessageAreaLastReadGeneration(userId) + 1
+                    );
                     return callback(null, true); //  true=didUpdate
                 } else {
                     callback(null);
