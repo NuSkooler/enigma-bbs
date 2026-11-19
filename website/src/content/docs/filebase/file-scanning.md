@@ -42,6 +42,7 @@ fileBase: {
                 cmd: clamscan
                 args: [
                     "--no-summary"
+                    "--alert-exceeds-max=yes"
                     "{filePath}"
                 ]
                 signatureRegex: "^.*: (.+) FOUND$"
@@ -59,6 +60,10 @@ fileBase: {
 | `notifyUserIds` | `[ 1 ]` | User IDs that get a private message for each batch of rejected files |
 | `defangExtensions` | `exe`, `com`, `bat`, `cmd`, `scr`, `pif`, `ps1`, `vbs`, `js`, `sh` | Extensions renamed in quarantine, DOS style: `FOO.EXE` becomes `FOO.EX_` |
 | `scanners` | `[]` | The scanners to run, in order; see below |
+| `maxConcurrent` | `2` | Most scanners running at once, across every source. The rest wait their turn, first come first served. A scanner's `timeout` starts when it starts, not while it waits |
+| `maxQueueWaitMs` | `600000` | Longest a file waits for a free scanner (10 minutes). Past that, it is a scanner failure, which the entry's `onError` decides. `0` waits as long as it takes |
+
+`maxConcurrent` is what stops one REST user firing uploads in parallel from starting a scanner process per file. `clamscan` in particular loads its whole signature database each time, which adds up to a lot of memory quickly.
 
 ### Scanner entries
 Each entry in `scanners` names a registered scanner and says when it runs. The entries that match a file run in order:
@@ -78,11 +83,15 @@ Some configurations look as if they scan but let everything through. ENiGMA½ wa
 | `scanner` | (required) | The scanner's registered name: `command`, or one a mod provides |
 | `enabled` | `true` | Set to `false` to switch an entry off without removing it |
 | `sources` | all | Which of `upload`, `web`, `tic`, `oputil` and `rescan` this entry scans |
-| `fileTypes` | `"*"` | `"*"`, or a list of extensions, e.g. `[ "zip", "exe" ]`, matched against the file's real name. Trailing dots and spaces are ignored, so `FOO.EXE.` counts as `exe`, as Windows would run it. An empty list matches nothing |
+| `fileTypes` | `"*"` | `"*"`, or a list of extensions, e.g. `[ "zip", "exe" ]`, matched against the file's real name. Trailing dots and spaces are ignored, so `FOO.EXE.` counts as `exe`, as Windows would run it, and so is anything after a `:` (`FOO.EXE:x` is a stream of `FOO.EXE` on Windows). An empty list matches nothing |
 | `timeout` | `60000` | Milliseconds before the scanner is given up on, which counts as a failure |
 | `onError` | `hold` | `hold` (quarantine the file) or `accept` (log a warning and carry on) |
 
 Anything else in the entry is the scanner's own configuration, such as `cmd` and `args` for `command`.
+
+:::caution
+`fileTypes` saves time; it is not a security control. It goes by the file's *name*, which the uploader or the TIC's sender chooses, so a file of any content can be named to slip past a list. (For a passthrough TIC the name matched is its `Lfile`, while downlinks are sent its `File`.) Leave it at `"*"` for a scanner you rely on.
+:::
 
 ### When a scanner fails
 **File scanning fails closed.** If a scanner fails, for example ClamAV's signature database is missing, a daemon is down, or the scanner runs past its `timeout`, the file is **held**: it is quarantined as if it were infected, and the operator notice says it was held rather than found infected. Nothing silently passes because a scanner was broken.
@@ -92,6 +101,12 @@ A held file may well be clean. Check the scanner, then release the file by hand 
 TIC imports are the exception: a held TIC payload is not quarantined straight away but kept in the inbound and tried again on later passes, since a sender will not send it again. See [TIC imports](#tic-imports-and-passthrough-echoes).
 
 For a scanner that is not a security control, or one that runs out of quota (a hash lookup service, say), set `onError: accept` on its entry so that a failure lets the file through with a warning in the log.
+
+:::danger
+Under `onError: accept`, an uploader or TIC sender can choose to make the scanner fail. A file built to run the scanner past its `timeout` (an archive bomb, say), to make it print more than the output limit, or a flood of uploads that keeps files waiting past `maxQueueWaitMs`, all count as failures, and with `accept` the file goes through unscanned. Do not use `accept` on a scanner you rely on to keep files out.
+:::
+
+While the BBS starts, a configured scanner that is not registered yet is always a hold, whatever `onError` says: its mod may simply not have registered it yet. Mods register their scanners before message networks start, so a TIC already waiting in an inbound is never imported ahead of them.
 
 ## The command scanner
 `command` runs a program once per file, never through a shell, and maps its exit code to a result.
@@ -106,6 +121,12 @@ For a scanner that is not a security control, or one that runs out of quota (a h
 
 Regular expressions are strings, applied with the `m` flag, so `^` and `$` match at each line.
 
+When a scanner runs past its `timeout`, ENiGMA½ kills the program **and everything it started**: on Linux and other POSIX systems the program runs in a process group of its own, and the whole group is killed; on Windows the process tree is ended with `taskkill /T /F`. A wrapper script that starts the real scanner is covered, but should still `exec` it (`exec clamscan "$@"`), so the scanner is the process ENiGMA½ waits on. Output is limited to 4 MB on each of standard output and error; a program that prints more is killed and the result is an error.
+
+:::caution[Windows: no batch files]
+Node.js refuses to run a `.bat` or `.cmd` file without a shell, so `cmd: scan.cmd` fails to start and every file is held. Do not work around it with `cmd: cmd.exe` and `args: [ "/c", ... ]`: `cmd.exe` interprets `&`, `|`, `%` and `^` in its arguments, and `{fileName}` (or a file name inside `{filePath}`) comes from the uploader, who can then run commands. Use a real executable, or a script run by its interpreter, given explicitly: `cmd: node` with `args: [ "C:\\scanners\\scan.js", "{filePath}" ]`, or `cmd: powershell.exe` with `args: [ "-NoProfile", "-NonInteractive", "-File", "C:\\scanners\\scan.ps1", "{filePath}" ]`.
+:::
+
 :::caution
 `{fileName}` is whatever the uploader called the file, and it may start with `-`. Do not put it where the program would read it as an option. `{filePath}` is always absolute and is the safe choice.
 :::
@@ -119,11 +140,14 @@ Regular expressions are strings, applied with the `m` flag, so `^` and `$` match
     cmd: clamscan
     args: [
         "--no-summary"
+        "--alert-exceeds-max=yes"
         "{filePath}"
     ]
     signatureRegex: "^.*: (.+) FOUND$"
 }
 ```
+
+`--alert-exceeds-max=yes` matters: see [Oversized files](#oversized-files) below.
 
 `clamscan` loads the whole signature database every time it runs, which takes seconds and a lot of memory per file. If `clamd` is running, use `clamdscan` instead, with the same exit codes. Add `--fdpass` so that `clamd`, which usually runs as its own user, can read files in ENiGMA½'s upload directories (see [File permissions](#file-permissions)):
 
@@ -140,7 +164,15 @@ Regular expressions are strings, applied with the `m` flag, so `^` and `$` match
 }
 ```
 
-ClamAV skips files over its `MaxFileSize` and `MaxScanSize` limits **and reports them clean**, unless `AlertExceedsMax yes` is set in `clamd.conf`. With that set, an oversize file is reported as `Heuristics.Limits.Exceeded` and rejected.
+#### Oversized files
+ClamAV stops scanning at its size and depth limits, **and a file it did not finish reports clean**: a file bigger than `MaxFileSize` is not scanned at all, an archive is scanned only up to `MaxScanSize` of extracted data, and nesting deeper than `MaxRecursion` is not looked into. Anyone who knows that can pad a file or nest an archive to get it past.
+
+Make ClamAV report such a file instead, as `Heuristics.Limits.Exceeded`, which counts as infected:
+
+* `clamscan`: add `--alert-exceeds-max=yes` to `args`, as in the examples above;
+* `clamdscan`: set `AlertExceedsMax yes` in `clamd.conf` (`clamdscan` has no option for it; `clamd` decides).
+
+The limits themselves are `--max-filesize`, `--max-scansize` and `--max-recursion` for `clamscan` (the first two default to 100 MB and 400 MB), and `MaxFileSize`, `MaxScanSize` and `MaxRecursion` in `clamd.conf`. Keep `MaxFileSize` at least as large as the biggest upload or TIC file you accept, or every larger file is rejected; and raising them costs memory and time per scan.
 
 ### File permissions
 Uploads are scanned where they were received, in a temporary directory that only the user ENiGMA½ runs as can open (mode `0700`): one per telnet/SSH upload session and one per REST upload. That is deliberate. These are untrusted files on a shared temporary file system, and the BBS user's group may well be shared with other services.
@@ -192,16 +224,20 @@ The [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/) is 
 ### Quarantine
 With `failAction: quarantine`, the default, a rejected file is:
 
-1. moved to `quarantinePath`, keeping its name but defanged (`.exe` becomes `.ex_`, see `defangExtensions`, after dropping any trailing dots and spaces), and renamed `FILE(1).EX_` and so on if the name is taken. A name with nothing usable left (`..`, `.`, all dots) or too long for the file system is replaced by `unnamed-` and the start of its SHA-256; the sidecar keeps the original;
-2. stripped of any execute permission;
-3. given a JSON sidecar beside it, `FILE.EX_.json`, recording the original name, SHA-256, size, where it came from (source, user, area, TIC details), the scanner, its result and signature, and the time.
+1. moved to `quarantinePath`, keeping its name but defanged (`.exe` becomes `.ex_`, see `defangExtensions`, after dropping any trailing dots and spaces), and renamed `FILE(1).EX_` and so on if the name is taken, never replacing a file already there. Characters Windows does not allow in a name (`: < > " | ? *`) become `_`, and a name Windows reserves for a device (`CON`, `NUL`, `COM1.ZIP`, ...) gets a leading `_`. A name with nothing usable left (`..`, `.`, all dots) or too long for the file system is replaced by `unnamed-` and the start of its SHA-256; the sidecar keeps the original;
+2. made readable and writable by the ENiGMA½ user only (mode `0600`, no execute permission). The quarantine directory is created with mode `0700`;
+3. given a JSON sidecar beside it, `FILE.EX_.json` (also `0600`), recording the original name, SHA-256, size, where it came from (source, user, area, TIC details), the scanner, its result and signature, and the time.
 
 With `failAction: delete`, the file is deleted and there is no sidecar. A held file is always quarantined.
 
 If an infected file cannot be quarantined (the disk is full, or the quarantine directory cannot be created), it is **deleted instead**, so that it is never left where a later import could pick it up. The log and the operator notice say so. A held file that cannot be quarantined is left where it is, since it may be clean, and the notice says where it still is.
 
 ### Operator notice
-Each user in `notifyUserIds` gets a private message listing the rejected files: name, where each came from, the scanner and what it found, and where the file went. One message covers a whole upload session, TIC import pass or `oputil` run, so a batch of infected files does not flood the inbox. Rejections are also logged at `warn` level.
+Each user in `notifyUserIds` gets a private message listing the rejected files: name, where each came from, the scanner and what it found, and where the file went. One message covers a whole upload session, TIC import pass or `oputil` run, so a batch of infected files does not flood the inbox. Rejections are also logged at `warn` level, each one.
+
+A REST client uploads one file per request, so REST rejections are coalesced per uploader: the first sends a notice at once, and any more from the same user within the next 10 minutes are collected into one summary notice when those 10 minutes are up. A summary lists up to 50 files and counts the rest. Summaries still waiting when the BBS shuts down are sent as it does.
+
+File names, scanner output and TIC fields come from outside, so the notice strips pipe and other color codes from them, collapses runs of spaces, and keeps every line within 79 columns: a file name cannot recolor the message or forge a line of it. The sidecar keeps the original values.
 
 ### What the uploader sees
 A telnet/SSH caller is shown which of their files were refused, with a general reason, "failed the upload check" or "could not be checked", but not what the scanner found. The rest of the batch carries on as normal. A REST client gets a `422` problem response with the same general reason.
@@ -225,7 +261,7 @@ Every TIC payload is scanned, whether the echo is stored in a local area or is a
 
 An **infected** payload is rejected at once: it is quarantined or deleted, and its `.tic` goes to the `reject` directory as any other rejected TIC does, without the payload. One operator notice covers each import pass.
 
-A **held** payload, one a scanner could not check because it failed, timed out or is not registered, is treated like a payload that has not arrived yet: the `.tic` and the file stay in the inbound, nothing is imported or relayed, and the next import pass tries again. Each pass logs a warning. Once the hold has lasted longer than `tic.holdMaxAgeMs` (48 hours by default; see [TIC Support](tic-support.md)), the payload is quarantined, the `.tic` goes to `reject`, and the operators get a notice. So a scanner outage shorter than that loses nothing.
+A **held** payload, one a scanner could not check because it failed, timed out or is not registered, is treated like a payload that has not arrived yet: the `.tic` and the file stay in the inbound, nothing is imported or relayed, and the next import pass tries again. A held payload is not scanned again on every pass, though: the wait before the next attempt starts at 5 minutes and doubles after each failed one, up to an hour, so a payload that makes the scanner time out does not cost a full timeout every pass for two days. A payload that changes on disk is tried again at once. Each attempt logs a warning. Once the hold has lasted longer than `tic.holdMaxAgeMs` (48 hours by default; see [TIC Support](tic-support.md)), the next attempt that still fails quarantines the payload (at most an hour late), the `.tic` goes to `reject`, and the operators get a notice. So a scanner outage shorter than that loses nothing.
 
 ## oputil
 `oputil fb scan` does not scan for viruses unless you ask it to:
@@ -275,9 +311,9 @@ exports.registerFileScanners = (registry, cb) => {
 };
 ```
 
-`registerFileScanners(registry, cb)` is called once, both by the BBS at startup (before any mod's `moduleInitialize`) and by `oputil fb scan --virus-scan`, which calls nothing else of the mod. `registry` has `registerScanner(name, scanner)` and `ScanResults`. `cb` is optional: a function declared with only `registry` is done when it returns. A mod that throws, or calls back an error, is logged and skipped.
+`registerFileScanners(registry, cb)` is called once, both by the BBS at startup (early, before message networks start and before any mod's `moduleInitialize`) and by `oputil fb scan --virus-scan`, which calls nothing else of the mod. Both load the mods one at a time in the same, sorted order, so if two mods register the same name, the same one wins in both (the one loaded last), and the log says so. `registry` has `registerScanner(name, scanner)` and `ScanResults`. `cb` is optional: a function declared with only `registry` is done when it returns. A mod that throws, calls back an error, or does not call back within 30 seconds is logged and skipped.
 
-Because oputil requires the mod file just for this, keep the file free of side effects at load time: start servers, timers and listeners in `moduleInitialize`, not at the top of the file, or oputil will not exit when it is done.
+Because oputil requires the mod file just for this, keep the file free of side effects at load time: start servers, timers and listeners in `moduleInitialize`, not at the top of the file. (`oputil fb scan --virus-scan` exits when it is done regardless, but a server started at load time still starts in oputil, and at BBS startup it starts before the rest of the system is ready.)
 
 Calling `FileScanner.registerScanner()` (from `core/file_scanner.js`) in `moduleInitialize` still works at BBS startup, but such a scanner is not available to oputil. Prefer the export.
 
