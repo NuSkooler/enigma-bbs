@@ -68,6 +68,7 @@ exports.scanFile = scanFile;
 exports.isFileRejected = isFileRejected;
 exports.applyFailAction = applyFailAction;
 exports.notifyOperators = notifyOperators;
+exports.sendOperatorNotice = sendOperatorNotice;
 exports.defangFileName = defangFileName;
 exports.getQuarantinePath = getQuarantinePath;
 exports.buildOperatorNotice = buildOperatorNotice;
@@ -1496,6 +1497,18 @@ function notifyOperators(rejections, ctx, cb) {
     }
 
     const { subject, body } = buildOperatorNotice(rejections, ctx);
+    return sendOperatorNotice(subject, body, cb);
+}
+
+//
+//  A notice already built -- e.g. a file base rescan's run summary -- as ONE
+//  private message to each of fileBase.scanning.notifyUserIds. The caller
+//  owns the text: anything from outside in it must already have been through
+//  cleanDisplayText(). Like notifyOperators(), cb is always cb(null).
+//
+function sendOperatorNotice(subject, body, cb) {
+    cb = cb || _.noop;
+
     const userIds = _.uniq(
         getScanningConfig()
             .notifyUserIds.map(id => parseInt(id, 10))

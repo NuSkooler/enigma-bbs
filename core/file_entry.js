@@ -391,6 +391,89 @@ module.exports = class FileEntry {
         }
     }
 
+    //
+    //  Sets single-valued meta: every existing row for each name in |values|
+    //  is replaced by the one value given, in one transaction.
+    //
+    //  persistMetaValue() cannot do that: file_meta is UNIQUE on (file_id,
+    //  meta_name, meta_value), so its REPLACE adds a second row for a new
+    //  value rather than replacing the old one, and loadMeta() then keeps
+    //  whichever row it reads last.
+    //
+    static replaceMetaValues(fileId, values, cb) {
+        try {
+            const del = fileDb.prepare(
+                `DELETE FROM file_meta
+                WHERE file_id = ? AND meta_name = ?;`
+            );
+            const ins = fileDb.prepare(
+                `INSERT INTO file_meta (file_id, meta_name, meta_value)
+                VALUES (?, ?, ?);`
+            );
+            fileDb.transaction(() => {
+                for (const [name, value] of Object.entries(values)) {
+                    del.run(fileId, name);
+                    ins.run(fileId, name, coerceToText(value));
+                }
+            })();
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Entries for a file base rescan (#291): those in |areaTags|, plus those
+    //  in |fileIds|, never those in |excludeAreaTags|. Neither areaTags nor
+    //  fileIds given: none. Calls back (err, [ { fileId, scannedAt } ]), where
+    //  |scannedAt| is the entry's scanned_at meta (the latest, should there be
+    //  more than one row) or null if it has never been scanned.
+    //
+    static getRescanCandidates(filter, cb) {
+        const areaTags = (filter.areaTags || []).filter(_.isString);
+        const fileIds = (filter.fileIds || []).filter(_.isFinite);
+        const excludeAreaTags = (filter.excludeAreaTags || []).filter(_.isString);
+
+        if (0 === areaTags.length && 0 === fileIds.length) {
+            return cb(null, []);
+        }
+
+        const placeholders = list => list.map(() => '?').join(', ');
+        const which = [];
+        const params = [];
+        if (areaTags.length > 0) {
+            which.push(`f.area_tag IN (${placeholders(areaTags)})`);
+            params.push(...areaTags);
+        }
+        if (fileIds.length > 0) {
+            which.push(`f.file_id IN (${placeholders(fileIds)})`);
+            params.push(...fileIds);
+        }
+
+        let sql = `SELECT f.file_id,
+                (SELECT MAX(m.meta_value)
+                FROM file_meta m
+                WHERE m.file_id = f.file_id AND m.meta_name = 'scanned_at')
+                AS scanned_at
+            FROM file f
+            WHERE (${which.join(' OR ')})`;
+        if (excludeAreaTags.length > 0) {
+            sql += ` AND f.area_tag NOT IN (${placeholders(excludeAreaTags)})`;
+            params.push(...excludeAreaTags);
+        }
+        sql += ' ORDER BY f.file_id;';
+
+        try {
+            const rows = fileDb.prepare(sql).all(...params);
+            return cb(
+                null,
+                rows.map(r => ({ fileId: r.file_id, scannedAt: r.scanned_at || null }))
+            );
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     loadMeta(cb) {
         try {
             for (const meta of fileDb
