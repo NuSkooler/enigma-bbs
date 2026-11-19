@@ -1875,6 +1875,17 @@ module.exports = () => {
                     action: '@method:core/misc_scheduled_events.js:binkpPullNowScheduledEvent',
                 },
 
+                //  Rescans the file base with the file scanners (fileBase.scanning)
+                //  and reports what it finds; it never moves or removes anything.
+                //  Refuses to run until scanning is set up. Give it a schedule
+                //  and/or args in your config.hjson, e.g.
+                //  rescanFileBase: { schedule: 'at 5:00 am on Sun', args: [ { olderThanDays: 6 } ] }
+                //  args: [ { areas, olderThanDays, maxFiles, dryRun } ]; see file-scanning.md
+                rescanFileBase: {
+                    desc: 'Rescan the file base for viruses (report only)',
+                    action: '@method:core/file_base_rescan.js:rescanFileBaseScheduledEvent',
+                },
+
                 //
                 //  Enable the following entry in your config.hjson to periodically create/update
                 //  DESCRIPT.ION files for your file base
