@@ -340,6 +340,11 @@ describe('file scanning quarantine (#291)', function () {
 
             assert.deepEqual(ls(storageDir()), ['cool.exe']);
             assert.deepEqual(ls(quarantineDir()), [], 'file and sidecar gone');
+            if ('win32' !== process.platform) {
+                const mode =
+                    fs.statSync(paths.join(storageDir(), 'cool.exe')).mode & 0o777;
+                assert.equal(mode, 0o666 & ~process.umask(), 'no longer 0600');
+            }
             assert.equal(res.allowlisted, false);
 
             const rows = entries();

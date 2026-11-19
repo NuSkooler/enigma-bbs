@@ -427,7 +427,7 @@ The allowlist is a list of SHA-256 hashes you have declared safe, kept in the fi
 
 1. Its SHA-256 must still be the one the sidecar recorded when it was quarantined; if not, nothing happens.
 2. The sidecar's original name and area came from the uploader or the TIC, so neither is trusted. The name is used only if it is already a plain, safe file name: no directory part, no `..`, no leading dot, none of `< > : " | ? *`, no trailing dot or space, and not a name Windows reserves for a device (`CON`, `NUL`, `COM1.ZIP`, ...). Otherwise give one with `--name NEWNAME`. The area must be a configured, normal file base area with a storage location; a passthrough TIC has none, so give one with `--area TAG` (`--area` also overrides the sidecar's).
-3. The file gets its original name back (`DEMO.EX_` becomes `DEMO.EXE`) and is moved into the area's storage directory, never replacing a file there: a name that is taken becomes `DEMO(1).EXE`.
+3. The file gets its original name back (`DEMO.EX_` becomes `DEMO.EXE`) and is moved into the area's storage directory, never replacing a file there: a name that is taken becomes `DEMO(1).EXE`. It gets ordinary file permissions back (by your umask, still without execute permission).
 4. It is imported **without a virus scan**, keeping what the sidecar recorded: the uploader, a description the uploader typed, hash tags, and a TIC's `Desc`, `Ldesc`, `Origin` and `File`. The entry also records `quarantine_released_at` and `quarantine_released_by`.
 5. The sidecar is removed.
 

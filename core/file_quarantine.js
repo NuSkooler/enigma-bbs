@@ -582,93 +582,98 @@ function importReleased(state, options, operator, cb) {
 
         const undo = err => moveBack(finalPath, item.quarantineName, () => cb(err));
 
-        //  no scanSource: it is not virus scanned again (the allowlist, if
-        //  asked for, already covers it for any later scan)
-        FileArea.scanFile(
-            finalPath,
-            {
-                areaTag: area.areaInfo.areaTag,
-                storageTag: area.storageTag,
-                hashTags: details.hashTags
-                    ? new Set(details.hashTags)
-                    : area.areaInfo.hashTags,
-            },
-            (err, fileEntry) => {
-                if (err) {
-                    return undo(err);
-                }
-                if (fileEntry.fileSha256 !== sha256) {
-                    return undo(
-                        Errors.Invalid(
-                            'The file changed while it was being released; it is back in quarantine'
-                        )
-                    );
-                }
-
-                const now = new Date().toISOString();
-                fileEntry.areaTag = area.areaInfo.areaTag;
-                fileEntry.storageTag = area.storageTag;
-                fileEntry.fileName = paths.basename(finalPath);
-
-                const meta = details.meta;
-                if (details.desc) {
-                    fileEntry.desc = details.desc;
-                } else if (!fileEntry.desc || 'fileName' === fileEntry.descSrc) {
-                    fileEntry.desc = meta.tic_ldesc || meta.tic_desc || fileEntry.desc;
-                }
-
-                Object.assign(fileEntry.meta, meta, {
-                    quarantine_released_at: now,
-                    quarantine_released_by: operator,
-                });
-                if (options.allow) {
-                    Object.assign(fileEntry.meta, {
-                        scan_result: FileScanner.Verdicts.Clean,
-                        scanner: Allowlist.ScannerName,
-                        scanned_at: now,
-                    });
-                }
-
-                fileEntry.persist(err => {
+        //  an ordinary file again: quarantine left it 0600. Never executable.
+        //  Best effort (Windows has no such bits).
+        fs.chmod(finalPath, 0o666 & ~process.umask(), () => {
+            //  no scanSource: it is not virus scanned again (the allowlist, if
+            //  asked for, already covers it for any later scan)
+            FileArea.scanFile(
+                finalPath,
+                {
+                    areaTag: area.areaInfo.areaTag,
+                    storageTag: area.storageTag,
+                    hashTags: details.hashTags
+                        ? new Set(details.hashTags)
+                        : area.areaInfo.hashTags,
+                },
+                (err, fileEntry) => {
                     if (err) {
                         return undo(err);
                     }
+                    if (fileEntry.fileSha256 !== sha256) {
+                        return undo(
+                            Errors.Invalid(
+                                'The file changed while it was being released; it is back in quarantine'
+                            )
+                        );
+                    }
 
-                    fs.unlink(item.sidecarPath, unlinkErr => {
-                        if (unlinkErr) {
-                            log(
-                                'warn',
-                                { path: item.sidecarPath, error: unlinkErr.message },
-                                'Released a quarantined file but could not remove its sidecar'
-                            );
+                    const now = new Date().toISOString();
+                    fileEntry.areaTag = area.areaInfo.areaTag;
+                    fileEntry.storageTag = area.storageTag;
+                    fileEntry.fileName = paths.basename(finalPath);
+
+                    const meta = details.meta;
+                    if (details.desc) {
+                        fileEntry.desc = details.desc;
+                    } else if (!fileEntry.desc || 'fileName' === fileEntry.descSrc) {
+                        fileEntry.desc =
+                            meta.tic_ldesc || meta.tic_desc || fileEntry.desc;
+                    }
+
+                    Object.assign(fileEntry.meta, meta, {
+                        quarantine_released_at: now,
+                        quarantine_released_by: operator,
+                    });
+                    if (options.allow) {
+                        Object.assign(fileEntry.meta, {
+                            scan_result: FileScanner.Verdicts.Clean,
+                            scanner: Allowlist.ScannerName,
+                            scanned_at: now,
+                        });
+                    }
+
+                    fileEntry.persist(err => {
+                        if (err) {
+                            return undo(err);
                         }
 
-                        log(
-                            'info',
-                            {
-                                operator,
-                                quarantineName: item.quarantineName,
-                                fileId: fileEntry.fileId,
-                                areaTag: fileEntry.areaTag,
-                                fileName: fileEntry.fileName,
+                        fs.unlink(item.sidecarPath, unlinkErr => {
+                            if (unlinkErr) {
+                                log(
+                                    'warn',
+                                    { path: item.sidecarPath, error: unlinkErr.message },
+                                    'Released a quarantined file but could not remove its sidecar'
+                                );
+                            }
+
+                            log(
+                                'info',
+                                {
+                                    operator,
+                                    quarantineName: item.quarantineName,
+                                    fileId: fileEntry.fileId,
+                                    areaTag: fileEntry.areaTag,
+                                    fileName: fileEntry.fileName,
+                                    sha256,
+                                    allowlisted: !!options.allow,
+                                },
+                                'Released a file from quarantine'
+                            );
+
+                            return cb(null, {
+                                fileEntry,
+                                path: finalPath,
                                 sha256,
                                 allowlisted: !!options.allow,
-                            },
-                            'Released a file from quarantine'
-                        );
-
-                        return cb(null, {
-                            fileEntry,
-                            path: finalPath,
-                            sha256,
-                            allowlisted: !!options.allow,
-                            allowlistAdded: !!state.allowlistAdded,
-                            sidecarError: unlinkErr ? unlinkErr.message : undefined,
+                                allowlistAdded: !!state.allowlistAdded,
+                                sidecarError: unlinkErr ? unlinkErr.message : undefined,
+                            });
                         });
                     });
-                });
-            }
-        );
+                }
+            );
+        });
     });
 }
 
