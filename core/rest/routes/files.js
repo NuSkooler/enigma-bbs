@@ -20,6 +20,8 @@ const {
 } = require('../../file_base_area');
 
 const FileEntry = require('../../file_entry');
+const FileScanner = require('../../file_scanner');
+const { moveFileWithCollisionHandling } = require('../../file_util');
 const ACS = require('../../acs');
 const Config = require('../../config').get;
 const User = require('../../user');
@@ -500,90 +502,176 @@ function _uploadHandler(req, resp, log) {
                     return problemDetail(resp, 400, 'Bad Request', err.message);
                 }
 
-                const storageTag = area.storageTags?.[0];
-                if (!storageTag) {
+                return _storeUpload({ user, area, uploadInfo, log }, (_err, result) => {
+                    if (result.fileEntry) {
+                        return jsonResponse(
+                            resp,
+                            201,
+                            _serializeFileEntry(result.fileEntry, _shouldStripAnsi(req))
+                        );
+                    }
                     return problemDetail(
                         resp,
-                        500,
-                        'Internal Server Error',
-                        'Area has no storage tag configured'
-                    );
-                }
-
-                const storageDir = getAreaDefaultStorageDirectory(area);
-                const destPath = paths.join(storageDir, uploadInfo.fileName);
-
-                //  Guard against traversal in the filename itself
-                if (
-                    !destPath.startsWith(storageDir + paths.sep) &&
-                    destPath !== storageDir
-                ) {
-                    return problemDetail(resp, 400, 'Bad Request', 'Invalid filename');
-                }
-
-                fs.rename(uploadInfo.tempPath, destPath, err => {
-                    if (err) {
-                        fs.unlink(uploadInfo.tempPath, () => {});
-                        log.error({ err, destPath }, 'Failed to move uploaded file');
-                        return problemDetail(resp, 500, 'Internal Server Error');
-                    }
-
-                    scanFile(
-                        destPath,
-                        {
-                            areaTag,
-                            storageTag,
-                            meta: {
-                                upload_by_username: user.username,
-                                upload_by_user_id: user.userId,
-                                byte_size: uploadInfo.size,
-                            },
-                            desc: uploadInfo.desc || undefined,
-                        },
-                        (err, fileEntry, _dupeEntries) => {
-                            if (err) {
-                                log.error(
-                                    { err, destPath },
-                                    'Failed to scan uploaded file'
-                                );
-                                return problemDetail(resp, 500, 'Internal Server Error');
-                            }
-
-                            fileEntry.persist(err => {
-                                if (err) {
-                                    log.error(
-                                        { err, destPath },
-                                        'Failed to persist uploaded file entry'
-                                    );
-                                    return problemDetail(
-                                        resp,
-                                        500,
-                                        'Internal Server Error'
-                                    );
-                                }
-
-                                log.info(
-                                    {
-                                        userId: user.userId,
-                                        areaTag,
-                                        fileId: fileEntry.fileId,
-                                        fileName: uploadInfo.fileName,
-                                    },
-                                    'File uploaded via REST API'
-                                );
-
-                                return jsonResponse(
-                                    resp,
-                                    201,
-                                    _serializeFileEntry(fileEntry, _shouldStripAnsi(req))
-                                );
-                            });
-                        }
+                        result.status,
+                        result.title,
+                        result.detail
                     );
                 });
             });
         });
     });
+}
+
+//
+//  The upload after its body is parsed: scan the temp file, and only once it
+//  has passed move it into the area's storage and persist it.
+//
+//  Calls back (null, result) always: { fileEntry } on success, else
+//  { status, title, detail } for a problem response. The temp file and its
+//  directory are gone either way.
+//
+//  A file that fails file scanning (#291) is quarantined or deleted and
+//  reported to the operators, and the uploader gets a 422 that says no more
+//  than that the file was refused -- not what a scanner found.
+//
+function _storeUpload({ user, area, uploadInfo, log }, cb) {
+    const areaTag = area.areaTag;
+    const done = result => {
+        _removeTempUpload(uploadInfo);
+        return cb(null, result);
+    };
+    const serverError = () => done({ status: 500, title: 'Internal Server Error' });
+
+    const storageTag = area.storageTags?.[0];
+    if (!storageTag) {
+        return done({
+            status: 500,
+            title: 'Internal Server Error',
+            detail: 'Area has no storage tag configured',
+        });
+    }
+
+    const storageDir = getAreaDefaultStorageDirectory(area);
+    const destPath = paths.join(storageDir, uploadInfo.fileName);
+
+    //  Guard against traversal in the filename itself
+    if (!destPath.startsWith(storageDir + paths.sep) && destPath !== storageDir) {
+        return done({ status: 400, title: 'Bad Request', detail: 'Invalid filename' });
+    }
+
+    //  The temp file already carries the uploader's (sanitized) name, so the
+    //  entry, its description and its type all come from that name.
+    scanFile(
+        uploadInfo.tempPath,
+        {
+            areaTag,
+            storageTag,
+            meta: {
+                upload_by_username: user.username,
+                upload_by_user_id: user.userId,
+                byte_size: uploadInfo.size,
+            },
+            desc: uploadInfo.desc || undefined,
+            scanSource: FileScanner.ScanSources.Web,
+            scanContext: { user },
+        },
+        (err, fileEntry) => {
+            if (FileScanner.isFileRejected(err)) {
+                return _rejectUpload(err, uploadInfo, user, log, done);
+            }
+
+            if (err) {
+                log.error(
+                    { err, fileName: uploadInfo.fileName },
+                    'Failed to scan uploaded file'
+                );
+                return serverError();
+            }
+
+            moveFileWithCollisionHandling(
+                uploadInfo.tempPath,
+                destPath,
+                (err, finalPath) => {
+                    if (err) {
+                        log.error({ err, destPath }, 'Failed to move uploaded file');
+                        return serverError();
+                    }
+
+                    //  renamed around an existing file of the same name
+                    fileEntry.fileName = paths.basename(finalPath);
+
+                    fileEntry.persist(err => {
+                        if (err) {
+                            log.error(
+                                { err, path: finalPath },
+                                'Failed to persist uploaded file entry'
+                            );
+                            return serverError();
+                        }
+
+                        log.info(
+                            {
+                                userId: user.userId,
+                                areaTag,
+                                fileId: fileEntry.fileId,
+                                fileName: fileEntry.fileName,
+                            },
+                            'File uploaded via REST API'
+                        );
+
+                        return done({ fileEntry });
+                    });
+                }
+            );
+        }
+    );
+}
+
+function _rejectUpload(rejectedErr, uploadInfo, user, log, cb) {
+    const verdict = rejectedErr.verdict;
+    const ctx = rejectedErr.scanContext;
+
+    FileScanner.applyFailAction(uploadInfo.tempPath, verdict, ctx, (err, disposition) => {
+        if (err) {
+            //  the temp directory is removed regardless
+            log.warn(
+                { err, fileName: uploadInfo.fileName },
+                'Failed to quarantine or delete rejected upload'
+            );
+        }
+
+        FileScanner.notifyOperators(
+            [{ ctx, verdict, disposition }],
+            { source: FileScanner.ScanSources.Web, user },
+            () => {
+                log.info(
+                    {
+                        userId: user.userId,
+                        areaTag: ctx.areaTag,
+                        fileName: uploadInfo.fileName,
+                        verdict: verdict.result,
+                    },
+                    'REST API upload rejected by file scanning'
+                );
+
+                return cb({
+                    status: 422,
+                    title: 'Unprocessable Content',
+                    detail:
+                        FileScanner.Verdicts.Held === verdict.result
+                            ? 'The file could not be checked'
+                            : 'The file failed the upload check',
+                });
+            }
+        );
+    });
+}
+
+//  Each upload is written into a directory of its own; see _parseMultipartUpload().
+function _removeTempUpload(uploadInfo) {
+    if (uploadInfo && uploadInfo.tempDir) {
+        fs.rm(uploadInfo.tempDir, { recursive: true, force: true }, () => {});
+    }
 }
 
 function tooLargeError() {
@@ -642,10 +730,13 @@ function _parseMultipartBuffer(buf, boundaryStr) {
 
 exports._parseMultipartBuffer = _parseMultipartBuffer;
 exports._parseMultipartUpload = _parseMultipartUpload;
+exports._storeUpload = _storeUpload;
 exports._maybeStrip = _maybeStrip;
 
 //  multipart/form-data upload: the body is read in memory once (bounded by
-//  MAX_UPLOAD_BYTES), parsed in place, and written to a temp file.
+//  MAX_UPLOAD_BYTES), parsed in place, and written to a temp file under its
+//  own (sanitized) name, in a temp directory of its own. The name matters:
+//  file scanning, the description and the file type all go by it.
 function _parseMultipartUpload(req, resp, log, cb) {
     const contentType = req.headers['content-type'] || '';
     const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
@@ -654,7 +745,7 @@ function _parseMultipartUpload(req, resp, log, cb) {
     }
     const boundary = '--' + (boundaryMatch[1] || boundaryMatch[2]);
 
-    const tmpPath = paths.join(
+    const tempDir = paths.join(
         require('os').tmpdir(),
         `enig_upload_${crypto.randomBytes(8).toString('hex')}`
     );
@@ -677,11 +768,23 @@ function _parseMultipartUpload(req, resp, log, cb) {
             return cb(new Error('No file part found in multipart body'));
         }
 
-        fs.writeFile(tmpPath, fileBuffer, err => {
+        //  '.' and '..' survive the parser's character filter
+        if (/^\.+$/.test(fileName)) {
+            return cb(new Error('Invalid filename'));
+        }
+
+        const tempPath = paths.join(tempDir, fileName);
+        fs.mkdir(tempDir, { mode: 0o700 }, err => {
             if (err) {
                 return cb(err);
             }
-            return cb(null, { tempPath: tmpPath, fileName, desc, size: fileSize });
+            fs.writeFile(tempPath, fileBuffer, err => {
+                if (err) {
+                    fs.rm(tempDir, { recursive: true, force: true }, () => {});
+                    return cb(err);
+                }
+                return cb(null, { tempPath, tempDir, fileName, desc, size: fileSize });
+            });
         });
     });
 }
