@@ -133,6 +133,142 @@ describe('file_scanner', function () {
         });
     });
 
+    describe('registry logging', () => {
+        let loggerModule;
+        let prevLog;
+        let lines;
+
+        //  a stub with every bunyan level, recording what it is given
+        const recordingLog = () => {
+            const rec = {};
+            ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].forEach(level => {
+                rec[level] = (obj, msg) => lines.push({ level, obj, msg });
+            });
+            return rec;
+        };
+
+        beforeEach(() => {
+            loggerModule = require('../core/logger.js');
+            prevLog = loggerModule.log;
+            lines = [];
+            loggerModule.log = recordingLog();
+        });
+
+        afterEach(() => {
+            loggerModule.log = prevLog;
+        });
+
+        const linesFor = name => lines.filter(l => l.obj && name === l.obj.scanner);
+
+        it('logs a registration once at info, then warns on a second one', () => {
+            const name = uniqueName('logreg');
+            const impl = stubScanner({ result: 'clean' }, []);
+            FileScanner.registerScanner(name, impl, undefined, {
+                modulePath: '/mods/x/x.js',
+            });
+            FileScanner.registerScanner(name, impl);
+
+            const got = linesFor(name);
+            assert.deepEqual(
+                got.map(l => l.level),
+                ['info', 'warn']
+            );
+            assert.equal(got[0].msg, 'File scanner registered');
+            assert.equal(got[0].obj.modulePath, '/mods/x/x.js');
+        });
+
+        it('passes the mod path from registerFileScanners()', done => {
+            const name = uniqueName('logmod');
+            const mod = {
+                registerFileScanners: registry =>
+                    registry.registerScanner(name, stubScanner({ result: 'clean' }, [])),
+            };
+            const modPath = paths.join(dir, 'logmod.js');
+            FileScanner.registerModFileScanners(mod, modPath, err => {
+                assert.ifError(err);
+                const got = linesFor(name);
+                assert.equal(got.length, 1);
+                assert.equal(got[0].level, 'info');
+                assert.equal(got[0].obj.modulePath, modPath);
+                done();
+            });
+        });
+
+        const initWith = (init, cb) => {
+            const name = uniqueName('loginit');
+            setScanning({ enabled: true, scanners: [{ scanner: name }] });
+            FileScanner.registerScanner(name, { scan: () => {}, init }, err => {
+                assert.ifError(err);
+                return cb(linesFor(name).filter(l => 'info' !== l.level));
+            });
+        };
+
+        it('logs init() warnings as warnings, one line each', done => {
+            initWith(
+                (entries, cb) =>
+                    cb(null, { warnings: ['clamd is not answering', 'no key'] }),
+                got => {
+                    assert.deepEqual(
+                        got.map(l => [l.level, l.obj.warning]),
+                        [
+                            ['warn', 'clamd is not answering'],
+                            ['warn', 'no key'],
+                        ]
+                    );
+                    assert.ok(got.every(l => !/failed/.test(l.msg)));
+                    done();
+                }
+            );
+        });
+
+        it('takes a single warning string too', done => {
+            initWith(
+                (entries, cb) => cb(null, { warnings: 'just one' }),
+                got => {
+                    assert.deepEqual(
+                        got.map(l => [l.level, l.obj.warning]),
+                        [['warn', 'just one']]
+                    );
+                    done();
+                }
+            );
+        });
+
+        it('logs an init() error, or a throw, as a failure to initialize', done => {
+            initWith(
+                (entries, cb) => cb(new Error('boom')),
+                got => {
+                    assert.deepEqual(
+                        got.map(l => [l.level, l.msg, l.obj.error]),
+                        [['error', 'File scanner failed to initialize', 'boom']]
+                    );
+                    initWith(
+                        () => {
+                            throw new Error('thrown');
+                        },
+                        got2 => {
+                            assert.deepEqual(
+                                got2.map(l => [l.level, l.obj.error]),
+                                [['error', 'thrown']]
+                            );
+                            done();
+                        }
+                    );
+                }
+            );
+        });
+
+        it('logs nothing more for a clean init()', done => {
+            initWith(
+                (entries, cb) => cb(null),
+                got => {
+                    assert.deepEqual(got, []);
+                    done();
+                }
+            );
+        });
+    });
+
     describe('scanFile() chain', () => {
         it('is "not scanned" when disabled, without running anything', done => {
             const calls = [];

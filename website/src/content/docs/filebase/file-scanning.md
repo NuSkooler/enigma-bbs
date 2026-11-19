@@ -296,6 +296,9 @@ exports.registerFileScanners = (registry, cb) => {
         //  optional startup health check; |entries| are the config entries
         //  that name this scanner
         init(entries, cb) {
+            if (0 === knownBad.size) {
+                return cb(null, { warnings: ['the hash list is empty'] });
+            }
             return cb(null);
         },
 
@@ -354,7 +357,15 @@ An `err`, a throw, an unknown `result` or no answer within the entry's `timeout`
 
 A scanner returns a verdict only. It must not change, move or delete the file; ENiGMA½ does that.
 
-Registering a name a second time replaces the first scanner, with a warning in the log, so you can replace the built-in `command` scanner if you need to.
+`init(entries, cb)` is optional. It runs once the scanner is registered, only when scanning is enabled, and is given the config entries that name the scanner. Use it to check what the scanner depends on (is the daemon answering, does every entry have an API key) and say what is wrong:
+
+* `cb(null)`: all is well.
+* `cb(null, { warnings: [ '...' ] })`: problems found. Each warning is logged at warn level ("File scanner reported a problem").
+* `cb(err)`: `init()` itself failed. This is logged at error level ("File scanner failed to initialize"). A throw counts the same.
+
+None of these stops startup or unregisters the scanner, and nothing waits for `init()`: `scan()` must work without it, and should answer `error` while what it needs is missing, so the entry's `onError` decides. A scanner written before 0.6.1-beta that calls back an error for a warning still works; it is just logged as an error.
+
+Each scanner is logged at info level when it is registered ("File scanner registered", with the mod's path). Registering a name a second time replaces the first scanner, with a warning in the log, so you can replace the built-in `command` scanner if you need to.
 
 ## See Also
 * [Access & Uploads](acs.md)
