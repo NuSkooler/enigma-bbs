@@ -1141,12 +1141,26 @@ describe('TIC passthrough end to end', function () {
                 fs.utimesSync(ticPath, old, old);
             };
 
+            //  the held payload's next attempt is due now
+            const makeRetryDue = () => {
+                (inst._ticScanRetries || new Map()).forEach(retry => {
+                    retry.retryAt = Date.now() - 1;
+                });
+            };
+
             it('holds a passthrough payload, forwards nothing, and retries it', async () => {
                 const ticPath = deliver();
                 await importOnce();
                 await importOnce();
+                assert.equal(
+                    calls.length,
+                    1,
+                    'not scanned again before its retry is due'
+                );
 
-                assert.equal(calls.length, 2, 'tried on each pass');
+                makeRetryDue();
+                await importOnce();
+                assert.equal(calls.length, 2, 'tried again once due');
                 assert.deepEqual(transitFiles(), [], 'nothing relayed');
                 const { entries } = await spoolState();
                 assert.deepEqual(entries, [], 'nothing queued for the downlink');
@@ -1158,13 +1172,61 @@ describe('TIC passthrough end to end', function () {
                 assert.deepEqual(ls(dirs().reject), []);
                 assert.equal(notices.length, 0, 'no notice while it is held');
 
-                //  the scanner is back: the next pass carries it
+                //  the scanner is back: the next attempt carries it
                 failing = false;
+                makeRetryDue();
                 await importOnce();
                 assert.equal(calls.length, 3);
                 assert.deepEqual(transitFiles(), ['COOLAPP.ZIP']);
                 assert.deepEqual(ls(dirs().secInbound), []);
                 assert.equal(notices.length, 0);
+            });
+
+            it('backs off between attempts, doubling up to an hour', async () => {
+                const ticPath = deliver();
+                const waits = [];
+                for (let i = 0; i < 6; ++i) {
+                    makeRetryDue();
+                    await importOnce();
+                    const retry = inst._ticScanRetries.get(ticPath);
+                    waits.push(Math.round((retry.retryAt - Date.now()) / 60000));
+                }
+                assert.equal(calls.length, 6);
+                assert.deepEqual(waits, [5, 10, 20, 40, 60, 60]);
+            });
+
+            it('tries a held payload again at once when it changes on disk', async () => {
+                deliver();
+                await importOnce();
+                assert.equal(calls.length, 1);
+
+                //  written again (a resend): same bytes, new mtime
+                const payload = paths.join(dirs().secInbound, 'COOLAPP.ZIP');
+                const later = Date.now() / 1000 + 5;
+                fs.utimesSync(payload, later, later);
+                await importOnce();
+                assert.equal(calls.length, 2);
+            });
+
+            it('still rejects once the hold runs out, at the next attempt', async () => {
+                const ticPath = deliver();
+                await importOnce();
+                assert.equal(calls.length, 1);
+
+                ageTic(ticPath);
+                await importOnce();
+                assert.equal(calls.length, 1, 'not yet due');
+                assert.equal(ls(dirs().secInbound).length, 2);
+
+                makeRetryDue();
+                await importOnce();
+                assert.equal(calls.length, 2);
+                assert.deepEqual(ls(dirs().secInbound), []);
+                assert.deepEqual(ls(quarantineDir()), [
+                    'COOLAPP.ZIP',
+                    'COOLAPP.ZIP.json',
+                ]);
+                assert.equal(notices.length, 1);
             });
 
             it('holds a stored payload without importing it', async () => {

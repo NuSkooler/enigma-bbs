@@ -6172,6 +6172,10 @@ require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
 //
 const TIC_HOLD_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
+//  Backoff between attempts to scan a held TIC payload; see noteTicScanHeld()
+const TIC_SCAN_RETRY_MIN_MS = 5 * 60 * 1000;
+const TIC_SCAN_RETRY_MAX_MS = 60 * 60 * 1000;
+
 //
 //  Whether TIC files arriving in |inboundType| are processed at all.
 //
@@ -6269,7 +6273,10 @@ FTNMessageScanTossModule.prototype.maybeHoldTicFile = function (ticFileInfo, err
             `Holding TIC for "${ticFileInfo.getAsString('File')}"; ${why}`
         );
 
-        return cb(true);
+        if (!scanHeld) {
+            return cb(true);
+        }
+        return self.noteTicScanHeld(ticFileInfo, () => cb(true));
     };
 
     let maxAgeMs = _.get(
@@ -6324,6 +6331,67 @@ FTNMessageScanTossModule.prototype.forgetTicHold = function (ticFileInfo) {
     if (this._ticHolds) {
         this._ticHolds.delete(ticFileInfo.path);
     }
+    if (this._ticScanRetries) {
+        this._ticScanRetries.delete(ticFileInfo.path);
+    }
+};
+
+//
+//  A payload file scanning held (#291) -- the scanner failed or timed out --
+//  is not scanned again on every pass, for up to the whole hold window: a
+//  payload that makes the scanner time out would otherwise cost a full
+//  timeout every few minutes for two days. Each failed attempt doubles the
+//  wait before the next, from TIC_SCAN_RETRY_MIN_MS up to
+//  TIC_SCAN_RETRY_MAX_MS; a payload that changes on disk is tried at once.
+//  The hold window itself is unchanged: the first attempt after it has run
+//  out still rejects (quarantines) the payload, at most one wait late.
+//
+//  Kept in memory, by .tic path: a restart simply tries everything again.
+//
+FTNMessageScanTossModule.prototype.noteTicScanHeld = function (ticFileInfo, cb) {
+    const self = this;
+    self._ticScanRetries = self._ticScanRetries || new Map();
+
+    const prev = self._ticScanRetries.get(ticFileInfo.path);
+    const attempts = prev ? prev.attempts + 1 : 1;
+    const delayMs = Math.min(
+        TIC_SCAN_RETRY_MIN_MS * Math.pow(2, attempts - 1),
+        TIC_SCAN_RETRY_MAX_MS
+    );
+    const payloadPath = ticFileInfo.filePath;
+
+    const record = payloadStamp => {
+        self._ticScanRetries.set(ticFileInfo.path, {
+            attempts,
+            retryAt: Date.now() + delayMs,
+            payloadPath,
+            payloadStamp,
+        });
+        Log.debug(
+            { tic: ticFileInfo.path, attempts, retryInMs: delayMs },
+            'File scanning will try the held TIC payload again later'
+        );
+        return cb(null);
+    };
+
+    if (!payloadPath) {
+        return record(null);
+    }
+    fs.stat(payloadPath, (err, stats) => {
+        return record(err ? null : `${stats.size}:${stats.mtimeMs}`);
+    });
+};
+
+//  Calls back (true) unless |ticFileInfo| is a held payload whose next
+//  attempt is not due yet; see noteTicScanHeld().
+FTNMessageScanTossModule.prototype.isTicScanRetryDue = function (ticFileInfo, cb) {
+    const retry = this._ticScanRetries && this._ticScanRetries.get(ticFileInfo.path);
+    if (!retry || Date.now() >= retry.retryAt || !retry.payloadStamp) {
+        return cb(true);
+    }
+    fs.stat(retry.payloadPath, (err, stats) => {
+        return cb(!!err || `${stats.size}:${stats.mtimeMs}` !== retry.payloadStamp);
+    });
 };
 
 FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
@@ -6487,35 +6555,45 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                             );
                         };
 
-                        self.processSingleTicFile(ticFileInfo, inboundType, err => {
-                            if (!err) {
-                                self.forgetTicHold(ticFileInfo);
-                                return self.removeAssocTicFiles(ticFileInfo, () => {
-                                    return nextTicInfo(null);
+                        const processTic = () =>
+                            self.processSingleTicFile(ticFileInfo, inboundType, err => {
+                                if (!err) {
+                                    self.forgetTicHold(ticFileInfo);
+                                    return self.removeAssocTicFiles(ticFileInfo, () => {
+                                        return nextTicInfo(null);
+                                    });
+                                }
+
+                                //
+                                //  The announced file may simply not be here yet: a
+                                //  TIC and its payload routinely arrive in separate
+                                //  mailer sessions. Leave both in place and try again
+                                //  next pass rather than rejecting the announcement
+                                //  and orphaning the file that follows it.
+                                //
+                                //  A payload file scanning could not check -- the
+                                //  scanner is down, timed out, or not registered --
+                                //  is held the same way, nothing imported or
+                                //  forwarded, and only rejected (quarantined) once
+                                //  the hold runs out: senders do not resend. An
+                                //  infected payload is rejected at once.
+                                //
+                                if (!TicFileInfo.isRetryableError(err)) {
+                                    return reject(err);
+                                }
+
+                                self.maybeHoldTicFile(ticFileInfo, err, held => {
+                                    return held ? nextTicInfo(null) : reject(err);
                                 });
-                            }
-
-                            //
-                            //  The announced file may simply not be here yet: a
-                            //  TIC and its payload routinely arrive in separate
-                            //  mailer sessions. Leave both in place and try again
-                            //  next pass rather than rejecting the announcement
-                            //  and orphaning the file that follows it.
-                            //
-                            //  A payload file scanning could not check -- the
-                            //  scanner is down, timed out, or not registered --
-                            //  is held the same way, nothing imported or
-                            //  forwarded, and only rejected (quarantined) once
-                            //  the hold runs out: senders do not resend. An
-                            //  infected payload is rejected at once.
-                            //
-                            if (!TicFileInfo.isRetryableError(err)) {
-                                return reject(err);
-                            }
-
-                            self.maybeHoldTicFile(ticFileInfo, err, held => {
-                                return held ? nextTicInfo(null) : reject(err);
                             });
+
+                        //  a payload file scanning held is not scanned again on
+                        //  every pass; see noteTicScanHeld()
+                        self.isTicScanRetryDue(ticFileInfo, due => {
+                            if (!due) {
+                                return nextTicInfo(null);
+                            }
+                            return processTic();
                         });
                     },
                     err => {
