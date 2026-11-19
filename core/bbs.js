@@ -102,7 +102,7 @@ function main() {
                 );
             },
             function initConfig(configPath, configPathSupplied, callback) {
-                const configFile = configPath + 'config.hjson';
+                const configFile = conf.Config.getConfigFilePath(configPath);
 
                 conf.Config.create(resolvePath(configFile), err => {
                     //

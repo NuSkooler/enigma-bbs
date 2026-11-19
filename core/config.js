@@ -165,6 +165,15 @@ exports.Config = class Config extends ConfigLoader {
         //  e.g. /enigma-bbs-install-path/config/
         return './config/';
     }
+
+    //  config.hjson in |configDir| -- what --config names, with or without a
+    //  trailing separator -- or in the default directory.
+    static getConfigFilePath(configDir) {
+        return paths.join(
+            _.isString(configDir) && configDir ? configDir : Config.getDefaultPath(),
+            'config.hjson'
+        );
+    }
 };
 
 // ── Test helpers ──────────────────────────────────────────────────────────────

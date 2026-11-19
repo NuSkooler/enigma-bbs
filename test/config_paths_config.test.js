@@ -299,9 +299,63 @@ describe('paths.config default (#927)', function () {
         });
     });
 
+    describe('Config.getConfigFilePath()', function () {
+        it('joins config.hjson onto --config with or without a trailing separator', () => {
+            const { Config } = configModule;
+            const want = paths.join(tempDir, 'config.hjson');
+            assert.equal(Config.getConfigFilePath(withSep(tempDir)), want);
+            assert.equal(Config.getConfigFilePath(tempDir), want);
+        });
+
+        it('falls back to the default directory', () => {
+            const { Config } = configModule;
+            const want = paths.join(Config.getDefaultPath(), 'config.hjson');
+            assert.equal(Config.getConfigFilePath(undefined), want);
+            assert.equal(Config.getConfigFilePath(''), want);
+            assert.equal(Config.getConfigFilePath(true), want); //  a bare --config
+        });
+    });
+
     describe('oputil --config', function () {
         //  a real oputil process: --config is parsed there, not here
         this.timeout(20000);
+
+        const runOputil = configArg => {
+            try {
+                return execFileSync(
+                    process.execPath,
+                    [OPUTIL, 'config', 'validate', '--config', configArg],
+                    {
+                        encoding: 'utf8',
+                        cwd: REPO_ROOT,
+                        stdio: ['ignore', 'pipe', 'pipe'],
+                    }
+                );
+            } catch (e) {
+                return `${e.stdout || ''}${e.stderr || ''}`;
+            }
+        };
+
+        it('reads config.hjson from a --config with no trailing separator', () => {
+            writeConfig(
+                tempDir,
+                '{\n    general: {\n        boardName: Test\n        menuFile: my-menu.hjson\n    }\n}\n'
+            );
+            fs.writeFileSync(
+                paths.join(tempDir, 'my-menu.hjson'),
+                '{\n    menus: {\n        hello: {\n            art: hello\n        }\n    }\n}\n'
+            );
+
+            const output = runOputil(tempDir);
+            assert.ok(
+                !output.includes(`${tempDir}config.hjson`),
+                `config.hjson was joined without a separator:\n${output}`
+            );
+            assert.ok(
+                output.includes(paths.join(tempDir, 'my-menu.hjson')),
+                `expected a report on ${paths.join(tempDir, 'my-menu.hjson')}:\n${output}`
+            );
+        });
 
         it('validates the menu.hjson beside the config.hjson it was given', () => {
             writeConfig(
@@ -313,20 +367,7 @@ describe('paths.config default (#927)', function () {
                 '{\n    menus: {\n        hello: {\n            art: hello\n        }\n    }\n}\n'
             );
 
-            let output;
-            try {
-                output = execFileSync(
-                    process.execPath,
-                    [OPUTIL, 'config', 'validate', '--config', withSep(tempDir)],
-                    {
-                        encoding: 'utf8',
-                        cwd: REPO_ROOT,
-                        stdio: ['ignore', 'pipe', 'pipe'],
-                    }
-                );
-            } catch (e) {
-                output = `${e.stdout || ''}${e.stderr || ''}`;
-            }
+            const output = runOputil(withSep(tempDir));
 
             //  the menu report is headed by the path it read
             assert.ok(
