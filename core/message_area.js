@@ -773,7 +773,10 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
 
 //
 //  Per-area message stats for |user|, for every area in one statement rather
-//  than two or three queries per area. Each area's start ID is
+//  than two or three queries per area. Each figure is a correlated subquery
+//  per area rather than one GROUP BY over a join: SQLite answers COUNT(*) and
+//  MAX() over the (area_tag) index range without reading a row, and on a real
+//  message base that was several times faster than the joined GROUP BY. Each area's start ID is
 //  getEffectiveNewScanLastReadId()'s: the lastread pointer, raised to the new
 //  scan floor exactly as getLastReadIdForTimestampByArea() turns a date into a
 //  pointer (one short of the lowest ID dated after it, else the area's highest
@@ -787,7 +790,7 @@ function getEffectiveNewScanLastReadId(user, areaTag, cb) {
 //  ACS-blind: callers pass tags they have already filtered.
 //
 const MESSAGE_AREA_STATS_SQL = `
-    WITH req AS (
+    WITH req AS MATERIALIZED (
         SELECT
             json_extract(value, '$[0]') AS tag,
             json_extract(value, '$[1]') AS msg_tag,
@@ -795,56 +798,82 @@ const MESSAGE_AREA_STATS_SQL = `
             json_extract(value, '$[3]') AS is_private
         FROM json_each(@areas)
     ),
-    own_private AS (
+    own_private AS MATERIALIZED (
         SELECT message_id
         FROM message_meta
         WHERE meta_category = 'System' AND meta_name = @toUserIdMeta AND meta_value = @userIdText
     ),
-    area AS (
+    area AS MATERIALIZED (
         SELECT
-            r.tag, r.msg_tag, r.lr_tag, r.is_private,
-            COUNT(m.message_id) AS total,
-            MAX(m.message_id) AS last_id,
-            MIN(
-                CASE WHEN r.is_private = 0 AND @floor IS NOT NULL
+            r.*,
+            COALESCE(lr.message_id, 0) AS raw_id,
+            CASE WHEN r.is_private = 0
+                THEN (SELECT MAX(m.message_id) FROM message m WHERE m.area_tag = r.msg_tag)
+                ELSE (
+                    SELECT MAX(m.message_id)
+                    FROM own_private o JOIN message m ON m.message_id = o.message_id
+                    WHERE m.area_tag = r.msg_tag
+                )
+            END AS last_id,
+            --  getMessageIdNewerThanTimestampByArea()
+            CASE WHEN r.is_private = 0 AND @floor IS NOT NULL
+                THEN (
+                    SELECT MIN(m.message_id)
+                    FROM message m
+                    WHERE m.area_tag = r.msg_tag
                     AND DATETIME(m.modified_timestamp) > DATETIME(@floor, '+1 seconds')
-                THEN m.message_id END
-            ) AS floor_min_id
+                )
+            END AS floor_min_id
         FROM req r
-        LEFT JOIN message m
-            ON m.area_tag = r.msg_tag
-            AND (r.is_private = 0 OR m.message_id IN own_private)
-        GROUP BY r.tag
+        LEFT JOIN user_message_area_last_read lr
+            ON lr.user_id = @userId AND lr.area_tag = r.lr_tag
     ),
-    eff AS (
+    eff AS MATERIALIZED (
         SELECT
             a.*,
+            --  getLastReadIdForTimestampByArea(), then the larger of the two
             MAX(
-                COALESCE(lr.message_id, 0),
+                a.raw_id,
                 CASE WHEN a.is_private = 0 AND @floor IS NOT NULL
                     THEN COALESCE(a.floor_min_id - 1, a.last_id, 0)
                     ELSE 0
                 END
             ) AS start_id
         FROM area a
-        LEFT JOIN user_message_area_last_read lr
-            ON lr.user_id = @userId AND lr.area_tag = a.lr_tag
     )
     SELECT
-        e.tag, e.total, e.last_id, e.start_id,
-        COUNT(m.message_id) AS new_count,
-        COUNT(
-            CASE WHEN m.message_id IS NOT NULL
-                AND (e.is_private = 1 OR @toUserName IS NULL OR m.to_user_name LIKE @toUserName)
-            THEN 1 END
-        ) AS yours,
+        e.tag, e.last_id,
+        CASE WHEN e.is_private = 0
+            THEN (SELECT COUNT(*) FROM message m WHERE m.area_tag = e.msg_tag)
+            ELSE (
+                SELECT COUNT(*)
+                FROM own_private o JOIN message m ON m.message_id = o.message_id
+                WHERE m.area_tag = e.msg_tag
+            )
+        END AS total,
+        CASE WHEN e.is_private = 0
+            THEN (
+                SELECT COUNT(*)
+                FROM message m
+                WHERE m.area_tag = e.msg_tag AND m.message_id > e.start_id
+            )
+            ELSE (
+                SELECT COUNT(*)
+                FROM own_private o JOIN message m ON m.message_id = o.message_id
+                WHERE m.area_tag = e.msg_tag AND m.message_id > e.start_id
+            )
+        END AS new_count,
+        --  NULL where every new message counts: private mail, or no name to match
+        CASE WHEN e.is_private = 0 AND @toUserName IS NOT NULL
+            THEN (
+                SELECT COUNT(*)
+                FROM message m
+                WHERE m.area_tag = e.msg_tag AND m.message_id > e.start_id
+                AND m.to_user_name LIKE @toUserName
+            )
+        END AS yours,
         (SELECT modified_timestamp FROM message WHERE message_id = e.last_id) AS last_ts
-    FROM eff e
-    LEFT JOIN message m
-        ON m.area_tag = e.msg_tag
-        AND m.message_id > e.start_id
-        AND (e.is_private = 0 OR m.message_id IN own_private)
-    GROUP BY e.tag;`;
+    FROM eff e;`;
 
 //
 //  cb(err, { [areaTag]: { total, newCount, yours, lastPostId, lastPostTs } })
@@ -897,7 +926,7 @@ function getMessageAreaStats(user, areaTags, cb) {
         stats[row.tag] = {
             total: row.total,
             newCount: row.new_count,
-            yours: row.yours,
+            yours: null === row.yours ? row.new_count : row.yours,
             lastPostId: row.last_id || 0,
             lastPostTs: row.last_ts || null,
         };
