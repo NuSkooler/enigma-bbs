@@ -3,7 +3,7 @@
 
 //  ENiGMA½
 const Address = require('./ftn_address.js');
-const Errors = require('./enig_error.js').Errors;
+const { Errors, ErrorCodes, ErrorReasons } = require('./enig_error.js');
 const EnigAssert = require('./enigma_assert.js');
 
 //  deps
@@ -92,17 +92,32 @@ module.exports = class TicFileInfo {
     //
     //  Should |err| be held and retried on a later pass, rather than rejected?
     //
-    //  Two quite different reasons land here: the payload has not arrived yet
-    //  (the common one, below) and a passthrough file that could not be queued
-    //  for any downlink because they were all busy. Both are transient, both
-    //  are bounded by tic.holdMaxAgeMs, and rejecting either loses a file that
-    //  would have gone out on the next pass.
+    //  Three quite different reasons land here: the payload has not arrived
+    //  yet (the common one, below), a passthrough file that could not be
+    //  queued for any downlink because they were all busy, and a payload file
+    //  scanning could not check because a scanner failed (#291). All are
+    //  transient, all are bounded by tic.holdMaxAgeMs, and rejecting any of
+    //  them loses a file that would have gone through on a later pass:
+    //  senders do not resend.
     //
     static isRetryableError(err) {
         if (TicFileInfo.isPayloadPendingError(err)) {
             return true;
         }
+        if (TicFileInfo.isScanHeldError(err)) {
+            return true;
+        }
         return !!err && TicFileInfo.ReasonCodes.ForwardDeferred === err.reasonCode;
+    }
+
+    //  File scanning held the payload: a scanner failed, timed out or is not
+    //  registered, so nobody knows whether it is clean. Not "infected".
+    static isScanHeldError(err) {
+        return (
+            !!err &&
+            ErrorCodes.FileRejected === err.code &&
+            ErrorReasons.Held === err.reasonCode
+        );
     }
 
     static isPayloadPendingError(err) {

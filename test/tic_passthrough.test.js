@@ -1101,5 +1101,115 @@ describe('TIC passthrough end to end', function () {
             assert.equal(ls(dirs().reject).length, 1, 'the .tic, not the payload');
             assert.ok(notices[0].body.includes('deleted'));
         });
+
+        it('deletes an infected payload it cannot quarantine; never archives it', async () => {
+            fs.mkdirSync(dirs().fileBase, { recursive: true });
+            fs.writeFileSync(quarantineDir(), 'a file where the directory goes');
+            deliver({ content: 'EICAR' });
+            await importOnce();
+
+            assert.deepEqual(transitFiles(), []);
+            assert.deepEqual(ls(dirs().secInbound), []);
+            assert.equal(ls(dirs().reject).length, 1, 'the .tic, not the payload');
+            assert.ok(notices[0].body.includes('DELETED, could not be quarantined'));
+        });
+
+        //
+        //  A scanner that fails -- down, timed out, not registered -- does
+        //  not know whether the payload is clean. Rejecting it would lose it
+        //  for good (senders do not resend), so it is held like a payload
+        //  that has not arrived yet, nothing imported or forwarded, and only
+        //  quarantined once tic.holdMaxAgeMs runs out.
+        //
+        describe('when the scanner fails', () => {
+            let failing;
+
+            beforeEach(() => {
+                failing = true;
+                FileScanner.registerScanner(scannerName, {
+                    scan(filePath, ctx, cb) {
+                        calls.push({ filePath, ctx });
+                        return failing
+                            ? cb(new Error('clamd is down'))
+                            : cb(null, { result: 'clean' });
+                    },
+                });
+            });
+
+            const ageTic = ticPath => {
+                const old = (Date.now() - 72 * 60 * 60 * 1000) / 1000;
+                fs.utimesSync(ticPath, old, old);
+            };
+
+            it('holds a passthrough payload, forwards nothing, and retries it', async () => {
+                const ticPath = deliver();
+                await importOnce();
+                await importOnce();
+
+                assert.equal(calls.length, 2, 'tried on each pass');
+                assert.deepEqual(transitFiles(), [], 'nothing relayed');
+                const { entries } = await spoolState();
+                assert.deepEqual(entries, [], 'nothing queued for the downlink');
+                assert.deepEqual(ls(dirs().secInbound), [
+                    'COOLAPP.ZIP',
+                    paths.basename(ticPath),
+                ]);
+                assert.deepEqual(ls(quarantineDir()), []);
+                assert.deepEqual(ls(dirs().reject), []);
+                assert.equal(notices.length, 0, 'no notice while it is held');
+
+                //  the scanner is back: the next pass carries it
+                failing = false;
+                await importOnce();
+                assert.equal(calls.length, 3);
+                assert.deepEqual(transitFiles(), ['COOLAPP.ZIP']);
+                assert.deepEqual(ls(dirs().secInbound), []);
+                assert.equal(notices.length, 0);
+            });
+
+            it('holds a stored payload without importing it', async () => {
+                deliver({ area: 'FSX_STOR', fileName: 'MAYBE.ZIP', content: 'fine' });
+                await importOnce();
+
+                assert.equal(calls.length, 1);
+                assert.deepEqual(ls(paths.join(dirs().fileBase, 'stored')), []);
+                assert.equal(ls(dirs().secInbound).length, 2, 'TIC and payload kept');
+                assert.equal(notices.length, 0);
+            });
+
+            it('holds when the scanner is not registered at all', async () => {
+                pushScanning();
+                configModule.get().fileBase.scanning.scanners = [
+                    { scanner: `${scannerName}_missing`, sources: ['tic'] },
+                ];
+                deliver();
+                await importOnce();
+
+                assert.deepEqual(transitFiles(), []);
+                assert.equal(ls(dirs().secInbound).length, 2);
+                assert.equal(notices.length, 0);
+            });
+
+            it('quarantines it and tells the operators once the hold runs out', async () => {
+                const ticPath = deliver();
+                ageTic(ticPath);
+                await importOnce();
+
+                assert.deepEqual(transitFiles(), []);
+                assert.deepEqual(ls(dirs().secInbound), [], 'the inbound is drained');
+                assert.deepEqual(ls(quarantineDir()), [
+                    'COOLAPP.ZIP',
+                    'COOLAPP.ZIP.json',
+                ]);
+                const rejects = ls(dirs().reject);
+                assert.equal(rejects.length, 1, 'only the .tic is archived');
+                assert.ok(rejects[0].endsWith(paths.basename(ticPath)));
+
+                assert.equal(notices.length, 1);
+                assert.ok(
+                    notices[0].body.includes('held, scanner failed: clamd is down')
+                );
+            });
+        });
     });
 });
