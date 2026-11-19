@@ -174,6 +174,15 @@ Actions:
       '*' wildcards
   An area match wins over a filename wildcard.
 
+  quarantine list              List what is in the file scanning quarantine
+  quarantine release NAME      Import a quarantined file into a file base area
+  quarantine delete NAME       Delete a quarantined file and its sidecar
+
+  mark-safe FILE_ID|SHA256     Put a file's SHA-256 on the file scanning
+                               allowlist and clear "infected" from its entries
+  mark-safe --list             List the allowlist
+  mark-safe --remove SHA256    Take a SHA-256 off the allowlist
+
   info CRITERIA                Display information about areas and/or files
 
   mv SRC [SRC...] DST          Move matching entry(s)
@@ -241,6 +250,36 @@ virus-scan arguments:
   inbox notice for the run if anything needs them. Exits non-zero if an
   infected file was found, a file could not be checked, or on any error.
 
+quarantine release arguments:
+  --area TAG                   Area to release into; default: the area the file
+                               was headed for
+  --name NAME                  Name to give it; default: its original name
+  --allow                      Also put its SHA-256 on the allowlist
+  --note TEXT                  Note for the allowlist entry (needs --allow)
+
+  NAME is the quarantined file's name, as "quarantine list" shows it. Its
+  SHA-256 must still be the one its sidecar recorded. The original name and
+  area came from the uploader or TIC: unless they are a plain, safe file name
+  and a configured, normal area, it is refused and --name or --area must be
+  given. It is moved into the area's storage directory (never replacing a
+  file; a taken name becomes NAME(1).EXT) and imported WITHOUT a virus scan,
+  keeping the uploader, description and TIC details the sidecar recorded,
+  and the sidecar is removed. A file the file base already has is refused.
+  Without --allow a later scan or rescan may flag it again. A file with no
+  sidecar is refused: move it and "fb scan" it by hand.
+
+quarantine delete arguments:
+  --yes, --no-prompt           Delete without asking
+
+mark-safe arguments:
+  --note TEXT                  Why it is safe; kept with the entry
+
+  The allowlist is global and matches exact bytes (SHA-256) only. A file on
+  it is clean for every scan, from every source (uploads, REST, TIC, oputil,
+  rescans), without any scanner running. A FILE_ID's file is hashed as it is
+  on disk now and must still match its entry. Entries with that SHA-256 that
+  are marked infected become scan_result=clean, scanner=allowlist.
+
 info arguments:
   --show-desc                  Display short description, if any
 
@@ -303,6 +342,32 @@ $ ./oputil.js fb virus-scan "*" --dry-run
 Rescan the "retro_dos" area's files that were never scanned or were last scanned more than 30 days ago, at most 500 of them:
 ```bash
 $ ./oputil.js fb virus-scan --older-than 30 --max 500 retro_dos
+```
+
+#### Quarantine and False Positives
+`quarantine list`, `quarantine release` and `quarantine delete` manage what [file scanning](../filebase/file-scanning.md) put in quarantine, and `mark-safe` manages the allowlist of SHA-256 hashes that are clean whatever a scanner says. See [Releasing files and false positives](../filebase/file-scanning.md#releasing-files-and-false-positives).
+
+##### Examples
+See what is in quarantine:
+```bash
+$ ./oputil.js fb quarantine list
+```
+
+Release a false positive into the area it was uploaded to, and allowlist those bytes so it is never flagged again:
+```bash
+$ ./oputil.js fb quarantine release DEMO.EX_ --allow --note "PKLITE'd demo, checked by hand"
+```
+
+Release a TIC file from a passthrough echo (it has no local area) under another name:
+```bash
+$ ./oputil.js fb quarantine release COOLAPP.ZIP --area retro_dos --name coolapp.zip
+```
+
+Clear an "infected" result a rescan recorded for file ID 123 (and every other entry with the same bytes), list the allowlist, and take an entry off it again:
+```bash
+$ ./oputil.js fb mark-safe 123 --note "false positive"
+$ ./oputil.js fb mark-safe --list
+$ ./oputil.js fb mark-safe --remove 0f343b0931126a20f133d67c2b018a3b5d6c4c5e9bd76dc3c4b1a1a5e9a1b7c0
 ```
 
 #### Retrieve Information
