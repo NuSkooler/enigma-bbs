@@ -53,16 +53,33 @@ describe('menu action key names', () => {
         ];
         assert.ok(files.length > 10, 'is reading something');
 
+        //  release-notes.md is generated from WHATSNEW.md by the website build
+        //  (and gitignored); WHATSNEW quotes the old binding to tell operators
+        //  what to change in their own menus
+        const Generated = [
+            paths.join(
+                ROOT,
+                'website',
+                'src',
+                'content',
+                'docs',
+                'admin',
+                'release-notes.md'
+            ),
+        ];
+
         const offenders = [];
-        files.forEach(file => {
-            fs.readFileSync(file, 'utf8')
-                .split('\n')
-                .forEach((line, i) => {
-                    if (EnterBinding.test(line)) {
-                        offenders.push(`${paths.relative(ROOT, file)}:${i + 1}`);
-                    }
-                });
-        });
+        files
+            .filter(file => !Generated.includes(file))
+            .forEach(file => {
+                fs.readFileSync(file, 'utf8')
+                    .split('\n')
+                    .forEach((line, i) => {
+                        if (EnterBinding.test(line)) {
+                            offenders.push(`${paths.relative(ROOT, file)}:${i + 1}`);
+                        }
+                    });
+            });
         assert.deepEqual(offenders, [], 'use "return" for Enter');
     });
 });
