@@ -59,6 +59,10 @@
             desc: Browsing Files
             module: file_area_list
             config: {
+                //  {infectedIndicator} in a format string flags an entry a
+                //  rescan marked infected. Only users passing
+                //  fileBase.scanning.infectedVisibleAcs ever see one.
+                //  infectedIndicator: "|00|12INFECTED |08- "
                 art: {
                     browse: FBRWSE
                     details: FDETAIL

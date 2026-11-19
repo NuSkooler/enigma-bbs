@@ -12,6 +12,12 @@ const ErrNotEnabled = require('./enig_error.js').ErrorReasons.NotEnabled;
 const ArchiveUtil = require('./archive_util.js');
 const Config = require('./config.js').get;
 const DownloadQueue = require('./download_queue.js');
+const {
+    visibleFilesFilter,
+    filterHidden,
+    hidesInfected,
+    isEntryInfected,
+} = require('./file_base_visibility.js');
 const FileAreaWeb = require('./file_area_web.js');
 const FileBaseFilters = require('./file_base_filter.js');
 const { resolveMimeType, findFileTypeByExtension } = require('./mime_util.js');
@@ -72,7 +78,9 @@ exports.getModule = class FileAreaList extends MenuModule {
         super(options);
 
         this.filterCriteria = _.get(options, 'extraArgs.filterCriteria');
-        this.fileList = _.get(options, 'extraArgs.fileList');
+        //  a list handed in (new scan, say) was made by someone else's rules;
+        //  infected entries are hidden here too (#291)
+        this.fileList = filterHidden(this.client, _.get(options, 'extraArgs.fileList'));
         this.lastFileNextExit = _.get(options, 'extraArgs.lastFileNextExit', true);
 
         if (this.fileList) {
@@ -249,6 +257,14 @@ exports.getModule = class FileAreaList extends MenuModule {
         const isNotQueuedIndicator = config.isNotQueuedIndicator || 'N';
         const noDownloadAccessIndicator = config.noDownloadAccessIndicator || '-';
 
+        //  Flags an infected entry (#291) for those who still see them. Anyone
+        //  else only meets one flagged after their list was made, and is not
+        //  told why it cannot be queued.
+        const infectedIndicator =
+            isEntryInfected(currEntry) && !hidesInfected(this.client)
+                ? config.infectedIndicator || 'INFECTED '
+                : config.notInfectedIndicator || '';
+
         const entryInfo = (currEntry.entryInfo = {
             fileId: currEntry.fileId,
             areaTag: currEntry.areaTag,
@@ -271,6 +287,7 @@ exports.getModule = class FileAreaList extends MenuModule {
             ),
             webDlLink: '', //  :TODO: fetch web any existing web d/l link
             webDlExpire: '', //  :TODO: fetch web d/l link expire time
+            infectedIndicator,
         });
 
         //
@@ -861,10 +878,13 @@ exports.getModule = class FileAreaList extends MenuModule {
                 filterCriteria.areaTag = FileArea.getAvailableFileAreaTags(this.client);
             }
 
-            FileEntry.findFiles(filterCriteria, (err, fileIds) => {
-                this.fileList = fileIds || [];
-                return cb(err);
-            });
+            FileEntry.findFiles(
+                visibleFilesFilter(this.client, filterCriteria),
+                (err, fileIds) => {
+                    this.fileList = fileIds || [];
+                    return cb(err);
+                }
+            );
         }
     }
 };

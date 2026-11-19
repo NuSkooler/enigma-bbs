@@ -620,6 +620,10 @@
         //      notifyUserIds: [ 1 ]
         //      //  most scanners running at once; the rest wait their turn
         //      maxConcurrent: 2
+        //      //  entries a rescan marked infected are hidden from users
+        //      //  (default true) but not from those passing this ACS
+        //      hideInfected: true
+        //      infectedVisibleAcs: "GM[sysops]"
         //      scanners: [
         //          {
         //              scanner: command

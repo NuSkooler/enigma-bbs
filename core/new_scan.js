@@ -7,6 +7,7 @@ const MenuModule = require('./menu_module.js').MenuModule;
 const ViewController = require('./view_controller.js').ViewController;
 const stringFormat = require('./string_format.js');
 const FileEntry = require('./file_entry.js');
+const { visibleFilesFilter } = require('./file_base_visibility.js');
 const FileBaseFilters = require('./file_base_filter.js');
 const Errors = require('./enig_error.js').Errors;
 const { getAvailableFileAreaTags } = require('./file_base_area.js');
@@ -300,27 +301,31 @@ exports.getModule = class NewScanModule extends MenuModule {
             order: 'ascending', //  oldest first
         };
 
-        FileEntry.findFiles(filterCriteria, (err, fileIds) => {
-            if (err || 0 === fileIds.length) {
-                return cb(err ? err : Errors.DoesNotExist('No more new files'));
+        //  infected entries hidden from this user are not new to them (#291)
+        FileEntry.findFiles(
+            visibleFilesFilter(this.client, filterCriteria),
+            (err, fileIds) => {
+                if (err || 0 === fileIds.length) {
+                    return cb(err ? err : Errors.DoesNotExist('No more new files'));
+                }
+
+                FileBaseFilters.setFileBaseLastViewedFileIdForUser(
+                    this.client.user,
+                    fileIds[fileIds.length - 1]
+                );
+
+                const menuOpts = {
+                    extraArgs: {
+                        fileList: fileIds,
+                    },
+                };
+
+                return this.gotoMenu(
+                    this.menuConfig.config.newScanFileBaseList || 'newScanFileBaseList',
+                    menuOpts
+                );
             }
-
-            FileBaseFilters.setFileBaseLastViewedFileIdForUser(
-                this.client.user,
-                fileIds[fileIds.length - 1]
-            );
-
-            const menuOpts = {
-                extraArgs: {
-                    fileList: fileIds,
-                },
-            };
-
-            return this.gotoMenu(
-                this.menuConfig.config.newScanFileBaseList || 'newScanFileBaseList',
-                menuOpts
-            );
-        });
+        );
     }
 
     getSaveState() {

@@ -108,6 +108,21 @@ describe('File transfer: kill the protocol program on hang-up', function () {
 
     let originalSpawn;
     let spawned;
+    let previousConfig;
+
+    //  no file database here to ask what is infected (#291)
+    before(() => {
+        const configModule = require('../core/config.js');
+        previousConfig = configModule._pushTestConfig(
+            Object.assign({}, configModule.get(), {
+                fileBase: { scanning: { hideInfected: false } },
+            })
+        );
+    });
+
+    after(() => {
+        require('../core/config.js')._popTestConfig(previousConfig);
+    });
 
     beforeEach(() => {
         originalSpawn = pty.spawn;

@@ -40,6 +40,8 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
         this.setMergedFlag(MenuFlags.NoHistory);
 
         this.dlQueue = new DownloadQueue(this.client);
+        //  neither shown nor offered once a rescan marks them infected (#291)
+        this.dlQueue.removeHiddenItems();
 
         this.menuMethods = {
             removeItem: (formData, extraArgs, cb) => {
@@ -147,7 +149,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 
         FileAreaWeb.createAndServeTempBatchDownload(
             this.client,
-            this.dlQueue.items,
+            this.dlQueue.allowedItems,
             {
                 expireTime: expireTime,
             },

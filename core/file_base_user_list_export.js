@@ -9,6 +9,7 @@ const { renderFirstChar } = require('./string_util.js');
 const { Errors } = require('./enig_error.js');
 const DownloadQueue = require('./download_queue.js');
 const { exportFileList } = require('./file_base_list_export.js');
+const { visibleFilesFilter } = require('./file_base_visibility.js');
 
 //  deps
 const _ = require('lodash');
@@ -210,9 +211,14 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                         progress: exportListProgress,
                     };
 
-                    exportFileList(filterCriteria, opts, (err, listBody) => {
-                        return callback(err, listBody);
-                    });
+                    //  infected entries hidden from this user stay out (#291)
+                    exportFileList(
+                        visibleFilesFilter(self.client, filterCriteria),
+                        opts,
+                        (err, listBody) => {
+                            return callback(err, listBody);
+                        }
+                    );
                 },
                 function persistList(listBody, callback) {
                     updateStatus('Persisting list');

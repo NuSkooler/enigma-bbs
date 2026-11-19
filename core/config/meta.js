@@ -408,6 +408,16 @@ module.exports = {
         description:
             'Longest a file waits for a free scanner before that counts as a scanner error (onError applies). 0 waits as long as it takes.',
     },
+    'fileBase.scanning.hideInfected': {
+        type: 'boolean',
+        description:
+            'Hide entries a rescan marked infected from users: not listed, found, queued, sent or served. Applies whether or not scanning is enabled.',
+    },
+    'fileBase.scanning.infectedVisibleAcs': {
+        type: 'string',
+        description:
+            'ACS of users who still see, flagged, and can download entries hidden by hideInfected.',
+    },
     'fileBase.web.expireMinutes': {
         type: 'number',
         min: 1,

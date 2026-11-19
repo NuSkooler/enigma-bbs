@@ -18,6 +18,7 @@ const Log = require('./logger.js').log;
 const Events = require('./events.js');
 const UploadTempDir = require('./upload_temp_dir.js');
 const UserProps = require('./user_property.js');
+const { filterHidden } = require('./file_base_visibility.js');
 const UserTime = require('./user_time.js');
 const SysProps = require('./system_property.js');
 const { TelnetSocket } = require('telnet-socket');
@@ -134,6 +135,36 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
     isSending() {
         return 'send' === this.direction;
+    }
+
+    //
+    //  The last look before anything is sent (#291): an entry a rescan marked
+    //  infected after it was queued -- or after the queue was handed here --
+    //  is dropped from the send queue. Nothing left is an error.
+    //
+    withholdHiddenEntries(cb) {
+        const queued = this.sendQueue;
+        try {
+            this.sendQueue = filterHidden(this.client, queued);
+        } catch (e) {
+            //  can't tell what is infected: send nothing
+            return cb(e);
+        }
+
+        if (this.sendQueue.length === queued.length) {
+            return cb(null);
+        }
+
+        this.client.log.info(
+            { fileIds: _.difference(queued, this.sendQueue).map(i => i.fileId) },
+            'Not sending queued files; the entries are marked infected'
+        );
+
+        return cb(
+            0 === this.sendQueue.length
+                ? Errors.DoesNotExist('No files left to send')
+                : null
+        );
     }
 
     restorePipeAfterExternalProc() {
@@ -1109,6 +1140,12 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     }
 
                     return callback(null);
+                },
+                function withholdHiddenEntries(callback) {
+                    if (!self.isSending()) {
+                        return callback(null);
+                    }
+                    return self.withholdHiddenEntries(callback);
                 },
                 function validateTimeRemaining(callback) {
                     //

@@ -181,13 +181,17 @@ class FreqResolver {
 
         const lowerName = name.toLowerCase();
 
+        //  A remote node is no one in particular: entries a rescan marked
+        //  infected are not served to it (#291).
+        const { visibleFilesFilter } = require('../file_base_visibility.js');
+
         return new Promise(resolve => {
             FileEntry.findFiles(
-                {
+                visibleFilesFilter(null, {
                     areaTag,
                     sort: 'upload_timestamp',
                     order: 'descending',
-                },
+                }),
                 (err, fileIds) => {
                     if (err || !fileIds || fileIds.length === 0) {
                         return resolve(null);

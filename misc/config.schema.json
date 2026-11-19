@@ -2355,6 +2355,16 @@
                             "type": "number",
                             "minimum": 0,
                             "default": 600000
+                        },
+                        "hideInfected": {
+                            "description": "Hide entries a rescan marked infected from users: not listed, found, queued, sent or served. Applies whether or not scanning is enabled.",
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "infectedVisibleAcs": {
+                            "description": "ACS of users who still see, flagged, and can download entries hidden by hideInfected.",
+                            "type": "string",
+                            "default": "GM[sysops]"
                         }
                     },
                     "patternProperties": {
