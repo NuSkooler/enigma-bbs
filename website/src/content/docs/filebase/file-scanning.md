@@ -66,6 +66,8 @@ fileBase: {
 | `scanners` | `[]` | The scanners to run, in order; see below |
 | `maxConcurrent` | `2` | Most scanners running at once, across every source. The rest wait their turn, first come first served. A scanner's `timeout` starts when it starts, not while it waits |
 | `maxQueueWaitMs` | `600000` | Longest a file waits for a free scanner (10 minutes). Past that, it is a scanner failure, which the entry's `onError` decides. `0` waits as long as it takes |
+| `hideInfected` | `true` | Hide entries a rescan marked infected from users; see [Hidden infected entries](#hidden-infected-entries). Applies whether or not `enabled` is set |
+| `infectedVisibleAcs` | `GM[sysops]` | [ACS](../configuration/acs.md) of users who still see hidden infected entries, flagged, and can download them |
 
 `maxConcurrent` is what stops one REST user firing uploads in parallel from starting a scanner process per file. `clamscan` in particular loads its whole signature database each time, which adds up to a lot of memory quickly.
 
@@ -330,6 +332,36 @@ An infected file is listed, in oputil's output and in the operator notice, with 
 `fb rm` takes the file ID and removes the entry; `--phys-file` deletes the file from disk as well. Without `--phys-file` only the entry goes and the file stays in the storage directory, where a later `fb scan` would import it again. To keep the file for a closer look, move it out of the storage tree yourself first, then run `fb rm 123` without the flag. An infected entry is reported again on every rescan until you remove it.
 
 If it is a false positive, `./oputil.js fb mark-safe 123` (also listed) puts its SHA-256 on the [allowlist](#the-allowlist) and marks every entry with those bytes clean again.
+
+Until you do either, the entry is [hidden from users](#hidden-infected-entries).
+
+### Hidden infected entries
+An entry a rescan marked `scan_result: infected` stays in the file base until you act on it, but with `hideInfected` (the default) nobody else can find or fetch it in the meantime. For everyone who does not pass `infectedVisibleAcs` it is as though the entry were not there:
+
+| Where | What happens |
+|-------|--------------|
+| Browsing an area, file searches and filters | Not listed |
+| File base new scan | Not listed, and not counted as new |
+| Download queue | Cannot be queued. One queued before the rescan flagged it is taken out of the queue when the user opens the queue manager, and is not sent if they download from anywhere else: the send queue is checked once more just before the transfer starts |
+| Web download links | No link is made. A link made before the rescan flagged the file stops working and answers "not found"; a batch link leaves the file out (and answers "not found" if that leaves nothing) |
+| [REST API](../servers/contentservers/rest-api.md) | Not in area listings; the entry by ID and its download answer `404`, as for an entry that does not exist |
+| File list exports (the user's "download a file list") | Not listed |
+| FREQ (a remote node requesting a file by name) | Not served |
+
+Asked for directly, an entry is never reported as infected: it is simply not found, so nothing tells a caller why. A refused download or link is logged at `info` level.
+
+Users who pass `infectedVisibleAcs` (sysops, by default) still see and can download infected entries, flagged: the file list's `{infectedIndicator}` format field shows the menu's `infectedIndicator` text (default `INFECTED `) for an infected entry and `notInfectedIndicator` (default empty) for any other, and `{scanResult}` and `{scanSignature}` show the result and what was found. The ACS is checked for the user a link was made for when the link is used, so a sysop's link keeps working.
+
+Not affected:
+
+- Only entries a rescan marked are hidden. A file a scanner rejects on the way in (upload, REST, TIC, `fb scan --virus-scan`) never becomes an entry at all.
+- `oputil` sees every entry, and so does the rescan itself.
+- Dupe checks still see them: uploading the same file again is refused as a dupe (the dupes page names the existing entry, which the uploader evidently has a copy of anyway), and a TIC import of the same file is a dupe as before.
+- Area file counts and sizes (the area list, the WFC, the `%TF` and `%TB` MCI codes) still include them. They are totals for the whole board, the same for everyone, and say nothing about which file it is.
+- The scheduled `DESCRIPT.ION` export, which lives in the storage directory beside the files themselves.
+- A rescan run with `--dry-run` records nothing, so it hides nothing.
+
+`fb mark-safe` (a false positive) clears the flag and the entry is back at once; `fb rm` removes it for good. Set `hideInfected: false` to show infected entries to everyone, as before.
 
 ### What is read, and in what order
 Only files inside their storage directory are read. The storage directory itself may be a symbolic link (to another disk, say), but a path that goes through a link below it, a linked subdirectory or a file that is itself a link, is reported as an error and not read. The file is opened once, without following a link and without blocking (a FIFO is an error, not a hang), it must be a regular file, and its hash is worked out from that open file. A hash lookup scanner therefore sees the hash of the file as it is now, not the one stored in the entry; a file whose hash no longer matches is reported as changed since import. The scanners then read the file by its path, so afterwards the path must still name the same, unchanged file, or the result is not recorded and the file is reported as changed during the scan.
