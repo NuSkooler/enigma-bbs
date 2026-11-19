@@ -33,6 +33,7 @@ describe('live total user count (#1049)', function () {
     let dbModule, realUserDb, db, loggerModule, realLog, Events;
     let StatLog, SysProps, User, asset, mci, statsHandler;
     let savedCache, addedListeners, realNow, now, reads, warnings;
+    let PipeCodes, savedMciResolver;
 
     const client = { user: { isAuthenticated: () => true }, term: {} };
 
@@ -78,6 +79,11 @@ describe('live total user count (#1049)', function () {
             child: () => log,
         };
         loggerModule.log = log;
+
+        //  loading a fresh predefined_mci.js installs its resolver in pipe_codes.js
+        PipeCodes = require('../core/pipe_codes');
+        savedMciResolver = PipeCodes.setMciResolver();
+        PipeCodes.setMciResolver(savedMciResolver.resolver, savedMciResolver.knownMci);
 
         savedCache = {};
         for (const m of FreshModules) {
@@ -127,6 +133,7 @@ describe('live total user count (#1049)', function () {
     });
 
     after(() => {
+        PipeCodes.setMciResolver(savedMciResolver.resolver, savedMciResolver.knownMci);
         Date.now = realNow;
         for (const [n, l] of addedListeners) {
             Events.removeListener(n, l);
@@ -242,15 +249,10 @@ describe('live total user count (#1049)', function () {
     //  #1105: TU and NT return strings like every other predefined MCI code;
     //  a number was dropped by |TU (UI), drawn as a colour (body) and by %TU.
     describe('TU and NT as strings (#1105)', () => {
-        let PipeCodes;
         const ESC = '\x1b';
         //  the production resolver, passed in so no other file's can answer
         const opts = extra =>
             Object.assign({ client, resolveMci: mci.getPredefinedMCIValue }, extra);
-
-        before(() => {
-            PipeCodes = require('../core/pipe_codes');
-        });
 
         afterEach(() => {
             StatLog.setNonPersistentSystemStat(SysProps.NewUsersTodayCount, undefined);
@@ -280,10 +282,13 @@ describe('live total user count (#1049)', function () {
             });
         });
 
-        it('TU is grouped like TC and TT', () => {
+        it('{TU} stays a number at 1,000 users and up, so format specs still apply', () => {
             StatLog.setNonPersistentSystemStat(SysProps.TotalUserCount, 1234);
             StatLog.markTotalUserCountRefreshed();
-            assert.equal(tu(), (1234).toLocaleString());
+            assert.equal(tu(), '1234');
+            assert.deepEqual(mci.getPredefinedMCIFormatObject(client, '{TU}'), {
+                TU: 1234,
+            });
         });
     });
 
