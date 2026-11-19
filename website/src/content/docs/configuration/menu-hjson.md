@@ -137,6 +137,7 @@ Many built in global/system methods exist. Below are a few. See [system_menu_met
 | `prevArea` | Sets the users message area to the previous available. |
 | `nextArea` | Sets the users message area to the next available. |
 | `setClientEncoding` | Sets the client encoding (such as cp437 and utf-8.) |
+| `setUserPreference` | Sets (or, with `value: null`, clears) a user preference from `extraArgs: { pref, value }`, then goes to `extraArgs.next` or back to the previous menu. `pref` must start with `pref__`. See [User Preference Select](../modules/user-pref-select.md#the-setuserpreference-system-method). |
 
 ## Example
 Let's look a couple basic menu entries:

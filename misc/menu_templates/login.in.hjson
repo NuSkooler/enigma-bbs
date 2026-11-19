@@ -362,6 +362,25 @@
             }
         }
 
+        //
+        //  To send users who chose another reader there (see the comment by
+        //  mainMenuGlobalNewScan in main.in.hjson and the User Preference
+        //  Select docs page), make the "yes" action below a PV list, with
+        //  the stock new scan last as the board default:
+        //
+        //      {
+        //          value: { promptValue: 0 }
+        //          action: [
+        //              {
+        //                  acs: "PV[pref__msg_reader,lampboard]"
+        //                  action: @menu:lampboardLogin
+        //              }
+        //              {
+        //                  action: @menu:fullLoginSequenceNewScan
+        //              }
+        //          ]
+        //      }
+        //
         fullLoginSequenceNewScanConfirm: {
             desc: Logging In
             prompt: loginGlobalNewScan
