@@ -148,6 +148,7 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
                             tempRecvDirectory: this.extraArgs.recvDirectory,
                             areaInfo: this.extraArgs.uploadAreaInfo,
                             uploadType: this.extraArgs.uploadType,
+                            uploadFromMenu: this.extraArgs.uploadFromMenu,
                         },
                     },
                     err => {
