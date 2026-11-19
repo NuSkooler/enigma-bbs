@@ -1470,5 +1470,79 @@ describe('TableView', function () {
                 moment.deprecationHandler = prev;
             }
         });
+
+        //  Review round 2 (#447)
+        it('a read-only table keeps its scroll position across setItems, removeItem, sorting and updates', function () {
+            const rows = () =>
+                [5, 4, 3, 2, 1, 0].map(n => ({ key: `k${n}`, n, selectable: false }));
+            const { view } = makeView(
+                { dimens: { width: 6, height: 2 }, columns: { n: { width: 6 } } },
+                rows()
+            );
+            view.focusLast();
+            assert.equal(view.viewWindow.top, 4);
+
+            view.setItems(rows(), { keepFocus: true });
+            view.redraw();
+            assert.equal(view.viewWindow.top, 4);
+
+            view.setSort('n', 'desc');
+            assert.equal(view.viewWindow.top, 4);
+
+            view.updateItemAt(5, { kind: 'group', text: 'G' });
+            assert.equal(view.viewWindow.top, 4);
+
+            view.removeItem(0); //  5 rows: the bottom two stay in view
+            view.redraw();
+            assert.equal(view.viewWindow.top, 3);
+        });
+
+        it('plain fields turn tab, CR and LF into spaces and drop C1 controls', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 10, height: 1 },
+                    columns: { s: { field: 'subject', width: 10 } },
+                    plainFields: ['subject'],
+                },
+                [{ subject: 'a\tb\r\nc\x85d\x9b2Je' }]
+            );
+            assert.equal(drawnOnRow(client, 1), 'a b  cd2Je');
+        });
+
+        it('a plainFields entry that is a flat key with a dot is honoured', function () {
+            const { client } = makeView(
+                {
+                    dimens: { width: 14, height: 1 },
+                    columns: {
+                        a: { field: 'from.name', width: 7 },
+                        b: { field: 'text', width: 7, format: '{from.name}' },
+                    },
+                    columnOrder: ['a', 'b'],
+                    plainFields: ['from.name'],
+                },
+                [{ text: 't', 'from.name': '|05bob' }]
+            );
+            assert.equal(drawnOnRow(client, 1), '|05bob |05bob ');
+        });
+
+        it('infinite numbers tie with each other, so then still applies', function () {
+            const { view } = makeView(
+                {
+                    columns: { v: { type: 'number' }, k: { type: 'number' } },
+                    sort: { column: 'v', then: { column: 'k', order: 'desc' } },
+                },
+                [
+                    { k: 1, v: Infinity },
+                    { k: 2, v: 1 },
+                    { k: 3, v: Infinity },
+                    { k: 4, v: -Infinity },
+                    { k: 5, v: -Infinity },
+                ]
+            );
+            assert.deepEqual(
+                view.getItems().map(i => i.k),
+                [5, 4, 2, 3, 1]
+            );
+        });
     });
 });

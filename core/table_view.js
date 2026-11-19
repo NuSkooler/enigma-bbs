@@ -134,13 +134,23 @@ function sortClass(v, type) {
     return [SortClassOrder.indexOf(t), t];
 }
 
-//  User-supplied text: C0 controls and DEL dropped (an ESC sequence must not
-//  reach the terminal or upset width maths) and pipes shown as typed
+//  User-supplied text: tab, CR and LF become spaces; other C0 controls, DEL
+//  and C1 controls (U+009B is a CSI on some terminals) are dropped, so an
+//  escape sequence cannot reach the terminal or upset width maths; pipes are
+//  shown as typed
 // eslint-disable-next-line no-control-regex
-const C0_CONTROLS = /[\x00-\x1f\x7f]/g;
+const LINE_CONTROLS = /[\t\r\n]/g;
+// eslint-disable-next-line no-control-regex
+const OTHER_CONTROLS = /[\x00-\x1f\x7f-\x9f]/g;
 
 function plainText(s) {
-    return PipeCodes.escape(String(s).replace(C0_CONTROLS, ''));
+    return PipeCodes.escape(
+        String(s).replace(LINE_CONTROLS, ' ').replace(OTHER_CONTROLS, '')
+    );
+}
+
+function compareValues(a, b) {
+    return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function compareTyped(a, b, type) {
@@ -149,7 +159,7 @@ function compareTyped(a, b, type) {
             const na = Number(a);
             const nb = Number(b);
             if (!isNaN(na) && !isNaN(nb)) {
-                return na - nb;
+                return compareValues(na, nb); //  not na - nb: Infinity - Infinity is NaN
             }
             break;
         }
@@ -158,7 +168,7 @@ function compareTyped(a, b, type) {
             const ma = toMoment(a);
             const mb = toMoment(b);
             if (ma.isValid() && mb.isValid()) {
-                return ma.valueOf() - mb.valueOf();
+                return compareValues(ma.valueOf(), mb.valueOf());
             }
             break;
         }
@@ -1069,6 +1079,11 @@ class TableView extends MenuView {
             return;
         }
 
+        //  read-only: no focus to show; keep the window where it is
+        if (!this.hasSelectable()) {
+            return this._clampWindow();
+        }
+
         index = Math.min(Math.max(index, 0), this.items.length - 1);
         let top = Math.min(Math.max(this._top, 0), this.items.length - 1);
 
@@ -1380,7 +1395,15 @@ class TableView extends MenuView {
 
         const out = Object.assign({}, item);
         this._plainFields.forEach(path => {
-            const parts = String(path).split('.');
+            path = String(path);
+            //  a flat key that contains a dot wins, as it does for _.get()
+            if (Object.prototype.hasOwnProperty.call(item, path)) {
+                if (_.isString(item[path])) {
+                    out[path] = plainText(item[path]);
+                }
+                return;
+            }
+            const parts = path.split('.');
             const last = parts.pop();
             let src = item;
             let dst = out;
@@ -1761,11 +1784,7 @@ class TableView extends MenuView {
         this._rowScreen = new Map();
 
         if (this.hasItemRows()) {
-            if (this.hasSelectable()) {
-                this._ensureVisible(this.focusedItemIndex);
-            } else {
-                this._clampWindow(); //  read-only: nothing to focus
-            }
+            this._ensureVisible(this.focusedItemIndex);
 
             let i = this._top;
             for (; i < this.items.length; ++i) {
