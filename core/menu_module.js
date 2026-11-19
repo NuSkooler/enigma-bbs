@@ -45,6 +45,17 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.menuName = options.menuName;
         this.menuConfig = options.menuConfig;
         this.client = options.client;
+        //
+        //  A folder mod's own art/ folder (mods/<name>/art), set by
+        //  menu_util.loadMenu() for a menu whose module is that mod; undefined
+        //  for every other menu. Art this menu shows through the helpers below
+        //  (displayAsset(), prepViewControllerWithArt(),
+        //  displayArtAndPrepViewController(), promptForInput(), paged art) is
+        //  looked for there after the themes and before the general art
+        //  directory: see theme.getThemeArt(). Mod code calling theme.js
+        //  directly can pass it on as |modArtPath| too.
+        //
+        this.modArtPath = options.modArtPath;
         this.menuMethods = {}; //  methods called from @method's
         this.menuConfig.config = this.menuConfig.config || {};
         //  Fall back to the global menus.cls, defaulting to false if the config
@@ -673,6 +684,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 //  and RIP art, unless the caller says |artSpec| may not be the
                 //  operator's choice (see theme.getThemeArt())
                 acceptRip: false !== artOptions.acceptRip,
+                modArtPath: self.modArtPath,
             }),
             (err, artInfo) => {
                 if (err) {
@@ -791,7 +803,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 font: this.menuConfig.config.font,
                 encodedAs: this.menuConfig.config.encodedAs, //  propagate to art loader; undefined if unset
             },
-            options //  caller can override
+            options, //  caller can override
+            //  ...but not this: |options| is often the menu's config block,
+            //  and no config key may name a folder to look for art in
+            { modArtPath: this.modArtPath }
         );
 
         if (Buffer.isBuffer(nameOrData)) {
@@ -964,6 +979,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
         };
 
         options.viewController.setFocus(true);
+        //  a prompt this menu asks for may have its art in the mod's folder
+        options.modArtPath = this.modArtPath;
 
         this.optionalMoveToPosition(position);
         if (!options.position) {
@@ -1001,7 +1018,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     theme.displayThemedAsset(
                         config.art[name],
                         this.client,
-                        { font: this.menuConfig.font, trailingLF: false },
+                        {
+                            font: this.menuConfig.font,
+                            trailingLF: false,
+                            modArtPath: this.modArtPath,
+                        },
                         (err, artData) => {
                             return callback(err, artData);
                         }
