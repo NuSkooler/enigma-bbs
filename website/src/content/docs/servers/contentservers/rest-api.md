@@ -10,17 +10,41 @@ The API requires the [Web Server](./web-server.md) to be enabled.
 
 ## Enabling the API
 
-Add a `restApi` block inside `contentServers.web` in `config.hjson`:
+The API is a [web handler](./web-handlers.md), switched on in `contentServers.web.handlers` in `config.hjson`:
 
 ```hjson
 contentServers: {
     web: {
-        restApi: {
-            enabled: true
+        handlers: {
+            restApi: {
+                enabled: true
+            }
         }
     }
 }
 ```
+
+Its settings, everything below, go in a separate `restApi` block directly inside `contentServers.web`, beside `handlers` rather than inside it:
+
+```hjson
+contentServers: {
+    web: {
+        handlers: {
+            restApi: {
+                enabled: true
+            }
+        }
+
+        restApi: {
+            corsAllowedOrigins: [ "https://my-bbs-frontend.example.com" ]
+        }
+    }
+}
+```
+
+:::caution
+Settings placed inside `handlers.restApi` are ignored: only `enabled` is read from there.
+:::
 
 ## Authentication
 
@@ -153,8 +177,6 @@ By default all endpoints (except the explicitly public system endpoints) require
 
 ```hjson
 restApi: {
-    enabled: true
-
     messages: {
         publicAccess: {
             // Expose all areas in the "local" conference except "private*" tags
@@ -182,7 +204,6 @@ Cross-Origin Resource Sharing headers are off by default. To allow browser-based
 
 ```hjson
 restApi: {
-    enabled: true
     corsAllowedOrigins: ["https://my-bbs-frontend.example.com"]
 }
 ```
@@ -236,11 +257,11 @@ The specification itself lives at [`website/src/api/openapi.yaml`](https://githu
 
 ## Configuration Reference
 
-All keys live under `contentServers.web.restApi` in `config.hjson`:
+`enabled` lives under `contentServers.web.handlers.restApi`; every other key lives under `contentServers.web.restApi` in `config.hjson`:
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `enabled` | Yes | Set to `true` to enable the REST API. |
+| `handlers.restApi.enabled` | Yes | Set to `true` to enable the REST API. |
 | `corsAllowedOrigins` | No | Array of allowed CORS origins. Default `[]` (no CORS headers). Use `["*"]` for open access. |
 | `jwtSecret` | No | Override the auto-generated JWT signing secret. Useful for multi-node setups sharing a secret. |
 | `system.public.info` | No | Make `GET /system/info` public. Default `true`. |
