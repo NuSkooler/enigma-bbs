@@ -59,6 +59,10 @@ function makeSpool() {
         paths: bsoConfig.paths || {},
         networks: config.messageNetworks?.ftn?.networks || {},
         defaultNetwork: bsoConfig.defaultNetwork,
+        //  The BBS takes the lock's stale age from here too (see buildSpool());
+        //  without it oputil would reap, or wait out, a .bsy on the 30 minute
+        //  default whatever the sysop configured.
+        staleLockMaxAgeMs: bsoConfig.binkp?.staleLockMaxAgeMs,
         //  So the listing shows what the BBS would actually do with each entry.
         flowPaths: flowPathSettings(config),
     });

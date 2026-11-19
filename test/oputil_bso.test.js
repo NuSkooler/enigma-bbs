@@ -349,4 +349,52 @@ describe('oputil bso', function () {
         assert.match(after.out, /Removed/);
         assert.ok(!(await fsp.readFile(flowPath, 'utf8')).includes(goneFile));
     });
+
+    // ── 8. the configured stale lock age ──────────────────────────────────────
+
+    //  A lock in no form of ours, so it is judged by its age alone
+    //  (FTS-5005.003 §5.1), however long ago another mailer wrote it.
+    async function leaveStaleLock(flowPath, ageMs) {
+        const bsoLock = require('../core/bso_lock');
+        const bsyPath = bsoLock.bsyPathForFlowFile(flowPath);
+        await fsp.writeFile(bsyPath, 'OTHERMAILER\n');
+        const then = new Date(Date.now() - ageMs);
+        await fsp.utimes(bsyPath, then, then);
+        return bsyPath;
+    }
+
+    it('takes over a .bsy older than the configured staleLockMaxAgeMs', async () => {
+        //  makeSpool() used to leave the setting out, so oputil judged every
+        //  lock by the 30 minute default whatever the config said.
+        const { root, flowPath, goneFile } = await makeFixture('stale_configured', {
+            extra: 'binkp: { staleLockMaxAgeMs: 60000 }\nflowLockTimeoutMs: 250',
+        });
+        const bsyPath = await leaveStaleLock(flowPath, 10 * 60 * 1000);
+
+        const { code, out } = runOputil(root, ['prune', NODE, '--yes']);
+
+        assert.equal(code, 0);
+        assert.match(
+            out,
+            /Removed/,
+            `the stale lock should have been taken over:\n${out}`
+        );
+        assert.ok(!(await fsp.readFile(flowPath, 'utf8')).includes(goneFile));
+        await assert.rejects(fsp.stat(bsyPath), { code: 'ENOENT' });
+    });
+
+    it('still treats a .bsy younger than the default stale age as busy', async () => {
+        //  The other side of it: with nothing configured, 10 minutes is not stale.
+        const { root, flowPath } = await makeFixture('stale_default', {
+            extra: 'flowLockTimeoutMs: 250',
+        });
+        const before = await fsp.readFile(flowPath, 'utf8');
+        await leaveStaleLock(flowPath, 10 * 60 * 1000);
+
+        const { code, out } = runOputil(root, ['prune', NODE, '--yes']);
+
+        assert.equal(code, 0, 'a busy node is a deferral, not a failure');
+        assert.match(out, /busy/i);
+        assert.equal(await fsp.readFile(flowPath, 'utf8'), before);
+    });
 });
