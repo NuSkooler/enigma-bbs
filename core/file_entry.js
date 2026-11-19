@@ -56,6 +56,57 @@ const FILE_WELL_KNOWN_META = {
 };
 
 //
+//  Meta a file scan owns (#291). Only the scan writers set these: a new
+//  entry's scanFile() verdict, the rescan and mark-safe (replaceMetaValues()),
+//  and quarantine release. See persist() for what an update does with them.
+//
+const SCAN_META_NAMES = [
+    'scan_result',
+    'scanned_at',
+    'scanner',
+    'scan_signature',
+    'rescan_attempted_at',
+];
+
+//  scan_result of an entry a scan or rescan found something in
+const INFECTED_SCAN_RESULT = 'infected';
+
+//
+//  Applies one file_meta row to |entry|.meta. Meta are meant to be single
+//  valued, but file_meta is UNIQUE on (file_id, meta_name, meta_value), so an
+//  older database can hold two rows for one name and the last one read would
+//  win. For scan_result that must not be a coin toss: an 'infected' row wins
+//  over any other, the same answer findFiles({ excludeInfected }) and
+//  getInfectedFileIds() give, so an entry is never hidden by one and shown by
+//  the other.
+//
+function applyMetaRow(entry, name, value) {
+    if (
+        'scan_result' === name &&
+        INFECTED_SCAN_RESULT === entry.meta.scan_result &&
+        entry.meta.scan_result !== value
+    ) {
+        return;
+    }
+    const conv = FILE_WELL_KNOWN_META[name];
+    entry.meta[name] = conv ? conv(value) : value;
+}
+
+//
+//  The infected test as SQL, for a file row aliased |alias|. Any 'infected'
+//  scan_result row counts (see applyMetaRow()).
+//
+function infectedExistsSql(alias) {
+    return `EXISTS (
+        SELECT 1
+        FROM file_meta im
+        WHERE im.file_id = ${alias}.file_id
+            AND im.meta_name = 'scan_result'
+            AND im.meta_value = '${INFECTED_SCAN_RESULT}'
+    )`;
+}
+
+//
 //  A SQLite LIKE pattern from a DOS style glob ('*' and '?').
 //
 //  Two layers of escaping meet here and the order is the whole of it: escape
@@ -238,7 +289,35 @@ module.exports = class FileEntry {
                         `REPLACE INTO file_meta (file_id, meta_name, meta_value)
                         VALUES (?, ?, ?);`
                     );
+                    const delMetaStmt = fileDb.prepare(
+                        `DELETE FROM file_meta
+                        WHERE file_id = ? AND meta_name = ?;`
+                    );
                     for (const [n, v] of Object.entries(self.meta)) {
+                        if (isUpdate && SCAN_META_NAMES.includes(n)) {
+                            //
+                            //  Scan meta on an update (#291). A value this
+                            //  entry was loaded with and still holds is left
+                            //  alone: a rescan or mark-safe may have changed
+                            //  it since, and writing the stale copy back
+                            //  would undo that -- worst of all, a stale
+                            //  'clean' unhiding an entry flagged infected.
+                            //  A value the caller set (a fresh scanFile()
+                            //  verdict for a TIC replace, say) replaces every
+                            //  row of that name rather than adding one, so
+                            //  an old 'infected' cannot linger beside it.
+                            //
+                            if (
+                                self.loadedScanMeta &&
+                                _.isEqual(self.loadedScanMeta[n], v)
+                            ) {
+                                continue;
+                            }
+                            delMetaStmt.run(self.fileId, n);
+                            if (_.isNil(v)) {
+                                continue;
+                            }
+                        }
                         metaStmt.run(self.fileId, n, coerceToText(v));
                     }
 
@@ -493,6 +572,9 @@ module.exports = class FileEntry {
 
     loadMeta(cb) {
         try {
+            //  what the database says, not what this entry held before
+            //  (applyMetaRow() keeps an 'infected' it has already seen)
+            delete this.meta.scan_result;
             for (const meta of fileDb
                 .prepare(
                     `SELECT meta_name, meta_value
@@ -500,11 +582,10 @@ module.exports = class FileEntry {
                     WHERE file_id=?;`
                 )
                 .iterate(this.fileId)) {
-                const conv = FILE_WELL_KNOWN_META[meta.meta_name];
-                this.meta[meta.meta_name] = conv
-                    ? conv(meta.meta_value)
-                    : meta.meta_value;
+                applyMetaRow(this, meta.meta_name, meta.meta_value);
             }
+            //  what persist() compares against: see there
+            this.loadedScanMeta = _.pick(this.meta, SCAN_META_NAMES);
             return cb(null);
         } catch (err) {
             return cb(err);
@@ -584,6 +665,38 @@ module.exports = class FileEntry {
 
     static get WellKnownMetaValues() {
         return Object.keys(FILE_WELL_KNOWN_META);
+    }
+
+    static get ScanMetaNames() {
+        return SCAN_META_NAMES.slice();
+    }
+
+    static get InfectedScanResult() {
+        return INFECTED_SCAN_RESULT;
+    }
+
+    //
+    //  Which of |fileIds| a scan marked infected (#291), as a Set. Reads the
+    //  database rather than any entry in memory, so it is right about an
+    //  entry flagged after it was loaded or queued. Synchronous, like the
+    //  database underneath it, so it can sit in a filter.
+    //
+    static getInfectedFileIds(fileIds) {
+        const ids = _.uniq((fileIds || []).filter(_.isFinite));
+        const infected = new Set();
+        //  well under SQLite's bound parameter limit
+        for (const chunk of _.chunk(ids, 500)) {
+            fileDb
+                .prepare(
+                    `SELECT f.file_id
+                    FROM file f
+                    WHERE f.file_id IN (${chunk.map(() => '?').join(', ')})
+                        AND ${infectedExistsSql('f')};`
+                )
+                .all(...chunk)
+                .forEach(r => infected.add(r.file_id));
+        }
+        return infected;
     }
 
     static getFileIdsBySha(sha, options = {}, cb) {
@@ -684,12 +797,12 @@ module.exports = class FileEntry {
             (metaRows || []).forEach(row => {
                 const entry = entriesById.get(row.file_id);
                 if (entry) {
-                    const conv = FILE_WELL_KNOWN_META[row.meta_name];
-                    entry.meta[row.meta_name] = conv
-                        ? conv(row.meta_value)
-                        : row.meta_value;
+                    applyMetaRow(entry, row.meta_name, row.meta_value);
                 }
             });
+            for (const entry of entriesById.values()) {
+                entry.loadedScanMeta = _.pick(entry.meta, SCAN_META_NAMES);
+            }
 
             const tagRows = fileDb
                 .prepare(
@@ -736,6 +849,7 @@ module.exports = class FileEntry {
     //    possible, but want to allow users to search for wildcard matches in
     //    which some cases we'll use multiple LIKE queries.
     //    See _normalizeFileSearchTerms()
+    //  - excludeInfected: leave out entries a scan marked infected (#291)
     //
     static findFiles(filter, cb) {
         filter = filter || {};
@@ -950,6 +1064,14 @@ module.exports = class FileEntry {
 
         if (_.isNumber(filter.newerThanFileId)) {
             appendWhereClause('f.file_id > ?', filter.newerThanFileId);
+        }
+
+        //  Entries a scan found something in (#291). Off unless asked for:
+        //  user facing callers ask through file_base_visibility.js, which
+        //  knows hideInfected and who may see them anyway; oputil, dupe
+        //  checks and the like want everything.
+        if (filter.excludeInfected) {
+            appendWhereClause(`NOT ${infectedExistsSql('f')}`);
         }
 
         sql += `${sqlWhere} ${sqlOrderBy}`;
