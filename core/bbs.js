@@ -270,6 +270,12 @@ const shutdownSteps = [
         name: 'stopMsgNetwork',
         run: cb => require('./msg_network.js').shutdown(() => cb(null)),
     },
+    {
+        //  file scanning notices held back to coalesce them; see
+        //  core/file_scanner.js notifyOperatorsCoalesced()
+        name: 'flushFileScanNotices',
+        run: cb => require('./file_scanner.js').flushCoalescedNotices(() => cb(null)),
+    },
 ];
 
 //
@@ -685,6 +691,19 @@ function initialize(cb) {
             function initMCI(callback) {
                 return require('./predefined_mci.js').init(callback);
             },
+            function registerFileScanners(callback) {
+                //
+                //  Before message networks: a TIC already waiting in an
+                //  inbound is imported as soon as they start, and must not
+                //  get there ahead of the scanners that check it. Mods are
+                //  registered in the order oputil uses; initializeModules()
+                //  below then skips them. See core/file_scanner.js.
+                //
+                return require('./file_scanner.js').loadModFileScanners(
+                    conf.get().paths.mods,
+                    () => callback(null)
+                );
+            },
             function readyMessageNetworkSupport(callback) {
                 return require('./msg_network.js').startup(callback);
             },
@@ -693,6 +712,10 @@ function initialize(cb) {
             },
             function genericModulesInit(callback) {
                 return require('./module_util.js').initializeModules(callback);
+            },
+            function readyFileScanning(callback) {
+                //  after the modules: they register the scanners it checks for
+                return require('./file_scanner.js').startup(callback);
             },
             function listenConnections(callback) {
                 return require('./listening_server.js').startup(callback);

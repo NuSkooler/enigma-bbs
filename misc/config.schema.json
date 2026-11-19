@@ -1231,7 +1231,42 @@
                             "type": "string"
                         },
                         "restApi": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "corsAllowedOrigins": {
+                                    "description": "Origins sent CORS headers; [] sends none, [\"*\"] allows any.",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "files": {
+                                    "type": "object",
+                                    "properties": {
+                                        "publicAccess": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                },
+                                "jwtSecret": {
+                                    "description": "JWT signing secret; generated and stored in the database when omitted.",
+                                    "type": "string"
+                                },
+                                "messages": {
+                                    "type": "object",
+                                    "properties": {
+                                        "publicAccess": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                },
+                                "system": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
                         },
                         "tryFiles": {
                             "description": "File names tried, in order, when a request names a directory under staticRoot. Unset tries index.html, then index.htm.",
@@ -2243,6 +2278,83 @@
                             "type": "number",
                             "minimum": 1,
                             "default": 1440
+                        }
+                    },
+                    "patternProperties": {
+                        "^_": true
+                    },
+                    "additionalProperties": false
+                },
+                "scanning": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "description": "Scan untrusted files (uploads, TIC imports) before anything looks inside them.",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "failAction": {
+                            "description": "What happens to a file a scanner finds something in. A file held because a scanner failed is always quarantined.",
+                            "type": "string",
+                            "enum": [
+                                "quarantine",
+                                "delete"
+                            ],
+                            "default": "quarantine"
+                        },
+                        "quarantinePath": {
+                            "description": "Where rejected files go, each with a JSON sidecar. Relative paths resolve against areaStoragePrefix.",
+                            "type": "string",
+                            "default": ".quarantine"
+                        },
+                        "notifyUserIds": {
+                            "description": "User IDs sent a private message about rejected files.",
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "default": [
+                                1
+                            ]
+                        },
+                        "defangExtensions": {
+                            "description": "Extensions renamed DOS style in quarantine (.exe becomes .ex_), without the dot.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "default": [
+                                "exe",
+                                "com",
+                                "bat",
+                                "cmd",
+                                "scr",
+                                "pif",
+                                "ps1",
+                                "vbs",
+                                "js",
+                                "sh"
+                            ]
+                        },
+                        "scanners": {
+                            "description": "Scanners run in order: { scanner, sources, fileTypes, timeout, onError, ... }. The first to find something rejects the file.",
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            },
+                            "default": []
+                        },
+                        "maxConcurrent": {
+                            "description": "Most file scanners running at once, across every source; the rest wait their turn.",
+                            "type": "number",
+                            "minimum": 1,
+                            "default": 2
+                        },
+                        "maxQueueWaitMs": {
+                            "description": "Longest a file waits for a free scanner before that counts as a scanner error (onError applies). 0 waits as long as it takes.",
+                            "type": "number",
+                            "minimum": 0,
+                            "default": 600000
                         }
                     },
                     "patternProperties": {

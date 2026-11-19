@@ -15,6 +15,7 @@ const {
     writeConfig,
 } = require('./oputil_common.js');
 const Errors = require('../enig_error.js').Errors;
+const FileScanner = require('../file_scanner.js');
 const {
     AreaListFormat,
     parseAreaList,
@@ -339,14 +340,22 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                                 );
                                             },
                                             function fullScan() {
+                                                const scanOpts = {
+                                                    areaTag: areaInfo.areaTag,
+                                                    storageTag: storageLoc.storageTag,
+                                                    relPath,
+                                                    hashTags: areaInfo.hashTags,
+                                                };
+
+                                                //  file (virus) scanning is opt in here
+                                                if (options.virusScan) {
+                                                    scanOpts.scanSource =
+                                                        FileScanner.ScanSources.Oputil;
+                                                }
+
                                                 fileArea.scanFile(
                                                     fullPath,
-                                                    {
-                                                        areaTag: areaInfo.areaTag,
-                                                        storageTag: storageLoc.storageTag,
-                                                        relPath,
-                                                        hashTags: areaInfo.hashTags,
-                                                    },
+                                                    scanOpts,
                                                     (stepInfo, next) => {
                                                         if (argv.verbose) {
                                                             if (stepInfo.error) {
@@ -362,6 +371,21 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                                         return next(null);
                                                     },
                                                     (err, fileEntry, dupeEntries) => {
+                                                        if (
+                                                            FileScanner.isFileRejected(
+                                                                err
+                                                            )
+                                                        ) {
+                                                            return rejectScannedFile(
+                                                                fullPath,
+                                                                storageLoc.storageTag,
+                                                                relPath,
+                                                                err,
+                                                                options,
+                                                                () => nextFile(null)
+                                                            );
+                                                        }
+
                                                         if (err) {
                                                             console.info(
                                                                 `Error: ${err.message}`
@@ -709,6 +733,73 @@ function displayFileOrAreaInfo() {
     );
 }
 
+//
+//  A file file scanning rejected: say so, put it where fileBase.scanning says
+//  (quarantine or delete), and keep it for the run's one operator notice. It
+//  is never imported.
+//
+//  It is in the storage tree, though, where a later plain "fb scan" would
+//  import it unscanned, so failing to move it is loud. An infected file that
+//  cannot be quarantined is deleted instead (see applyFailAction()); one
+//  that cannot be deleted either fails the run. A held file -- the scanner
+//  failed, so it may be clean -- is left where it is, and said to be.
+//
+function rejectScannedFile(fullPath, storageTag, relPath, rejectedErr, options, cb) {
+    const FileEntry = require('../file_entry.js');
+    const verdict = rejectedErr.verdict;
+    const what =
+        FileScanner.Verdicts.Infected === verdict.result
+            ? `infected: ${verdict.signature || 'unnamed threat'}`
+            : `held, scanner failed: ${verdict.detail || 'unknown error'}`;
+
+    console.info(`Rejected (${verdict.scanner} ${what})`);
+
+    //  only with --full does an existing entry get this far
+    FileEntry.quickCheckExistsByPath(fullPath, storageTag, relPath, (err, exists) => {
+        if (exists) {
+            console.info(
+                '  This file already has an entry; once it is moved the entry points at nothing. Remove it with "fb rm".'
+            );
+        }
+
+        FileScanner.applyFailAction(
+            fullPath,
+            verdict,
+            rejectedErr.scanContext,
+            (err, disposition) => {
+                if (err) {
+                    disposition = { error: err.message, path: fullPath };
+                    if (FileScanner.Verdicts.Infected === verdict.result) {
+                        process.exitCode = ExitCodes.ERROR;
+                        console.error(
+                            `  ERROR: ${err.message}. This INFECTED file is still at ${fullPath}; remove it by hand before the next "fb scan".`
+                        );
+                    } else {
+                        console.error(
+                            `  Could not quarantine it: ${err.message}. It is still at ${fullPath}, NOT scanned; a plain "fb scan" would import it.`
+                        );
+                    }
+                } else if (disposition.quarantineError) {
+                    console.error(
+                        `  Could not quarantine it (${disposition.quarantineError}); DELETED it instead`
+                    );
+                } else if (FileScanner.FailActions.Delete === disposition.action) {
+                    console.info('  Deleted');
+                } else {
+                    console.info(`  Quarantined to ${disposition.path}`);
+                }
+
+                options.scanRejections.push({
+                    ctx: rejectedErr.scanContext,
+                    verdict,
+                    disposition,
+                });
+                return cb(null);
+            }
+        );
+    });
+}
+
 function scanFileAreas() {
     const options = {};
 
@@ -719,6 +810,8 @@ function scanFileAreas() {
 
     options.descFile = argv['desc-file']; //	--desc-file or --desc-file PATH
     options['full'] = argv.full;
+    options.virusScan = true === argv['virus-scan'];
+    options.scanRejections = [];
 
     options.areaAndStorageInfo = getAreaAndStorage(argv._.slice(2));
 
@@ -735,6 +828,53 @@ function scanFileAreas() {
             },
             function initMime(callback) {
                 return require('../../core/mime_util.js').startup(callback);
+            },
+            function checkVirusScan(callback) {
+                if (!options.virusScan) {
+                    return callback(null);
+                }
+
+                if (!FileScanner.isEnabled()) {
+                    return callback(
+                        Errors.MissingConfig(
+                            '--virus-scan needs file scanning enabled (fileBase.scanning.enabled)'
+                        )
+                    );
+                }
+
+                //
+                //  Scanners mods provide: only their registerFileScanners()
+                //  runs here, never moduleInitialize(). One still missing
+                //  after that would hold every file, so refuse instead.
+                //
+                const modsPath = _.get(
+                    require('../../core/config.js').get(),
+                    'paths.mods'
+                );
+                FileScanner.loadModFileScanners(modsPath, err => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    FileScanner.getConfigWarnings().forEach(warning => {
+                        console.warn(`Warning: ${warning}`);
+                    });
+
+                    const missing = FileScanner.getUnavailableScanners(
+                        FileScanner.ScanSources.Oputil
+                    );
+                    if (missing.length > 0) {
+                        return callback(
+                            Errors.MissingConfig(
+                                `--virus-scan: scanner(s) not registered by any mod in ${modsPath}: ${missing.join(
+                                    ', '
+                                )}. Check the mod exports registerFileScanners(), leave "oputil" out of the entry's "sources", or set onError: accept.`
+                            )
+                        );
+                    }
+
+                    return callback(null);
+                });
             },
             function initGlobalDescHandler(callback) {
                 //
@@ -806,6 +946,35 @@ function scanFileAreas() {
                 process.exitCode = ExitCodes.ERROR;
                 console.error(err.message);
             }
+
+            //
+            //  --virus-scan loaded every mod, and a mod may start a timer or
+            //  a server just by being loaded, which would keep oputil from
+            //  ever exiting. Once the notice is written and the output is
+            //  flushed, exit (with process.exitCode as set).
+            //
+            const finished = () => {
+                if (!options.virusScan) {
+                    return;
+                }
+                process.stdout.write('', () => {
+                    process.stderr.write('', () => process.exit());
+                });
+            };
+
+            //  whatever stopped the run, what was rejected is reported, once
+            const count = options.scanRejections.length;
+            if (0 === count) {
+                return finished();
+            }
+            console.info(
+                `${count} file${1 === count ? '' : 's'} rejected by file scanning`
+            );
+            FileScanner.notifyOperators(
+                options.scanRejections,
+                { source: FileScanner.ScanSources.Oputil },
+                finished
+            );
         }
     );
 }

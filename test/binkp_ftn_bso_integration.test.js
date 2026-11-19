@@ -194,6 +194,57 @@ describe('ftn_bso ↔ BinkP integration', function () {
         });
     });
 
+    // ── ftn_bso ↔ ConfigChanged ───────────────────────────────────────────────
+
+    describe('ftn_bso — ConfigChanged', () => {
+        //  #291: a TIC held because its scan failed waits out a backoff; a
+        //  config change (the sysop fixing or registering the scanner) must
+        //  let the next pass try it again rather than up to an hour later.
+        it('retries held TIC scans at once after a config change', done => {
+            const prev = configModule._pushTestConfig(makeConfig());
+
+            const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+            const mod = new getModule();
+            mod.performImport = cb => {
+                if (cb) cb(null);
+            };
+
+            const finish = err => {
+                mod.shutdown(() => {
+                    configModule._popTestConfig(prev);
+                    done(err);
+                });
+            };
+
+            mod.startup(err => {
+                if (err) {
+                    configModule._popTestConfig(prev);
+                    return done(err);
+                }
+
+                const ticFileInfo = {
+                    path: path.join(tmpDir, 'ftn_secin', 'held.tic'),
+                    filePath: path.join(tmpDir, 'ftn_secin', 'HELD.ZIP'),
+                };
+                require('fs').writeFileSync(ticFileInfo.filePath, 'payload');
+                mod.noteTicScanHeld(ticFileInfo, () => {
+                    mod.isTicScanRetryDue(ticFileInfo, dueBefore => {
+                        Events.emit(Events.getSystemEvents().ConfigChanged);
+                        mod.isTicScanRetryDue(ticFileInfo, dueAfter => {
+                            try {
+                                assert.equal(dueBefore, false, 'backing off');
+                                assert.equal(dueAfter, true, 'due after the change');
+                                finish();
+                            } catch (e) {
+                                finish(e);
+                            }
+                        });
+                    });
+                });
+            });
+        });
+    });
+
     // ── Outbound path compatibility ───────────────────────────────────────────────
     //
     //  Verify that the flow-file paths ftn_bso writes are identical to the paths

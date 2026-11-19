@@ -17,6 +17,7 @@ const MultiLineEditTextView =
     require('./multi_line_edit_text_view.js').MultiLineEditTextView;
 const TickerView = require('./ticker_view.js').TickerView;
 const StatusBarView = require('./status_bar_view.js').StatusBarView;
+const TableView = require('./table_view.js').TableView;
 const getPredefinedMCIValue = require('./predefined_mci.js').getPredefinedMCIValue;
 const ansi = require('./ansi_term.js');
 
@@ -52,6 +53,7 @@ MCIViewFactory.UserViewCodes = [
 
     'TK', //  Ticker (scrolling marquee)
     'SB', //  Status Bar (auto-refreshing text label)
+    'TV', //  Table View (columns, groups, sorting)
 ];
 
 MCIViewFactory.MovementCodes = ['CF', 'CB', 'CU', 'CD'];
@@ -219,6 +221,11 @@ MCIViewFactory.prototype.createFromMCI = function (mci) {
         //  Status Bar — configure via mci properties in menu/theme hjson
         case 'SB':
             view = new StatusBarView(options);
+            break;
+
+        //  Table View — configure via mci properties in menu/theme hjson
+        case 'TV':
+            view = new TableView(options);
             break;
 
         default:

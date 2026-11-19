@@ -45,6 +45,10 @@ const FILE_WELL_KNOWN_META = {
     session_temp_dl: v => (parseInt(v) ? true : false),
     desc_sauce: s => JSON.parse(s) || {},
     desc_long_sauce: s => JSON.parse(s) || {},
+    //  file scanning (#291); see core/file_scanner.js
+    scan_result: null, //  a file_scanner Verdicts value: clean, skipped, ...
+    scanned_at: null, //  ISO 8601 timestamp
+    scanner: null, //  scanner name(s) that ran, comma separated
 };
 
 //

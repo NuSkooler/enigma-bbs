@@ -116,6 +116,10 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `NT` | Total *new* users *today* |
 | `NM` | Count of new messages **address to the current user** across all message areas in which they have access |
 | `NP` | Count of new private mail to the current user |
+| `NA` | Count of new messages in the current user's active message area |
+| `NC` | Count of new messages in the current user's active message conference (areas they can read) |
+| `NS` | Count of new messages across the current user's new scan areas (all areas they can read if they have not chosen any) |
+| `AT` | Total messages in the current user's active message area |
 | `IA` | Indicator as to whether the current user is **available** or not. See also `getStatusAvailIndicators()` in [Themes](themes.md) |
 | `IV` | Indicator as to whether the current user is **visible** or not. See also `getStatusVisibleIndicators()` in [Themes](themes.md) |
 | `PI` | Ingress bytes for the current process (since ENiGMA started up) |
@@ -160,6 +164,7 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `KE` | Key Entry            | A *single* key input control | Think hotkeys |
 | `TK` | Ticker               | A continuously scrolling marquee | Scrolls text left or right in a fixed-width window. See [Ticker View](views/ticker_view.md) |
 | `SB` | Status Bar           | An auto-refreshing text label | Re-renders MCI format codes on a timer. See [Status Bar View](views/status_bar_view.md) |
+| `TV` | Table View           | A list in columns | Group rows, a header and sorting; can stand in for `VM`. See [Table View](views/table_view.md) |
 
 :::note
 Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
