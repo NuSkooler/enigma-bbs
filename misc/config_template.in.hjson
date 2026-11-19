@@ -755,6 +755,26 @@
             //  backupDatabases: {
             //    schedule: at 4:00 am
             //  }
+            //
+            //  Rescan the file base with the file scanners once a week, e.g.
+            //  after freshclam has updated ClamAV's signatures. The built-in,
+            //  manual-only rescanFileBase task (run it from the WFC task list)
+            //  gets a schedule and args here. It only reports: infected files
+            //  are listed in an inbox notice with the command that removes
+            //  them; nothing is moved or removed. Needs fileBase.scanning (the
+            //  entries whose "sources" include "rescan", or list none). All
+            //  args are optional: areas (a tag or a list, wildcards allowed;
+            //  default every area), olderThanDays, maxFiles and dryRun.
+            //
+            //  rescanFileBase: {
+            //    schedule: at 5:00 am on Sun
+            //    args: [
+            //        {
+            //            olderThanDays: 6
+            //            maxFiles: 5000
+            //        }
+            //    ]
+            //  }
         }
     }
 

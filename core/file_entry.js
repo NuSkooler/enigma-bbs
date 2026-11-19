@@ -49,6 +49,8 @@ const FILE_WELL_KNOWN_META = {
     scan_result: null, //  a file_scanner Verdicts value: clean, skipped, ...
     scanned_at: null, //  ISO 8601 timestamp
     scanner: null, //  scanner name(s) that ran, comma separated
+    scan_signature: null, //  what an infected verdict found (rescan)
+    rescan_attempted_at: null, //  ISO 8601: last rescan attempt, whatever came of it
 };
 
 //
@@ -388,6 +390,102 @@ module.exports = class FileEntry {
             if (cb) {
                 return cb(err);
             }
+        }
+    }
+
+    //
+    //  Sets single-valued meta: every existing row for each name in |values|
+    //  is replaced by the one value given, in one transaction. A null or
+    //  undefined value removes the name.
+    //
+    //  persistMetaValue() cannot do that: file_meta is UNIQUE on (file_id,
+    //  meta_name, meta_value), so its REPLACE adds a second row for a new
+    //  value rather than replacing the old one, and loadMeta() then keeps
+    //  whichever row it reads last.
+    //
+    static replaceMetaValues(fileId, values, cb) {
+        try {
+            const del = fileDb.prepare(
+                `DELETE FROM file_meta
+                WHERE file_id = ? AND meta_name = ?;`
+            );
+            const ins = fileDb.prepare(
+                `INSERT INTO file_meta (file_id, meta_name, meta_value)
+                VALUES (?, ?, ?);`
+            );
+            fileDb.transaction(() => {
+                for (const [name, value] of Object.entries(values)) {
+                    del.run(fileId, name);
+                    if (!_.isNil(value)) {
+                        ins.run(fileId, name, coerceToText(value));
+                    }
+                }
+            })();
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Entries for a file base rescan (#291): those in |areaTags|, plus those
+    //  in |fileIds|, never those in |excludeAreaTags|. Neither areaTags nor
+    //  fileIds given: none. Calls back (err, [ { fileId, fileName, scannedAt,
+    //  attemptedAt, scanResult } ]): the scanned_at, rescan_attempted_at and
+    //  scan_result meta (the latest, should there be more than one row), or
+    //  null where an entry has none.
+    //
+    static getRescanCandidates(filter, cb) {
+        const areaTags = (filter.areaTags || []).filter(_.isString);
+        const fileIds = (filter.fileIds || []).filter(_.isFinite);
+        const excludeAreaTags = (filter.excludeAreaTags || []).filter(_.isString);
+
+        if (0 === areaTags.length && 0 === fileIds.length) {
+            return cb(null, []);
+        }
+
+        const placeholders = list => list.map(() => '?').join(', ');
+        const which = [];
+        const params = [];
+        if (areaTags.length > 0) {
+            which.push(`f.area_tag IN (${placeholders(areaTags)})`);
+            params.push(...areaTags);
+        }
+        if (fileIds.length > 0) {
+            which.push(`f.file_id IN (${placeholders(fileIds)})`);
+            params.push(...fileIds);
+        }
+
+        const metaColumn = name => `(SELECT MAX(m.meta_value)
+                FROM file_meta m
+                WHERE m.file_id = f.file_id AND m.meta_name = '${name}')`;
+
+        let sql = `SELECT f.file_id, f.file_name,
+                ${metaColumn('scanned_at')} AS scanned_at,
+                ${metaColumn('rescan_attempted_at')} AS attempted_at,
+                ${metaColumn('scan_result')} AS scan_result
+            FROM file f
+            WHERE (${which.join(' OR ')})`;
+        if (excludeAreaTags.length > 0) {
+            sql += ` AND f.area_tag NOT IN (${placeholders(excludeAreaTags)})`;
+            params.push(...excludeAreaTags);
+        }
+        sql += ' ORDER BY f.file_id;';
+
+        try {
+            const rows = fileDb.prepare(sql).all(...params);
+            return cb(
+                null,
+                rows.map(r => ({
+                    fileId: r.file_id,
+                    fileName: r.file_name,
+                    scannedAt: r.scanned_at || null,
+                    attemptedAt: r.attempted_at || null,
+                    scanResult: r.scan_result || null,
+                }))
+            );
+        } catch (err) {
+            return cb(err);
         }
     }
 

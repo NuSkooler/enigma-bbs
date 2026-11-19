@@ -368,7 +368,18 @@ class ScheduledEvent {
                         `No method "${this.action.what}" in ${this.action.location}`
                     );
                 }
-                method(this.action.args, err => cb(err || null));
+                //
+                //  A method may call back (err, output): a string |output|
+                //  is kept like an @execute's output (lastRun.outputTail),
+                //  e.g. a run summary for the WFC task detail.
+                //
+                method(this.action.args, (err, output) => {
+                    if (_.isString(output) && output) {
+                        run.output = new OutputTail();
+                        run.output.append(output);
+                    }
+                    return cb(err || null);
+                });
             } catch (e) {
                 cb(e);
             }
@@ -1127,6 +1138,7 @@ EventSchedulerModule.prototype._runEvent = function (schedEvent, options) {
             stoppedBy: lastRun.stoppedBy,
             exitCode: lastRun.exitCode,
             signal: lastRun.signal,
+            outputTail: lastRun.outputTail,
         });
     };
 

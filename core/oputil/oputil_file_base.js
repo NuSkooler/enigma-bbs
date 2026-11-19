@@ -979,6 +979,283 @@ function scanFileAreas() {
     );
 }
 
+//  Names and scanner output from the database: no control characters on the
+//  operator's terminal.
+function consoleText(s) {
+    // eslint-disable-next-line no-control-regex
+    return String(_.isUndefined(s) || null === s ? '' : s).replace(
+        /[\x00-\x1f\x7f-\x9f]/g,
+        '?'
+    );
+}
+
+//
+//  virus-scan CRITERIA: each is an area tag (simple wildcards allowed; "*" is
+//  every area), AREA_TAG@STORAGE_TAG, or a file ID, SHA-256 (or the start of
+//  one) or file name wildcard, as for "fb rm". An area match wins over a file
+//  name wildcard. Calls back (err, { areaTags, fileIds }).
+//
+function resolveVirusScanCriteria(criteria, cb) {
+    const FileEntry = require('../../core/file_entry.js');
+    const areaTags = [];
+    const fileIds = new Set();
+
+    async.eachSeries(
+        getAreaAndStorage(criteria),
+        (spec, next) => {
+            const areaInfo = fileArea.getFileAreaByTag(spec.areaTag);
+
+            if (spec.storageTag) {
+                if (!areaInfo) {
+                    return next(
+                        Errors.DoesNotExist(`No file base area "${spec.areaTag}"`)
+                    );
+                }
+                return FileEntry.findFiles(
+                    { areaTag: spec.areaTag, storageTag: spec.storageTag },
+                    (err, ids) => {
+                        if (err) {
+                            return next(err);
+                        }
+                        ids.forEach(id => fileIds.add(id));
+                        return next(null);
+                    }
+                );
+            }
+
+            if (areaInfo) {
+                areaTags.push(spec.areaTag);
+                return next(null);
+            }
+
+            if (
+                /[*?]/.test(spec.areaTag) &&
+                fileArea.getFileAreasByTagWildcardRule(spec.areaTag).length > 0
+            ) {
+                areaTags.push(spec.areaTag);
+                return next(null);
+            }
+
+            getFileEntries(spec.pattern, (err, entries) => {
+                if (err || !entries || 0 === entries.length) {
+                    return next(
+                        Errors.DoesNotExist(`No area or file matches "${spec.pattern}"`)
+                    );
+                }
+                entries.forEach(e => fileIds.add(e.fileId));
+                return next(null);
+            });
+        },
+        err => cb(err, { areaTags, fileIds: Array.from(fileIds) })
+    );
+}
+
+function printRescanResult(result, dryRun) {
+    const Rescan = require('../../core/file_base_rescan.js');
+    const R = Rescan.RescanResults;
+    const v = result.verdict || {};
+    let label = result.result;
+    let what = '';
+
+    switch (result.result) {
+        case R.Infected:
+            label = 'INFECTED';
+            what = `: ${v.signature || 'unnamed threat'} (${v.scanner})`;
+            break;
+        case R.Held:
+            what = `: could not be checked, ${v.scanner} failed: ${
+                v.detail || 'unknown error'
+            }`;
+            break;
+        case R.Missing:
+            what = `: missing, ${result.path}`;
+            break;
+        default:
+            if (FileScanner.Verdicts.Infected === result.keptResult) {
+                label = 'INFECTED';
+                what = `: still marked infected (${
+                    result.keptSignature || 'unnamed threat'
+                }); the scanners had no opinion this time`;
+            }
+            break;
+    }
+
+    if (result.hashChanged) {
+        what += ' (changed since import)';
+    }
+
+    let line = `  ${label.padEnd(12)}#${String(result.fileId).padEnd(6)}${consoleText(
+        result.areaTag
+    )}  ${consoleText(result.fileName)}${consoleText(what)}`;
+
+    if ('INFECTED' === label && !dryRun) {
+        line += `\n${' '.repeat(14)}remove with: ${Rescan.removeCommand(result.fileId)}`;
+    }
+
+    if (result.error) {
+        console.error(
+            `${line}${line.endsWith(':') ? '' : ':'} ${consoleText(result.error)}`
+        );
+    } else {
+        console.info(line);
+    }
+}
+
+function parseNonNegativeArg(name, integer) {
+    const value = argv[name];
+    if (_.isUndefined(value)) {
+        return { value: undefined };
+    }
+    const n = Number(value);
+    if (
+        true === value ||
+        '' === value ||
+        !_.isFinite(n) ||
+        n < 0 ||
+        (integer && !Number.isInteger(n))
+    ) {
+        return {
+            error: Errors.Invalid(
+                `--${name} needs a ${integer ? 'whole number' : 'number'}, 0 or more`
+            ),
+        };
+    }
+    return { value: n };
+}
+
+function virusScanFileBase() {
+    //
+    //  oputil fb virus-scan CRITERIA [CRITERIA ...] [--older-than DAYS]
+    //      [--max N] [--dry-run]
+    //
+    if (argv._.length < 3) {
+        return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
+    }
+
+    const olderThan = parseNonNegativeArg('older-than', false);
+    const max = parseNonNegativeArg('max', true);
+    const badArg = olderThan.error || max.error;
+    if (badArg) {
+        return printUsageAndSetExitCode(badArg.message, ExitCodes.BAD_ARGS);
+    }
+
+    const dryRun = true === argv['dry-run'];
+    let modsLoaded = false;
+    let summary;
+
+    async.series(
+        [
+            function init(callback) {
+                return initConfigAndDatabases(err => {
+                    if (!err) {
+                        fileArea = require('../../core/file_base_area.js');
+                    }
+                    return callback(err);
+                });
+            },
+            function loadScanners(callback) {
+                if (!FileScanner.isEnabled()) {
+                    return callback(
+                        Errors.MissingConfig(
+                            'virus-scan needs file scanning enabled (fileBase.scanning.enabled)'
+                        )
+                    );
+                }
+
+                //  as for "fb scan --virus-scan": registerFileScanners() only
+                const modsPath = _.get(
+                    require('../../core/config.js').get(),
+                    'paths.mods'
+                );
+                modsLoaded = true;
+                FileScanner.loadModFileScanners(modsPath, err => {
+                    if (!err) {
+                        FileScanner.getConfigWarnings().forEach(warning => {
+                            console.warn(`Warning: ${warning}`);
+                        });
+                    }
+                    return callback(err);
+                });
+            },
+            function scan(callback) {
+                const Rescan = require('../../core/file_base_rescan.js');
+
+                //  before resolving criteria: say why it cannot run first
+                const notReady = Rescan.getRescanReadyError();
+                if (notReady) {
+                    return callback(notReady);
+                }
+
+                resolveVirusScanCriteria(argv._.slice(2), (err, resolved) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    //  an explicit selection that comes to nothing is nothing,
+                    //  never "every area"
+                    if (0 === resolved.areaTags.length && 0 === resolved.fileIds.length) {
+                        return callback(
+                            Errors.DoesNotExist(
+                                'Nothing matched the criteria; nothing scanned'
+                            )
+                        );
+                    }
+
+                    console.info(
+                        dryRun
+                            ? 'Scanning (dry run: nothing will be recorded)...'
+                            : 'Scanning (report only: nothing is moved or removed)...'
+                    );
+
+                    Rescan.rescanFileBase(
+                        {
+                            areaTags: resolved.areaTags,
+                            fileIds: resolved.fileIds,
+                            olderThanDays: olderThan.value,
+                            maxFiles: max.value,
+                            dryRun,
+                            ranBy: 'oputil fb virus-scan',
+                            onFileResult: result => printRescanResult(result, dryRun),
+                        },
+                        (err, s) => {
+                            summary = s;
+                            if (s) {
+                                console.info(Rescan.formatSummary(s));
+                            }
+                            return callback(err);
+                        }
+                    );
+                });
+            },
+        ],
+        err => {
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                console.error(err.message);
+            } else if (summary) {
+                //  like a virus scanner: non-zero when anything was found
+                const R = require('../../core/file_base_rescan.js').RescanResults;
+                if (
+                    summary.errors > 0 ||
+                    summary.stoppedEarly ||
+                    summary.counts[R.Held] > 0 ||
+                    summary.counts[R.Infected] + summary.stillInfected > 0
+                ) {
+                    process.exitCode = ExitCodes.ERROR;
+                }
+            }
+
+            //  a mod may keep the process alive just by being loaded (see
+            //  scanFileAreas()): exit once the output is flushed
+            if (modsLoaded) {
+                process.stdout.write('', () => {
+                    process.stderr.write('', () => process.exit());
+                });
+            }
+        }
+    );
+}
+
 function expandFileTargets(targets, cb) {
     let entries = [];
 
@@ -1621,6 +1898,7 @@ function handleFileBaseCommand() {
         {
             info: displayFileOrAreaInfo,
             scan: scanFileAreas,
+            'virus-scan': virusScanFileBase,
 
             mv: moveFiles,
             move: moveFiles,
