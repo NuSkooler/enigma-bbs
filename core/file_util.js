@@ -172,13 +172,6 @@ function endWriteStream(ws, cb) {
 }
 
 //
-//  Errors from fs.link() that mean "no hard link here", not "no": another
-//  volume, a file system without hard links (FAT, some network shares), a
-//  platform or sandbox that refuses them. The copy fallback takes over.
-//
-const NO_LINK_CODES = ['EXDEV', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EMLINK'];
-
-//
 //  Copies |src| to |dst| without ever replacing |dst|: an existing |dst| is
 //  an EEXIST error, decided by the file system, not by a check made earlier.
 //  Falls back to a stream copy (also exclusive) on EPERM; see safeCopyFile().
@@ -200,6 +193,14 @@ function _exclusiveCopy(src, dst, cb) {
 //  the name is claimed atomically; the source is then unlinked. Where hard
 //  links are not available the copy fallback is exclusive the same way.
 //
+//  Any other link() failure means "no hard link here" rather than "no":
+//  another volume, or a file system without hard links -- and Windows
+//  reports those (FAT, exFAT, some SMB shares) with a spread of codes
+//  (EISDIR, EINVAL, ...) no list can keep up with. The exclusive copy is
+//  no-replace too, so falling back to it is always safe. Only EEXIST (the
+//  caller tries the next name) and ENOENT (the caller decides whether the
+//  destination directory is missing) are returned as they are.
+//
 //  If the source cannot be removed afterwards the move has not happened:
 //  the new name is removed again and the error returned.
 //
@@ -217,8 +218,8 @@ function _moveNoReplace(src, dst, cb) {
         if (!err) {
             return removeSource();
         }
-        if (!NO_LINK_CODES.includes(err.code)) {
-            return cb(err); //  EEXIST included: the caller tries the next name
+        if ('EEXIST' === err.code || 'ENOENT' === err.code) {
+            return cb(err);
         }
         _exclusiveCopy(src, dst, err => {
             if (err) {
@@ -229,13 +230,55 @@ function _moveNoReplace(src, dst, cb) {
     });
 }
 
+//
+//  Before anything is created: a missing source is ENOENT, and nothing else
+//  happens -- not even the destination directory. A destination that is the
+//  source itself (the same path, or the same file under another name, e.g. a
+//  different case on a case-insensitive file system) is an error, as it was
+//  with fs-extra; link() would otherwise see EEXIST and "move" the file to
+//  name(1). An error rather than a no-op success: a caller told its copy
+//  succeeded may go on to remove the "original".
+//
+function checkCollisionPaths(src, dst, cb) {
+    fs.lstat(src, { bigint: true }, (err, srcStats) => {
+        if (err) {
+            return cb(err);
+        }
+        const same = () =>
+            cb(Errors.Invalid('Source and destination must not be the same'));
+        if (paths.resolve(src) === paths.resolve(dst)) {
+            return same();
+        }
+        fs.lstat(dst, { bigint: true }, (err, dstStats) => {
+            if (
+                !err &&
+                srcStats.ino &&
+                srcStats.ino === dstStats.ino &&
+                srcStats.dev === dstStats.dev
+            ) {
+                return same();
+            }
+            return cb(null);
+        });
+    });
+}
+
 function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
     operation = operation || 'copy';
+    EnigAssert('move' === operation || 'copy' === operation);
+
+    checkCollisionPaths(src, dst, err => {
+        if (err) {
+            return cb(err);
+        }
+        return _moveOrCopyToFreeName(src, dst, operation, cb);
+    });
+}
+
+function _moveOrCopyToFreeName(src, dst, operation, cb) {
     const dstPath = paths.dirname(dst);
     const dstFileExt = paths.extname(dst);
     const dstFileSuffix = paths.basename(dst, dstFileExt);
-
-    EnigAssert('move' === operation || 'copy' === operation);
 
     let renameIndex = 0;
     let opOk = false;
@@ -244,8 +287,9 @@ function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
     //
     //  Neither ever replaces an existing file: see _moveNoReplace(). Like the
     //  fs-extra move/copy they stand in for, both create the destination
-    //  directory if it is missing (on ENOENT, then try once more: an ENOENT
-    //  that persists is a missing source).
+    //  directory if it is missing (on ENOENT, then try once more). The source
+    //  is known to exist by then (see checkCollisionPaths()), so an ENOENT
+    //  here is the destination directory, not a missing source.
     //
     function tryOperation(src, dst, callback) {
         const attempt = cb =>

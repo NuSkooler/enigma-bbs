@@ -15,10 +15,12 @@ describe('file_util collision handling', function () {
     let dir;
     let FileUtil;
     let gfs;
+    let realLink;
 
     before(() => {
         FileUtil = require('../core/file_util.js');
         gfs = require('graceful-fs');
+        realLink = gfs.link;
     });
 
     beforeEach(() => {
@@ -27,6 +29,7 @@ describe('file_util collision handling', function () {
     });
 
     afterEach(() => {
+        gfs.link = realLink; //  a failed test must not leave link() stubbed
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
@@ -99,6 +102,58 @@ describe('file_util collision handling', function () {
         });
     });
 
+    //  Windows reports a failed CreateHardLink (FAT, exFAT, some SMB shares)
+    //  with codes such as EISDIR or EINVAL: anything but EEXIST/ENOENT must
+    //  fall back to the copy, or the move hard-fails where fs-extra moved.
+    ['EINVAL', 'EISDIR'].forEach(code => {
+        it(`falls back to the exclusive copy when link() fails with ${code}`, done => {
+            gfs.link = (src, dst, cb) => {
+                const err = new Error(`link failed: ${code}`);
+                err.code = code;
+                process.nextTick(cb, err);
+            };
+
+            const srcs = sources(3);
+            race(FileUtil.moveFileWithCollisionHandling, srcs, finals => {
+                const names = fs.readdirSync(paths.join(dir, 'dst'));
+                assert.equal(new Set(finals).size, 3);
+                assert.equal(names.length, 3);
+                srcs.forEach(src => assert.equal(fs.existsSync(src), false));
+                done();
+            });
+        });
+    });
+
+    it('refuses to move or copy a file onto itself', done => {
+        const src = paths.join(dir, 'dst', 'a.txt');
+        fs.writeFileSync(src, 'mine');
+        //  the same file under a non-normalized path is still the same file
+        const alias = paths.join(dir, 'dst', '..', 'dst', 'a.txt');
+        FileUtil.moveFileWithCollisionHandling(src, alias, (err, finalPath) => {
+            assert.ok(err, 'a same-path move is an error');
+            assert.equal(finalPath, undefined);
+            FileUtil.copyFileWithCollisionHandling(src, src, err => {
+                assert.ok(err, 'a same-path copy is an error');
+                assert.deepEqual(fs.readdirSync(paths.join(dir, 'dst')), ['a.txt']);
+                assert.equal(fs.readFileSync(src, 'utf8'), 'mine');
+                done();
+            });
+        });
+    });
+
+    it('refuses a destination that is a hard link to the source', done => {
+        const src = paths.join(dir, 'a.txt');
+        fs.writeFileSync(src, 'mine');
+        const dst = paths.join(dir, 'dst', 'a.txt');
+        fs.linkSync(src, dst);
+        FileUtil.moveFileWithCollisionHandling(src, dst, err => {
+            assert.ok(err);
+            assert.equal(fs.existsSync(src), true);
+            assert.deepEqual(fs.readdirSync(paths.join(dir, 'dst')), ['a.txt']);
+            done();
+        });
+    });
+
     it('returns the path it moved to, and keeps an existing file', done => {
         fs.writeFileSync(paths.join(dir, 'dst', 'a.txt'), 'old');
         const src = paths.join(dir, 'a.txt');
@@ -144,6 +199,26 @@ describe('file_util collision handling', function () {
             err => {
                 assert.equal(err && err.code, 'ENOENT');
                 done();
+            }
+        );
+    });
+
+    it('creates nothing when the source is missing', done => {
+        const newDir = paths.join(dir, 'new');
+        FileUtil.moveFileWithCollisionHandling(
+            paths.join(dir, 'nope.txt'),
+            paths.join(newDir, 'deeper', 'nope.txt'),
+            err => {
+                assert.equal(err && err.code, 'ENOENT');
+                FileUtil.copyFileWithCollisionHandling(
+                    paths.join(dir, 'nope.txt'),
+                    paths.join(newDir, 'nope.txt'),
+                    err => {
+                        assert.equal(err && err.code, 'ENOENT');
+                        assert.equal(fs.existsSync(newDir), false);
+                        done();
+                    }
+                );
             }
         );
     });
