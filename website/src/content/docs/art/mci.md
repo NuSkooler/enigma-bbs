@@ -216,7 +216,7 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default `menu.hjson` and `theme.hjson` files!
 
 ### Custom Properties
-Often a module will provide custom properties that receive format objects (See [Entry Formatting](#entry-formatting) below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
+Often a module will provide custom properties that receive format objects (See [Entry Formatting](#entry-formatting) below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc. A module may ship defaults for these; an entry in `config` always wins, and an empty string hides the view. See [Default custom info formats](../modding/menu-modules.md#default-custom-info-formats).
 
 ### Text Styles
 

@@ -30,7 +30,7 @@ Both also update additional MCIs as the user moves through the list:
 
 * MCI 2 (`%TL2`) receives the description of the selected entry.
 * MCI 10+ (`%TL10` and up) are custom ranges carrying the same fields as
-  `itemFormat` above. The area list formats these with `areaListItemFormat##`.
+  `itemFormat` above. The area list formats these with `areaListInfoFormat##`.
 
 See **Entry Formatting** in [MCI Codes](../art/mci.md) for the format syntax, and
 [Themes](../art/themes.md#custom-range-info-formatting) for where custom range
