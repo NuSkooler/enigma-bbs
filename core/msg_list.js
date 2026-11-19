@@ -89,6 +89,12 @@ exports.getModule = class MessageListModule extends (
         );
 
         this.menuMethods = {
+            jumpToFirstUnread: (formData, extraArgs, cb) =>
+                this.navigateMessageList(formData, 'unread', cb),
+            messageListHome: (formData, extraArgs, cb) =>
+                this.navigateMessageList(formData, 'home', cb),
+            messageListEnd: (formData, extraArgs, cb) =>
+                this.navigateMessageList(formData, 'end', cb),
             selectMessage: (formData, extraArgs, cb) => {
                 if (!Array.isArray(this.config?.messageList)) {
                     this.client.log.error(
@@ -245,6 +251,41 @@ exports.getModule = class MessageListModule extends (
 
     getSelectedAreaTag(listIndex) {
         return this.config.messageList[listIndex].areaTag || this.config.messageAreaTag;
+    }
+
+    navigateMessageList(formData, direction, cb) {
+        if (
+            formData.submitId !== MciViewIds.allViews.msgList ||
+            !this.config.messageList?.length
+        ) {
+            return cb(null);
+        }
+
+        const msgListView = this.viewControllers.allViews.getView(
+            MciViewIds.allViews.msgList
+        );
+        //  Find unread messages independently of initialFocusIndex, which changes
+        //  when the caller opens a message or starts a post.
+        const firstUnreadIndex = this.config.messageList.findIndex(item =>
+            _.isBoolean(item.isNew) ? item.isNew : item.messageId > this.lastReadId
+        );
+        let index = firstUnreadIndex;
+        if (direction === 'home') {
+            index =
+                firstUnreadIndex < msgListView.focusedItemIndex ? firstUnreadIndex : 0;
+            index = Math.max(0, index);
+        } else if (direction === 'end') {
+            index =
+                firstUnreadIndex > msgListView.focusedItemIndex
+                    ? firstUnreadIndex
+                    : this.config.messageList.length - 1;
+        }
+
+        if (index >= 0) {
+            msgListView.setFocusItemIndex(index);
+            this.populateCustomLabelsForSelected(index);
+        }
+        return cb(null);
     }
 
     enter() {
@@ -508,6 +549,7 @@ exports.getModule = class MessageListModule extends (
                             this.config.messageList.forEach(msg => {
                                 if (areaTag === msg.areaTag) {
                                     msg.newIndicator = regIndicator;
+                                    msg.isNew = false;
                                 }
                             });
                             const msgListView = this.viewControllers.allViews.getView(

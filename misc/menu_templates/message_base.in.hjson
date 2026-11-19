@@ -327,6 +327,18 @@
                     actionKeys: [
                         @reference:common.quitToPrevEntry
                         {
+                            keys: [ "u", "shift + u" ]
+                            action: @method:jumpToFirstUnread
+                        }
+                        {
+                            keys: [ "home" ]
+                            action: @method:messageListHome
+                        }
+                        {
+                            keys: [ "end" ]
+                            action: @method:messageListEnd
+                        }
+                        {
                             keys: [ "p", "shift + p" ]
                             action: @method:postNewMessage
                         }
@@ -528,7 +540,21 @@
                             }
                         ]
                     }
-                    actionKeys: @reference:common.quitToPrev
+                    actionKeys: [
+                        @reference:common.quitToPrevEntry
+                        {
+                            keys: [ "u", "shift + u" ]
+                            action: @method:jumpToFirstUnread
+                        }
+                        {
+                            keys: [ "home" ]
+                            action: @method:messageListHome
+                        }
+                        {
+                            keys: [ "end" ]
+                            action: @method:messageListEnd
+                        }
+                    ]
                 }
             }
         }
@@ -577,6 +603,18 @@
                     }
                     actionKeys: [
                         @reference:common.quitToPrevEntry
+                        {
+                            keys: [ "u", "shift + u" ]
+                            action: @method:jumpToFirstUnread
+                        }
+                        {
+                            keys: [ "home" ]
+                            action: @method:messageListHome
+                        }
+                        {
+                            keys: [ "end" ]
+                            action: @method:messageListEnd
+                        }
                         {
                             keys: [ "p", "shift + p" ]
                             action: @method:postNewMessage
