@@ -85,9 +85,15 @@ function getDefaultConfigPath() {
     return './config/';
 }
 
+let configArgWarned = false;
+
 function getConfigPath() {
-    const baseConfigPath = argv.config ? argv.config : config.Config.getDefaultPath();
-    return baseConfigPath + 'config.hjson';
+    return config.Config.getConfigFilePath(argv.config, msg => {
+        if (!configArgWarned) {
+            configArgWarned = true;
+            console.error(`Warning: ${msg}`);
+        }
+    });
 }
 
 function initConfig(cb) {

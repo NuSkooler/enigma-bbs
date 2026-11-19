@@ -17,7 +17,7 @@ Files are scanned when they come in:
 
 Files the sysop or the system makes (a TIC hatch, exports, offline mail packets) are not scanned.
 
-Scanning is off until you turn it on. ENiGMA½ ships one scanner, `command`, which runs a program per file and looks at its exit code, the way BBS upload testers always have. Other scanners, such as a ClamAV daemon client, come from [mods](#writing-a-scanner). A first-party mod with ClamAV (`clamd`) and VirusTotal hash lookup scanners is planned.
+Scanning is off until you turn it on. ENiGMA½ ships one scanner, `command`, which runs a program per file and looks at its exit code, the way BBS upload testers always have. Other scanners, such as a ClamAV daemon client, come from [mods](#writing-a-scanner). A first-party mod with ClamAV (`clamd`) and VirusTotal hash lookup scanners exists, and will be listed here once it is published.
 
 ## Configuration
 File scanning lives under `fileBase.scanning` in `config.hjson`:
@@ -43,6 +43,9 @@ fileBase: {
                 args: [
                     "--no-summary"
                     "--alert-exceeds-max=yes"
+                    //  rejects every password-protected archive; see
+                    //  "Encrypted archives"
+                    "--alert-encrypted-archive=yes"
                     "{filePath}"
                 ]
                 signatureRegex: "^.*: (.+) FOUND$"
@@ -141,13 +144,15 @@ Node.js refuses to run a `.bat` or `.cmd` file without a shell, so `cmd: scan.cm
     args: [
         "--no-summary"
         "--alert-exceeds-max=yes"
+        //  rejects every password-protected archive; see below
+        "--alert-encrypted-archive=yes"
         "{filePath}"
     ]
     signatureRegex: "^.*: (.+) FOUND$"
 }
 ```
 
-`--alert-exceeds-max=yes` matters: see [Oversized files](#oversized-files) below.
+`--alert-exceeds-max=yes` matters: see [Oversized files](#oversized-files) below. So does `--alert-encrypted-archive=yes`, with a trade-off: see [Encrypted archives](#encrypted-archives).
 
 `clamscan` loads the whole signature database every time it runs, which takes seconds and a lot of memory per file. If `clamd` is running, use `clamdscan` instead, with the same exit codes. Add `--fdpass` so that `clamd`, which usually runs as its own user, can read files in ENiGMA½'s upload directories (see [File permissions](#file-permissions)):
 
@@ -164,6 +169,8 @@ Node.js refuses to run a `.bat` or `.cmd` file without a shell, so `cmd: scan.cm
 }
 ```
 
+`clamdscan` has no options for what `clamd` reports: set `AlertExceedsMax yes` and `AlertEncryptedArchive yes` in `clamd.conf` (see the next two sections).
+
 #### Oversized files
 ClamAV stops scanning at its size and depth limits, **and a file it did not finish reports clean**: a file bigger than `MaxFileSize` is not scanned at all, an archive is scanned only up to `MaxScanSize` of extracted data, and nesting deeper than `MaxRecursion` is not looked into. Anyone who knows that can pad a file or nest an archive to get it past.
 
@@ -173,6 +180,23 @@ Make ClamAV report such a file instead, as `Heuristics.Limits.Exceeded`, which c
 * `clamdscan`: set `AlertExceedsMax yes` in `clamd.conf` (`clamdscan` has no option for it; `clamd` decides).
 
 The limits themselves are `--max-filesize`, `--max-scansize` and `--max-recursion` for `clamscan` (the first two default to 100 MB and 400 MB), and `MaxFileSize`, `MaxScanSize` and `MaxRecursion` in `clamd.conf`. Keep `MaxFileSize` at least as large as the biggest upload or TIC file you accept, or every larger file is rejected; and raising them costs memory and time per scan.
+
+`AlertExceedsMax` covers size and depth only. **It does not cover encrypted archives**, which are the next section.
+
+#### Encrypted archives
+ClamAV cannot look inside an archive it has no password for, **and reports it clean**. Checked with ClamAV 1.5.4: the EICAR test file inside a password-protected zip (`zip -P`) and inside an AES-encrypted 7z with encrypted headers (`7z -p -mhe=on`) both scan clean with `clamd`, even with `AlertExceedsMax yes`. Anyone can upload malware that way, with the password in the description.
+
+Make ClamAV report them instead, as `Heuristics.Encrypted.Zip`, `Heuristics.Encrypted.7Zip` and so on, which counts as infected:
+
+| | Archives (zip, 7z, rar) | Documents (pdf) | Both |
+|-|-------------------------|-----------------|------|
+| `clamscan` | `--alert-encrypted-archive=yes` | `--alert-encrypted-doc=yes` | `--alert-encrypted=yes` |
+| `clamd.conf` | `AlertEncryptedArchive yes` | `AlertEncryptedDoc yes` | `AlertEncrypted yes` |
+
+The trade-off: **every legitimately encrypted upload is rejected too**, and with the default `failAction` it goes to quarantine. If your callers share password-protected archives on purpose, you have to choose between scanning them and accepting them.
+
+#### Old archive formats
+ClamAV looks inside ZIP, ARJ and LZH/LHA archives (checked with libclamav 1.5.4), as well as the common modern formats. It has **no support at all for ARC or ZOO**: it does not recognise them as archives, so their bytes are scanned as they are, and anything compressed inside them is never seen. A clean result for an `.arc` or `.zoo` file says very little. If you accept those formats, a second scanner that unpacks them first is the only way to check what is in them.
 
 ### File permissions
 Uploads are scanned where they were received, in a temporary directory that only the user ENiGMA½ runs as can open (mode `0700`): one per telnet/SSH upload session and one per REST upload. That is deliberate. These are untrusted files on a shared temporary file system, and the BBS user's group may well be shared with other services.
@@ -184,6 +208,11 @@ So a scanner that opens the file **by path as a different user** cannot read upl
 * a scanner that streams the file's bytes to its daemon (ClamAV's `INSTREAM`, for example), as a mod scanner can.
 
 TIC inbound and file base storage directories have whatever permissions you gave them.
+
+### Hashing and scanning read the file separately
+ENiGMA½ reads the file once to work out its SHA-256 and size, before any scanner runs; a hash-based scanner, such as a VirusTotal lookup, judges the file by that hash alone. A scanner that opens the file **by path** reads it again, and nothing guarantees that it reads the same bytes that were hashed. This includes the `command` scanner, so `clamscan` and `clamdscan` too. Anyone who can write to the file in between could have the hash lookup judge one file and the path-reading scanner another.
+
+For uploads and REST uploads that is not a concern: they sit in a temporary directory that only the ENiGMA½ user can open (see [File permissions](#file-permissions)). **The TIC inbound is different**: the mailer writes there, and so may anything else sharing it. For TIC imports, prefer a scanner that streams the file's bytes to its engine and checks what it streamed against the hash ENiGMA½ worked out, as the first-party ClamAV mod's scanner does, and keep the inbound writable only by the mailer and ENiGMA½.
 
 ### Windows Defender
 Defender's command-line scanner, `MpCmdRun.exe`, can scan a single file:
@@ -296,6 +325,9 @@ exports.registerFileScanners = (registry, cb) => {
         //  optional startup health check; |entries| are the config entries
         //  that name this scanner
         init(entries, cb) {
+            if (0 === knownBad.size) {
+                return cb(null, { warnings: ['the hash list is empty'] });
+            }
             return cb(null);
         },
 
@@ -347,14 +379,22 @@ An `err`, a throw, an unknown `result` or no answer within the entry's `timeout`
 | `fileName` | The file's real name, which may differ from the base name of `filePath` |
 | `areaTag` | The destination area, if there is one |
 | `user` | The uploading user, for `upload` and `web` |
-| `sha256`, `byteSize` | Already worked out; no need to read the file for them |
+| `sha256`, `byteSize` | Already worked out; no need to read the file for them. A scanner that does read the file should hash what it reads and answer `error` if it does not match `sha256`; see [Hashing and scanning read the file separately](#hashing-and-scanning-read-the-file-separately) |
 | `ticInfo` | For `tic`: `area`, `origin`, `from`, `ticFileName`, `passthrough` |
 | `options` | The scanner's config entry |
 | `timeout`, `abortSignal` | The entry's timeout, and an `AbortSignal` that fires when it runs out. A scanner holding a socket or a child process should stop when it fires |
 
 A scanner returns a verdict only. It must not change, move or delete the file; ENiGMA½ does that.
 
-Registering a name a second time replaces the first scanner, with a warning in the log, so you can replace the built-in `command` scanner if you need to.
+`init(entries, cb)` is optional. It runs once the scanner is registered, only when scanning is enabled, and is given the config entries that name the scanner. Use it to check what the scanner depends on (is the daemon answering, does every entry have an API key) and say what is wrong:
+
+* `cb(null)`: all is well.
+* `cb(null, { warnings: [ '...' ] })`: problems found. Each warning is logged at warn level ("File scanner reported a problem"). `warnings` may be a single string, and `cb(null, '...')` works too.
+* `cb(err)`: `init()` itself failed. This is logged at error level ("File scanner failed to initialize"). A throw counts the same.
+
+None of these stops startup or unregisters the scanner, and nothing waits for `init()`: `scan()` must work without it, and should answer `error` while what it needs is missing, so the entry's `onError` decides. A scanner that calls back an error for what is really a warning still works; the warning is just logged as an error.
+
+Each scanner is logged at info level when it is registered ("File scanner registered", with the mod's path). Registering a name a second time replaces the first scanner, with a warning in the log, so you can replace the built-in `command` scanner if you need to.
 
 ## See Also
 * [Access & Uploads](acs.md)

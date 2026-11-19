@@ -123,7 +123,7 @@ const MAX_DETAIL_LENGTH = 512;
 //  oputil runs without the logger.
 function log(level, obj, msg) {
     const Log = require('./logger.js').log;
-    if (Log) {
+    if (Log && _.isFunction(Log[level])) {
         return Log[level](obj, msg);
     }
     if ('error' === level || 'warn' === level) {
@@ -147,7 +147,10 @@ const scanners = new Map();
 //  init() is a startup health check -- e.g. PING clamd and warn if it is not
 //  there. It is given the configured entries that name this scanner, runs
 //  only when scanning is enabled, and nothing waits for it: scan() must work
-//  without it having finished, or at all.
+//  without it having finished, or at all. It calls back (null, { warnings })
+//  for problems it found (clamd not answering, an entry with no API key),
+//  each logged as a warning; an |err| means init() itself failed, and is
+//  logged as an error. Neither stops anything.
 //
 //  A second registration under the same name replaces the first, with a
 //  warning. That lets a mod that is reloaded register again, and lets a sysop
@@ -169,6 +172,8 @@ function registerScanner(name, impl, cb, logInfo) {
             Object.assign({ scanner: name }, logInfo),
             'File scanner registered again under the same name; the last one registered is used'
         );
+    } else {
+        log('info', Object.assign({ scanner: name }, logInfo), 'File scanner registered');
     }
 
     scanners.set(name, impl);
@@ -178,15 +183,27 @@ function registerScanner(name, impl, cb, logInfo) {
     }
 
     const entries = getScanningConfig().scanners.filter(e => e && name === e.scanner);
-    const initDone = err => {
+    let initCalled = false;
+    let inCallerCb = false; //  true while |cb| runs, and after, if it threw
+    const initDone = (err, info) => {
+        if (initCalled) {
+            return;
+        }
+        initCalled = true;
+
         if (err) {
             log(
-                'warn',
-                { scanner: name, error: err.message },
+                'error',
+                { scanner: name, error: err.message || String(err) },
                 'File scanner failed to initialize'
             );
         }
-        return cb(null);
+        initWarnings(info).forEach(warning => {
+            log('warn', { scanner: name, warning }, 'File scanner reported a problem');
+        });
+        inCallerCb = true;
+        cb(null);
+        inCallerCb = false;
     };
 
     try {
@@ -196,7 +213,52 @@ function registerScanner(name, impl, cb, logInfo) {
             impl.init(entries, initDone);
         }
     } catch (e) {
+        if (inCallerCb) {
+            throw e; //  thrown by what |cb| went on to do, not by init()
+        }
+        if (initCalled) {
+            //  init() called back, then threw: the registration stands, and
+            //  a mod's other registerScanner() calls must still run
+            log(
+                'error',
+                { scanner: name, error: e.message || String(e) },
+                'File scanner threw after its init() called back'
+            );
+            return;
+        }
         initDone(e);
+    }
+}
+
+//
+//  The warnings an init() called back with, as strings: |info| is
+//  { warnings } (a string or an array), or a bare string.
+//
+function initWarnings(info) {
+    const warnings = _.isString(info) ? info : _.get(info, 'warnings');
+    return (Array.isArray(warnings) ? warnings : [warnings])
+        .filter(w => !_.isNil(w) && '' !== w)
+        .map(warningText);
+}
+
+function warningText(w) {
+    if (_.isString(w)) {
+        return w;
+    }
+    if (w instanceof Error) {
+        return w.message || String(w);
+    }
+    if (_.isPlainObject(w) || Array.isArray(w)) {
+        try {
+            return JSON.stringify(w);
+        } catch (e) {
+            //  circular: fall through
+        }
+    }
+    try {
+        return String(w);
+    } catch (e) {
+        return Object.prototype.toString.call(w);
     }
 }
 

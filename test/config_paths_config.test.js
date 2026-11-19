@@ -299,9 +299,110 @@ describe('paths.config default (#927)', function () {
         });
     });
 
+    describe('Config.getConfigFilePath()', function () {
+        it('joins config.hjson onto --config with or without a trailing separator', () => {
+            const { Config } = configModule;
+            const want = paths.join(tempDir, 'config.hjson');
+            assert.equal(Config.getConfigFilePath(withSep(tempDir)), want);
+            assert.equal(Config.getConfigFilePath(tempDir), want);
+        });
+
+        it('falls back to the default directory, warning only for a bare --config', () => {
+            const { Config } = configModule;
+            const want = paths.join(Config.getDefaultPath(), 'config.hjson');
+            const warnings = [];
+            const onWarning = w => warnings.push(w);
+            assert.equal(Config.getConfigFilePath(undefined, onWarning), want);
+            assert.deepEqual(warnings, []);
+            assert.equal(Config.getConfigFilePath('', onWarning), want);
+            assert.equal(Config.getConfigFilePath(true, onWarning), want); //  a bare --config
+            assert.equal(warnings.length, 2);
+            assert.match(warnings[0], /--config needs a directory/);
+            assert.equal(Config.getConfigFilePath(true), want); //  no callback: fine
+        });
+
+        it('takes a path to the config file itself', () => {
+            const { Config } = configModule;
+            const file = writeConfig(tempDir, '{}\n');
+            assert.equal(Config.getConfigFilePath(file), file);
+
+            const other = paths.join(tempDir, 'board.conf');
+            fs.writeFileSync(other, '{}\n');
+            assert.equal(Config.getConfigFilePath(other), other);
+
+            //  not there yet, but plainly a file name: ENOENT names it
+            const missing = paths.join(tempDir, 'nope', 'config.hjson');
+            assert.equal(Config.getConfigFilePath(missing), missing);
+        });
+
+        it('treats a directory named *.hjson as a directory', () => {
+            const { Config } = configModule;
+            const dirLike = paths.join(tempDir, 'odd.hjson');
+            fs.mkdirSync(dirLike);
+            assert.equal(
+                Config.getConfigFilePath(dirLike),
+                paths.join(dirLike, 'config.hjson')
+            );
+        });
+    });
+
     describe('oputil --config', function () {
         //  a real oputil process: --config is parsed there, not here
         this.timeout(20000);
+
+        const runOputil = configArg => {
+            try {
+                return execFileSync(
+                    process.execPath,
+                    [OPUTIL, 'config', 'validate', '--config', configArg],
+                    {
+                        encoding: 'utf8',
+                        cwd: REPO_ROOT,
+                        stdio: ['ignore', 'pipe', 'pipe'],
+                    }
+                );
+            } catch (e) {
+                return `${e.stdout || ''}${e.stderr || ''}`;
+            }
+        };
+
+        it('reads config.hjson from a --config with no trailing separator', () => {
+            writeConfig(
+                tempDir,
+                '{\n    general: {\n        boardName: Test\n        menuFile: my-menu.hjson\n    }\n}\n'
+            );
+            fs.writeFileSync(
+                paths.join(tempDir, 'my-menu.hjson'),
+                '{\n    menus: {\n        hello: {\n            art: hello\n        }\n    }\n}\n'
+            );
+
+            const output = runOputil(tempDir);
+            assert.ok(
+                !output.includes(`${tempDir}config.hjson`),
+                `config.hjson was joined without a separator:\n${output}`
+            );
+            assert.ok(
+                output.includes(paths.join(tempDir, 'my-menu.hjson')),
+                `expected a report on ${paths.join(tempDir, 'my-menu.hjson')}:\n${output}`
+            );
+        });
+
+        it('reads the config file a --config names directly', () => {
+            const configFile = writeConfig(
+                tempDir,
+                '{\n    general: {\n        boardName: Test\n        menuFile: my-menu.hjson\n    }\n}\n'
+            );
+            fs.writeFileSync(
+                paths.join(tempDir, 'my-menu.hjson'),
+                '{\n    menus: {\n        hello: {\n            art: hello\n        }\n    }\n}\n'
+            );
+
+            const output = runOputil(configFile);
+            assert.ok(
+                output.includes(paths.join(tempDir, 'my-menu.hjson')),
+                `expected a report on ${paths.join(tempDir, 'my-menu.hjson')}:\n${output}`
+            );
+        });
 
         it('validates the menu.hjson beside the config.hjson it was given', () => {
             writeConfig(
@@ -313,20 +414,7 @@ describe('paths.config default (#927)', function () {
                 '{\n    menus: {\n        hello: {\n            art: hello\n        }\n    }\n}\n'
             );
 
-            let output;
-            try {
-                output = execFileSync(
-                    process.execPath,
-                    [OPUTIL, 'config', 'validate', '--config', withSep(tempDir)],
-                    {
-                        encoding: 'utf8',
-                        cwd: REPO_ROOT,
-                        stdio: ['ignore', 'pipe', 'pipe'],
-                    }
-                );
-            } catch (e) {
-                output = `${e.stdout || ''}${e.stderr || ''}`;
-            }
+            const output = runOputil(withSep(tempDir));
 
             //  the menu report is headed by the path it read
             assert.ok(
