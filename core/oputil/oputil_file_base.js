@@ -2029,9 +2029,26 @@ function quarantineRelease() {
         );
     }
 
+    let modsLoaded = false;
     async.waterfall(
         [
             callback => initConfigAndDatabases(callback),
+            callback => {
+                //
+                //  The release scans first, with the scanners mods provide:
+                //  as for "fb scan --virus-scan", only their
+                //  registerFileScanners() runs. With scanning off there is
+                //  nothing to load, and the release says what to do.
+                //
+                if (noScan || !FileScanner.isEnabled()) {
+                    return callback(null);
+                }
+                modsLoaded = true;
+                FileScanner.loadModFileScanners(
+                    _.get(require('../../core/config.js').get(), 'paths.mods'),
+                    err => callback(err)
+                );
+            },
             callback =>
                 require('../file_quarantine.js').releaseQuarantined(
                     String(name),
@@ -2047,6 +2064,16 @@ function quarantineRelease() {
                 ),
         ],
         (err, res) => {
+            //  a mod may keep the process alive just by being loaded (see
+            //  scanFileAreas()): exit once the output is flushed
+            if (modsLoaded) {
+                setImmediate(() =>
+                    process.stdout.write('', () => {
+                        process.stderr.write('', () => process.exit());
+                    })
+                );
+            }
+
             if (err) {
                 process.exitCode = ExitCodes.ERROR;
                 console.error(consoleText(err.message));
