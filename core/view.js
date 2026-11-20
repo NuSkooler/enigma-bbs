@@ -628,8 +628,9 @@ class View extends events.EventEmitter {
     //  between the terminals BBS callers use.
     //
     //  While background drawing is suspended (suspendBackgroundDraw())
-    //  drawFn() is not called at all, and the view gets a redraw() later
-    //  instead: drawFn() must only draw, and keep state changes outside.
+    //  drawFn() runs with its output discarded, and the view gets a full
+    //  redraw() later. Keep state changes out of drawFn() all the same: a
+    //  terminal that cannot discard output skips drawFn() instead.
     //
     drawInBackground(drawFn) {
         //  The screen is covered (suspendBackgroundDraw()): draw nothing now,
@@ -637,6 +638,13 @@ class View extends events.EventEmitter {
         if (this.isBackgroundDrawSuspended()) {
             if (!this.destroyed) {
                 suspendedBackgroundDraw.get(this.client).missed.add(this);
+            }
+            //  drawFn() still runs, its output thrown away, for a caller
+            //  that changes state in it; a terminal that cannot discard
+            //  output (a test's mock) skips it
+            const term = this.client.term;
+            if (term && _.isFunction(term.discardOutput)) {
+                term.discardOutput(drawFn);
             }
             return;
         }

@@ -520,6 +520,34 @@ ClientTerminal.prototype.commitWrite = function (cb) {
     return this._sendBatch(chunks, passThroughChunks, cb);
 };
 
+//
+//  discardOutput(fn) -- run fn() with what it writes through write(),
+//  rawWrite() and the like thrown away rather than sent: a background draw
+//  while the screen is covered (View.drawInBackground()). Writes already
+//  held by an enclosing batch are kept. A drip started inside fn() is not
+//  held by a batch, and still goes out.
+//
+ClientTerminal.prototype.discardOutput = function (fn) {
+    this.beginWrite();
+    const mark = this._writeBuf.length;
+    try {
+        return fn();
+    } finally {
+        if (this._writeBuf) {
+            const keep = Math.min(mark, this._writeBuf.length);
+            this._writeBuf.length = keep;
+            if (this._writeBufPassThrough) {
+                for (const i of [...this._writeBufPassThrough.keys()]) {
+                    if (i >= keep) {
+                        this._writeBufPassThrough.delete(i);
+                    }
+                }
+            }
+        }
+        this.commitWrite();
+    }
+};
+
 //  The bytes of a batch (see commitWrite()) to the socket, in one write
 ClientTerminal.prototype._sendBatch = function (chunks, passThroughChunks, cb) {
     if (chunks.length === 0) {

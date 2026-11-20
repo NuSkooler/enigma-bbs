@@ -449,6 +449,80 @@ describe('Background draw suspend / resume', () => {
         });
     });
 
+    describe('drawFn while covered, on a real ClientTerminal', () => {
+        function makeRealTermClient() {
+            const ClientTerminal = require('../core/client_term.js').ClientTerminal;
+            const sent = [];
+            const term = new ClientTerminal({
+                writable: true,
+                write(data, cb) {
+                    sent.push(Buffer.from(data).toString('latin1'));
+                    if (cb) {
+                        cb(null);
+                    }
+                },
+            });
+            term.outputEncoding = 'cp437';
+            term.termWidth = 80;
+            term.termHeight = 25;
+            const client = makeClient();
+            client.term = term;
+            return { client, term, sent };
+        }
+
+        it('still runs drawFn, for its state changes, and sends none of its output', () => {
+            const { client, term, sent } = makeRealTermClient();
+            const view = new View({ client, id: 5, position: { row: 3, col: 1 } });
+            let redraws = 0;
+            view.redraw = () => {
+                ++redraws;
+                term.write('<redraw>');
+            };
+            const lines = [];
+            const token = View.suspendBackgroundDraw(client);
+            view.drawInBackground(() => {
+                lines.push('a line'); //  a mod adding state in drawFn
+                term.write('drawn while covered');
+                term.rawWrite('raw too');
+            });
+            assert.deepEqual(lines, ['a line'], 'drawFn ran');
+            assert.equal(sent.join(''), '', 'nothing sent');
+
+            View.resumeBackgroundDraw(client, token);
+            assert.equal(redraws, 1, 'the full redraw on resume');
+            assert.ok(sent.join('').includes('<redraw>'));
+            assert.ok(!sent.join('').includes('covered'));
+        });
+
+        it('keeps what an enclosing batch already held', () => {
+            const { client, term, sent } = makeRealTermClient();
+            const view = new View({ client, id: 5, position: { row: 3, col: 1 } });
+            view.redraw = () => {};
+            const token = View.suspendBackgroundDraw(client);
+            term.beginWrite();
+            term.write('before');
+            view.drawInBackground(() => term.write('dropped'));
+            term.write('after');
+            term.commitWrite();
+            assert.equal(sent.join(''), 'beforeafter');
+            View.resumeBackgroundDraw(client, token);
+        });
+
+        it('a covered ticker sends no tick bytes', () => {
+            const { client, sent } = makeRealTermClient();
+            const ticker = makeTicker(client);
+            ticker.redraw();
+            const before = sent.length;
+            const token = View.suspendBackgroundDraw(client);
+            timers.fireAll();
+            timers.fireAll();
+            assert.equal(sent.length, before);
+            View.resumeBackgroundDraw(client, token);
+            assert.equal(sent.length, before + 1, 'one write for the redraw');
+            ticker.destroy();
+        });
+    });
+
     describe('StatusBarView', () => {
         it('redraws a panel refresh it missed', () => {
             const client = makeClient();
