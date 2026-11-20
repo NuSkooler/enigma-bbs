@@ -40,6 +40,9 @@ const suspendedBackgroundDraw = new WeakMap();
 //  drawn inside the cover (a ticker in an interrupt's pause prompt).
 const backgroundSeqs = new WeakMap();
 
+//  client -> the seq of the latest suspend taken: see View.coverMark()
+const lastCoverMarks = new WeakMap();
+
 function nextBackgroundSeq(client) {
     const seq = (backgroundSeqs.get(client) || 0) + 1;
     backgroundSeqs.set(client, seq);
@@ -494,6 +497,7 @@ class View extends events.EventEmitter {
     //
     static suspendBackgroundDraw(client) {
         const token = { seq: nextBackgroundSeq(client) };
+        lastCoverMarks.set(client, token.seq);
         let suspended = suspendedBackgroundDraw.get(client);
         if (!suspended) {
             suspended = { tokens: [], missed: new Set() };
@@ -501,6 +505,17 @@ class View extends events.EventEmitter {
         }
         suspended.tokens.push(token);
         return token;
+    }
+
+    //
+    //  A value that changes each time something starts covering |client|'s
+    //  screen. A view that skips output it believes is already on screen
+    //  (a TickerView frame equal to the last) compares it with the value at
+    //  its last draw: after a cover, what it drew may have been drawn over,
+    //  so its next draw is a full one even if nothing changed.
+    //
+    static coverMark(client) {
+        return lastCoverMarks.get(client) || 0;
     }
 
     static isBackgroundDrawSuspended(client) {

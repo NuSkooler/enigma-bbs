@@ -331,18 +331,62 @@ describe('Background draw suspend / resume', () => {
             assert.ok(term.since(before).includes('other'));
         });
 
-        it('is not noted for a tick with nothing new to draw', () => {
-            //  The screen under it may still have been drawn over: repainting
-            //  the covered screen is the cover's job (its restore step)
+        it('a static ticker (nothing new to draw) under a cover is redrawn on resume', () => {
+            //  the screen under it has been drawn over: a frame equal to the
+            //  last is not "already on screen" after a cover
             const { client, ticker, term } = makeScreen();
             ticker.setPropertyValue('motion', 'bounce');
             ticker.setText('short');
             timers.fireAll();
             const token = View.suspendBackgroundDraw(client);
-            timers.fireAll();
+            timers.fireAll(); //  noted, not drawn
 
             const before = term.flushes.length;
             View.resumeBackgroundDraw(client, token);
+            assert.equal(term.flushes.length, before + 1);
+            assert.ok(term.since(before).includes('short'));
+
+            //  and then static again: no more writes
+            const after = term.flushes.length;
+            timers.fireAll();
+            assert.equal(term.flushes.length, after);
+        });
+
+        it('a static ticker that did not tick while covered draws on the next tick', () => {
+            const { client, ticker, term } = makeScreen();
+            ticker.setPropertyValue('motion', 'bounce');
+            ticker.setText('short');
+            timers.fireAll();
+            View.resumeBackgroundDraw(client, View.suspendBackgroundDraw(client));
+
+            const before = term.flushes.length;
+            timers.fireAll();
+            assert.equal(term.flushes.length, before + 1, 'repainted once');
+            assert.ok(term.since(before).includes('short'));
+            timers.fireAll();
+            assert.equal(term.flushes.length, before + 1, 'then skips as before');
+        });
+
+        it("a cover's restore that calls redrawAll() repaints a static ticker", () => {
+            const { client, vc, ticker, term } = makeScreen();
+            ticker.setPropertyValue('motion', 'bounce');
+            ticker.setText('short');
+            timers.fireAll();
+            const token = View.suspendBackgroundDraw(client);
+            const before = term.flushes.length;
+            vc.redrawAll(); //  the restore, still covered
+            assert.ok(term.since(before).includes('short'));
+            View.resumeBackgroundDraw(client, token);
+        });
+
+        it('without a cover, a static ticker still skips unchanged frames', () => {
+            const { ticker, term } = makeScreen();
+            ticker.setPropertyValue('motion', 'bounce');
+            ticker.setText('short');
+            timers.fireAll();
+            const before = term.flushes.length;
+            timers.fireAll();
+            ticker.redraw();
             assert.equal(term.flushes.length, before);
         });
 

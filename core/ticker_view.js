@@ -99,6 +99,8 @@ class TickerView extends View {
         this._finalPos = []; //  fall: target x-position of each character
         this._timer = null;
         this._lastRendered = null; //  redraw cache: skip write when output is unchanged
+        //  covers seen (View.coverMark()): the frame on screen may be gone
+        this._coverMark = View.coverMark(this.client);
 
         this.setText(options.text || '');
         this._startTicker();
@@ -686,14 +688,22 @@ class TickerView extends View {
     //  Skipping the write (and cursor movement from super.redraw) when the
     //  terminal output hasn't changed since the last tick matters for bounce
     //  when text fits the window, reveal/typewriter hold phases, and any other
-    //  static period — it prevents the cursor from bouncing around. Dynamic
+    //  static period — it prevents the cursor from bouncing around (but not
+    //  after a cover: see View.coverMark()). Dynamic
     //  effects (rainbow, scramble, glitch) produce different output every tick
     //  so they are unaffected.
     _nextFrame() {
         const { plain, offset, colorIndices } = this._getVisiblePlain();
         const rendered = this._applyEffect(plain, offset, colorIndices);
 
-        if (rendered === this._lastRendered) {
+        //  Something has covered the screen since the last frame (an
+        //  interrupt, a help page): that frame may have been drawn over, so
+        //  this one is drawn even if it is the same
+        const coverMark = View.coverMark(this.client);
+        const covered = coverMark !== this._coverMark;
+        this._coverMark = coverMark;
+
+        if (rendered === this._lastRendered && !covered) {
             return null;
         }
         this._lastRendered = rendered;
