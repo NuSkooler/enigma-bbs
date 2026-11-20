@@ -626,25 +626,46 @@ class TickerView extends View {
         }
         this._timer = setInterval(() => {
             this._advanceMotion();
-            this.redraw();
+            this._tick();
         }, this.tickInterval);
     }
 
+    //  A tick draws while the user may be typing into a field elsewhere on
+    //  the screen: drawInBackground() puts the cursor and SGR back there.
+    _tick() {
+        const rendered = this._nextFrame();
+        if (null !== rendered) {
+            this.drawInBackground(() => this._drawFrame(rendered));
+        }
+    }
+
     redraw() {
+        const rendered = this._nextFrame();
+        if (null !== rendered) {
+            this._drawFrame(rendered);
+        }
+    }
+
+    //  What this tick draws, or null when it is what the last one drew.
+    //
+    //  Skipping the write (and cursor movement from super.redraw) when the
+    //  terminal output hasn't changed since the last tick matters for bounce
+    //  when text fits the window, reveal/typewriter hold phases, and any other
+    //  static period — it prevents the cursor from bouncing around. Dynamic
+    //  effects (rainbow, scramble, glitch) produce different output every tick
+    //  so they are unaffected.
+    _nextFrame() {
         const { plain, offset, colorIndices } = this._getVisiblePlain();
         const rendered = this._applyEffect(plain, offset, colorIndices);
 
-        //  Skip the write (and cursor movement from super.redraw) when the
-        //  terminal output hasn't changed since the last tick.  This matters for
-        //  bounce when text fits the window, reveal/typewriter hold phases, and
-        //  any other static period — it prevents the cursor from bouncing around.
-        //  Dynamic effects (rainbow, scramble, glitch) produce different output
-        //  every tick so they are unaffected.
         if (rendered === this._lastRendered) {
-            return;
+            return null;
         }
         this._lastRendered = rendered;
+        return rendered;
+    }
 
+    _drawFrame(rendered) {
         super.redraw();
         this.client.term.write(
             padStr(

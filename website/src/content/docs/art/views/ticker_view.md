@@ -18,6 +18,8 @@ See [MCI](../mci.md) for general information on how to use views and common conf
 
 The ticker starts automatically when the screen loads and runs until the screen is torn down. Standard and focus SGR colors are set by placing duplicate MCI codes back-to-back in the art file.
 
+A ticker can share a screen with a text entry view, such as a menu's `ET` command prompt. After every tick the cursor and color go back to whichever view has focus, in the menu's art or in its prompt, so what the user types lands in the field rather than at the end of the ticker. The cursor is hidden while the ticker draws.
+
 ### Properties
 
 | Property | Description |

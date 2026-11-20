@@ -168,6 +168,8 @@ classDiagram
         +setDimension()
         +setFocus(focused)
         +redraw()
+        +drawInBackground(drawFn)
+        +restoreFocusCursor()
         +onKeyPress(ch, key)
         +getData()
         +setPropertyValue(name, val)
@@ -361,3 +363,15 @@ The general flow is:
 :::note
 See [MCI](../mci.md) for details on formatting, text styles, and how MCI codes relate to menus and themes.
 :::
+
+### Views that draw on a timer
+
+A view that redraws on its own timer, as [TickerView](ticker_view.md) does, draws while the user may be typing into another view. Drawing moves the terminal cursor and leaves the drawing view's color set, and a text entry view echoes the next key wherever the cursor is, in whatever color is set. Wrap a timer-driven draw in `drawInBackground()`:
+
+```js
+this._timer = setInterval(() => {
+    this.drawInBackground(() => this.redraw());
+}, this.refreshInterval);
+```
+
+`drawInBackground(drawFn)` hides the cursor, runs `drawFn`, then calls `restoreFocusCursor()` on the view that has input focus (the view last given focus, on any of the screen's forms), and sends it all in one write. `restoreFocusCursor()` puts the cursor and color back where that view echoes its next key: `EditTextView` returns to its edit position, `TextView` and its subclasses to where `setFocus(true)` leaves the cursor, and the base `View` only shows or hides the cursor as its `cursor` property says. Override it in a focusable view that knows where its cursor belongs. When no view has focus the cursor is left where `drawFn` leaves it.

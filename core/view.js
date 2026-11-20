@@ -16,6 +16,16 @@ const ANSI_ONLY = { dialect: 'ansi' };
 //  deps
 const _ = require('lodash');
 
+//
+//  The view each client is typing into: the last one given focus, until it
+//  loses focus or its form is torn down (ViewController.detachClientEvents()).
+//  Kept per client rather than per ViewController because one screen can be
+//  several forms: a menu's art and its prompt load into two controllers, and
+//  a view drawing on a timer (TickerView) in one has to find the field in the
+//  other. Weak so that a client that goes away takes its entry with it.
+//
+const inputFocusViews = new WeakMap();
+
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
     accept: ['return'],
     exit: ['esc'],
@@ -304,6 +314,12 @@ class View extends events.EventEmitter {
     setFocusProperty(focused) {
         enigAssert(this.acceptsFocus || !focused, 'View does not accept focus');
         this.hasFocus = focused;
+
+        if (focused) {
+            inputFocusViews.set(this.client, this);
+        } else {
+            View.releaseInputFocus(this);
+        }
     }
 
     setFocus(focused) {
@@ -342,12 +358,78 @@ class View extends events.EventEmitter {
     //
     destroy() {}
 
+    //  ── Input focus & background redraws ─────────────────────────────────────
+
     //
-    //  reapplySGR() — called after an overlapping operation (e.g. TickerView tick)
-    //  so the active view can re-assert its current SGR state on the terminal.
-    //  Subclasses should override if they maintain terminal color state.
+    //  The view |client| is typing into, or null: the view last given focus,
+    //  on any of the screen's forms, while it still holds it.
     //
-    reapplySGR() {}
+    static getInputFocusView(client) {
+        const view = inputFocusViews.get(client);
+        return view && view.hasFocus ? view : null;
+    }
+
+    //  |view| no longer takes input; a no-op unless it is the one that did
+    static releaseInputFocus(view) {
+        if (view && view.client && inputFocusViews.get(view.client) === view) {
+            inputFocusViews.delete(view.client);
+        }
+    }
+
+    //
+    //  restoreFocusCursor() -- called on the view holding input focus after
+    //  something else has drawn over the screen (see drawInBackground()). Put
+    //  the terminal cursor back where this view echoes the next key, in the
+    //  SGR it echoes it with, and make it visible or not as this view wants.
+    //  The base view knows nothing about where its cursor goes, so it only
+    //  does the last; views that do know (TextView, EditTextView) override.
+    //
+    restoreFocusCursor() {
+        this.restoreCursor();
+    }
+
+    //
+    //  drawInBackground() -- run drawFn(), which draws this view, for a
+    //  redraw nobody typed for: a timer firing (a TickerView tick). Drawing
+    //  moves the terminal cursor and leaves this view's SGR set, while the
+    //  user may be typing into a field elsewhere on the screen, and a field
+    //  echoes the next key at the cursor in whatever SGR is current
+    //  (EditTextView's append fast path). So the view holding input focus is
+    //  asked to put both back afterwards (restoreFocusCursor()), the cursor
+    //  is hidden while this view draws, and all of it goes out in one socket
+    //  write, so the cursor does not visibly jump. With no view holding focus
+    //  (a pause prompt) the cursor is left where drawFn() leaves it, as it
+    //  always was.
+    //
+    //  The terminal's own save/restore (CSI s / CSI u, ESC 7 / ESC 8) is not
+    //  used: CSI s does not save attributes, and support for either varies
+    //  between the terminals BBS callers use.
+    //
+    drawInBackground(drawFn) {
+        const term = this.client.term;
+        const focusView = View.getInputFocusView(this.client);
+        const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+
+        if (batch) {
+            term.beginWrite();
+        }
+
+        try {
+            if (focusView) {
+                term.rawWrite(ansi.hideCursor());
+            }
+
+            drawFn();
+
+            if (focusView) {
+                focusView.restoreFocusCursor();
+            }
+        } finally {
+            if (batch) {
+                term.commitWrite();
+            }
+        }
+    }
 }
 
 exports.View = View;
