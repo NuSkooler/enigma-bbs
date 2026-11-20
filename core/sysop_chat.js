@@ -396,9 +396,13 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  usually while the user is typing (the partner's lines arrive at any
         //  time): drawInBackground() puts it back in the focused input line,
         //  through its patched, prefix-aware _repositionCursor()
-        view.drawInBackground(() => {
-            view.addText(pipeToAnsi(displayLine, this.client), { scrollMode: 'end' });
+        //  The line goes in first, and is drawn after: a background draw only
+        //  draws (see View.drawInBackground())
+        view.addText(pipeToAnsi(displayLine, this.client), {
+            scrollMode: 'end',
+            redraw: false,
         });
+        view.drawInBackground(() => view.redrawChanged());
     }
 
     //  Configure an EditTextView for live colour rendering and an optional

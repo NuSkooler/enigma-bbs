@@ -156,6 +156,27 @@ describe('sysop chat log lines leave the cursor in the input line', function () 
         assert.equal(term.pos(), '22,13');
     });
 
+    it("keeps a partner's line that arrives while covered, and draws it after", function () {
+        const { View } = require('../core/view.js');
+        const { client, mod, term } = setup();
+        const userLog = mod.getView('chat', 3);
+        const writes = [];
+        const write = term.write;
+        term.write = term.rawWrite = s => {
+            writes.push(String(s));
+            write(s);
+        };
+
+        const token = View.suspendBackgroundDraw(client);
+        mod.receiveMessage('|11User|07: are you there?', 'user');
+        assert.equal(writes.join(''), '', 'nothing drawn over the cover');
+        assert.ok(userLog.getData().includes('are you there?'), 'the line is kept');
+
+        View.resumeBackgroundDraw(client, token);
+        assert.ok(writes.join('').includes('are you there?'), 'drawn on resume');
+        assert.equal(term.pos(), '22,13', 'cursor back in the input line');
+    });
+
     it('no log view: nothing drawn, nothing moved', function () {
         const { mod, term } = setup();
         mod.getView = () => undefined;

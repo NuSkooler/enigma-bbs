@@ -111,4 +111,43 @@ describe('MRC chat log lines leave the cursor in the input line', () => {
         mod.addMessageToChatLog(['one', 'two\nthree']);
         assert.equal(term.pos(), '22,6');
     });
+
+    //  a cover (an interrupt, a help page) over the chat: the line must not
+    //  be lost, only its drawing put off
+    it('keeps a line that arrives while the screen is covered, and draws it after', () => {
+        const { View } = require('../core/view.js');
+        const { client, mod, term } = setup();
+        const chatLog = mod.viewControllers.mrcChat.getView(1);
+        mod.addMessageToChatLog('first line');
+        const writes = [];
+        const write = term.write;
+        term.write = term.rawWrite = s => {
+            writes.push(String(s));
+            write(s);
+        };
+
+        const token = View.suspendBackgroundDraw(client);
+        mod.addMessageToChatLog('while covered');
+        assert.equal(writes.join(''), '', 'nothing drawn over the cover');
+        assert.ok(chatLog.getData().includes('while covered'), 'the line is kept');
+
+        View.resumeBackgroundDraw(client, token);
+        assert.ok(writes.join('').includes('while covered'), 'drawn on resume');
+        assert.equal(term.pos(), '22,6', 'cursor back in the input line');
+    });
+
+    it('draws only the new rows when nothing scrolled', () => {
+        const { mod, term } = setup();
+        mod.addMessageToChatLog('first line');
+        const writes = [];
+        const write = term.write;
+        term.write = term.rawWrite = s => {
+            writes.push(String(s));
+            write(s);
+        };
+        mod.addMessageToChatLog('second line');
+        const out = writes.join('');
+        assert.ok(out.includes('second line'));
+        assert.ok(!out.includes('first line'), 'the row above is not redrawn');
+    });
 });
