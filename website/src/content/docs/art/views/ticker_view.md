@@ -64,11 +64,13 @@ These apply a character-level transformation to the text at `setText` time. The 
 | `lower` | all lowercase |
 | `title` | Title Case |
 | `firstLower` | fIRST lETTER lOWERCASED |
-| `smallVowels` | sMALL vOwElS |
-| `bigVowels` | bIG vOwEls |
-| `smallI` | smAll I — every "i" is lowercase |
+| `smallVowels` | SMaLL VoWeLS |
+| `bigVowels` | bIg vOwEls |
+| `smallI` | SMALL i iN DEMENTiA — upper case, but every "i" is lowercase |
 | `mixed` | rAnDoM cAsE (re-randomized each `setText` call) |
 | `l33t` | l337 5p34k |
+
+`firstLower`, `smallVowels`, `bigVowels` and `smallI` can also be spelled as other views' `textStyle` takes them: `first lower`, `small vowels`, `big vowels` and `small i`. Pipe colors stay on the characters they were on, even where a style turns one character into two (`upper` makes `ß` into `SS`).
 
 #### Dynamic Effects
 These are applied per-tick to the visible window, producing animated color or noise.

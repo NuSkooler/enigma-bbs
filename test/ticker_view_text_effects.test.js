@@ -140,6 +140,45 @@ describe('TickerView text-style effects keep each character its colour', () => {
         assert.equal(view._plainText, 'STRASSE');
         assert.deepEqual(view._charColors, []);
     });
+
+    describe('every documented text-style effect styles the text', () => {
+        //  the ticker's camelCase names, and stylizeString()'s spelling
+        const NAMES = {
+            firstLower: 'first lower',
+            smallVowels: 'small vowels',
+            bigVowels: 'big vowels',
+            smallI: 'small i',
+        };
+        const TEXT = 'hello big Island';
+
+        for (const [name, style] of Object.entries(NAMES)) {
+            it(`${name} and '${style}'`, () => {
+                const expected = stylizePlainText(TEXT, style);
+                assert.notEqual(expected, TEXT, 'precondition: the style changes it');
+                assert.equal(makeTicker(TEXT, name)._plainText, expected);
+                assert.equal(makeTicker(TEXT, style)._plainText, expected);
+            });
+        }
+
+        it('firstLower across a mid-word colour change', () => {
+            const view = makeTicker('|11S|03mash', 'firstLower');
+            assert.equal(view._plainText, 'sMASH');
+            assert.deepEqual(colorsOf(view), [C11, C03, C03, C03, C03]);
+        });
+
+        it('firstLower growing a character mid-word keeps later colours', () => {
+            //  the rest of the word is upper cased, and 'ŉ' upper is two units
+            const view = makeTicker('|11a|03ŉb|07c', 'firstLower');
+            assert.equal(view._plainText, 'aʼNBC');
+            assert.deepEqual(colorsOf(view), [C11, C03, C03, C03, C07]);
+        });
+
+        it("smallI: 'ﬁ' becomes 'Fi' and keeps its colour", () => {
+            const view = makeTicker('|14ﬁ|07x', 'smallI');
+            assert.equal(view._plainText, 'FiX');
+            assert.deepEqual(colorsOf(view), [C14, C14, C07]);
+        });
+    });
 });
 
 describe('stylizePlainTextPieces()', () => {

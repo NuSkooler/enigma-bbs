@@ -31,19 +31,26 @@ const RAINBOW_SGR = [91, 93, 92, 96, 94, 95];
 //  Visually interesting CP437 chars used for scramble/glitch noise
 const NOISE_CHARS = '!#$@%&?<>^~`\xb0\xb1\xb2\xdb\xdc\xde\xdf\xfe\xf9';
 
-//  Text-style effects handled by stylizeString (baked into _plainText at setText time).
-//  All other effect values are dynamic per-tick effects applied in _applyEffect().
-const TEXT_STYLE_EFFECTS = new Set([
-    'normal',
-    'upper',
-    'lower',
-    'title',
-    'firstLower',
-    'smallVowels',
-    'bigVowels',
-    'smallI',
-    'mixed',
-    'l33t',
+//  Text-style effects, baked into _plainText at setText time, and the
+//  stylizeString() style each one is. The ticker's own names are camelCase;
+//  stylizeString() spells four of them with a space, and those spellings
+//  (what every other view's textStyle takes) work here too. All other effect
+//  values are dynamic per-tick effects applied in _applyEffect().
+const TEXT_STYLE_EFFECTS = new Map([
+    ['normal', 'normal'],
+    ['upper', 'upper'],
+    ['lower', 'lower'],
+    ['title', 'title'],
+    ['firstLower', 'first lower'],
+    ['smallVowels', 'small vowels'],
+    ['bigVowels', 'big vowels'],
+    ['smallI', 'small i'],
+    ['mixed', 'mixed'],
+    ['l33t', 'l33t'],
+    ['first lower', 'first lower'],
+    ['small vowels', 'small vowels'],
+    ['big vowels', 'big vowels'],
+    ['small i', 'small i'],
 ]);
 
 //  ── Helpers ──────────────────────────────────────────────────────────────────
@@ -136,13 +143,14 @@ class TickerView extends View {
     _bakeText() {
         const { plain, colors } = this._parseRendered(this._renderText(this._rawText));
 
-        if (!TEXT_STYLE_EFFECTS.has(this.effect)) {
+        const style = TEXT_STYLE_EFFECTS.get(this.effect);
+        if (!style) {
             this._plainText = plain;
             this._charColors = colors;
             return;
         }
 
-        const pieces = stylizePlainTextPieces(plain, this.effect);
+        const pieces = stylizePlainTextPieces(plain, style);
         this._plainText = pieces.join('');
         this._charColors = [];
         if (colors.length > 0) {
