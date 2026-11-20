@@ -1849,10 +1849,9 @@ class MultiLineEditTextView extends View {
 
     //  Where setFocus(true) leaves the cursor and SGR (the edit position in
     //  the visible area), without drawing the text again
-    restoreFocusCursor() {
+    restoreFocusPosition() {
         this.client.term.rawWrite(this.getTextSgrPrefix());
         this.moveClientCursorToCursorPos();
-        this.restoreCursor();
     }
 
     setText(text, options = { scrollMode: 'default' }) {

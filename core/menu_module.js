@@ -12,6 +12,7 @@ const stringFormat = require('../core/string_format.js');
 const MultiLineEditTextView =
     require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 const { TextView } = require('../core/text_view.js');
+const { View } = require('./view');
 const { Errors, ErrorReasons } = require('../core/enig_error.js');
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
@@ -1251,22 +1252,27 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     //
-    //  Move the terminal cursor back to where the focused view of `formName`
-    //  wants it, after something else has drawn over the screen.
+    //  Move the terminal cursor back to where the view the user is typing
+    //  into wants it, after something else has drawn over the screen.
     //
-    //  Only views that know where their cursor belongs implement
-    //  _repositionCursor() -- EditTextView, and views that patch the same hook
-    //  in. For anything else (menu views, MultiLineEditTextView) or when
-    //  nothing holds focus, this is a no-op and the caller's cursor handling
-    //  stands. _repositionCursor() is used rather than setFocus(true) so that
-    //  no focus state is mutated and no switch-focus events are fired.
+    //  That is the client's input focus view (View.getInputFocusView()), on
+    //  whichever form it is: the custom views may be in the menu's art and
+    //  the field in its prompt. |_formName| is no longer used to find it and
+    //  is kept so existing callers and overrides still work.
     //
-    repositionCursorToFocusedView(formName) {
-        const form = this.viewControllers[formName];
-        const view = form && form.getFocusedView();
-
-        if (view && view.hasFocus && _.isFunction(view._repositionCursor)) {
-            view._repositionCursor();
+    //  The view's restoreFocusPosition() puts back its cursor and SGR:
+    //  EditTextView through _repositionCursor() (so a version patched onto a
+    //  view, as sysop chat does, is used), MultiLineEditTextView at its edit
+    //  row and column, MaskEditTextView and other TextViews where
+    //  setFocus(true) leaves the cursor. Menu views know no cursor position
+    //  and write nothing; with nothing focused this is a no-op, and the
+    //  caller's cursor handling stands. No focus state is changed and no
+    //  switch-focus events are fired.
+    //
+    repositionCursorToFocusedView(_formName) {
+        const view = View.getInputFocusView(this.client);
+        if (view) {
+            view.restoreFocusPosition();
         }
     }
 

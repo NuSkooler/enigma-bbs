@@ -387,14 +387,22 @@ class View extends events.EventEmitter {
     }
 
     //
+    //  restoreFocusPosition() -- put the terminal cursor back where this view,
+    //  holding focus, echoes the next key, in the SGR it echoes it with. The
+    //  base view knows nothing about where its cursor goes, so it does
+    //  nothing; views that do know (TextView, EditTextView,
+    //  MultiLineEditTextView) override this.
+    //
+    restoreFocusPosition() {}
+
+    //
     //  restoreFocusCursor() -- called on the view holding input focus after
-    //  something else has drawn over the screen (see drawInBackground()). Put
-    //  the terminal cursor back where this view echoes the next key, in the
-    //  SGR it echoes it with, and make it visible or not as this view wants.
-    //  The base view knows nothing about where its cursor goes, so it only
-    //  does the last; views that do know (TextView, EditTextView) override.
+    //  something else has drawn over the screen and hidden the cursor (see
+    //  drawInBackground()): restoreFocusPosition(), then make the cursor
+    //  visible or not as this view wants.
     //
     restoreFocusCursor() {
+        this.restoreFocusPosition();
         this.restoreCursor();
     }
 
