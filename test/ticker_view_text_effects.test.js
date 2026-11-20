@@ -101,6 +101,54 @@ describe('TickerView text-style effects keep each character its colour', () => {
         assert.deepEqual(colorsOf(view), [C14, C14, C07]);
     });
 
+    describe('surrogate pairs beside colour changes, with a style that grows text', () => {
+        //  Deseret small long I (U+10428) upper cases to U+10400: two units
+        //  each, its piece on the first unit and '' on the second. 'ß' upper
+        //  is 'SS'. Each output unit is checked against the source
+        //  character it came from.
+        const PAIR = '\u{10428}';
+        const PAIR_UP = '\u{10400}';
+
+        function assertColors(view, expected) {
+            const colors = colorsOf(view);
+            assert.equal(colors.length, expected.length, 'colour map length');
+            expected.forEach((c, i) => {
+                assert.equal(
+                    colors[i],
+                    c,
+                    `unit ${i} of ${JSON.stringify(view._plainText)}`
+                );
+            });
+        }
+
+        it('pair then a growing character, both in one colour, then another', () => {
+            const view = makeTicker(`|14${PAIR}ß|07x`, 'upper');
+            assert.equal(view._plainText, `${PAIR_UP}SSX`);
+            assert.equal(view._plainText.length, 5);
+            assertColors(view, [C14, C14, C14, C14, C07]);
+        });
+
+        it('a colour change on each side of the pair', () => {
+            const view = makeTicker(`|14ß|07${PAIR}|11x`, 'upper');
+            assert.equal(view._plainText, `SS${PAIR_UP}X`);
+            assertColors(view, [C14, C14, C07, C07, C11]);
+        });
+
+        it('pair, growing character and pair, each in its own colour', () => {
+            const view = makeTicker(`|11${PAIR}|14ß|07${PAIR}y`, 'upper');
+            assert.equal(view._plainText, `${PAIR_UP}SS${PAIR_UP}Y`);
+            assertColors(view, [C11, C11, C14, C14, C07, C07, C07]);
+        });
+
+        it('the pieces behind it: the pair on its first unit, then ""', () => {
+            assert.deepEqual(stylizePlainTextPieces(`${PAIR}ß`, 'upper'), [
+                PAIR_UP,
+                '',
+                'SS',
+            ]);
+        });
+    });
+
     it('setting the effect after setText() rebuilds the colours too', () => {
         const view = makeTicker('|14ßa|07b', 'normal');
         assert.equal(view._plainText, 'ßab');
