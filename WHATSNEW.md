@@ -1,6 +1,8 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.6.2-beta
+
 ## 0.6.1-beta
 
 * **Ticker text styles that change the text's length keep each character's colour** ([#1063](https://github.com/NuSkooler/enigma-bbs/issues/1063)). A `%TK` ticker with pipe colours in its `text` and a text-style `effect` coloured the wrong characters after any character the style turns into more than one: `upper` turns `ß` into `SS`, `lower` turns `İ` into two characters, and `mixed` does either at random. With `effect: upper`, `|14ßa|07b` drew `A` in the wrong colour and `B` in the view's colour instead of `|07`. Each character's colour now goes with everything it becomes. Setting `effect` on a ticker that already has text now restyles its text and colours together; before, the colours were left as they were, and switching from a text style to a dynamic effect such as `rainbow` left the text styled.
