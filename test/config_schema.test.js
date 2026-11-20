@@ -356,6 +356,7 @@ describe('config schema against config_default.js', () => {
             'chatServers.mrc.multiplexerPort',
             'chatServers.mrc.serverPort',
             'chatServers.mrc.serverSslPort',
+            'chatServers.mrc.verifyCertificate',
             'contentServers.gopher.port',
             'contentServers.gopher.publicHostname',
             'contentServers.gopher.publicPort',

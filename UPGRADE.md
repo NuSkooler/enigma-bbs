@@ -20,6 +20,20 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.6.0-beta to 0.6.1-beta
+
+* **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).
+
+  **What changes by itself:** the board refuses an MRC server whose certificate is not trusted or not valid for `serverHostname`, logs why, and keeps retrying.
+
+  **Action:** none for the default server, `mrc.bottomlessabyss.net`. For a private server with a self-signed certificate, or one you reach by an IP address its certificate does not name, set `chatServers.mrc.verifyCertificate` to `false`.
+
+* **The MRC multiplexer port is local only.**
+
+  **What changes by itself:** `chatServers.mrc.multiplexerPort` now listens on `127.0.0.1` rather than every interface. MRC chat on the board and its connection to the MRC network are unaffected.
+
+  **Action:** none, unless something on another machine or in another container connects to that port. That was never supported, and it no longer works.
+
 ## 0.5.1-beta to 0.6.0-beta
 
 * **An area that is both an ActivityPub area and an FTN echo** ([#1032](https://github.com/NuSkooler/enigma-bbs/issues/1032)). This applies only if you map an ActivityPub area (for example `activitypub_shared`) as an FTN echo as well.

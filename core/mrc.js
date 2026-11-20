@@ -395,7 +395,7 @@ exports.getModule = class mrcModule extends MenuModule {
                                 'chatServers.mrc.multiplexerPort',
                                 5000
                             ),
-                            host: 'localhost',
+                            host: '127.0.0.1', //  the multiplexer listens on IPv4 loopback only
                         };
 
                         // connect to multiplexer
