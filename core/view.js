@@ -419,14 +419,18 @@ class View extends events.EventEmitter {
                 term.rawWrite(ansi.hideCursor());
             }
 
-            drawFn();
-
-            //  asked again: drawFn() may have moved focus (a module's draw)
-            const focusAfter = View.getInputFocusView(this.client);
-            if (focusAfter) {
-                focusAfter.restoreFocusCursor();
-            } else if (focusView) {
-                focusView.restoreCursor(); //  undo the hide, at least
+            try {
+                drawFn();
+            } finally {
+                //  Also when drawFn() threw (the error still goes to the
+                //  caller): the cursor is never left hidden. Asked again, as
+                //  drawFn() may have moved focus (a module's draw).
+                const focusAfter = View.getInputFocusView(this.client);
+                if (focusAfter) {
+                    focusAfter.restoreFocusCursor();
+                } else if (focusView) {
+                    focusView.restoreCursor(); //  undo the hide, at least
+                }
             }
         } finally {
             if (batch) {

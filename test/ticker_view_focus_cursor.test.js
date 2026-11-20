@@ -706,6 +706,29 @@ describe('View.drawInBackground()', () => {
         assert.equal(client.term.cursorVisible, true);
     });
 
+    it('puts the cursor back and rethrows when drawFn() throws', () => {
+        const client = makeClient();
+        const field = makeField(client, 1);
+        field.setFocus(true);
+        field.onKeyPress('x');
+
+        const before = client.term.flushes.length;
+        assert.throws(
+            () =>
+                field.drawInBackground(() => {
+                    client.term.write('\x1b[2;10Hpartial');
+                    throw new Error('draw failed');
+                }),
+            /draw failed/
+        );
+
+        assert.equal(client.term._batch, null, 'the batch was committed');
+        assert.equal(client.term.flushes.length, before + 1);
+        assert.equal(client.term.cursorVisible, true, 'not left hidden');
+        assert.equal(client.term.pos(), '20,6', 'back in the field');
+        assert.equal(client.term.sgr, FIELD_FOCUS_SGR);
+    });
+
     it('shows the cursor again if drawFn() left nothing focused', () => {
         const client = makeClient();
         const a = makeField(client, 1);
