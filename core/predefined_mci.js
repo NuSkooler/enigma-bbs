@@ -544,14 +544,14 @@ const PREDEFINED_MCI_GENERATORS = {
     },
     NT: function totalNewUsersToday() {
         // Obv/2
-        return StatLog.getSystemStatNum(SysProps.NewUsersTodayCount);
+        //  NT, TU: String(), not toLocaleString(); "1,234" reaches {TU} as text
+        return String(StatLog.getSystemStatNum(SysProps.NewUsersTodayCount));
     },
 
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
-    //  :TODO: ?? - Total users on system
 
     TU: function totalSystemUsers() {
-        return StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1;
+        return String(StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1);
     },
 
     LC: function lastCallerUserName() {

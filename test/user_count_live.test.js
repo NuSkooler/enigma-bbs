@@ -33,6 +33,7 @@ describe('live total user count (#1049)', function () {
     let dbModule, realUserDb, db, loggerModule, realLog, Events;
     let StatLog, SysProps, User, asset, mci, statsHandler;
     let savedCache, addedListeners, realNow, now, reads, warnings;
+    let PipeCodes, savedMciResolver;
 
     const client = { user: { isAuthenticated: () => true }, term: {} };
 
@@ -78,6 +79,11 @@ describe('live total user count (#1049)', function () {
             child: () => log,
         };
         loggerModule.log = log;
+
+        //  loading a fresh predefined_mci.js installs its resolver in pipe_codes.js
+        PipeCodes = require('../core/pipe_codes');
+        savedMciResolver = PipeCodes.setMciResolver();
+        PipeCodes.setMciResolver(savedMciResolver.resolver, savedMciResolver.knownMci);
 
         savedCache = {};
         for (const m of FreshModules) {
@@ -127,6 +133,7 @@ describe('live total user count (#1049)', function () {
     });
 
     after(() => {
+        PipeCodes.setMciResolver(savedMciResolver.resolver, savedMciResolver.knownMci);
         Date.now = realNow;
         for (const [n, l] of addedListeners) {
             Events.removeListener(n, l);
@@ -155,7 +162,7 @@ describe('live total user count (#1049)', function () {
     it('|TU, the REST route and a theme @sysStat agree on the live count', () => {
         addUser('a');
         addUser('b');
-        assert.equal(tu(), 2);
+        assert.equal(tu(), '2');
         assert.equal(restTotal(), 2);
         assert.equal(themeStat(), 2);
         assert.equal(reads, 1);
@@ -167,7 +174,7 @@ describe('live total user count (#1049)', function () {
 
         addUser('b');
         Events.emit(Events.getSystemEvents().NewUser, { user: {} });
-        assert.equal(tu(), 2);
+        assert.equal(tu(), '2');
         assert.equal(restTotal(), 2);
         assert.equal(themeStat(), 2);
         assert.equal(reads, 1, 'counted by the event, not a re-read');
@@ -186,7 +193,7 @@ describe('live total user count (#1049)', function () {
         now += 1;
         assert.equal(themeStat(), 2);
         assert.equal(restTotal(), 2);
-        assert.equal(tu(), 2);
+        assert.equal(tu(), '2');
     });
 
     it('the count is not re-read inside its window', () => {
@@ -194,13 +201,13 @@ describe('live total user count (#1049)', function () {
         assert.equal(themeStat(), 1);
         addUser('b');
         assert.equal(themeStat(), 1);
-        assert.equal(tu(), 1);
+        assert.equal(tu(), '1');
         assert.equal(restTotal(), 1);
         assert.equal(reads, 1);
     });
 
     it('|TU shows 1 for an empty user table, the REST route 0', () => {
-        assert.equal(tu(), 1);
+        assert.equal(tu(), '1');
         assert.equal(restTotal(), 0);
         //  resolveSystemStatAsset() falls back to the spec for a falsy stat
         assert.equal(themeStat(), '@sysStat:user_total_count');
@@ -214,7 +221,7 @@ describe('live total user count (#1049)', function () {
         try {
             now += TTLMs;
             assert.equal(themeStat(), 1);
-            assert.equal(tu(), 1);
+            assert.equal(tu(), '1');
             assert.equal(restTotal(), 1);
             assert.equal(warnings.length, 1);
         } finally {
@@ -227,7 +234,7 @@ describe('live total user count (#1049)', function () {
         try {
             assert.equal(restTotal(), 0);
             assert.equal(restTotal(), 0);
-            assert.equal(tu(), 1);
+            assert.equal(tu(), '1');
             assert.equal(themeStat(), '@sysStat:user_total_count', 'nothing to show');
             assert.equal(reads, 1);
 
@@ -239,6 +246,52 @@ describe('live total user count (#1049)', function () {
         }
     });
 
+    //  #1105: TU and NT return strings like every other predefined MCI code;
+    //  a number was dropped by |TU (UI), drawn as a colour (body) and by %TU.
+    describe('TU and NT as strings (#1105)', () => {
+        const ESC = '\x1b';
+        //  the production resolver, passed in so no other file's can answer
+        const opts = extra =>
+            Object.assign({ client, resolveMci: mci.getPredefinedMCIValue }, extra);
+
+        afterEach(() => {
+            StatLog.setNonPersistentSystemStat(SysProps.NewUsersTodayCount, undefined);
+        });
+
+        it('|TU draws the count in both pipe dialects', () => {
+            addUser('a');
+            addUser('b');
+            assert.equal(PipeCodes.render('[|TU]', opts()), '[2]');
+            assert.equal(PipeCodes.render('[|TU]', opts({ dialect: 'body' })), '[2]');
+            assert.ok(!PipeCodes.render('|TU', opts({ dialect: 'body' })).includes(ESC));
+        });
+
+        it('|NT draws the count, 0 included', () => {
+            assert.equal(mci.getPredefinedMCIValue(client, 'NT'), '0');
+            assert.equal(PipeCodes.render('[|NT]', opts()), '[0]');
+            StatLog.setNonPersistentSystemStat(SysProps.NewUsersTodayCount, 3);
+            assert.equal(mci.getPredefinedMCIValue(client, 'NT'), '3');
+            assert.equal(PipeCodes.render('[|NT]', opts({ dialect: 'body' })), '[3]');
+        });
+
+        it('{TU} and {NT} reach the format object as numbers, NT=0 too', () => {
+            addUser('a');
+            assert.deepEqual(mci.getPredefinedMCIFormatObject(client, '{TU} {NT}'), {
+                TU: 1,
+                NT: 0,
+            });
+        });
+
+        it('{TU} stays a number at 1,000 users and up, so format specs still apply', () => {
+            StatLog.setNonPersistentSystemStat(SysProps.TotalUserCount, 1234);
+            StatLog.markTotalUserCountRefreshed();
+            assert.equal(tu(), '1234');
+            assert.deepEqual(mci.getPredefinedMCIFormatObject(client, '{TU}'), {
+                TU: 1234,
+            });
+        });
+    });
+
     it('the startup seed is served without another read', () => {
         addUser('a');
 
@@ -247,7 +300,7 @@ describe('live total user count (#1049)', function () {
         StatLog.markTotalUserCountRefreshed();
 
         assert.equal(themeStat(), 7);
-        assert.equal(tu(), 7);
+        assert.equal(tu(), '7');
         assert.equal(reads, 0);
         now += TTLMs;
         assert.equal(themeStat(), 1);
