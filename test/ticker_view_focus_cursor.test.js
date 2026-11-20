@@ -682,6 +682,29 @@ describe('View input focus tracking', () => {
         assert.equal(View.getInputFocusView(client), null);
     });
 
+    it('suspend/resume: set aside, given back, and nested', () => {
+        const client = makeClient();
+        const a = makeEtv(client, 1);
+        a.setFocus(true);
+
+        const outer = View.suspendInputFocus(client);
+        assert.equal(View.getInputFocusView(client), null);
+        const inner = View.suspendInputFocus(client); //  a pause within a pause
+        View.resumeInputFocus(client, inner); //  nothing was tracked: nothing back
+        assert.equal(View.getInputFocusView(client), null);
+        View.resumeInputFocus(client, outer);
+        assert.equal(View.getInputFocusView(client), a);
+
+        //  a view blurred while set aside is not given back
+        const t = View.suspendInputFocus(client);
+        a.setFocus(false);
+        a.hasFocus = true; //  even if something marks it again by hand
+        View.resumeInputFocus(client, t);
+        assert.equal(View.getInputFocusView(client), null);
+
+        View.resumeInputFocus(client, null); //  no token: no-op
+    });
+
     describe('the MCI config `focus` property', () => {
         //  a form loaded as displayThemedPrompt() / a menu's prompt loads it
         function loadForm(client, mciMap, mci) {

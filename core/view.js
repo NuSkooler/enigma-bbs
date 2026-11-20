@@ -26,6 +26,10 @@ const _ = require('lodash');
 //
 const inputFocusViews = new WeakMap();
 
+//  client -> tokens from suspendInputFocus() not yet resumed; a token's
+//  view is cleared if that view is released while it is set aside
+const suspendedInputFocus = new WeakMap();
+
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
     accept: ['return'],
     exit: ['esc'],
@@ -380,9 +384,58 @@ class View extends events.EventEmitter {
     }
 
     //  |view| no longer takes input; a no-op unless it is the one that did
+    //  (or is the one a suspendInputFocus() set aside)
     static releaseInputFocus(view) {
-        if (view && view.client && inputFocusViews.get(view.client) === view) {
+        if (!view || !view.client) {
+            return;
+        }
+        if (inputFocusViews.get(view.client) === view) {
             inputFocusViews.delete(view.client);
+        }
+        (suspendedInputFocus.get(view.client) || []).forEach(token => {
+            if (token.view === view) {
+                token.view = null;
+            }
+        });
+    }
+
+    //
+    //  Set the client's input focus view aside while something that takes
+    //  no typing owns the screen, such as a pause prompt waiting for its
+    //  key: the forms under it stay attached and their field keeps
+    //  hasFocus, but it is not on screen and a background draw (the pause
+    //  prompt's own ticker) must not put the cursor there. Returns a token
+    //  for resumeInputFocus().
+    //
+    static suspendInputFocus(client) {
+        const token = { view: View.getInputFocusView(client) };
+        inputFocusViews.delete(client);
+
+        const tokens = suspendedInputFocus.get(client) || [];
+        tokens.push(token);
+        suspendedInputFocus.set(client, tokens);
+        return token;
+    }
+
+    //
+    //  Give back what suspendInputFocus() set aside: only if no view has
+    //  taken focus since, and the view set aside still has it and was not
+    //  released meanwhile (its form torn down).
+    //
+    static resumeInputFocus(client, token) {
+        if (!token) {
+            return;
+        }
+        const tokens = suspendedInputFocus.get(client) || [];
+        const i = tokens.indexOf(token);
+        if (i > -1) {
+            tokens.splice(i, 1);
+        }
+
+        const view = token.view;
+        token.view = null;
+        if (view && view.hasFocus && !View.getInputFocusView(client)) {
+            inputFocusViews.set(client, view);
         }
     }
 
@@ -416,8 +469,10 @@ class View extends events.EventEmitter {
     //  asked to put both back afterwards (restoreFocusCursor()), the cursor
     //  is hidden while this view draws, and all of it goes out in one socket
     //  write, so the cursor does not visibly jump. With no view holding focus
-    //  (a pause prompt) the cursor is left where drawFn() leaves it, as it
-    //  always was.
+    //  the cursor is left where drawFn() leaves it, as it always was; that
+    //  includes a pause prompt waiting for its key, which sets the input
+    //  focus aside (suspendInputFocus()) even when a form under it still
+    //  has a focused field.
     //
     //  The terminal's own save/restore (CSI s / CSI u, ESC 7 / ESC 8) is not
     //  used: CSI s does not save attributes, and support for either varies
