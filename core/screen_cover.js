@@ -50,7 +50,9 @@ function coverScreen(client, options, fn, cb) {
     options = options || {};
 
     const inputToken =
-        false !== options.captureInput ? captureInput(client, () => {}) : null;
+        false !== options.captureInput
+            ? captureInput(client, () => {}, { onMenuChange: 'drop' })
+            : null;
     const drawToken =
         false !== options.suspendBackground ? View.suspendBackgroundDraw(client) : null;
 

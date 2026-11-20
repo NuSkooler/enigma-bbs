@@ -6,6 +6,8 @@ const loadMenu = require('./menu_util.js').loadMenu;
 const { Errors, ErrorReasons } = require('./enig_error.js');
 const { getResolvedSpec } = require('./menu_util.js');
 const { MenuFlags } = require('./menu_module.js');
+const InputCapture = require('./input_capture.js');
+const { View } = require('./view.js');
 
 //  deps
 const _ = require('lodash');
@@ -229,6 +231,8 @@ module.exports = class MenuStack {
                     this.client.log.trace({ stack: stackEntries }, 'Updated menu stack');
                 }
 
+                this._settleCovers(name);
+
                 modInst.enter();
 
                 if (cb) {
@@ -236,6 +240,35 @@ module.exports = class MenuStack {
                 }
             }
         });
+    }
+
+    //
+    //  The menu just left may have been covered (an interrupt, a help page,
+    //  a pause) when something else moved the caller on: a sysop break-in,
+    //  a time-up, an idle logoff. What the cover held is settled before the
+    //  next menu draws:
+    //  - background draw suspends are dropped: they would freeze the new
+    //    menu's tickers and status bar, and the covered views are gone
+    //  - a cover's own input capture is dropped; a plain wait (a pause's
+    //    waitForKeyPress()) gets the next key without taking it, as it did
+    //    before waits were captures (see InputCapture.menuChanged())
+    //  A cover that ends normally has ended before any menu change it
+    //  leads to (reload() after an interrupt), so this finds nothing.
+    //
+    _settleCovers(name) {
+        const { dropped, passThrough } = InputCapture.menuChanged(this.client);
+        const suspends = View.dropBackgroundDrawSuspends(this.client);
+        if (dropped || passThrough || suspends) {
+            this.client.log.debug(
+                {
+                    menuName: name,
+                    droppedCaptures: dropped,
+                    passThroughCaptures: passThrough,
+                    droppedSuspends: suspends,
+                },
+                'Menu changed while the screen was covered'
+            );
+        }
     }
 
     //

@@ -341,6 +341,86 @@ describe('MenuStack navigation guards', function () {
         });
     });
 
+    describe('a menu left while the screen was covered', () => {
+        let counters;
+        let client;
+        const InputCapture = require('../core/input_capture.js');
+        const { View } = require('../core/view.js');
+        const { coverScreen } = require('../core/screen_cover.js');
+
+        beforeEach(done => {
+            counters = makeCounters();
+            fakeModules.home = defineMenu(counters, 'home');
+            fakeModules.away = defineMenu(counters, 'away');
+            client = makeClient({
+                home: menuConfig('home'),
+                away: menuConfig('away'),
+            });
+            client.menuStack.goto('home', err => {
+                assert.ifError(err);
+                settle(done);
+            });
+        });
+
+        it('drops the cover (capture and suspend); a plain wait hears the next key only', done => {
+            let coverDone = null;
+            coverScreen(client, finish => (coverDone = finish));
+            const heard = [];
+            //  a pause in the cover, waiting (a plain wait, as waitForKeyPress)
+            InputCapture.captureInput(client, ch => heard.push(ch));
+            assert.equal(View.isBackgroundDrawSuspended(client), true);
+
+            //  a sysop break-in moves the caller on
+            client.menuStack.goto('away', err => {
+                assert.ifError(err);
+                assert.equal(View.isBackgroundDrawSuspended(client), false);
+                assert.equal(InputCapture.hasInputCapture(client), false);
+                const logged = client.log
+                    .at('debug')
+                    .find(e => e.msg === 'Menu changed while the screen was covered');
+                assert.ok(logged, 'logged at debug');
+                assert.equal(logged.obj.droppedCaptures, 1);
+                assert.equal(logged.obj.passThroughCaptures, 1);
+                assert.equal(logged.obj.droppedSuspends, 1);
+
+                client.emit('key press', 'a');
+                assert.deepEqual(heard, ['a'], 'the stale wait fires, as once() did');
+                assert.equal(
+                    InputCapture.isKeyPressCaptured(client),
+                    false,
+                    'but did not take the key from the new menu'
+                );
+
+                //  the old cover ending late changes nothing
+                coverDone();
+                assert.equal(View.isBackgroundDrawSuspended(client), false);
+                return done();
+            });
+        });
+
+        it('finds nothing, and logs nothing, after a cover that ended first', done => {
+            coverScreen(
+                client,
+                finish => finish(),
+                () => {
+                    client.menuStack.goto('away', err => {
+                        assert.ifError(err);
+                        assert.ok(
+                            !client.log
+                                .at('debug')
+                                .some(
+                                    e =>
+                                        e.msg ===
+                                        'Menu changed while the screen was covered'
+                                )
+                        );
+                        return done();
+                    });
+                }
+            );
+        });
+    });
+
     describe('a failing menu cannot bounce forever', () => {
         //
         //  The reported loop: |before| shows its art, its pause prompt cannot
