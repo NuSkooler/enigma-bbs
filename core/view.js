@@ -421,8 +421,12 @@ class View extends events.EventEmitter {
 
             drawFn();
 
-            if (focusView) {
-                focusView.restoreFocusCursor();
+            //  asked again: drawFn() may have moved focus (a module's draw)
+            const focusAfter = View.getInputFocusView(this.client);
+            if (focusAfter) {
+                focusAfter.restoreFocusCursor();
+            } else if (focusView) {
+                focusView.restoreCursor(); //  undo the hide, at least
             }
         } finally {
             if (batch) {

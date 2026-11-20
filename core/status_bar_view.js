@@ -103,7 +103,8 @@ class StatusBarView extends TextView {
                     const val = this._evalPanelText(panel.text);
                     if (val !== panel.value) {
                         panel.value = val;
-                        this.redraw();
+                        //  the user may be typing elsewhere on the screen
+                        this.drawInBackground(() => this.redraw());
                     }
                 }, panel.refreshInterval);
             }
@@ -277,7 +278,8 @@ class StatusBarView extends TextView {
             this.setText(this._format, false);
             if (this.text !== this._lastRendered) {
                 this._lastRendered = this.text;
-                this.redraw();
+                //  the user may be typing elsewhere on the screen
+                this.drawInBackground(() => this.redraw());
             }
         }, this.refreshInterval);
     }

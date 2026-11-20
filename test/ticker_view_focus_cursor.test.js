@@ -10,6 +10,7 @@ const { EditTextView } = require('../core/edit_text_view.js');
 const { MaskEditTextView } = require('../core/mask_edit_text_view.js');
 const { VerticalMenuView } = require('../core/vertical_menu_view.js');
 const { ViewController } = require('../core/view_controller.js');
+const { StatusBarView } = require('../core/status_bar_view.js');
 
 //
 //  A TickerView (%TK) redraws on a timer. Each tick moves the terminal cursor
@@ -499,6 +500,88 @@ describe('TickerView tick with a focused input', () => {
     });
 });
 
+describe('StatusBarView refresh with a focused input', () => {
+    let timers;
+    beforeEach(() => {
+        timers = captureTimers();
+    });
+    afterEach(() => {
+        timers.restore();
+    });
+
+    const BAR_SGR = '\x1b[0;30;46m';
+
+    function setup(barOptions) {
+        const client = makeClient();
+        const bar = new StatusBarView(
+            Object.assign(
+                {
+                    client,
+                    id: 5,
+                    position: { row: 24, col: 1 },
+                    dimens: { width: 40, height: 1 },
+                    styleSGR1: BAR_SGR,
+                },
+                barOptions
+            )
+        );
+        const field = makeField(client);
+        field.setFocus(true);
+        for (const ch of 'hi') {
+            field.onKeyPress(ch);
+        }
+        return { client, bar, field, term: client.term };
+    }
+
+    it('single mode: a refresh that draws puts the cursor back in the field', () => {
+        const { bar, field, term } = setup({ text: 'one', refreshInterval: 1000 });
+
+        timers.fireAll(); //  first refresh draws
+        assert.equal(term.textAt(24, 1, 3), 'one');
+        assert.equal(term.pos(), '20,7');
+        assert.equal(term.sgr, FIELD_FOCUS_SGR);
+
+        bar._format = 'two';
+        timers.fireAll();
+        assert.equal(term.textAt(24, 1, 3), 'two');
+        assert.equal(term.pos(), '20,7');
+
+        field.onKeyPress('!');
+        assert.equal(term.textAt(20, 5, 3), 'hi!');
+        assert.equal(term.cellAt(20, 7).sgr, FIELD_FOCUS_SGR);
+    });
+
+    it('panel mode: a panel refresh puts the cursor back in the field', () => {
+        const { bar, term } = setup({
+            panels: [{ name: 'clock', width: 10, text: 'tick', refreshInterval: 1000 }],
+        });
+
+        bar._panels[0].text = 'tock';
+        timers.fireAll();
+        assert.equal(term.textAt(24, 1, 4), 'tock');
+        assert.equal(term.pos(), '20,7');
+        assert.equal(term.sgr, FIELD_FOCUS_SGR);
+    });
+
+    it('with nothing focused, a refresh leaves the cursor after the bar', () => {
+        const client = makeClient();
+        new StatusBarView({
+            client,
+            id: 5,
+            position: { row: 24, col: 1 },
+            dimens: { width: 40, height: 1 },
+            text: 'one',
+            refreshInterval: 1000,
+        });
+        const before = client.term.flushes.length;
+        timers.fireAll();
+        const out = client.term.flushes.slice(before).join('');
+        assert.equal(client.term.textAt(24, 1, 3), 'one');
+        assert.ok(!out.includes(HIDE_CURSOR) && !out.includes(SHOW_CURSOR));
+        assert.equal(client.term.pos(), '24,41');
+    });
+});
+
 describe('View input focus tracking', () => {
     function makeEtv(client, row) {
         return new EditTextView({
@@ -548,5 +631,38 @@ describe('View input focus tracking', () => {
         vc.detachClientEvents();
         assert.equal(a.hasFocus, true, 'the view itself keeps hasFocus');
         assert.equal(View.getInputFocusView(client), null);
+    });
+});
+
+describe('View.drawInBackground()', () => {
+    it('restores the view focused when drawFn() is done, if drawFn() moved focus', () => {
+        const client = makeClient();
+        const a = makeField(client, 1);
+        const b = new EditTextView({
+            client,
+            id: 2,
+            position: { row: 10, col: 40 },
+            dimens: { width: 10 },
+            maxLength: 10,
+            styleSGR2: '\x1b[0;35m',
+        });
+        a.setFocus(true);
+
+        a.drawInBackground(() => {
+            a.setFocus(false);
+            b.setFocus(true);
+        });
+        assert.equal(client.term.pos(), '10,40');
+        assert.equal(client.term.sgr, '\x1b[0;35m');
+        assert.equal(client.term.cursorVisible, true);
+    });
+
+    it('shows the cursor again if drawFn() left nothing focused', () => {
+        const client = makeClient();
+        const a = makeField(client, 1);
+        a.setFocus(true);
+
+        a.drawInBackground(() => a.setFocus(false));
+        assert.equal(client.term.cursorVisible, true, 'not left hidden');
     });
 });

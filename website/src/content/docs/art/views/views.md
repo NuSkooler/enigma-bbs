@@ -366,7 +366,7 @@ See [MCI](../mci.md) for details on formatting, text styles, and how MCI codes r
 
 ### Views that draw on a timer
 
-A view that redraws on its own timer, as [TickerView](ticker_view.md) does, draws while the user may be typing into another view. Drawing moves the terminal cursor and leaves the drawing view's color set, and a text entry view echoes the next key wherever the cursor is, in whatever color is set. Wrap a timer-driven draw in `drawInBackground()`:
+A view that redraws on its own timer, as [TickerView](ticker_view.md) and a [StatusBarView](status_bar_view.md) with `refreshInterval` do, draws while the user may be typing into another view. Drawing moves the terminal cursor and leaves the drawing view's color set, and a text entry view echoes the next key wherever the cursor is, in whatever color is set. Wrap a timer-driven draw in `drawInBackground()`:
 
 ```js
 this._timer = setInterval(() => {
