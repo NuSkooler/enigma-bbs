@@ -104,8 +104,8 @@ function stylizePlainText(s, style) {
 //  stylizePlainText(), one piece per UTF-16 unit of |s|: pieces[i] is what
 //  s[i] becomes, so a caller that keeps something per character (a colour)
 //  can carry it over when a style changes the text's length. 'upper' turns
-//  'ß' into 'SS', 'lower' turns 'İ' into two units, 'title' turns 'ﬁ' into
-//  'Fi'. A surrogate pair is styled as one character: its piece is on its
+//  'ß' into 'SS', 'lower' turns 'İ' into two units, 'small i' turns 'ﬁ'
+//  into 'Fi'. A surrogate pair is styled as one character: its piece is on its
 //  first unit and the second unit's piece is ''.
 //
 //  pieces.join('') is stylizePlainText(s, style) for every style but
