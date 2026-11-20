@@ -428,8 +428,9 @@ Client.prototype.end = function () {
             this.themeChangedListener
         );
 
-        //  No key will come for a capture now (a pending waitForKeyPress())
-        InputCapture.releaseAllInput(this);
+        //  No key will come for a capture now (a pending waitForKeyPress()):
+        //  drop them, giving each its onDrop() cleanup
+        InputCapture.dropAllInput(this);
 
         //  Run the current module's leave(): it is a module's one chance
         //  to clean up on disconnect (a door's node count, an upload's temp
@@ -494,8 +495,8 @@ Client.prototype.destroySoon = function () {
 //  Input capture: while a capture is active only the top capture's handler
 //  gets a key, and the forms under it get none. See core/input_capture.js.
 //
-Client.prototype.captureInput = function (handler) {
-    return InputCapture.captureInput(this, handler);
+Client.prototype.captureInput = function (handler, options) {
+    return InputCapture.captureInput(this, handler, options);
 };
 
 Client.prototype.releaseInput = function (token) {
@@ -509,14 +510,19 @@ Client.prototype.hasInputCapture = function () {
 //
 //  Call |cb(ch, key)| with the next key, once. The key is captured: it does
 //  not also reach a form still attached under whatever is waiting (a pause,
-//  a help page), as it did when this was a plain once('key press').
+//  a help page), as it did when this was a plain once('key press'). Other
+//  waits pending right under this one get the same key, as before.
 //  Returns the capture token; releaseInput(token) abandons the wait.
+//  options.onDrop: see captureInput() (the menu waiting has gone; cb will
+//  not be called).
 //
-Client.prototype.waitForKeyPress = function (cb) {
+Client.prototype.waitForKeyPress = function (cb, options) {
     const token = this.captureInput((ch, key) => {
         this.releaseInput(token);
         cb(ch, key);
-    });
+    }, options);
+    //  waits under it hear the same key (see InputCapture keyReceivers())
+    token.isWait = true;
     return token;
 };
 

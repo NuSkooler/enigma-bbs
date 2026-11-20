@@ -24,7 +24,7 @@
 //  requires: client.js loads this early.
 //
 
-//  client -> { stack: [ token ], claimed: bool }
+//  client -> { stack: [ token ], claimed: bool, dispatcher: fn }
 const captureStates = new WeakMap();
 
 function getState(client) {
@@ -39,27 +39,107 @@ function getState(client) {
     //  Installed once and kept, so it is still first for every key after
     //  the stack empties: it resets |claimed| for keys nobody captures.
     const dispatcher = (ch, key) => {
-        const top = state.stack[state.stack.length - 1];
-        state.claimed = !!top;
-        if (top) {
-            top.handler(ch, key);
+        //  Captures left over from a menu that has gone hear the next key
+        //  without taking it, as a plain once('key press') did: see
+        //  menuChanged()
+        const stale = state.stack.filter(t => t.passThrough);
+        const receivers = keyReceivers(state);
+        state.claimed = receivers.length > 0;
+        for (const token of stale) {
+            token.handler(ch, key);
+        }
+        for (const token of receivers) {
+            if (token.passThrough || state.stack.includes(token)) {
+                token.handler(ch, key);
+            }
         }
     };
+    state.dispatcher = dispatcher;
     client.prependListener('key press', dispatcher);
 
     return state;
+}
+
+//  The capture that takes keys: the newest not left over from a menu gone
+function topCapture(state) {
+    for (let i = state.stack.length - 1; i >= 0; --i) {
+        if (!state.stack[i].passThrough) {
+            return state.stack[i];
+        }
+    }
+    return null;
+}
+
+//
+//  Who gets this key: the top capture. When that is a plain wait
+//  (waitForKeyPress()), every plain wait directly under it gets the same
+//  key too, oldest first, as several once('key press') waits did before
+//  waits were captures; each releases itself. A general captureInput()
+//  handler stops the run: it, and whatever is under it, wait.
+//
+function keyReceivers(state) {
+    const top = topCapture(state);
+    if (!top || !top.isWait) {
+        return top ? [top] : [];
+    }
+    const run = [];
+    for (let i = state.stack.length - 1; i >= 0; --i) {
+        const token = state.stack[i];
+        if (token.passThrough) {
+            continue; //  heard the key already, as a leftover
+        }
+        if (!token.isWait) {
+            break;
+        }
+        run.unshift(token);
+    }
+    return run;
+}
+
+//
+//  Something removed every 'key press' listener (a mod calling
+//  client.removeAllListeners('key press')): without the dispatcher no
+//  capture would get a key, and a pause would wait forever. Put it back,
+//  first again.
+//
+function ensureDispatcher(client, state) {
+    if (typeof client.listeners !== 'function') {
+        return;
+    }
+    if (!client.listeners('key press').includes(state.dispatcher)) {
+        client.prependListener('key press', state.dispatcher);
+    }
 }
 
 //
 //  Make |handler(ch, key)| the receiver of every key until releaseInput()
 //  is called with the token returned, or a later capture covers it.
 //
-function captureInput(client, handler) {
+//  options:
+//    onMenuChange  what happens to the capture if the menu it was taken for
+//                  goes while it is still held (see menuChanged()):
+//                  'passThrough' (default) -- its handler still gets the next
+//                  key, which reaches the new menu as well, as a plain
+//                  once('key press') wait did; 'drop' -- it is dropped, the
+//                  handler is never called (a cover's own capture).
+//    onDrop()      called if the capture is dropped rather than released
+//                  (the client ended, or 'drop' above). The handler will
+//                  never be called; clean up here.
+//
+function captureInput(client, handler, options) {
     if (typeof handler !== 'function') {
         throw new TypeError('captureInput() requires a handler function');
     }
     const token = { handler };
-    getState(client).stack.push(token);
+    if (options && typeof options.onDrop === 'function') {
+        token.onDrop = options.onDrop;
+    }
+    if (options && 'drop' === options.onMenuChange) {
+        token.dropOnMenuChange = true;
+    }
+    const state = getState(client);
+    ensureDispatcher(client, state);
+    state.stack.push(token);
     return token;
 }
 
@@ -89,9 +169,68 @@ function releaseAllInput(client) {
     }
 }
 
+//
+//  Drop every capture, calling each one's onDrop(), top first: the menu
+//  they were taken for has gone (a sysop break-in, a time-up while a pause
+//  waited). Unlike release, the handlers are never called, so nothing
+//  continues on behalf of the menu that has gone. Returns how many there
+//  were.
+//
+function dropAllInput(client) {
+    const state = captureStates.get(client);
+    if (!state || 0 === state.stack.length) {
+        return 0;
+    }
+    return dropTokens(client, state.stack.splice(0).reverse());
+}
+
+//
+//  The menu stack has moved to another menu while captures were held (a
+//  sysop break-in, a time-up, an idle logoff while a pause waited). A
+//  capture taken with onMenuChange: 'drop' is dropped. Any other is left
+//  as a plain wait was before captures existed: its handler gets the next
+//  key, which no longer stops there but reaches the new menu's forms too.
+//  Returns { dropped, passThrough } counts.
+//
+function menuChanged(client) {
+    const state = captureStates.get(client);
+    if (!state || 0 === state.stack.length) {
+        return { dropped: 0, passThrough: 0 };
+    }
+    const drop = state.stack.filter(t => t.dropOnMenuChange);
+    state.stack = state.stack.filter(t => !t.dropOnMenuChange);
+    let passThrough = 0;
+    for (const token of state.stack) {
+        if (!token.passThrough) {
+            token.passThrough = true;
+            ++passThrough;
+        }
+    }
+    return { dropped: dropTokens(client, drop.reverse()), passThrough };
+}
+
+function dropTokens(client, dropped) {
+    for (const token of dropped) {
+        if (token.onDrop) {
+            try {
+                token.onDrop();
+            } catch (e) {
+                if (client.log) {
+                    client.log.warn(
+                        { error: e.message },
+                        'Input capture cleanup failed while dropping it'
+                    );
+                }
+            }
+        }
+    }
+    return dropped.length;
+}
+
+//  True while a capture takes keys (one left over from a menu gone does not)
 function hasInputCapture(client) {
     const state = captureStates.get(client);
-    return !!state && state.stack.length > 0;
+    return !!state && !!topCapture(state);
 }
 
 //
@@ -101,13 +240,15 @@ function hasInputCapture(client) {
 //
 function isKeyPressCaptured(client) {
     const state = captureStates.get(client);
-    return !!state && (state.claimed || state.stack.length > 0);
+    return !!state && (state.claimed || !!topCapture(state));
 }
 
 module.exports = {
     captureInput,
     releaseInput,
     releaseAllInput,
+    dropAllInput,
+    menuChanged,
     hasInputCapture,
     isKeyPressCaptured,
 };
