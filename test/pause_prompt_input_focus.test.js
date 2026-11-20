@@ -354,4 +354,67 @@ describe('pause prompts set the input focus aside', function () {
         await waitFor(() => finished, 'the interrupt to finish');
         assert.equal(View.getInputFocusView(client), field);
     });
+
+    describe('with the real waitForKeyPress() (an input capture)', function () {
+        let Client;
+        before(function () {
+            ({ Client } = require('../core/client.js'));
+        });
+
+        function makeCapturingClient() {
+            const client = makeClient();
+            client.captureInput = Client.prototype.captureInput;
+            client.releaseInput = Client.prototype.releaseInput;
+            client.waitForKeyPress = Client.prototype.waitForKeyPress;
+            return client;
+        }
+
+        it('the key that ends a realtime interrupt is not typed into the menu field (#1136)', async function () {
+            const client = makeCapturingClient();
+            const { field } = makeMenuForm(client);
+            client.emit('key press', 'a');
+            assert.equal(field.getData(), 'a', 'precondition: the field takes keys');
+
+            const mod = Object.create(MenuModule.prototype);
+            mod.client = client;
+            mod.menuConfig = { config: { pausePrompt: 'pauseTk' } };
+            client.currentMenuModule = mod;
+
+            let finished = false;
+            UserInterruptQueue.prototype.displayWithItem.call(
+                { client },
+                { cls: true, text: 'A message from the sysop', pause: true },
+                err => {
+                    assert.ifError(err);
+                    finished = true;
+                }
+            );
+            await waitFor(tickerUp, 'the pause ticker');
+
+            client.emit('key press', 'x');
+            await waitFor(() => finished, 'the interrupt to finish');
+            assert.equal(
+                field.getData(),
+                'a',
+                'the dismissing key went to the pause only'
+            );
+
+            client.emit('key press', 'b');
+            assert.equal(field.getData(), 'ab', 'the field has the keys again');
+        });
+
+        it('an action key on the menu form does not fire on the pause key', async function () {
+            const client = makeCapturingClient();
+            const { vc } = makeMenuForm(client);
+            let submits = 0;
+            vc.on('submit', () => ++submits);
+            vc.mapActionKeys([{ keys: ['escape'], viewId: 1 }], 'form');
+
+            const state = pause(client);
+            await waitFor(tickerUp, 'the pause ticker');
+            client.emit('key press', '\x1b', { name: 'escape' });
+            await waitFor(() => state.done, 'the pause to finish');
+            assert.equal(submits, 0);
+        });
+    });
 });
