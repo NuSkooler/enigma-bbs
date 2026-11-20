@@ -28,6 +28,9 @@ const MultiplexerAddress = '127.0.0.1';
 //  What a chat session sends first: '--DUDE-ITS--|<username>'
 const ClientHandshake = '--DUDE-ITS--';
 
+//  Names with a meaning of their own in the MRC protocol, never a user's
+const ReservedUsernames = ['SERVER', 'CLIENT', 'NOTME'];
+
 //  An MRC line is a few hundred bytes; a local client sending far more
 //  without a line break is broken
 const MaxClientLineLength = 16 * 1024;
@@ -289,10 +292,15 @@ exports.getModule = class MrcModule extends ServerModule {
         }
 
         if (line.startsWith(ClientHandshake)) {
-            //  a connection says who it is once, and only a name registers it
+            //  a connection says who it is once, and only a user's name
+            //  registers it
             const sep = line.indexOf('|');
             const username = sanitiseFromUser(sep < 0 ? '' : line.slice(sep + 1));
-            if (socket.username || !username) {
+            if (
+                socket.username ||
+                !username ||
+                ReservedUsernames.includes(username.toUpperCase())
+            ) {
                 this.log.debug(
                     { user: socket.username, given: username },
                     'Ignoring MRC client handshake'
@@ -311,13 +319,31 @@ exports.getModule = class MrcModule extends ServerModule {
             return;
         }
 
-        this.receiveFromClient(socket.username, line);
+        this.receiveFromClient(socket, line);
     }
 
     _clientDisconnected(socket) {
-        if (connectedSockets.delete(socket)) {
-            this.sendToMrcServer(socket.username, '', 'SERVER', '', '', 'LOGOFF');
+        if (!connectedSockets.delete(socket)) {
+            return;
         }
+
+        //  the user may still be here on another node, or back already: an
+        //  old session closing after a quick rejoin must not log them off
+        const name = socket.username.toUpperCase();
+        for (const other of connectedSockets) {
+            if (other.username.toUpperCase() === name) {
+                return;
+            }
+        }
+
+        this.sendToMrcServer(
+            socket.username,
+            socket.room || '',
+            'SERVER',
+            '',
+            '',
+            'LOGOFF'
+        );
     }
 
     get enabled() {
@@ -398,11 +424,26 @@ exports.getModule = class MrcModule extends ServerModule {
     /**
      * Receives a message from a local client and sanity checks before sending on to the central MRC server
      */
-    receiveFromClient(username, message) {
+    receiveFromClient(socket, message) {
+        const username = socket.username;
         try {
             message = JSON.parse(message);
             if (!_.isPlainObject(message)) {
                 throw new Error('not an object');
+            }
+
+            if (_.isString(message.from_room)) {
+                socket.room = message.from_room; //  for the LOGOFF on close
+            }
+
+            //  a session sends LOGOFF as it leaves; the multiplexer sends it
+            //  itself when the connection closes, and only if the user is not
+            //  still connected on another one (see _clientDisconnected)
+            if (
+                String(message.to_user).toUpperCase() === 'SERVER' &&
+                String(message.body).toUpperCase() === 'LOGOFF'
+            ) {
+                return;
             }
 
             //  sent as the user this connection registered as, whatever the

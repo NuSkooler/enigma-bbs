@@ -162,14 +162,31 @@ describe('MRC multiplexer', () => {
             assert.equal(line, 'alice~testbbs~lobby~~~lobby~claimed-to-be-bob~');
         });
 
+        //  on one connection, so the order is certain
         it('is nobody before the handshake, so nothing is sent', async () => {
-            const stranger = await connect();
-            say(stranger, { from_user: 'bob', body: 'from-nobody' });
-            const alice = await connect('--DUDE-ITS--|alice');
-            say(alice, { body: 'after-nobody' });
-            await until(() => fromCentral('after-nobody'), 'the later message');
+            const socket = await connect();
+            say(socket, { from_user: 'bob', body: 'from-nobody' });
+            socket.write('--DUDE-ITS--|alice\n');
+            say(socket, { body: 'after-handshake' });
+            const line = await until(
+                () => fromCentral('after-handshake'),
+                'the later message'
+            );
+            assert.ok(line.startsWith('alice~'));
             assert.equal(fromCentral('from-nobody'), undefined);
         });
+
+        for (const reserved of ['SERVER', 'client', 'NotMe']) {
+            it(`is never the protocol's own '${reserved}'`, async () => {
+                const socket = await connect(`--DUDE-ITS--|${reserved}`);
+                say(socket, { body: 'as-reserved' });
+                socket.write('--DUDE-ITS--|alice\n');
+                say(socket, { body: 'as-alice' });
+                const line = await until(() => fromCentral('as-alice'), 'the message');
+                assert.ok(line.startsWith('alice~'));
+                assert.equal(fromCentral('as-reserved'), undefined);
+            });
+        }
 
         it('is the first name a connection gives', async () => {
             const alice = await connect('--DUDE-ITS--|alice');
@@ -271,7 +288,7 @@ describe('MRC multiplexer', () => {
             await until(() => fromCentral('here'), 'the message');
             alice.end();
             const line = await until(() => fromCentral('LOGOFF'), 'the log off');
-            assert.equal(line, 'alice~testbbs~~SERVER~~~LOGOFF~');
+            assert.equal(line, 'alice~testbbs~lobby~SERVER~~~LOGOFF~');
         });
 
         //  a reset connection never ends cleanly ('end'), only closes
@@ -283,11 +300,51 @@ describe('MRC multiplexer', () => {
 
             alice.resetAndDestroy();
             const line = await until(() => fromCentral('LOGOFF'), 'the log off');
-            assert.equal(line, 'alice~testbbs~~SERVER~~~LOGOFF~');
+            assert.equal(line, 'alice~testbbs~lobby~SERVER~~~LOGOFF~');
 
             //  and alice is no longer written to
             board.write('carol~otherbbs~lobby~~~lobby~after-reset~\n');
             await until(() => received(bob, 'after-reset'), 'the message');
+        });
+
+        //  the same user on another node, or back already after a quick rejoin
+        it('not while the user is still connected on another connection', async () => {
+            const old = await connect('--DUDE-ITS--|alice');
+            const rejoined = await connect('--DUDE-ITS--|Alice');
+            say(rejoined, { body: 'rejoined' });
+            await until(() => fromCentral('rejoined'), 'the message');
+
+            say(old, { to_user: 'SERVER', body: 'LOGOFF' });
+            old.end();
+            await new Promise(resolve => setTimeout(resolve, 30));
+            say(rejoined, { body: 'still-here' });
+            await until(() => fromCentral('still-here'), 'the later message');
+            assert.equal(fromCentral('LOGOFF'), undefined);
+
+            rejoined.end();
+            const line = await until(() => fromCentral('LOGOFF'), 'the log off');
+            assert.equal(line, 'Alice~testbbs~lobby~SERVER~~~LOGOFF~');
+        });
+
+        //  core/mrc.js sends LOGOFF itself, then closes: one LOGOFF, from
+        //  the room it was in
+        it('once, from the room the session was in', async () => {
+            const alice = await connect('--DUDE-ITS--|alice');
+            say(alice, { from_room: 'retro', to_room: 'retro', body: 'here' });
+            await until(() => fromCentral('here'), 'the message');
+            say(alice, {
+                from_room: 'retro',
+                to_user: 'SERVER',
+                to_room: 'retro',
+                body: 'LOGOFF',
+            });
+            alice.end();
+            await until(() => fromCentral('LOGOFF'), 'the log off');
+            await new Promise(resolve => setTimeout(resolve, 30));
+            assert.deepEqual(
+                lines.filter(line => line.includes('LOGOFF')),
+                ['alice~testbbs~retro~SERVER~~~LOGOFF~']
+            );
         });
 
         it('sends no log off for a connection that never registered', async () => {
