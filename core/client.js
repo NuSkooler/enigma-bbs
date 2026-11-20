@@ -46,6 +46,7 @@ const { emulationOf } = require('./term');
 const { attachRipLayer } = require('./term/select.js');
 const DeviceAttributes = require('./term/ansi/device_attributes.js');
 const AnsiInput = require('./term/ansi/input_decoder.js');
+const InputCapture = require('./input_capture.js');
 
 //  deps
 const stream = require('stream');
@@ -427,6 +428,9 @@ Client.prototype.end = function () {
             this.themeChangedListener
         );
 
+        //  No key will come for a capture now (a pending waitForKeyPress())
+        InputCapture.releaseAllInput(this);
+
         //  Run the current module's leave(): it is a module's one chance
         //  to clean up on disconnect (a door's node count, an upload's temp
         //  files, ...). Mark the top entry |left| first, so nothing can
@@ -486,10 +490,34 @@ Client.prototype.destroySoon = function () {
     return this.output.destroySoon.apply(this.output, arguments);
 };
 
+//
+//  Input capture: while a capture is active only the top capture's handler
+//  gets a key, and the forms under it get none. See core/input_capture.js.
+//
+Client.prototype.captureInput = function (handler) {
+    return InputCapture.captureInput(this, handler);
+};
+
+Client.prototype.releaseInput = function (token) {
+    return InputCapture.releaseInput(this, token);
+};
+
+Client.prototype.hasInputCapture = function () {
+    return InputCapture.hasInputCapture(this);
+};
+
+//
+//  Call |cb(ch, key)| with the next key, once. The key is captured: it does
+//  not also reach a form still attached under whatever is waiting (a pause,
+//  a help page), as it did when this was a plain once('key press').
+//  Returns the capture token; releaseInput(token) abandons the wait.
+//
 Client.prototype.waitForKeyPress = function (cb) {
-    this.once('key press', function kp(ch, key) {
+    const token = this.captureInput((ch, key) => {
+        this.releaseInput(token);
         cb(ch, key);
     });
+    return token;
 };
 
 Client.prototype.isLocal = function () {

@@ -6,6 +6,7 @@ const { View } = require('./view');
 const menuUtil = require('./menu_util.js');
 const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
+const { isKeyPressCaptured } = require('./input_capture.js');
 
 //  deps
 const events = require('events');
@@ -35,6 +36,12 @@ class ViewController extends events.EventEmitter {
         //  It needs a stable reference for attach/detachClientEvents.
         //
         this.clientKeyPressHandler = (ch, key) => {
+            //  Something covering the screen owns the input (a pause or help
+            //  page waiting for its key): the form under it gets nothing.
+            if (isKeyPressCaptured(this.client)) {
+                return;
+            }
+
             //
             //  Process key presses treating form submit mapped keys special.
             //  Everything else is forwarded on to the focused View, if any.
