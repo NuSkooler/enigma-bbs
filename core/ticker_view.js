@@ -716,11 +716,18 @@ class TickerView extends View {
         );
     }
 
+    //  The frame on screen may have been drawn over (a background draw
+    //  suspend): draw the next one even if it equals the last
+    forceNextRedraw() {
+        this._lastRendered = null;
+    }
+
     destroy() {
         if (this._timer) {
             clearInterval(this._timer);
             this._timer = null;
         }
+        super.destroy();
     }
 
     //  ── Properties ───────────────────────────────────────────────────────────

@@ -1,0 +1,391 @@
+'use strict';
+
+const { strict: assert } = require('assert');
+const events = require('events');
+
+const { View } = require('../core/view.js');
+const { TickerView } = require('../core/ticker_view.js');
+const { StatusBarView } = require('../core/status_bar_view.js');
+const { EditTextView } = require('../core/edit_text_view.js');
+const { ViewController } = require('../core/view_controller.js');
+
+//
+//  View.suspendBackgroundDraw() / resumeBackgroundDraw(): while something
+//  covers the screen a background draw (a ticker tick) draws nothing, and
+//  once the screen is given back each view that missed a draw gets one full
+//  redraw, through drawInBackground() so the cursor goes back to the field.
+//
+
+const HIDE_CURSOR = '\x1b[?25l';
+const SHOW_CURSOR = '\x1b[?25h';
+const TICKER_GOTO = '\x1b[2;10H';
+
+//  Records socket writes; beginWrite() / commitWrite() batch as
+//  ClientTerminal's do, so one entry is one write
+function makeTerm() {
+    const term = { termWidth: 80, termHeight: 25, flushes: [], _batch: null, _depth: 0 };
+    const out = s => {
+        s = Buffer.isBuffer(s) ? s.toString('latin1') : String(s);
+        if (term._batch) {
+            term._batch.push(s);
+        } else {
+            term.flushes.push(s);
+        }
+    };
+    term.write = out;
+    term.rawWrite = out;
+    term.beginWrite = () => {
+        if (!term._batch) {
+            term._batch = [];
+            term._depth = 0;
+        }
+        ++term._depth;
+    };
+    term.commitWrite = () => {
+        if (!term._batch || --term._depth > 0) {
+            return;
+        }
+        const data = term._batch.join('');
+        term._batch = null;
+        if (data) {
+            term.flushes.push(data);
+        }
+    };
+    term.since = n => term.flushes.slice(n).join('');
+    return term;
+}
+
+function makeClient() {
+    const client = new events.EventEmitter();
+    client.log = {};
+    ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].forEach(level => {
+        client.log[level] = () => {};
+    });
+    client.term = makeTerm();
+    client.currentMenuModule = { menuName: 'someMenu', menuConfig: {}, menuMethods: {} };
+    return client;
+}
+
+//  Interval timers fired by hand
+function captureTimers() {
+    const timers = [];
+    const saved = {
+        setInterval: global.setInterval,
+        clearInterval: global.clearInterval,
+    };
+    global.setInterval = fn => {
+        timers.push(fn);
+        return timers.length;
+    };
+    global.clearInterval = id => {
+        if (id) {
+            timers[id - 1] = null;
+        }
+    };
+    return {
+        fireAll() {
+            timers.forEach(fn => fn && fn());
+        },
+        restore() {
+            Object.assign(global, saved);
+        },
+    };
+}
+
+function makeTicker(client, options = {}) {
+    return new TickerView(
+        Object.assign(
+            {
+                client,
+                id: 9,
+                position: { row: 2, col: 10 },
+                dimens: { width: 20, height: 1 },
+                text: 'Welcome to the board -- news, files and doors',
+                motion: 'left',
+            },
+            options
+        )
+    );
+}
+
+//  A ticker and a focused command field, as on a menu with a prompt
+function makeScreen() {
+    const client = makeClient();
+    const vc = new ViewController({ client });
+    const ticker = makeTicker(client);
+    const field = new EditTextView({
+        client,
+        id: 1,
+        position: { row: 20, col: 5 },
+        dimens: { width: 30 },
+        maxLength: 30,
+    });
+    vc.addView(ticker);
+    vc.addView(field);
+    vc.setViewOrder();
+    vc.redrawAll();
+    vc.switchFocus(1);
+    return { client, vc, ticker, field, term: client.term };
+}
+
+//  A bare view counting its redraws
+function makeCountingView(client, id = 5) {
+    const view = new View({ client, id, position: { row: 3, col: 1 } });
+    view.redraws = 0;
+    view.redraw = () => {
+        ++view.redraws;
+        client.term.write(`<view ${id}>`);
+    };
+    return view;
+}
+
+describe('Background draw suspend / resume', () => {
+    let timers;
+    beforeEach(() => {
+        timers = captureTimers();
+    });
+    afterEach(() => {
+        timers.restore();
+    });
+
+    it('skips drawFn while suspended', () => {
+        const client = makeClient();
+        const view = makeCountingView(client);
+        const token = View.suspendBackgroundDraw(client);
+        assert.equal(View.isBackgroundDrawSuspended(client), true);
+
+        let ran = 0;
+        view.drawInBackground(() => ++ran);
+        assert.equal(ran, 0);
+        assert.equal(client.term.flushes.length, 0, 'nothing written');
+
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(View.isBackgroundDrawSuspended(client), false);
+    });
+
+    it('redraws a view that missed draws once, on the last resume', () => {
+        const client = makeClient();
+        const view = makeCountingView(client);
+        const outer = View.suspendBackgroundDraw(client);
+        const inner = View.suspendBackgroundDraw(client);
+
+        view.drawInBackground(() => {});
+        view.drawInBackground(() => {});
+
+        View.resumeBackgroundDraw(client, inner);
+        assert.equal(view.redraws, 0, 'still suspended by the outer token');
+        assert.equal(View.isBackgroundDrawSuspended(client), true);
+
+        View.resumeBackgroundDraw(client, outer);
+        assert.equal(view.redraws, 1, 'one redraw for any number of missed draws');
+
+        View.resumeBackgroundDraw(client, outer);
+        assert.equal(view.redraws, 1, 'a token given back twice does nothing');
+    });
+
+    it('counts tokens, not calls: resuming in either order works', () => {
+        const client = makeClient();
+        const view = makeCountingView(client);
+        const first = View.suspendBackgroundDraw(client);
+        const second = View.suspendBackgroundDraw(client);
+        view.drawInBackground(() => {});
+
+        View.resumeBackgroundDraw(client, first);
+        assert.equal(view.redraws, 0);
+        View.resumeBackgroundDraw(client, second);
+        assert.equal(view.redraws, 1);
+    });
+
+    it('ignores a token it did not give out', () => {
+        const client = makeClient();
+        const view = makeCountingView(client);
+        const token = View.suspendBackgroundDraw(client);
+        view.drawInBackground(() => {});
+
+        View.resumeBackgroundDraw(client, {});
+        View.resumeBackgroundDraw(client, null);
+        View.resumeBackgroundDraw(makeClient(), token);
+        assert.equal(View.isBackgroundDrawSuspended(client), true);
+        assert.equal(view.redraws, 0);
+    });
+
+    it('does not redraw a view that missed nothing', () => {
+        const client = makeClient();
+        const quiet = makeCountingView(client, 5);
+        const busy = makeCountingView(client, 6);
+        const token = View.suspendBackgroundDraw(client);
+        busy.drawInBackground(() => {});
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(quiet.redraws, 0);
+        assert.equal(busy.redraws, 1);
+    });
+
+    it('does not redraw a view destroyed while suspended', () => {
+        const client = makeClient();
+        const ticker = makeTicker(client);
+        const token = View.suspendBackgroundDraw(client);
+        timers.fireAll();
+
+        ticker.destroy();
+        assert.equal(ticker.destroyed, true);
+        const before = client.term.flushes.length;
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(client.term.flushes.length, before, 'nothing drawn');
+    });
+
+    it('does not note a view that is already destroyed', () => {
+        const client = makeClient();
+        const view = makeCountingView(client);
+        view.destroy();
+        const token = View.suspendBackgroundDraw(client);
+        view.drawInBackground(() => {});
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(view.redraws, 0);
+    });
+
+    it('treats a view torn down with its form as destroyed, even if its destroy() skips super', () => {
+        const client = makeClient();
+        const vc = new ViewController({ client });
+        const view = makeCountingView(client);
+        view.destroy = () => {}; //  a mod view that does not call super
+        vc.addView(view);
+
+        const token = View.suspendBackgroundDraw(client);
+        view.drawInBackground(() => {});
+        vc.detachClientEvents();
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(view.redraws, 0);
+    });
+
+    it('draws nothing on resume once the client has ended', () => {
+        const client = makeClient();
+        const view = makeCountingView(client);
+        const token = View.suspendBackgroundDraw(client);
+        view.drawInBackground(() => {});
+        client.clientEnded = true;
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(view.redraws, 0);
+        assert.equal(View.isBackgroundDrawSuspended(client), false);
+    });
+
+    it('still redraws the others when one view’s redraw throws', () => {
+        const client = makeClient();
+        const bad = makeCountingView(client, 5);
+        const good = makeCountingView(client, 6);
+        bad.redraw = () => {
+            throw new Error('boom');
+        };
+        const token = View.suspendBackgroundDraw(client);
+        bad.drawInBackground(() => {});
+        good.drawInBackground(() => {});
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(good.redraws, 1);
+    });
+
+    it('keeps each client separate', () => {
+        const a = makeClient();
+        const b = makeClient();
+        View.suspendBackgroundDraw(a);
+        let ran = 0;
+        makeCountingView(b).drawInBackground(() => ++ran);
+        assert.equal(ran, 1);
+    });
+
+    describe('TickerView', () => {
+        it('draws no tick while suspended, and one frame on resume', () => {
+            const { client, term } = makeScreen();
+            const token = View.suspendBackgroundDraw(client);
+            const before = term.flushes.length;
+
+            timers.fireAll();
+            timers.fireAll();
+            assert.equal(term.flushes.length, before, 'no tick written');
+
+            View.resumeBackgroundDraw(client, token);
+            assert.equal(term.flushes.length, before + 1, 'one write for the redraw');
+            const redraw = term.flushes[term.flushes.length - 1];
+            assert.ok(redraw.startsWith(HIDE_CURSOR), 'cursor hidden first');
+            assert.ok(redraw.includes(TICKER_GOTO), 'the ticker is drawn');
+            assert.ok(redraw.endsWith(SHOW_CURSOR), 'cursor shown again');
+            assert.ok(
+                redraw.includes('\x1b[20;5H'),
+                'the cursor goes back to the focused field'
+            );
+        });
+
+        it('draws the missed frame on resume, though it equals the last one computed', () => {
+            //  bounce with text that fits never moves, so the redraw computes
+            //  the frame the missed tick computed, and the ticker skips frames
+            //  it believes are on screen
+            const { client, ticker, term } = makeScreen();
+            ticker.setPropertyValue('motion', 'bounce');
+            ticker.setText('short');
+            timers.fireAll(); //  drawn
+            const token = View.suspendBackgroundDraw(client);
+            ticker.setText('other');
+            timers.fireAll(); //  computed and noted, not drawn
+
+            const before = term.flushes.length;
+            View.resumeBackgroundDraw(client, token);
+            assert.equal(term.flushes.length, before + 1);
+            assert.ok(term.since(before).includes('other'));
+        });
+
+        it('is not noted for a tick with nothing new to draw', () => {
+            //  The screen under it may still have been drawn over: repainting
+            //  the covered screen is the cover's job (its restore step)
+            const { client, ticker, term } = makeScreen();
+            ticker.setPropertyValue('motion', 'bounce');
+            ticker.setText('short');
+            timers.fireAll();
+            const token = View.suspendBackgroundDraw(client);
+            timers.fireAll();
+
+            const before = term.flushes.length;
+            View.resumeBackgroundDraw(client, token);
+            assert.equal(term.flushes.length, before);
+        });
+
+        it('ticks as it did before, one write with the cursor hidden, after a resume', () => {
+            const { client, term } = makeScreen();
+            View.resumeBackgroundDraw(client, View.suspendBackgroundDraw(client));
+
+            const before = term.flushes.length;
+            timers.fireAll();
+            assert.equal(term.flushes.length, before + 1, 'one socket write per tick');
+            const tick = term.flushes[term.flushes.length - 1];
+            assert.ok(tick.startsWith(HIDE_CURSOR));
+            assert.ok(tick.indexOf(TICKER_GOTO) > 0);
+            assert.ok(tick.endsWith(SHOW_CURSOR));
+        });
+    });
+
+    describe('StatusBarView', () => {
+        it('redraws a panel refresh it missed', () => {
+            const client = makeClient();
+            let n = 0;
+            const bar = new StatusBarView({
+                client,
+                id: 3,
+                position: { row: 24, col: 1 },
+                dimens: { width: 40, height: 1 },
+            });
+            bar._evalPanelText = () => `n=${++n}`;
+            bar.setPropertyValue('panels', [
+                { name: 'count', width: 10, text: 'x', refreshInterval: 1000 },
+            ]);
+            bar.redraw();
+
+            const token = View.suspendBackgroundDraw(client);
+            const before = client.term.flushes.length;
+            timers.fireAll();
+            assert.equal(client.term.flushes.length, before);
+
+            View.resumeBackgroundDraw(client, token);
+            assert.ok(client.term.since(before).includes(`n=${n}`), 'latest value drawn');
+
+            bar.destroy();
+            assert.equal(bar.destroyed, true, 'destroy() reaches View.destroy()');
+        });
+    });
+});

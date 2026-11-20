@@ -463,6 +463,9 @@ class ViewController extends events.EventEmitter {
             if (typeof view.destroy === 'function') {
                 view.destroy();
             }
+            //  also for a destroy() that does not call super: no background
+            //  redraw is owed to a view that is gone
+            View.markDestroyed(view);
         }
 
         this.attached = false;
