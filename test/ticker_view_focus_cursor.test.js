@@ -11,6 +11,7 @@ const { MaskEditTextView } = require('../core/mask_edit_text_view.js');
 const { VerticalMenuView } = require('../core/vertical_menu_view.js');
 const { ViewController } = require('../core/view_controller.js');
 const { StatusBarView } = require('../core/status_bar_view.js');
+const { MultiLineEditTextView } = require('../core/multi_line_edit_text_view.js');
 
 //
 //  A TickerView (%TK) redraws on a timer. Each tick moves the terminal cursor
@@ -496,6 +497,54 @@ describe('TickerView tick with a focused input', () => {
             timers.fireAll();
             assert.equal(client.term.pos(), expected);
             assert.equal(client.term.sgr, FIELD_FOCUS_SGR);
+        });
+
+        it('a focused MultiLineEditTextView (FSE) gets its edit position back', () => {
+            const client = makeClient();
+            makeTicker(client);
+            const mle = new MultiLineEditTextView({
+                client,
+                id: 1,
+                position: { row: 5, col: 3 },
+                dimens: { width: 40, height: 10 },
+                styleSGR2: FIELD_FOCUS_SGR,
+            });
+            mle.setText('first line\nsecond');
+            mle.setFocus(true);
+            for (const ch of 'abc') {
+                mle.onKeyPress(ch);
+            }
+            const expected = client.term.pos();
+            assert.equal(expected, '6,12', 'precondition: after "secondabc"');
+
+            timers.fireAll();
+            assert.equal(client.term.pos(), expected);
+            assert.equal(client.term.sgr, FIELD_FOCUS_SGR);
+            assert.equal(client.term.cursorVisible, true);
+
+            mle.onKeyPress('d');
+            assert.equal(client.term.textAt(6, 3, 10), 'secondabcd');
+            assert.equal(client.term.cellAt(6, 12).sgr, FIELD_FOCUS_SGR);
+        });
+
+        it('a MultiLineEditTextView scrolled down keeps its row in the window', () => {
+            const client = makeClient();
+            makeTicker(client);
+            const mle = new MultiLineEditTextView({
+                client,
+                id: 1,
+                position: { row: 5, col: 3 },
+                dimens: { width: 40, height: 3 },
+                styleSGR2: FIELD_FOCUS_SGR,
+            });
+            mle.setText(['1', '2', '3', '4', '5', '6'].join('\n'));
+            mle.setFocus(true);
+            const expected = client.term.pos();
+            const row = parseInt(expected, 10);
+            assert.ok(row >= 5 && row <= 7, `precondition: in the window (${expected})`);
+
+            timers.fireAll();
+            assert.equal(client.term.pos(), expected);
         });
     });
 });
