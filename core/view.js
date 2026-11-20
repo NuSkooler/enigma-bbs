@@ -239,7 +239,17 @@ class View extends events.EventEmitter {
                 this.setWidth(value);
                 break;
             case 'focus':
-                this.setFocusProperty(value);
+                //  The MCI config's `focus: true` only marks the view: the
+                //  form focuses it for real when it has loaded (switchFocus()
+                //  in loadFromMenuConfig() / loadFromPromptConfig()), and
+                //  that is what makes it the input focus view. Marked here
+                //  it would be tracked before its form is shown, or even if
+                //  the form never focuses it.
+                enigAssert(this.acceptsFocus || !value, 'View does not accept focus');
+                this.hasFocus = value;
+                if (!value) {
+                    View.releaseInputFocus(this);
+                }
                 break;
 
             case 'text':

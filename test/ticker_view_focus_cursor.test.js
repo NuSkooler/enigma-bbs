@@ -681,6 +681,75 @@ describe('View input focus tracking', () => {
         assert.equal(a.hasFocus, true, 'the view itself keeps hasFocus');
         assert.equal(View.getInputFocusView(client), null);
     });
+
+    describe('the MCI config `focus` property', () => {
+        //  a form loaded as displayThemedPrompt() / a menu's prompt loads it
+        function loadForm(client, mciMap, mci) {
+            const vc = new ViewController({ client });
+            vc.loadFromPromptConfig({ mciMap, config: { mci } }, err =>
+                assert.ifError(err)
+            );
+            return vc;
+        }
+
+        function mciEntry(code, id, row, col) {
+            return { code, id, position: [row, col], args: [], SGR: '', focusSGR: '' };
+        }
+
+        it('marks the view but does not track it until the form focuses it', () => {
+            const client = makeClient();
+            const vc = new ViewController({ client });
+            const a = makeEtv(client, 1);
+            vc.addView(a);
+            vc.applyViewConfig({ mci: { ET1: { focus: true } } }, err =>
+                assert.ifError(err)
+            );
+            assert.equal(a.hasFocus, true, 'marked');
+            assert.equal(View.getInputFocusView(client), null, 'not tracked yet');
+
+            vc.switchFocus(1);
+            assert.equal(View.getInputFocusView(client), a);
+        });
+
+        it('two forms both declaring focus: the one focused last is tracked', () => {
+            const client = makeClient();
+            const formA = loadForm(
+                client,
+                { ET1: mciEntry('ET', 1, 10, 5) },
+                {
+                    ET1: { focus: true },
+                }
+            );
+            const formB = loadForm(
+                client,
+                { ET1: mciEntry('ET', 1, 20, 5) },
+                {
+                    ET1: { focus: true },
+                }
+            );
+            assert.equal(View.getInputFocusView(client), formB.getView(1));
+
+            //  and nothing brings form A's field back on its own
+            formB.detachClientEvents();
+            assert.equal(View.getInputFocusView(client), null);
+            assert.ok(formA.getView(1).hasFocus);
+        });
+
+        it('a form whose `focus` names a view it cannot focus does not take tracking', () => {
+            const client = makeClient();
+            const formA = loadForm(
+                client,
+                { ET1: mciEntry('ET', 1, 10, 5) },
+                {
+                    ET1: { focus: true },
+                }
+            );
+            //  a mistake in a theme: focus on a text label (logs an assert)
+            loadForm(client, { TL2: mciEntry('TL', 2, 3, 3) }, { TL2: { focus: true } });
+
+            assert.equal(View.getInputFocusView(client), formA.getView(1));
+        });
+    });
 });
 
 describe('View.drawInBackground()', () => {
