@@ -34,6 +34,18 @@ const suspendedInputFocus = new WeakMap();
 //  the screen: see suspendBackgroundDraw()
 const suspendedBackgroundDraw = new WeakMap();
 
+//  client -> the last number handed out by nextBackgroundSeq(). Each view
+//  takes one when it is created and each suspend token when it is taken,
+//  so a suspend can tell the views it covers (created before it) from those
+//  drawn inside the cover (a ticker in an interrupt's pause prompt).
+const backgroundSeqs = new WeakMap();
+
+function nextBackgroundSeq(client) {
+    const seq = (backgroundSeqs.get(client) || 0) + 1;
+    backgroundSeqs.set(client, seq);
+    return seq;
+}
+
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
     accept: ['return'],
     exit: ['esc'],
@@ -57,6 +69,8 @@ class View extends events.EventEmitter {
         enigAssert(_.isObject(options.client));
 
         this.client = options.client;
+        //  see suspendBackgroundDraw(): which covers this view is under
+        this.backgroundSeq = nextBackgroundSeq(this.client);
         this.cursor = options.cursor || 'show';
         this.cursorStyle = options.cursorStyle || 'default';
 
@@ -470,13 +484,16 @@ class View extends events.EventEmitter {
 
     //
     //  Stop background drawing (drawInBackground()) for |client| while
-    //  something covers the screen: an interrupt, a help page. A view that
-    //  would have drawn meanwhile is noted, and when the last token is
-    //  given back (resumeBackgroundDraw()) each one noted that is still
-    //  alive gets one full redraw. Suspends nest; returns a token.
+    //  something covers the screen: an interrupt, a help page. Only views
+    //  that already exist are covered: a view created after the most recent
+    //  suspend still held (a ticker in the cover's own pause prompt) draws
+    //  as usual. A covered view that would have drawn meanwhile is noted,
+    //  and once no suspend covers it any more (resumeBackgroundDraw()) it
+    //  gets one full redraw, if it is still alive. Suspends nest; returns a
+    //  token.
     //
     static suspendBackgroundDraw(client) {
-        const token = {};
+        const token = { seq: nextBackgroundSeq(client) };
         let suspended = suspendedBackgroundDraw.get(client);
         if (!suspended) {
             suspended = { tokens: [], missed: new Set() };
@@ -491,12 +508,29 @@ class View extends events.EventEmitter {
     }
 
     //
-    //  Give back a suspendBackgroundDraw() token; a token not held (or
-    //  given back already) is ignored. On the last one, redraw the views
-    //  that missed a draw, through drawInBackground() so the cursor goes
-    //  back to the field being typed into.
+    //  True while a suspend covers this view: the most recent suspend still
+    //  held was taken after the view was created. Nested covers: a view
+    //  created under cover A but before cover B is covered while B is held,
+    //  and draws again once only A is.
     //
-    static resumeBackgroundDraw(client, token) {
+    isBackgroundDrawSuspended() {
+        const suspended = suspendedBackgroundDraw.get(this.client);
+        if (!suspended) {
+            return false;
+        }
+        const top = suspended.tokens[suspended.tokens.length - 1];
+        return (this.backgroundSeq || 0) < top.seq;
+    }
+
+    //
+    //  Give back a suspendBackgroundDraw() token; a token not held (or
+    //  given back already) is ignored. Each view that missed a draw and is
+    //  no longer covered is redrawn, through drawInBackground() so the
+    //  cursor goes back to the field being typed into -- unless
+    //  |options.redrawMissed| is false: the caller replaces the screen next
+    //  (a reload after an interrupt) and a redraw would only flash.
+    //
+    static resumeBackgroundDraw(client, token, options) {
         const suspended = suspendedBackgroundDraw.get(client);
         if (!suspended || !token) {
             return;
@@ -506,19 +540,25 @@ class View extends events.EventEmitter {
             return;
         }
         suspended.tokens.splice(i, 1);
-        if (suspended.tokens.length > 0) {
-            return;
+        if (0 === suspended.tokens.length) {
+            suspendedBackgroundDraw.delete(client);
         }
 
-        suspendedBackgroundDraw.delete(client);
-        if (client.clientEnded) {
-            return; //  nobody to draw for
-        }
-
+        const uncovered = [];
         for (const view of suspended.missed) {
             if (view.destroyed) {
-                continue;
+                suspended.missed.delete(view);
+            } else if (!view.isBackgroundDrawSuspended()) {
+                suspended.missed.delete(view);
+                uncovered.push(view);
             }
+        }
+
+        if (client.clientEnded || false === _.get(options, 'redrawMissed')) {
+            return; //  nobody to draw for, or the screen is being replaced
+        }
+
+        for (const view of uncovered) {
             try {
                 view.forceNextRedraw();
                 view.drawInBackground(() => view.redraw());
@@ -532,6 +572,20 @@ class View extends events.EventEmitter {
                 }
             }
         }
+    }
+
+    //
+    //  Drop every suspend held for |client|, redrawing nothing: the menu
+    //  that was covered has gone (see MenuStack). Returns how many were
+    //  held.
+    //
+    static dropBackgroundDrawSuspends(client) {
+        const suspended = suspendedBackgroundDraw.get(client);
+        if (!suspended) {
+            return 0;
+        }
+        suspendedBackgroundDraw.delete(client);
+        return suspended.tokens.length;
     }
 
     //
@@ -580,10 +634,9 @@ class View extends events.EventEmitter {
     drawInBackground(drawFn) {
         //  The screen is covered (suspendBackgroundDraw()): draw nothing now,
         //  and get a full redraw when it is uncovered.
-        const suspended = suspendedBackgroundDraw.get(this.client);
-        if (suspended) {
+        if (this.isBackgroundDrawSuspended()) {
             if (!this.destroyed) {
-                suspended.missed.add(this);
+                suspendedBackgroundDraw.get(this.client).missed.add(this);
             }
             return;
         }

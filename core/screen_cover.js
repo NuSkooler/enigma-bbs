@@ -31,6 +31,12 @@ const _ = require('lodash');
 //    suspendBackground (default true)  suspend background drawing
 //    restore(cb)                       repaint the covered screen; skipped
 //                                      when fn failed
+//    redrawMissed      (default true)  redraw the background views that
+//                                      missed a draw; false when the caller
+//                                      replaces the screen next (a reload)
+//
+//  Only views that exist when the cover starts are suspended: views the
+//  cover itself creates (a ticker in its pause prompt) draw as usual.
 //
 //  Release and resume happen once, also when fn throws or calls done twice.
 //  An exception thrown by cb itself is not caught.
@@ -66,7 +72,9 @@ function coverScreen(client, options, fn, cb) {
                 releaseInput(client, inputToken);
             }
             if (drawToken) {
-                View.resumeBackgroundDraw(client, drawToken);
+                View.resumeBackgroundDraw(client, drawToken, {
+                    redrawMissed: false !== options.redrawMissed,
+                });
             }
             if (_.isFunction(cb)) {
                 return cb(err || restoreErr || null, ...results);

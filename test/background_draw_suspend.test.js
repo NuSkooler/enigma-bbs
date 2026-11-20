@@ -360,6 +360,95 @@ describe('Background draw suspend / resume', () => {
         });
     });
 
+    describe('only views that existed when the cover began', () => {
+        it('a ticker created inside the cover animates; one under it does not', () => {
+            const { client, ticker: under, term } = makeScreen();
+            const token = View.suspendBackgroundDraw(client);
+
+            //  the cover's own pause prompt, with a ticker of its own
+            const inside = makeTicker(client, {
+                id: 1,
+                position: { row: 24, col: 30 },
+                text: 'Press any key to continue',
+            });
+            assert.equal(under.isBackgroundDrawSuspended(), true);
+            assert.equal(inside.isBackgroundDrawSuspended(), false);
+
+            const before = term.flushes.length;
+            timers.fireAll();
+            const out = term.since(before);
+            assert.ok(out.includes('\x1b[24;30H'), 'the pause ticker draws');
+            assert.ok(!out.includes(TICKER_GOTO), 'the covered ticker does not');
+
+            inside.destroy();
+            View.resumeBackgroundDraw(client, token);
+            assert.ok(term.since(before).includes(TICKER_GOTO), 'redrawn on resume');
+        });
+
+        it('nested: a view created under cover A but before B is suspended while B is held', () => {
+            const client = makeClient();
+            const a = View.suspendBackgroundDraw(client);
+            const view = makeCountingView(client);
+            const b = View.suspendBackgroundDraw(client);
+            const late = makeCountingView(client, 6);
+
+            let ran = 0;
+            view.drawInBackground(() => ++ran);
+            assert.equal(ran, 0, 'covered by B');
+            late.drawInBackground(() => ++ran);
+            assert.equal(ran, 1, 'created after B: draws');
+
+            View.resumeBackgroundDraw(client, b);
+            assert.equal(view.redraws, 1, 'only A is held now, which it is not under');
+            view.drawInBackground(() => ++ran);
+            assert.equal(ran, 2, 'draws again while A is still held');
+            assert.equal(View.isBackgroundDrawSuspended(client), true);
+            View.resumeBackgroundDraw(client, a);
+            assert.equal(view.redraws, 1, 'nothing more owed');
+        });
+
+        it('nested: a view under both covers is redrawn only when both are given back', () => {
+            const client = makeClient();
+            const view = makeCountingView(client);
+            const a = View.suspendBackgroundDraw(client);
+            const b = View.suspendBackgroundDraw(client);
+            view.drawInBackground(() => {});
+            View.resumeBackgroundDraw(client, b);
+            assert.equal(view.redraws, 0);
+            View.resumeBackgroundDraw(client, a);
+            assert.equal(view.redraws, 1);
+        });
+
+        it('redrawMissed: false gives the screen back without the redraws', () => {
+            const client = makeClient();
+            const view = makeCountingView(client);
+            const token = View.suspendBackgroundDraw(client);
+            view.drawInBackground(() => {});
+            View.resumeBackgroundDraw(client, token, { redrawMissed: false });
+            assert.equal(view.redraws, 0);
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            //  and nothing is owed later either
+            View.resumeBackgroundDraw(client, View.suspendBackgroundDraw(client));
+            assert.equal(view.redraws, 0);
+        });
+
+        it('dropBackgroundDrawSuspends() lets go of everything, redrawing nothing', () => {
+            const client = makeClient();
+            const view = makeCountingView(client);
+            const a = View.suspendBackgroundDraw(client);
+            View.suspendBackgroundDraw(client);
+            view.drawInBackground(() => {});
+            assert.equal(View.dropBackgroundDrawSuspends(client), 2);
+            assert.equal(View.dropBackgroundDrawSuspends(client), 0);
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            View.resumeBackgroundDraw(client, a); //  stale: ignored
+            assert.equal(view.redraws, 0);
+            let ran = 0;
+            view.drawInBackground(() => ++ran);
+            assert.equal(ran, 1);
+        });
+    });
+
     describe('StatusBarView', () => {
         it('redraws a panel refresh it missed', () => {
             const client = makeClient();
