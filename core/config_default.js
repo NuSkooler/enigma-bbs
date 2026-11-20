@@ -594,6 +594,8 @@ module.exports = () => {
                 serverPort: 5000,
                 serverSslPort: 5001,
                 useSsl: false,
+                //  with useSsl, the server's certificate must be valid for serverHostname
+                verifyCertificate: true,
                 retryDelay: 10000,
                 multiplexerPort: 5000,
             },

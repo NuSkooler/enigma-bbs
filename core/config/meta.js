@@ -906,6 +906,11 @@ module.exports = {
     'chatServers.mrc.multiplexerPort': port(
         'Local port the MRC multiplexer listens on for this board.'
     ),
+    'chatServers.mrc.verifyCertificate': {
+        type: 'boolean',
+        description:
+            'With useSsl, require a valid certificate for serverHostname. Turn off only for a private server you trust.',
+    },
     'chatServers.mrc.infoDesc': { type: 'string' },
     'chatServers.mrc.infoSsh': { type: 'string' },
     'chatServers.mrc.infoSysop': { type: 'string' },

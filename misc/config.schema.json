@@ -1450,6 +1450,11 @@
                             "type": "boolean",
                             "default": false
                         },
+                        "verifyCertificate": {
+                            "description": "With useSsl, require a valid certificate for serverHostname. Turn off only for a private server you trust.",
+                            "type": "boolean",
+                            "default": true
+                        },
                         "retryDelay": {
                             "type": "number",
                             "default": 10000

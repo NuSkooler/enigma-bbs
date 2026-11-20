@@ -12,12 +12,25 @@ const { listenServer } = require('../../server_listen.js');
 
 //  deps
 const net = require('net');
+const tls = require('tls');
 const _ = require('lodash');
 const os = require('os');
 
 // MRC
 const clientVersion = '1.3.8';
 const lineDelimiter = new RegExp('\r\n|\r|\n|\n\r');
+
+//  The multiplexer has no login: only this board's own MRC chat sessions
+//  (core/mrc.js, in this process) connect to it, so it never listens beyond
+//  this machine.
+const MultiplexerAddress = '127.0.0.1';
+
+//  What a chat session sends first: '--DUDE-ITS--|<username>'
+const ClientHandshake = '--DUDE-ITS--';
+
+//  An MRC line is a few hundred bytes; a local client sending far more
+//  without a line break is broken
+const MaxClientLineLength = 16 * 1024;
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'MRC',
@@ -48,6 +61,7 @@ exports.getModule = class MrcModule extends ServerModule {
             sslport: config.chatServers.mrc.serverSslPort || 5001,
             retryDelay: config.chatServers.mrc.retryDelay || 10000,
             useSsl: config.chatServers.mrc.useSsl || false,
+            verifyCertificate: config.chatServers.mrc.verifyCertificate !== false,
         };
 
         this.mrcConnectOpts = {
@@ -118,10 +132,18 @@ exports.getModule = class MrcModule extends ServerModule {
             );
         }
         Log.info(
-            { server: ModuleInfo.name, port: config.chatServers.mrc.multiplexerPort },
+            {
+                server: ModuleInfo.name,
+                address: MultiplexerAddress,
+                port: config.chatServers.mrc.multiplexerPort,
+            },
             'MRC multiplexer starting up'
         );
-        return listenServer(this.server, { name: 'mrc', port, log: Log }, cb);
+        return listenServer(
+            this.server,
+            { name: 'mrc', port, address: MultiplexerAddress, log: Log },
+            cb
+        );
     }
 
     /**
@@ -135,21 +157,23 @@ exports.getModule = class MrcModule extends ServerModule {
         }
 
         // Create connection
-        this.mrcSocket = net.createConnection(
-            this.mrcConnectOpts,
-            self._connectionHandler.bind(self)
-        );
-
-        this.mrcSocket.requestedDisconnect = false;
-
-        // Check if we upgrade the connection to SSL
+        const onConnected = self._connectionHandler.bind(self);
         if (this.mrcConfig.useSsl) {
-            const tls = require('tls');
-            this.mrcSecureSocket = new tls.TLSSocket(this.mrcSocket, { isServer: false });
-            this.mrcClient = this.mrcSecureSocket;
+            const { host } = this.mrcConnectOpts;
+            this.mrcClient = tls.connect(
+                {
+                    ...this.mrcConnectOpts,
+                    //  certificates name hosts; an address is checked as it is
+                    servername: net.isIP(host) ? undefined : host,
+                    rejectUnauthorized: this.mrcConfig.verifyCertificate,
+                },
+                onConnected
+            );
         } else {
-            this.mrcClient = this.mrcSocket;
+            this.mrcClient = net.createConnection(this.mrcConnectOpts, onConnected);
         }
+
+        this.mrcClient.requestedDisconnect = false;
 
         // do things when we get data from MRC central
         let buffer = new Buffer.from('');
@@ -206,51 +230,94 @@ exports.getModule = class MrcModule extends ServerModule {
         });
 
         this.mrcClient.on('error', err => {
+            if (/CERT|SELF_SIGNED|UNABLE_TO_|ALTNAME/.test(err.code || '')) {
+                this.log.warn(
+                    {
+                        error: err.message,
+                        code: err.code,
+                        host: this.mrcConnectOpts.host,
+                    },
+                    'MRC server certificate could not be verified; not connecting'
+                );
+                return;
+            }
             this.log.info({ error: err.message }, 'MRC server error');
         });
     }
 
     createLocalListener() {
-        // start a local server for clients to connect to
+        //  a local server for this board's MRC chat sessions to connect to
+        this.server = net.createServer(socket => this._clientConnected(socket));
+    }
 
-        this.server = net.createServer(socket => {
-            socket.setEncoding('ascii');
+    _clientConnected(socket) {
+        socket.setEncoding('ascii');
 
-            socket.on('data', data => {
-                // split on \n to deal with getting messages in batches
-                data.toString()
-                    .split(lineDelimiter)
-                    .forEach(item => {
-                        if (item == '') return;
+        //  a line can arrive split across reads, or several in one read
+        let pending = '';
 
-                        // save username with socket
-                        if (item.startsWith('--DUDE-ITS--')) {
-                            connectedSockets.add(socket);
-                            socket.username = item.split('|')[1];
-                            Log.debug(
-                                { server: 'MRC', user: socket.username },
-                                'User connected'
-                            );
-                        } else {
-                            this.receiveFromClient(socket.username, item);
-                        }
-                    });
-            });
+        socket.on('data', data => {
+            const lines = (pending + data).split(lineDelimiter);
+            pending = lines.pop();
 
-            socket.on('end', () => {
-                connectedSockets.delete(socket);
-                if (socket.username) {
-                    this.sendToMrcServer(socket.username, '', 'SERVER', '', '', 'LOGOFF');
-                }
-            });
+            lines.forEach(line => this._clientLine(socket, line));
 
-            socket.on('error', err => {
-                if ('ECONNRESET' !== err.code) {
-                    //  normal
-                    this.log.error({ error: err.message }, 'MRC error');
-                }
-            });
+            if (pending.length > MaxClientLineLength) {
+                this.log.warn(
+                    { user: socket.username, length: pending.length },
+                    'MRC client line too long; disconnecting it'
+                );
+                socket.destroy();
+            }
         });
+
+        //  'close', not 'end': a connection that is reset or errors out never
+        //  ends cleanly, and would otherwise stay registered
+        socket.on('close', () => this._clientDisconnected(socket));
+
+        socket.on('error', err => {
+            if ('ECONNRESET' !== err.code) {
+                //  normal
+                this.log.error({ error: err.message }, 'MRC error');
+            }
+        });
+    }
+
+    _clientLine(socket, line) {
+        if (!line) {
+            return;
+        }
+
+        if (line.startsWith(ClientHandshake)) {
+            //  a connection says who it is once, and only a name registers it
+            const sep = line.indexOf('|');
+            const username = sanitiseFromUser(sep < 0 ? '' : line.slice(sep + 1));
+            if (socket.username || !username) {
+                this.log.debug(
+                    { user: socket.username, given: username },
+                    'Ignoring MRC client handshake'
+                );
+                return;
+            }
+
+            socket.username = username;
+            connectedSockets.add(socket);
+            this.log.debug({ user: username }, 'User connected');
+            return;
+        }
+
+        if (!socket.username) {
+            this.log.debug('Ignoring MRC client message before its handshake');
+            return;
+        }
+
+        this.receiveFromClient(socket.username, line);
+    }
+
+    _clientDisconnected(socket) {
+        if (connectedSockets.delete(socket)) {
+            this.sendToMrcServer(socket.username, '', 'SERVER', '', '', 'LOGOFF');
+        }
     }
 
     get enabled() {
@@ -267,6 +334,10 @@ exports.getModule = class MrcModule extends ServerModule {
      */
     sendToClient(message) {
         connectedSockets.forEach(client => {
+            if (!client.writable) {
+                return; //  closing; 'close' unregisters it
+            }
+
             if (
                 message.to_user == '' ||
                 message.to_user.toUpperCase() == client.username.toUpperCase() ||
@@ -309,17 +380,17 @@ exports.getModule = class MrcModule extends ServerModule {
      * Takes an MRC message and parses it into something usable
      */
     parseMessage(line) {
-        let [from_user, from_site, from_room, to_user, to_site, to_room, body] =
-            line.split('~');
+        const fields = line.split('~');
 
-        // const msg = line.split('~');
-        // if (msg.length < 7) {
-        //     return;
-        // }
+        //  every MRC line has all seven fields; a short one would reach the
+        //  code below and the chat sessions with fields undefined
+        if (fields.length < 7) {
+            this.log.debug({ line }, 'Ignoring malformed line from MRC server');
+            return;
+        }
 
         // Preserve original case from the wire format; use case-insensitive comparisons elsewhere
-        to_user = to_user || '';
-        from_user = from_user || '';
+        const [from_user, from_site, from_room, to_user, to_site, to_room, body] = fields;
 
         return { from_user, from_site, from_room, to_user, to_site, to_room, body };
     }
@@ -330,8 +401,14 @@ exports.getModule = class MrcModule extends ServerModule {
     receiveFromClient(username, message) {
         try {
             message = JSON.parse(message);
+            if (!_.isPlainObject(message)) {
+                throw new Error('not an object');
+            }
+
+            //  sent as the user this connection registered as, whatever the
+            //  message claims: the multiplexer has no login of its own
             this.sendToMrcServer(
-                message.from_user,
+                username,
                 message.from_room,
                 message.to_user,
                 message.to_site,
@@ -352,7 +429,7 @@ exports.getModule = class MrcModule extends ServerModule {
     sendToMrcServer(fromUser, fromRoom, toUser, toSite, toRoom, messageBody) {
         const line =
             [
-                fromUser,
+                sanitiseFromUser(fromUser || ''),
                 this.boardName,
                 sanitiseRoomName(fromRoom || ''),
                 sanitiseName(toUser || ''),
@@ -401,6 +478,15 @@ function sanitiseName(str) {
 
 function sanitiseRoomName(message) {
     return removeUntilStable(message, /[^\x21-\x7D]|(\|\w\w)/g).substr(0, 30);
+}
+
+/**
+ * The sending user: as a message body, so no '~' (the field separator) or
+ * control characters. Spaces are kept, as before, so the name still matches
+ * the user's alias when MRC echoes it back.
+ */
+function sanitiseFromUser(str) {
+    return sanitiseMessage(str);
 }
 
 function sanitiseMessage(message) {
