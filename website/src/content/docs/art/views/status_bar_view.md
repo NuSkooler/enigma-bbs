@@ -31,7 +31,7 @@ The `text` property is treated as a **format template**: it is re-evaluated on e
 |----------|-------------|
 | `text` | Format template for the label. Supports pipe color codes and any predefined MCI code in `{CODE}` syntax (e.g. `{CT}`, `{UN}`, `{AN}`). |
 | `width` | Width of the view in columns (default: 15). |
-| `refreshInterval` | Milliseconds between automatic refreshes (default: `0` — no auto-refresh). Set to e.g. `1000` to refresh every second. |
+| `refreshInterval` | Milliseconds between automatic refreshes (default: `0` — no auto-refresh). Set to e.g. `1000` to refresh every second. After a refresh the cursor and color go back to the view that has focus, so a clock beside a text entry field does not pull the cursor out of it. |
 | `textStyle` | Standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md). |
 | `justify` | Text justification: `left` (default), `right`, or `center`. |
 | `fillChar` | Character used to fill unused space (default: space). |

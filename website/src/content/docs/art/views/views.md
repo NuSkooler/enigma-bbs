@@ -168,6 +168,9 @@ classDiagram
         +setDimension()
         +setFocus(focused)
         +redraw()
+        +drawInBackground(drawFn)
+        +restoreFocusPosition()
+        +restoreFocusCursor()
         +onKeyPress(ch, key)
         +getData()
         +setPropertyValue(name, val)
@@ -361,3 +364,15 @@ The general flow is:
 :::note
 See [MCI](../mci.md) for details on formatting, text styles, and how MCI codes relate to menus and themes.
 :::
+
+### Views that draw on a timer
+
+A view that redraws on its own timer, as [TickerView](ticker_view.md) and a [StatusBarView](status_bar_view.md) with `refreshInterval` do, draws while the user may be typing into another view. Drawing moves the terminal cursor and leaves the drawing view's color set, and a text entry view echoes the next key wherever the cursor is, in whatever color is set. Wrap a timer-driven draw in `drawInBackground()`:
+
+```js
+this._timer = setInterval(() => {
+    this.drawInBackground(() => this.redraw());
+}, this.refreshInterval);
+```
+
+`drawInBackground(drawFn)` hides the cursor, runs `drawFn`, then calls `restoreFocusCursor()` on the view that has input focus (the view last given focus, on any of the screen's forms), and sends it all in one write; if `drawFn` throws, the cursor is still put back before the error goes on to the caller. `restoreFocusCursor()` calls `restoreFocusPosition()`, which puts the cursor and color back where that view echoes its next key, then shows or hides the cursor as the view's `cursor` property says. `EditTextView` returns to its edit position, `MultiLineEditTextView` (the full screen editor) to its edit row and column, `TextView` and its subclasses to where `setFocus(true)` leaves the cursor; the base `View` does not move it. Override `restoreFocusPosition()` in a focusable view that knows where its cursor belongs. A menu module's `updateCustomViewTextsWithFilter()` uses the same `restoreFocusPosition()` after redrawing custom views. When no view has focus the cursor is left where `drawFn` leaves it. A pause prompt waiting for its key counts as that: it sets the input focus aside while it waits (`View.suspendInputFocus(client)`, given back with `View.resumeInputFocus(client, token)`), so a ticker in the pause art leaves the cursor alone even when a menu form under the pause still has a focused field. Use the same pair around anything else that takes the screen without taking typing.

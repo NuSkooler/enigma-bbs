@@ -31,6 +31,7 @@ exports.stylizeString = stylizeString;
 exports.hasInvisibleFormatChars = hasInvisibleFormatChars;
 exports.replaceInvisibleFormatChars = replaceInvisibleFormatChars;
 exports.stylizePlainText = stylizePlainText;
+exports.stylizePlainTextPieces = stylizePlainTextPieces;
 exports.pad = pad;
 exports.insert = insert;
 exports.replaceAt = replaceAt;
@@ -97,6 +98,123 @@ function stylizeString(s, style) {
 //
 function stylizePlainText(s, style) {
     return s ? styleText(s, style) : '';
+}
+
+//
+//  stylizePlainText(), one piece per UTF-16 unit of |s|: pieces[i] is what
+//  s[i] becomes, so a caller that keeps something per character (a colour)
+//  can carry it over when a style changes the text's length. 'upper' turns
+//  'ß' into 'SS', 'lower' turns 'İ' into two units, 'small i' turns 'ﬁ'
+//  into 'Fi'. A surrogate pair is styled as one character: its piece is on its
+//  first unit and the second unit's piece is ''.
+//
+//  pieces.join('') is stylizePlainText(s, style) for every style but
+//  'mixed', which is random each call; its pieces still line up with |s|.
+//  'title' and 'first lower' work on the words of the whole string, as
+//  stylizePlainText() does, so a word split across colour changes
+//  ('|11s|03mash') is still one word.
+//
+function stylizePlainTextPieces(s, style) {
+    if (!s) {
+        return [];
+    }
+
+    const toUpper = t => t.toUpperCase();
+    const toLower = t => t.toLowerCase();
+
+    switch (style) {
+        case 'upper':
+        case 'U':
+            return caseMappedPieces(s, toUpper);
+
+        case 'lower':
+        case 'l':
+            return caseMappedPieces(s, toLower);
+
+        case 'title':
+        case 'T':
+            return wordPieces(s, toUpper, toLower);
+
+        case 'first lower':
+        case 'f':
+            return wordPieces(s, toLower, toUpper);
+
+        //  styleText() goes one UTF-16 unit at a time for these: so do they
+        case 'small vowels':
+        case 'v':
+            return s
+                .split('')
+                .map(c => (-1 !== VOWELS.indexOf(c) ? c.toLowerCase() : c.toUpperCase()));
+
+        case 'big vowels':
+        case 'V':
+            return s
+                .split('')
+                .map(c => (-1 !== VOWELS.indexOf(c) ? c.toUpperCase() : c.toLowerCase()));
+
+        case 'small i':
+        case 'i':
+            return caseMappedPieces(s, t => t.toUpperCase().replace(/I/g, 'i'));
+
+        case 'mixed':
+        case 'M':
+            return s
+                .split('')
+                .map(c => (Math.random() < 0.5 ? c.toUpperCase() : c.toLowerCase()));
+
+        case 'l33t':
+        case '3':
+            return s.split('').map(c => SIMPLE_ELITE_MAP[c.toLowerCase()] || c);
+    }
+
+    return s.split(''); //  normal, or a style styleText() does not know
+}
+
+//
+//  |map| (a case mapping) applied to |s|, one piece per UTF-16 unit as for
+//  stylizePlainTextPieces(). Each character is mapped on its own, which
+//  gives every piece its length; the text then comes from mapping the whole
+//  string, cut to those lengths, so that a mapping that depends on context
+//  (lowercase final sigma, 'ΟΔΟΣ' to 'οδος') still comes out as it does for
+//  the whole string.
+//
+function caseMappedPieces(s, map) {
+    const pieces = new Array(s.length).fill('');
+    let total = 0;
+    for (let i = 0; i < s.length;) {
+        const ch = String.fromCodePoint(s.codePointAt(i));
+        pieces[i] = map(ch);
+        total += pieces[i].length;
+        i += ch.length;
+    }
+
+    const whole = map(s);
+    if (whole.length === total) {
+        let at = 0;
+        for (let i = 0; i < pieces.length; ++i) {
+            const len = pieces[i].length;
+            pieces[i] = whole.slice(at, at + len);
+            at += len;
+        }
+    }
+    return pieces;
+}
+
+//  'title' / 'first lower' pieces: as styleText(), each /\w\S*/ word over
+//  the whole string has its first character mapped with |first| and the
+//  rest with |rest|; anything between words is left alone
+function wordPieces(s, first, rest) {
+    const pieces = s.split('');
+    const re = /\w\S*/g;
+    let m;
+    while (null !== (m = re.exec(s))) {
+        //  \w is ASCII, so the first character is one unit
+        pieces[m.index] = first(m[0].charAt(0));
+        caseMappedPieces(m[0].slice(1), rest).forEach((p, i) => {
+            pieces[m.index + 1 + i] = p;
+        });
+    }
+    return pieces;
 }
 
 //  Apart from stylizeString() so that its common case allocates no closure

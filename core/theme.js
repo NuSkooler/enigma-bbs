@@ -11,6 +11,7 @@ const ansi = require('./ansi_term.js');
 const Log = require('./logger.js').log;
 const asset = require('./asset.js');
 const { ViewController, MCI_REGEXP } = require('./view_controller.js');
+const { View } = require('./view');
 const { DeepMergeProperties: TableViewDeepMergeProperties } = require('./table_view.js');
 const Errors = require('./enig_error.js').Errors;
 const Events = require('./events.js');
@@ -1083,6 +1084,13 @@ function displayThemeArt(options, cb) {
 function displayThemedPrompt(name, client, options, cb) {
     const usingTempViewController = options.viewController === undefined;
 
+    //  A pause takes no typing, but the forms under it stay attached and
+    //  their focused field stays the input focus view: set it aside so a
+    //  ticker in the pause art leaves the cursor alone instead of putting
+    //  it back in a field the pause has covered. Given back below, on the
+    //  error path as well.
+    const inputFocus = options.pause ? View.suspendInputFocus(client) : null;
+
     async.waterfall(
         [
             function display(callback) {
@@ -1208,6 +1216,8 @@ function displayThemedPrompt(name, client, options, cb) {
             if (assocViewController && usingTempViewController) {
                 assocViewController.detachClientEvents();
             }
+
+            View.resumeInputFocus(client, inputFocus);
 
             return cb(null, artInfo, pressedKey);
         }

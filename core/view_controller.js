@@ -2,6 +2,7 @@
 
 //  ENiGMA½
 const { MCIViewFactory } = require('./mci_view_factory.js');
+const { View } = require('./view');
 const menuUtil = require('./menu_util.js');
 const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
@@ -448,6 +449,9 @@ class ViewController extends events.EventEmitter {
 
         for (const id in this.views) {
             const view = this.views[id];
+            //  A torn-down form takes no more input, though its focused view
+            //  keeps hasFocus; nothing should put the cursor back into it
+            View.releaseInputFocus(view);
             view.removeAllListeners();
             if (typeof view.destroy === 'function') {
                 view.destroy();

@@ -433,6 +433,12 @@ class EditTextView extends TextView {
         }
     }
 
+    //  _repositionCursor() puts back both the edit cursor and the focus SGR
+    //  (and is the hook sysop chat patches for its prefixed input line)
+    restoreFocusPosition() {
+        this._repositionCursor();
+    }
+
     //  Override setFocus to pre-compute scroll before the redraw inside super.setFocus.
     setFocus(focused) {
         if (focused && this.lineBuffer) {

@@ -8,6 +8,7 @@ const { EditTextView } = require('../core/edit_text_view.js');
 const { TextView } = require('../core/text_view.js');
 const { VerticalMenuView } = require('../core/vertical_menu_view.js');
 const { MultiLineEditTextView } = require('../core/multi_line_edit_text_view.js');
+const { MaskEditTextView } = require('../core/mask_edit_text_view.js');
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
@@ -205,6 +206,76 @@ describe('MenuModule custom view cursor restore', () => {
 
         assert.equal(called, 1, 'the patched _repositionCursor should be used');
         assert.equal(client.pos(), '7,7');
+    });
+
+    describe('the input focus view, on any form', () => {
+        it("custom views in the menu's form, focused field in its prompt's form", () => {
+            //  a menu with prompt: its art (and %TL10) is form 'menu', the
+            //  command field form 'prompt'
+            const client = makeTrackingClient();
+            const input = makeSearchInput(client);
+            const status = makeStatusLine(client);
+
+            const mod = Object.create(MenuModule.prototype);
+            mod.client = client;
+            mod.menuConfig = { config: { menuInfoFormat10: 'Status: {statusText}' } };
+            mod.viewControllers = {
+                menu: { getView: id => ({ 10: status })[id], getFocusedView: () => null },
+                prompt: {
+                    getView: id => ({ 2: input })[id],
+                    getFocusedView: () => input,
+                },
+            };
+
+            input.setFocus(true);
+            mod.updateCustomViewTextsWithFilter('menu', 10, { statusText: 'Ready' });
+
+            assert.equal(client.pos(), '13,21', 'back in the prompt field');
+            input.onKeyPress('x', undefined);
+            assert.equal(client.pos(), '13,22');
+        });
+
+        it('a focused MultiLineEditTextView gets its edit position back', () => {
+            const client = makeTrackingClient();
+            const status = makeStatusLine(client);
+            const body = new MultiLineEditTextView({
+                client,
+                id: 2,
+                position: { row: 4, col: 3 },
+                dimens: { width: 40, height: 10 },
+            });
+            const mod = makeModule(client, { 2: body, 10: status }, body, STATUS_FORMAT);
+
+            body.setText('first line\nsecond');
+            body.setFocus(true);
+            const expected = client.pos();
+            assert.equal(expected, '5,9', 'precondition: after "second"');
+
+            mod.updateCustomViewTextsWithFilter('main', 10, { statusText: 'hi' });
+            assert.equal(client.pos(), expected);
+        });
+
+        it('a focused MaskEditTextView gets its cursor back', () => {
+            const client = makeTrackingClient();
+            const status = makeStatusLine(client);
+            const mask = new MaskEditTextView({
+                client,
+                id: 2,
+                position: { row: 9, col: 10 },
+                maskPattern: '##/##/####',
+            });
+            const mod = makeModule(client, { 2: mask, 10: status }, mask, STATUS_FORMAT);
+
+            mask.setFocus(true);
+            for (const ch of '123') {
+                mask.onKeyPress(ch);
+            }
+            const expected = client.pos();
+            assert.notEqual(expected, '9,10', 'precondition: typing moved it');
+
+            mod.updateCustomViewTextsWithFilter('main', 10, { statusText: 'hi' });
+            assert.equal(client.pos(), expected);
+        });
     });
 
     describe('no-op cases', () => {

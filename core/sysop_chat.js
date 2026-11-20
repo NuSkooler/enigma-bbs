@@ -388,16 +388,17 @@ exports.getModule = class SysopChatModule extends MenuModule {
             senderRole === 'sysop' ? MciViewIds.chat.sysopLog : MciViewIds.chat.userLog;
 
         const view = this.getView('chat', viewId);
-        if (view) {
-            view.addText(pipeToAnsi(displayLine, this.client), { scrollMode: 'end' });
+        if (!view) {
+            return;
         }
 
-        //  addText redraws the log panel and leaves the terminal cursor there;
-        //  move it back to our input field so the next keypress goes to the right place.
-        //  This path writes to the view directly rather than going through
-        //  updateCustomViewTextsWithFilter(), so it is not covered by the cursor
-        //  restore that MenuModule does for custom views.
-        this._restoreCursorToInput();
+        //  addText redraws the log panel and leaves the terminal cursor there,
+        //  usually while the user is typing (the partner's lines arrive at any
+        //  time): drawInBackground() puts it back in the focused input line,
+        //  through its patched, prefix-aware _repositionCursor()
+        view.drawInBackground(() => {
+            view.addText(pipeToAnsi(displayLine, this.client), { scrollMode: 'end' });
+        });
     }
 
     //  Configure an EditTextView for live colour rendering and an optional
@@ -522,17 +523,6 @@ exports.getModule = class SysopChatModule extends MenuModule {
                 ansi.goto(inputView.position.row, screenCol) + inputView.getFocusSGR()
             );
         };
-    }
-
-    _restoreCursorToInput() {
-        const myInputId =
-            this.role === 'sysop'
-                ? MciViewIds.chat.sysopInput
-                : MciViewIds.chat.userInput;
-        const inputView = this.getView('chat', myInputId);
-        if (inputView && typeof inputView._repositionCursor === 'function') {
-            inputView._repositionCursor();
-        }
     }
 
     _endChat(cb) {

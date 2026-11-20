@@ -4,7 +4,11 @@
 const { View } = require('./view.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const PipeCodes = require('./pipe_codes.js');
-const { pad: padStr, stylizePlainText, stripAllLineFeeds } = require('./string_util.js');
+const {
+    pad: padStr,
+    stylizePlainTextPieces,
+    stripAllLineFeeds,
+} = require('./string_util.js');
 const stringFormat = require('./string_format');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 
@@ -27,19 +31,26 @@ const RAINBOW_SGR = [91, 93, 92, 96, 94, 95];
 //  Visually interesting CP437 chars used for scramble/glitch noise
 const NOISE_CHARS = '!#$@%&?<>^~`\xb0\xb1\xb2\xdb\xdc\xde\xdf\xfe\xf9';
 
-//  Text-style effects handled by stylizeString (baked into _plainText at setText time).
-//  All other effect values are dynamic per-tick effects applied in _applyEffect().
-const TEXT_STYLE_EFFECTS = new Set([
-    'normal',
-    'upper',
-    'lower',
-    'title',
-    'firstLower',
-    'smallVowels',
-    'bigVowels',
-    'smallI',
-    'mixed',
-    'l33t',
+//  Text-style effects, baked into _plainText at setText time, and the
+//  stylizeString() style each one is. The ticker's own names are camelCase;
+//  stylizeString() spells four of them with a space, and those spellings
+//  (what every other view's textStyle takes) work here too. All other effect
+//  values are dynamic per-tick effects applied in _applyEffect().
+const TEXT_STYLE_EFFECTS = new Map([
+    ['normal', 'normal'],
+    ['upper', 'upper'],
+    ['lower', 'lower'],
+    ['title', 'title'],
+    ['firstLower', 'first lower'],
+    ['smallVowels', 'small vowels'],
+    ['bigVowels', 'big vowels'],
+    ['smallI', 'small i'],
+    ['mixed', 'mixed'],
+    ['l33t', 'l33t'],
+    ['first lower', 'first lower'],
+    ['small vowels', 'small vowels'],
+    ['big vowels', 'big vowels'],
+    ['small i', 'small i'],
 ]);
 
 //  ── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,21 +121,45 @@ class TickerView extends View {
         }
 
         this._rawText = text;
-
-        //  One pass over the rendered text gives the raw visible characters
-        //  and, so pipe codes survive scrolling, the SGR that applies to each.
-        //  An empty colour map means "use the view SGR". Any text-style effect
-        //  (l33t, upper, mixed, …) is then applied to the plain text, as
-        //  plain text: a '|' left in it (from '||') is a character, not the
-        //  start of a code. Dynamic effects (rainbow, scramble, glitch)
-        //  operate on it every tick instead.
-        const { plain, colors } = this._parseRendered(this._renderText(text));
-        this._charColors = colors;
-        this._plainText = TEXT_STYLE_EFFECTS.has(this.effect)
-            ? stylizePlainText(plain, this.effect)
-            : plain;
-
+        this._bakeText();
         this._resetMotion();
+    }
+
+    //
+    //  _plainText and _charColors from _rawText and the current effect.
+    //
+    //  One pass over the rendered text gives the raw visible characters
+    //  and, so pipe codes survive scrolling, the SGR that applies to each.
+    //  An empty colour map means "use the view SGR". Any text-style effect
+    //  (l33t, upper, mixed, …) is then applied to the plain text, as
+    //  plain text: a '|' left in it (from '||') is a character, not the
+    //  start of a code. Dynamic effects (rainbow, scramble, glitch)
+    //  operate on it every tick instead.
+    //
+    //  A text style can change the text's length ('upper' makes 'ß' 'SS'),
+    //  so it is applied a character at a time and each character's colour
+    //  is repeated for every character it becomes (#1063).
+    //
+    _bakeText() {
+        const { plain, colors } = this._parseRendered(this._renderText(this._rawText));
+
+        const style = TEXT_STYLE_EFFECTS.get(this.effect);
+        if (!style) {
+            this._plainText = plain;
+            this._charColors = colors;
+            return;
+        }
+
+        const pieces = stylizePlainTextPieces(plain, style);
+        this._plainText = pieces.join('');
+        this._charColors = [];
+        if (colors.length > 0) {
+            pieces.forEach((piece, i) => {
+                for (let n = 0; n < piece.length; ++n) {
+                    this._charColors.push(colors[i]);
+                }
+            });
+        }
     }
 
     _renderText(text) {
@@ -626,25 +661,46 @@ class TickerView extends View {
         }
         this._timer = setInterval(() => {
             this._advanceMotion();
-            this.redraw();
+            this._tick();
         }, this.tickInterval);
     }
 
+    //  A tick draws while the user may be typing into a field elsewhere on
+    //  the screen: drawInBackground() puts the cursor and SGR back there.
+    _tick() {
+        const rendered = this._nextFrame();
+        if (null !== rendered) {
+            this.drawInBackground(() => this._drawFrame(rendered));
+        }
+    }
+
     redraw() {
+        const rendered = this._nextFrame();
+        if (null !== rendered) {
+            this._drawFrame(rendered);
+        }
+    }
+
+    //  What this tick draws, or null when it is what the last one drew.
+    //
+    //  Skipping the write (and cursor movement from super.redraw) when the
+    //  terminal output hasn't changed since the last tick matters for bounce
+    //  when text fits the window, reveal/typewriter hold phases, and any other
+    //  static period — it prevents the cursor from bouncing around. Dynamic
+    //  effects (rainbow, scramble, glitch) produce different output every tick
+    //  so they are unaffected.
+    _nextFrame() {
         const { plain, offset, colorIndices } = this._getVisiblePlain();
         const rendered = this._applyEffect(plain, offset, colorIndices);
 
-        //  Skip the write (and cursor movement from super.redraw) when the
-        //  terminal output hasn't changed since the last tick.  This matters for
-        //  bounce when text fits the window, reveal/typewriter hold phases, and
-        //  any other static period — it prevents the cursor from bouncing around.
-        //  Dynamic effects (rainbow, scramble, glitch) produce different output
-        //  every tick so they are unaffected.
         if (rendered === this._lastRendered) {
-            return;
+            return null;
         }
         this._lastRendered = rendered;
+        return rendered;
+    }
 
+    _drawFrame(rendered) {
         super.redraw();
         this.client.term.write(
             padStr(
@@ -685,13 +741,10 @@ class TickerView extends View {
             case 'effect':
             case 'textStyle': //  textStyle treated as alias for effect
                 this.effect = value;
-                //  Re-bake plain text if switching to a stylizeString style
-                if (TEXT_STYLE_EFFECTS.has(value) && this._rawText) {
-                    const { plain } = this._parseRendered(
-                        this._renderText(this._rawText)
-                    );
-                    this._plainText = stylizePlainText(plain, value);
-                }
+                //  The text and its colours, styled (or not) as this effect
+                //  says; a style can change the length, so motion restarts
+                this._bakeText();
+                this._resetMotion();
                 break;
             case 'tickInterval':
                 this.tickInterval = parseInt(value, 10) || 100;

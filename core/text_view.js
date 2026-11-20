@@ -194,6 +194,13 @@ class TextView extends View {
         this.client.term.write(this.getFocusSGR());
     }
 
+    //  Where setFocus(true) leaves the cursor and SGR, without drawing the
+    //  text again
+    restoreFocusPosition() {
+        this._positionCursor(true);
+        this.client.term.write(this.getFocusSGR());
+    }
+
     getData() {
         return this.text;
     }

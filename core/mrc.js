@@ -518,20 +518,25 @@ exports.getModule = class mrcModule extends MenuModule {
                 termWidth - viewCol + 1
             )
         );
-        lines.forEach(line => {
-            const { wrapped } = wordWrapText(line, {
-                width: viewWidth,
-                pipeCodeSupport: true,
-            });
-            wrapped.forEach(wline => {
-                const converted = glyphSmiliesAllowed(this.userPrefs, this.client)
-                    ? smiliesToGlyphs(wline)
-                    : wline;
-                chatLogView.addText(pipeToAnsi(converted), { scrollMode: 'end' });
+        //  Lines arrive whenever the server sends them, usually while the
+        //  user is typing: drawInBackground() puts the cursor back in the
+        //  input line, or the next key would echo at the end of the log
+        chatLogView.drawInBackground(() => {
+            lines.forEach(line => {
+                const { wrapped } = wordWrapText(line, {
+                    width: viewWidth,
+                    pipeCodeSupport: true,
+                });
+                wrapped.forEach(wline => {
+                    const converted = glyphSmiliesAllowed(this.userPrefs, this.client)
+                        ? smiliesToGlyphs(wline)
+                        : wline;
+                    chatLogView.addText(pipeToAnsi(converted), { scrollMode: 'end' });
 
-                if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
-                    chatLogView.deleteLine(0);
-                }
+                    if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
+                        chatLogView.deleteLine(0);
+                    }
+                });
             });
         });
     }

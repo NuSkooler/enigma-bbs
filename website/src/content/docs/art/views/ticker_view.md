@@ -18,6 +18,8 @@ See [MCI](../mci.md) for general information on how to use views and common conf
 
 The ticker starts automatically when the screen loads and runs until the screen is torn down. Standard and focus SGR colors are set by placing duplicate MCI codes back-to-back in the art file.
 
+A ticker can share a screen with a text entry view, such as a menu's `ET` command prompt. After every tick the cursor and color go back to whichever view has focus, in the menu's art or in its prompt, so what the user types lands in the field rather than at the end of the ticker. The cursor is hidden while the ticker draws.
+
 ### Properties
 
 | Property | Description |
@@ -40,7 +42,7 @@ Controls how the text moves within the window. Set via the `motion` property.
 |--------|-------------|
 | `left` | Continuous left-scroll that loops with a gap. **Default.** |
 | `right` | Continuous right-scroll that loops with a gap. |
-| `bounce` | Text oscillates left and right, reversing direction at each end. No gap between loops. |
+| `bounce` | Text oscillates left and right, reversing direction at each end. No gap between loops. Only text longer than `width` moves: text that fits the window stays still. |
 | `reveal` | Text slides in from the right, holds for `holdTicks`, then slides back out. Repeats. |
 | `typewriter` | Characters appear one per tick from left-to-right, hold at full display for `holdTicks`, then instantly clear and repeat. |
 | `fallLeft` | All characters start spread evenly across the window then slide left, stacking against the left edge. Holds for `holdTicks`, then re-spreads and repeats. |
@@ -62,20 +64,24 @@ These apply a character-level transformation to the text at `setText` time. The 
 | `lower` | all lowercase |
 | `title` | Title Case |
 | `firstLower` | fIRST lETTER lOWERCASED |
-| `smallVowels` | sMALL vOwElS |
-| `bigVowels` | bIG vOwEls |
-| `smallI` | smAll I — every "i" is lowercase |
+| `smallVowels` | SMaLL VoWeLS |
+| `bigVowels` | bIg vOwEls |
+| `smallI` | SMALL i iN DEMENTiA — upper case, but every "i" is lowercase |
 | `mixed` | rAnDoM cAsE (re-randomized each `setText` call) |
 | `l33t` | l337 5p34k |
+
+`firstLower`, `smallVowels`, `bigVowels` and `smallI` can also be spelled as other views' `textStyle` takes them: `first lower`, `small vowels`, `big vowels` and `small i`. Pipe colors stay on the characters they were on, even where a style turns one character into two (`upper` makes `ß` into `SS`).
 
 #### Dynamic Effects
 These are applied per-tick to the visible window, producing animated color or noise.
 
 | Effect | Description |
 |--------|-------------|
-| `rainbow` | Each character cycles through 6 bright ANSI colors. The color band swims through the text with the scroll, producing a flowing neon look. |
-| `scramble` | About 30% of non-space characters are replaced with random noise characters rendered in bright green each tick, giving a decryption/hacker feel. |
-| `glitch` | Real text with 1–3 random characters corrupted to red noise per tick. Looks like signal interference. |
+| `rainbow` | Each character cycles through 6 bright ANSI colors. The color band swims through the text with the scroll, producing a flowing neon look. Replaces the text's own pipe colors. |
+| `scramble` | Each tick, about 30% of the characters (fill characters aside) are replaced with random noise characters, each drawn in reverse video of that character's own color (its pipe color, or the view's normal color), giving a decryption/hacker feel. |
+| `glitch` | Real text with 1–3 random characters corrupted to noise per tick. The noise is drawn in the view's focus color (`styleSGR2`, or the second of a doubled MCI code; the normal color when none is set), so the theme decides it. Looks like signal interference. |
+
+Pipe colors in `text` survive every motion. `scramble` and `glitch` keep them on the characters they leave alone; only `rainbow` replaces them.
 
 :::tip
 Text-style effects and dynamic effects are independent axes — `l33t` + `rainbow` works: the text is l33t-ified first, then rainbow colors are applied to the visible window each tick.
@@ -131,7 +137,7 @@ TK1: {
 ```hjson
 TK1: {
   text: "ENiGMA BBS - the future is now"
-  width: 50
+  width: 20          // narrower than the text (30 columns), or it would not move
   motion: bounce
   effect: l33t
   tickInterval: 60

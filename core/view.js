@@ -16,6 +16,20 @@ const ANSI_ONLY = { dialect: 'ansi' };
 //  deps
 const _ = require('lodash');
 
+//
+//  The view each client is typing into: the last one given focus, until it
+//  loses focus or its form is torn down (ViewController.detachClientEvents()).
+//  Kept per client rather than per ViewController because one screen can be
+//  several forms: a menu's art and its prompt load into two controllers, and
+//  a view drawing on a timer (TickerView) in one has to find the field in the
+//  other. Weak so that a client that goes away takes its entry with it.
+//
+const inputFocusViews = new WeakMap();
+
+//  client -> tokens from suspendInputFocus() not yet resumed; a token's
+//  view is cleared if that view is released while it is set aside
+const suspendedInputFocus = new WeakMap();
+
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
     accept: ['return'],
     exit: ['esc'],
@@ -229,7 +243,17 @@ class View extends events.EventEmitter {
                 this.setWidth(value);
                 break;
             case 'focus':
-                this.setFocusProperty(value);
+                //  The MCI config's `focus: true` only marks the view: the
+                //  form focuses it for real when it has loaded (switchFocus()
+                //  in loadFromMenuConfig() / loadFromPromptConfig()), and
+                //  that is what makes it the input focus view. Marked here
+                //  it would be tracked before its form is shown, or even if
+                //  the form never focuses it.
+                enigAssert(this.acceptsFocus || !value, 'View does not accept focus');
+                this.hasFocus = value;
+                if (!value) {
+                    View.releaseInputFocus(this);
+                }
                 break;
 
             case 'text':
@@ -304,6 +328,12 @@ class View extends events.EventEmitter {
     setFocusProperty(focused) {
         enigAssert(this.acceptsFocus || !focused, 'View does not accept focus');
         this.hasFocus = focused;
+
+        if (focused) {
+            inputFocusViews.set(this.client, this);
+        } else {
+            View.releaseInputFocus(this);
+        }
     }
 
     setFocus(focused) {
@@ -342,12 +372,145 @@ class View extends events.EventEmitter {
     //
     destroy() {}
 
+    //  ── Input focus & background redraws ─────────────────────────────────────
+
     //
-    //  reapplySGR() — called after an overlapping operation (e.g. TickerView tick)
-    //  so the active view can re-assert its current SGR state on the terminal.
-    //  Subclasses should override if they maintain terminal color state.
+    //  The view |client| is typing into, or null: the view last given focus,
+    //  on any of the screen's forms, while it still holds it.
     //
-    reapplySGR() {}
+    static getInputFocusView(client) {
+        const view = inputFocusViews.get(client);
+        return view && view.hasFocus ? view : null;
+    }
+
+    //  |view| no longer takes input; a no-op unless it is the one that did
+    //  (or is the one a suspendInputFocus() set aside)
+    static releaseInputFocus(view) {
+        if (!view || !view.client) {
+            return;
+        }
+        if (inputFocusViews.get(view.client) === view) {
+            inputFocusViews.delete(view.client);
+        }
+        (suspendedInputFocus.get(view.client) || []).forEach(token => {
+            if (token.view === view) {
+                token.view = null;
+            }
+        });
+    }
+
+    //
+    //  Set the client's input focus view aside while something that takes
+    //  no typing owns the screen, such as a pause prompt waiting for its
+    //  key: the forms under it stay attached and their field keeps
+    //  hasFocus, but it is not on screen and a background draw (the pause
+    //  prompt's own ticker) must not put the cursor there. Returns a token
+    //  for resumeInputFocus().
+    //
+    static suspendInputFocus(client) {
+        const token = { view: View.getInputFocusView(client) };
+        inputFocusViews.delete(client);
+
+        const tokens = suspendedInputFocus.get(client) || [];
+        tokens.push(token);
+        suspendedInputFocus.set(client, tokens);
+        return token;
+    }
+
+    //
+    //  Give back what suspendInputFocus() set aside: only if no view has
+    //  taken focus since, and the view set aside still has it and was not
+    //  released meanwhile (its form torn down).
+    //
+    static resumeInputFocus(client, token) {
+        if (!token) {
+            return;
+        }
+        const tokens = suspendedInputFocus.get(client) || [];
+        const i = tokens.indexOf(token);
+        if (i > -1) {
+            tokens.splice(i, 1);
+        }
+
+        const view = token.view;
+        token.view = null;
+        if (view && view.hasFocus && !View.getInputFocusView(client)) {
+            inputFocusViews.set(client, view);
+        }
+    }
+
+    //
+    //  restoreFocusPosition() -- put the terminal cursor back where this view,
+    //  holding focus, echoes the next key, in the SGR it echoes it with. The
+    //  base view knows nothing about where its cursor goes, so it does
+    //  nothing; views that do know (TextView, EditTextView,
+    //  MultiLineEditTextView) override this.
+    //
+    restoreFocusPosition() {}
+
+    //
+    //  restoreFocusCursor() -- called on the view holding input focus after
+    //  something else has drawn over the screen and hidden the cursor (see
+    //  drawInBackground()): restoreFocusPosition(), then make the cursor
+    //  visible or not as this view wants.
+    //
+    restoreFocusCursor() {
+        this.restoreFocusPosition();
+        this.restoreCursor();
+    }
+
+    //
+    //  drawInBackground() -- run drawFn(), which draws this view, for a
+    //  redraw nobody typed for: a timer firing (a TickerView tick). Drawing
+    //  moves the terminal cursor and leaves this view's SGR set, while the
+    //  user may be typing into a field elsewhere on the screen, and a field
+    //  echoes the next key at the cursor in whatever SGR is current
+    //  (EditTextView's append fast path). So the view holding input focus is
+    //  asked to put both back afterwards (restoreFocusCursor()), the cursor
+    //  is hidden while this view draws, and all of it goes out in one socket
+    //  write, so the cursor does not visibly jump. With no view holding focus
+    //  the cursor is left where drawFn() leaves it, as it always was; that
+    //  includes a pause prompt waiting for its key, which sets the input
+    //  focus aside (suspendInputFocus()) even when a form under it still
+    //  has a focused field.
+    //
+    //  The terminal's own save/restore (CSI s / CSI u, ESC 7 / ESC 8) is not
+    //  used: CSI s does not save attributes, and support for either varies
+    //  between the terminals BBS callers use.
+    //
+    drawInBackground(drawFn) {
+        const term = this.client.term;
+        const focusView = View.getInputFocusView(this.client);
+        const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+
+        if (batch) {
+            term.beginWrite();
+        }
+
+        try {
+            if (focusView) {
+                term.rawWrite(ansi.hideCursor());
+            }
+
+            try {
+                drawFn();
+            } finally {
+                //  Also when drawFn() threw (the error still goes to the
+                //  caller): the cursor is never left hidden. Asked again, as
+                //  drawFn() may have moved focus (a module's draw).
+                const focusAfter = View.getInputFocusView(this.client);
+                if (focusAfter) {
+                    focusAfter.restoreFocusCursor();
+                } else if (focusView) {
+                    focusView.restoreCursor(); //  undo the hide, at least
+                }
+            }
+        } finally {
+            if (batch) {
+                term.commitWrite();
+            }
+        }
+    }
 }
 
 exports.View = View;
