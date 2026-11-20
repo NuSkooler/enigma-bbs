@@ -42,7 +42,7 @@ Controls how the text moves within the window. Set via the `motion` property.
 |--------|-------------|
 | `left` | Continuous left-scroll that loops with a gap. **Default.** |
 | `right` | Continuous right-scroll that loops with a gap. |
-| `bounce` | Text oscillates left and right, reversing direction at each end. No gap between loops. |
+| `bounce` | Text oscillates left and right, reversing direction at each end. No gap between loops. Only text longer than `width` moves: text that fits the window stays still. |
 | `reveal` | Text slides in from the right, holds for `holdTicks`, then slides back out. Repeats. |
 | `typewriter` | Characters appear one per tick from left-to-right, hold at full display for `holdTicks`, then instantly clear and repeat. |
 | `fallLeft` | All characters start spread evenly across the window then slide left, stacking against the left edge. Holds for `holdTicks`, then re-spreads and repeats. |
@@ -75,9 +75,11 @@ These are applied per-tick to the visible window, producing animated color or no
 
 | Effect | Description |
 |--------|-------------|
-| `rainbow` | Each character cycles through 6 bright ANSI colors. The color band swims through the text with the scroll, producing a flowing neon look. |
-| `scramble` | About 30% of non-space characters are replaced with random noise characters rendered in bright green each tick, giving a decryption/hacker feel. |
-| `glitch` | Real text with 1–3 random characters corrupted to red noise per tick. Looks like signal interference. |
+| `rainbow` | Each character cycles through 6 bright ANSI colors. The color band swims through the text with the scroll, producing a flowing neon look. Replaces the text's own pipe colors. |
+| `scramble` | Each tick, about 30% of the characters (fill characters aside) are replaced with random noise characters, each drawn in reverse video of that character's own color (its pipe color, or the view's normal color), giving a decryption/hacker feel. |
+| `glitch` | Real text with 1–3 random characters corrupted to noise per tick. The noise is drawn in the view's focus color (`styleSGR2`, or the second of a doubled MCI code; the normal color when none is set), so the theme decides it. Looks like signal interference. |
+
+Pipe colors in `text` survive every motion. `scramble` and `glitch` keep them on the characters they leave alone; only `rainbow` replaces them.
 
 :::tip
 Text-style effects and dynamic effects are independent axes — `l33t` + `rainbow` works: the text is l33t-ified first, then rainbow colors are applied to the visible window each tick.
@@ -133,7 +135,7 @@ TK1: {
 ```hjson
 TK1: {
   text: "ENiGMA BBS - the future is now"
-  width: 50
+  width: 20          // narrower than the text (30 columns), or it would not move
   motion: bounce
   effect: l33t
   tickInterval: 60

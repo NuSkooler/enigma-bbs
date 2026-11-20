@@ -125,7 +125,7 @@ prompts: {
         mci: {
             TK1: {
                 text: "Press any key to continue — [C] skip pages — [Q] quit"
-                width: 70
+                width: 40
                 motion: bounce
                 tickInterval: 70
             }
@@ -134,7 +134,9 @@ prompts: {
 }
 ```
 
-Pipe color codes in `text` are preserved across all non-dynamic motion styles (`bounce`, `reveal`, `typewriter`, `fallLeft`, `fallRight`). Dynamic effects (`rainbow`, `scramble`, `glitch`) intentionally override per-character colors.
+`bounce` only moves text that is longer than `width`: the text above is 53 columns, so in a 40 column window it travels 13 columns each way. Text that fits the window stays still; use `left`, `right` or `reveal` to animate short text.
+
+Pipe color codes in `text` are preserved across every motion style. The `scramble` and `glitch` effects keep them on the characters they do not replace; only `rainbow` overrides them with its own colors. See [Effects](views/ticker_view.md#effects).
 
 ---
 
@@ -149,7 +151,7 @@ customization: {
             mci: {
                 TK1: {
                     text: "|04Press any key...|07"
-                    motion: bounce
+                    motion: reveal
                     width: 60
                     tickInterval: 60
                 }
@@ -224,7 +226,7 @@ prompts: {
         mci: {
             TK1: {
                 text: "|03--- more ---  [SPACE] continue  [C] skip  [Q] quit"
-                width: 60
+                width: 36          // narrower than the text (50 columns), so it bounces
                 motion: bounce
                 tickInterval: 65
             }

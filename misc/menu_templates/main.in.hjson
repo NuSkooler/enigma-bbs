@@ -1823,7 +1823,9 @@
                 // Use any MCI codes you wish!
                 TK1: {
                     text: "|03smash a key to continue |08[|11C|08] |03continuous  |08[|11Q|08] |03quit"
-                    width: 60
+                    //  bounce only moves text wider than the window: the text
+                    //  is 48 columns, and 34 fits between the art's >>> and <<<
+                    width: 34
                     motion: bounce
                     tickInterval: 70
                 }
