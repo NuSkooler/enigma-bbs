@@ -41,14 +41,22 @@ function makeTempImage(size = 512) {
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+//  Polls on setImmediate first, which is all a quiet machine needs, then every
+//  few ms until a deadline. A fixed count of ticks alone was not enough: on a
+//  busy CI runner the door's start-up file I/O can outlast 500 ticks.
+const WaitForTimeoutMs = 3000; //  under mocha's 5s test timeout
+
 async function waitFor(cond, what = 'condition') {
-    for (let i = 0; i < 500; i++) {
+    const deadline = Date.now() + WaitForTimeoutMs;
+    for (let i = 0; ; i++) {
         if (cond()) {
             return;
         }
-        await tick();
+        if (Date.now() > deadline) {
+            throw new Error(`timed out waiting for ${what}`);
+        }
+        await (i < 500 ? tick() : new Promise(resolve => setTimeout(resolve, 5)));
     }
-    throw new Error(`timed out waiting for ${what}`);
 }
 
 const quietLog = () => {
