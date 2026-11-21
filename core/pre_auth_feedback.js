@@ -2,6 +2,7 @@
 'use strict';
 
 const { FullScreenEditorModule, MciViewIds } = require('./fse.js');
+const { FormLifecycle } = require('./view_controller.js');
 const { persistMessage } = require('./message_area.js');
 const Message = require('./message.js');
 const User = require('./user.js');
@@ -99,7 +100,8 @@ exports.getModule = class PreAuthFeedbackFSEModule extends FullScreenEditorModul
 
     //  Start focus on From (id=1) rather than the locked To field (id=2)
     switchToHeader() {
-        this.viewControllers.body.setFocus(false);
+        //  the body stays on screen: deactivated, not torn down
+        FormLifecycle.deactivate(this.viewControllers.body);
         this.viewControllers.header.switchFocus(MciViewIds.header.from);
     }
 

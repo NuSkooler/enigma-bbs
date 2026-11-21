@@ -40,6 +40,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none for most mods. Only a module that attaches one of its forms after its menu was left notices, and that was already a bug. See [Form states](website/src/content/docs/art/views/views.md#form-states).
 
+* **Mod authors: the full screen editor keeps its forms' view listeners.** Nothing in your configuration, menus, art or themes needs to change, and nothing changes for a mod that does not extend the full screen editor (`core/fse.js`).
+
+  **What changes by itself:** when one of the editor's forms loses the keys (the header while the body is typed into, the body under the Escape menu, a footer under another footer), it is deactivated or covered instead of torn down with `setFocus(false)`. Its tickers and status bars keep running, and listeners added to its views are still there when it gets the keys back.
+
+  **Action:** a module that extends the full screen editor and adds listeners to its views each time a form gets the keys back should remove them first (`removeListener()`, then `on()`), or add them once; otherwise they fire once more after every focus change. `promptForInput({ prevFormName })` still removes the previous form's view listeners, as before.
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).

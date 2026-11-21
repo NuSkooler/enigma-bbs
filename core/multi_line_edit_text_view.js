@@ -1897,6 +1897,14 @@ class MultiLineEditTextView extends View {
     }
 
     setFocus(focused) {
+        //  Losing focus: a pending pipe code collapse would draw this row,
+        //  and leave the cursor in it, after another field has the keys.
+        //  Collapse it now instead, so the row looks as it would have; the
+        //  field that takes focus next puts the cursor back where it goes.
+        if (!focused && this._pipeCodeDebounceTimer !== null) {
+            this._collapsePipeCodes();
+        }
+
         super.setFocus(focused);
 
         if (this.isEditMode() && this.getSGR() !== this.getFocusSGR()) {

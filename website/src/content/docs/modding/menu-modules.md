@@ -296,7 +296,8 @@ The following methods take a single input to specify style, defaulting to `short
 * `getDateTimeFormat()`
 
 ### Misc
-* `promptForInput()`
+#### `promptForInput({ formName, formId, promptName, prevFormName, position }, options, callback)`:
+Shows the prompt `promptName` at `position` and loads form `formId` over it into View Controller `formName`. With `prevFormName`, that form is covered while the prompt is up (no keys, no background drawing; its views and their timers are kept) and activated again when the prompt is submitted. Its view listeners are removed when the prompt opens, as before, so add them again in the prompt's actions. `options` may hold `submitNotify`, `clearAtSubmit` and `clearWidth`. Before 0.6.2-beta the previous form was torn down (`setFocus(false)`), so a ticker in it stopped for good.
 
 
 #### `standardMCIReadyHandler(mciData, callback)`:

@@ -2,6 +2,7 @@
 const fs = require('graceful-fs');
 
 const { MenuModule } = require('./menu_module');
+const { FormLifecycle } = require('./view_controller');
 const stringFormat = require('./string_format');
 const Events = require('./events');
 const SysEvents = require('./system_events');
@@ -759,11 +760,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 if (false !== this.config.hideCursor) {
                     this.client.term.rawWrite(ansi.hideCursor());
                 }
-                //  Taking form 0's focus for the prompt destroyed its views'
-                //  timers (ticker, status bar) and listeners (the node
-                //  selection), and giving it back restores neither. Build it
-                //  again, as the other sub-screens do, once promptForInput
-                //  has finished putting it back.
+                //  Form 0 is rebuilt, as the other sub-screens do, once
+                //  promptForInput has finished putting it back (it covers
+                //  form 0 now, so its timers and listeners survive the
+                //  prompt; the rebuild is kept as it was).
                 setImmediate(() => {
                     if (this.client.currentMenuModule !== this) {
                         return; //  left the WFC meanwhile
@@ -2519,9 +2519,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         listView.on('index update', this._onTaskListIndex);
     }
 
+    //  The task prompt is drawn over the task screen (at %XY3): its form is
+    //  covered (no keys, no background drawing) until the prompt closes
     _detachTasksInput() {
         if (this.viewControllers.tasks) {
-            this.viewControllers.tasks.setFocus(false);
+            FormLifecycle.cover(this.viewControllers.tasks);
         }
         this._removeTasksTextKeyHandler();
     }
@@ -2529,8 +2531,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _attachTasksInput() {
         if ('art' === this._tasksMode && this.viewControllers.tasks) {
             this.viewControllers.tasks.setFocus(true);
-            //  setFocus(false) dropped every view listener, and setFocus(true)
-            //  only puts back the form's own
+            //  (a cover keeps the view listeners; the rebind removes first,
+            //  so it never binds twice)
             this._bindTaskListIndex();
         } else if ('text' === this._tasksMode) {
             this._addTasksTextKeyHandler();
