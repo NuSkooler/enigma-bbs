@@ -389,11 +389,13 @@ this._timer = setInterval(() => {
 
 ### When something covers the screen
 
-A realtime interrupt, a help page (the full screen editor's Ctrl-O help, the file list's and the WFC's) and a prompt that clears the screen are drawn over a menu whose forms are still attached. While one is up:
+A realtime interrupt, a help page (the full screen editor's Ctrl-O help, the file list's and the WFC's) and a pause prompt that clears the screen are drawn over a menu whose forms are still attached. While one is up (for a clear-screen pause, while it waits for its key):
 
 * **Background drawing is paused** for the views that existed when the cover began, so a ticker or status bar under it does not draw over it. A view that would have drawn meanwhile gets one full redraw when the cover ends (unless the menu is about to repaint anyway, as a reload after an interrupt does). Before that redraw, `forceNextRedraw()` is called on the view: override it in a view that skips output it believes is already on screen. `TickerView` does, so an unchanged frame is drawn again after a cover.
 * **Views created inside the cover keep drawing.** A ticker in a pause prompt shown over an interrupt (the stock `pausePage` has one) animates while the menu's ticker under it waits.
 * **Keys go to the cover,** not to the forms under it. See [Input capture](#input-capture).
+
+A clear-screen prompt that does not pause (one that takes input, such as an `ET` field) suspends nothing: once it is drawn, the module showing it owns the screen, as before.
 
 For views of your own, `View.suspendBackgroundDraw(client)` returns a token and `View.resumeBackgroundDraw(client, token, { redrawMissed })` gives it back. Suspends nest. `redrawMissed: false` skips the redraw when you replace the screen next. Most code wants `coverScreen()` instead, which does both this and input capture (see [Covers and input capture](../../modding/menu-modules.md#covers-and-input-capture)).
 
@@ -414,7 +416,7 @@ While something owns the screen, it can own the keys too. `client.captureInput(h
 
 | Option | Description |
 |--------|-------------|
-| `onMenuChange` | What happens to the capture if the caller is moved to another menu while it is held (a sysop break-in, a time-up). `'passThrough'` (the default): the handler still gets the next key, which also reaches the new menu. `'drop'`: the capture is dropped and the handler never called. |
+| `onMenuChange` | What happens to the capture if the caller is moved to another menu while it is held (a sysop break-in, a time-up). `'passThrough'` (the default): the handler still gets the next key, which also reaches the new menu. A wait (`waitForKeyPress()`) then releases itself; a general capture keeps getting every key, alongside the new menu, until you release it. `'drop'`: the capture is dropped and the handler never called. |
 | `onDrop` | Called if the capture is dropped rather than released (the caller hung up, or `'drop'` above). The handler will never be called; clean up here. |
 
-`client.waitForKeyPress(cb)` is a capture: `cb(ch, key)` gets the next key, and that key no longer also reaches a form still attached under whatever is waiting. Before, a key pressed to end a pause or close a help page could also be typed into a field or run an action on the screen underneath. Several waits pending at once all get the same key, as before. It returns the capture token, and takes the same `options`.
+`client.waitForKeyPress(cb)` is a capture: `cb(ch, key)` gets the next key, and that key no longer also reaches a form still attached under whatever is waiting. Before, a key pressed to end a pause or close a help page could also be typed into a field or run an action on the screen underneath. Several waits pending at once all get the same key, as before. It returns the capture token, and takes the same `options`. While a wait is pending, keys go to it and not to the forms: a wait your code abandons holds the next key, so release it with `client.releaseInput(token)`. A capture taken while a key is being delivered (a form's action opens a pause) is for the next key; the listeners after it still see the current one.

@@ -7,7 +7,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   * **The full screen editor's help no longer types into your message** ([#1137](https://github.com/NuSkooler/enigma-bbs/issues/1137)). The key pressed to close the Ctrl-O help screen was also inserted into the message body, and Escape moved the focus behind the help screen. The key now only closes help. The "added to your download queue" message after an export works the same way.
   * **The file list and WFC help pages** keep the key that closes them from the screen underneath too.
-  * **A prompt that clears the screen** is no longer drawn over by the tickers and status bars of the screen it replaced.
+  * **A pause that clears the screen** is no longer drawn over by the tickers and status bars of the screen it replaced while it waits for its key. A clear-screen prompt without a pause behaves as before: the module that shows it owns the screen from then on.
   * **A pause at the end of a menu** (`pause: true`) no longer passes its key to the menu's form.
   * **MRC and sysop chat** keep lines that arrive while something covers the screen, and draw them when it is gone.
   * After any of these, a ticker or status bar that missed a draw is drawn again in full.
