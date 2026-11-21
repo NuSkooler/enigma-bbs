@@ -168,7 +168,6 @@ classDiagram
         +setDimension()
         +setFocus(focused)
         +redraw()
-        +destroyed bool
         +drawInBackground(drawFn)
         +forceNextRedraw()
         +destroy()
@@ -393,7 +392,7 @@ A realtime interrupt, a help page (the full screen editor's Ctrl-O help, the fil
 
 * **Background drawing is paused** for the views that existed when the cover began, so a ticker or status bar under it does not draw over it. A view that would have drawn meanwhile gets one full redraw when the cover ends (unless the menu is about to repaint anyway, as a reload after an interrupt does). Before that redraw, `forceNextRedraw()` is called on the view: override it in a view that skips output it believes is already on screen. `TickerView` does, so an unchanged frame is drawn again after a cover.
 * **Views created inside the cover keep drawing.** A ticker in a pause prompt shown over an interrupt (the stock `pausePage` has one) animates while the menu's ticker under it waits.
-* **Keys go to the cover,** not to the forms under it. See [Input capture](#input-capture).
+* **Keys go to the cover,** not to the forms under it, for an interrupt or a help page: the key that dismisses it is not typed into a field or run as an action underneath. See [Input capture](#input-capture). A pause prompt (one that clears the screen, or one on the same screen) is a plain `client.waitForKeyPress()` and takes no keys from the forms: its key reaches them too, as it always has.
 
 A clear-screen prompt that does not pause (one that takes input, such as an `ET` field) suspends nothing: once it is drawn, the module showing it owns the screen, as before.
 
@@ -416,7 +415,9 @@ While something owns the screen, it can own the keys too. `client.captureInput(h
 
 | Option | Description |
 |--------|-------------|
-| `onMenuChange` | What happens to the capture if the caller is moved to another menu while it is held (a sysop break-in, a time-up). `'passThrough'` (the default): the handler still gets the next key, which also reaches the new menu. A wait (`waitForKeyPress()`) then releases itself; a general capture keeps getting every key, alongside the new menu, until you release it. `'drop'`: the capture is dropped and the handler never called. |
+| `onMenuChange` | What happens to the capture if the caller is moved to another menu while it is held (a sysop break-in, a time-up). `'passThrough'` (the default): the handler keeps getting every key, alongside the new menu, until you release it. `'drop'`: the capture is dropped and the handler never called (what a cover's own capture does). |
 | `onDrop` | Called if the capture is dropped rather than released (the caller hung up, or `'drop'` above). The handler will never be called; clean up here. |
 
-`client.waitForKeyPress(cb)` is a capture: `cb(ch, key)` gets the next key, and that key no longer also reaches a form still attached under whatever is waiting. Before, a key pressed to end a pause or close a help page could also be typed into a field or run an action on the screen underneath. Several waits pending at once all get the same key, as before. It returns the capture token, and takes the same `options`. While a wait is pending, keys go to it and not to the forms: a wait your code abandons holds the next key, so release it with `client.releaseInput(token)`. A capture taken while a key is being delivered (a form's action opens a pause) is for the next key; the listeners after it still see the current one.
+`client.waitForKeyPress(cb)` is not a capture. It is a plain `once('key press')`, as it always was: `cb(ch, key)` gets the next key, in the order the listeners were added, and that key also reaches every other listener, including a form still attached under whatever is waiting. Several waits pending at once all get the same key. To keep the key from the forms, wait inside a cover (`coverScreen()`, see [Covers and input capture](../../modding/menu-modules.md#covers-and-input-capture)), whose capture silences them for every key until it ends, including the one that ends it; or take a capture of your own.
+
+A capture taken while a key is being delivered (a form's action opens a help page) is for the next key; the listeners after it still see the current one.

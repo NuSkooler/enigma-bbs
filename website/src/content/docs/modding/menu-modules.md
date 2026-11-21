@@ -137,7 +137,7 @@ flowchart TD
 
 * `leave()` of the menu being left runs before the new menu's `enter()`. The default detaches and destroys the menu's forms (`detachViewControllers()`). It also runs when the caller disconnects, so it is a module's one chance to clean up (timers, temp files, node counts).
 * `enter()` is called with no callback. The default shows any queued interruptions (`displayQueuedInterruptions(callback)`, skipped with `interrupt: never`), then calls `initSequence()`. If you override `enter()`, call `super.enter()`.
-* If the caller was moved on while something covered the old menu (a sysop break-in or a time-up during a pause or an interrupt), what that cover held is settled first: its paused background drawing is dropped, and a pending `waitForKeyPress()` gets the next key without keeping it from the new menu, as it always did.
+* If the caller was moved on while something covered the old menu (a sysop break-in or a time-up during a pause or an interrupt), what that cover held is settled first: its input capture and paused background drawing are dropped. A pending `waitForKeyPress()` is left alone: it gets the next key, which the new menu gets too, as it always did.
 
 ### initSequence()
 The default `initSequence()`, which most modules keep:
@@ -192,7 +192,7 @@ While the interrupt is up, the menu's forms stay attached but get no keys, and i
 ### Covers and input capture
 Sometimes a module shows something over its own screen and then gives the screen back: a help page, a message, a confirmation. Its forms are still attached underneath. Pick by what the screen does:
 
-* **Over the whole screen, then back** (a help page): use `this.coverScreen(options, fn, cb)`. While `fn(done)` runs, keys go only to the cover (a `client.waitForKeyPress()` inside it gets its key) and the forms' tickers and status bars do not draw. Call `done(err)` when finished; `options.restore(cb)` then repaints your screen, before input and drawing are given back. Views that missed a draw get one redraw unless `redrawMissed: false`.
+* **Over the whole screen, then back** (a help page): use `this.coverScreen(options, fn, cb)`. While `fn(done)` runs, the forms get no keys, including the key that ends the cover, and their tickers and status bars do not draw. A `client.waitForKeyPress()` inside it still gets its key: a wait is a plain listener, not a capture. Call `done(err)` when finished; `options.restore(cb)` then repaints your screen, before input and drawing are given back. Views that missed a draw get one redraw unless `redrawMissed: false`.
 
   ```javascript
   displayHelp(cb) {
@@ -211,11 +211,11 @@ Sometimes a module shows something over its own screen and then gives the screen
   The same helper is `coverScreen(client, options, fn, cb)` in `core/screen_cover.js`, for code that is not a menu module.
 
 * **Your own key handling for a while,** with nothing covered (a "press Y or N" read by code, a key-driven mini screen): use `client.captureInput(handler, options)` and `client.releaseInput(token)`. The forms get no keys while you hold it. See [Input capture](../art/views/views.md#input-capture).
-* **A pause on the same screen,** drawn under the menu's art: `pausePrompt()` (or `client.waitForKeyPress()`) on its own. The key that ends it is not passed to the forms, and the tickers and status bars on screen keep animating.
+* **A pause on the same screen,** drawn under the menu's art: `pausePrompt()` (or `client.waitForKeyPress()`) on its own. The tickers and status bars on screen keep animating, and the key that ends it also reaches the forms, as it always has (so does the key for a menu's own `pause: true`). If it must not, show the pause inside `coverScreen()`.
 
-A pause shown with `clearScreen` (`displayThemedPause()`, or `displayThemedPrompt()` with both `clearScreen` and `pause`) also pauses the background drawing of the screen under it while it waits for its key. A prompt that clears the screen without pausing (an `ET` prompt the module then reads) pauses nothing: the module owns the screen from there, as before.
+A pause shown with `clearScreen` (`displayThemedPause()`, or `displayThemedPrompt()` with both `clearScreen` and `pause`) also pauses the background drawing of the screen under it while it waits for its key. It does not capture input: its key reaches the forms too, as before. A prompt that clears the screen without pausing (an `ET` prompt the module then reads) pauses nothing: the module owns the screen from there, as before.
 
-If the menu changes while a cover is up (a sysop break-in, a time-up, an idle logoff), the cover is abandoned: its `restore` and callback do not run, since the menu they belong to is gone, and the key that would have ended it goes to the new menu.
+If the menu changes while a cover is up (a sysop break-in, a time-up, an idle logoff), the cover is abandoned: its `restore` and callback do not run, since the menu they belong to is gone, and the key that would have ended it reaches the new menu as well.
 
 ## MenuModule Helper Methods
 Many helper methods exist and are available to code inheriting from `MenuModule`. Below are some examples. Poke around at [menu_module.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/menu_module.js) to discover more!
