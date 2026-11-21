@@ -133,6 +133,58 @@ describe('coverScreen()', () => {
         assert.deepEqual(order, ['restore:0', 'cb:1']);
     });
 
+    it('redrawMissed: false uncovers without the redraws (the caller repaints)', () => {
+        const client = makeClient();
+        const view = makeCountingView(client);
+        let redrawsAtCb = null;
+        coverScreen(
+            client,
+            { redrawMissed: false },
+            done => {
+                view.drawInBackground(() => {});
+                done();
+            },
+            () => (redrawsAtCb = view.redraws)
+        );
+        assert.equal(redrawsAtCb, 0);
+        assert.deepEqual(isCovered(client), { input: false, background: false });
+    });
+
+    it('a view the cover itself creates draws as usual', () => {
+        const client = makeClient();
+        coverScreen(
+            client,
+            done => {
+                const inside = makeCountingView(client);
+                let ran = 0;
+                inside.drawInBackground(() => ++ran);
+                assert.equal(ran, 1);
+                done();
+            },
+            () => {}
+        );
+    });
+
+    it('its capture is dropped, not passed through, if the menu changes under it', () => {
+        const client = makeClient();
+        const { field } = makeForm(client);
+        let finish;
+        coverScreen(
+            client,
+            done => (finish = done),
+            () => {}
+        );
+        assert.deepEqual(InputCapture.menuChanged(client), {
+            dropped: 1,
+            passThrough: 0,
+        });
+        client.emit('key press', 'z');
+        assert.equal(field.getData(), 'z', 'nothing left holding keys');
+        View.dropBackgroundDrawSuspends(client);
+        finish(); //  a late end is harmless
+        assert.deepEqual(isCovered(client), { input: false, background: false });
+    });
+
     it('passes fn’s results and error to cb, and skips restore on error', () => {
         const client = makeClient();
         let restored = false;
