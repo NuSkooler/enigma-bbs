@@ -362,12 +362,57 @@ describe('MenuStack navigation guards', function () {
             });
         });
 
-        it('drops the cover (capture and suspend); a plain wait hears the next key only', done => {
-            let coverDone = null;
-            coverScreen(client, finish => (coverDone = finish));
-            const heard = [];
-            //  a pause in the cover, waiting (a plain wait, as waitForKeyPress)
-            InputCapture.captureInput(client, ch => heard.push(ch));
+        //  the capture methods a real client has, and what a form needs
+        function giveRealInput() {
+            const { Client } = require('../core/client.js');
+            client.captureInput = Client.prototype.captureInput;
+            client.releaseInput = Client.prototype.releaseInput;
+            client.waitForKeyPress = Client.prototype.waitForKeyPress;
+            Object.assign(client.term, {
+                termWidth: 80,
+                termHeight: 25,
+                beginWrite() {},
+                commitWrite() {},
+            });
+        }
+
+        //  the next menu's form: one focused field
+        function attachForm() {
+            const { ViewController } = require('../core/view_controller.js');
+            const { EditTextView } = require('../core/edit_text_view.js');
+            const vc = new ViewController({ client });
+            const field = new EditTextView({
+                client,
+                id: 1,
+                position: { row: 20, col: 5 },
+                dimens: { width: 30 },
+                maxLength: 30,
+            });
+            vc.addView(field);
+            vc.setViewOrder();
+            vc.switchFocus(1);
+            return field;
+        }
+
+        it('drops the cover (capture and suspend); its pause hears the next key only, and nothing continues', done => {
+            giveRealInput();
+            const home = client.currentMenuModule;
+            const events = [];
+            //  a help page over |home| (as FSE / file list / WFC help): the
+            //  pause in it is a real waitForKeyPress(); afterwards the menu
+            //  repaints and carries on with prevMenu()
+            home.coverScreen(
+                { restore: cb => (events.push('restore'), cb()) },
+                finish =>
+                    client.waitForKeyPress(ch => {
+                        events.push(`pause:${ch}`);
+                        finish();
+                    }),
+                () => {
+                    events.push('cb');
+                    home.prevMenu();
+                }
+            );
             assert.equal(View.isBackgroundDrawSuspended(client), true);
 
             //  a sysop break-in moves the caller on
@@ -383,17 +428,47 @@ describe('MenuStack navigation guards', function () {
                 assert.equal(logged.obj.passThroughCaptures, 1);
                 assert.equal(logged.obj.droppedSuspends, 1);
 
+                const field = attachForm();
                 client.emit('key press', 'a');
-                assert.deepEqual(heard, ['a'], 'the stale wait fires, as once() did');
-                assert.equal(
-                    InputCapture.isKeyPressCaptured(client),
-                    false,
-                    'but did not take the key from the new menu'
+                assert.deepEqual(
+                    events,
+                    ['pause:a'],
+                    'the stale pause fires, as once() did; no restore, no cb'
                 );
-
-                //  the old cover ending late changes nothing
-                coverDone();
+                assert.equal(field.getData(), 'a', 'the new menu’s form gets the key');
+                assert.deepEqual(
+                    client.menuStack.stack.map(e => e.name),
+                    ['home', 'away'],
+                    'the gone menu did not pop the new one'
+                );
+                assert.ok(
+                    client.log
+                        .at('debug')
+                        .some(e => /cut short/.test(e.msg) && e.obj.restoreSkipped),
+                    'the skip is logged at debug'
+                );
                 assert.equal(View.isBackgroundDrawSuspended(client), false);
+                assert.equal(InputCapture.hasInputCapture(client), false);
+                return done();
+            });
+        });
+
+        it('a cover whose fn never calls done is let go by a menu change', done => {
+            giveRealInput();
+            const home = client.currentMenuModule;
+            let called = 0;
+            home.coverScreen(
+                () => {}, //  never finishes
+                () => ++called
+            );
+            client.menuStack.goto('away', err => {
+                assert.ifError(err);
+                assert.equal(InputCapture.hasInputCapture(client), false);
+                assert.equal(View.isBackgroundDrawSuspended(client), false);
+                const field = attachForm();
+                client.emit('key press', 'k');
+                assert.equal(field.getData(), 'k', 'nothing holds the keys');
+                assert.equal(called, 0);
                 return done();
             });
         });

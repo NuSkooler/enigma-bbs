@@ -38,6 +38,17 @@ const _ = require('lodash');
 //  Only views that exist when the cover starts are suspended: views the
 //  cover itself creates (a ticker in its pause prompt) draw as usual.
 //
+//  A cover cut short: if the caller is moved to another menu while the
+//  cover is up (a sysop break-in, a time-up) or the client ends, the cover
+//  is abandoned. Its capture and suspend are dropped then (see
+//  MenuStack._settleCovers()); when fn later calls done (a pause inside it
+//  hears the next key), restore and cb are skipped, so the menu that has
+//  gone neither repaints over the new one nor carries on (a prevMenu() that
+//  would pop the new menu). Anything still held is released. Only a cover
+//  that captures input (the default) can tell it was cut short. A fn that
+//  never calls done holds the cover (keys dropped, background drawing
+//  suspended) until then: the menu change or the disconnect lets it go.
+//
 //  Release and resume happen once, also when fn throws or calls done twice.
 //  An exception thrown by cb itself is not caught.
 //
@@ -49,9 +60,15 @@ function coverScreen(client, options, fn, cb) {
     }
     options = options || {};
 
+    let abandoned = false;
     const inputToken =
         false !== options.captureInput
-            ? captureInput(client, () => {}, { onMenuChange: 'drop' })
+            ? captureInput(client, () => {}, {
+                  onMenuChange: 'drop',
+                  onDrop: () => {
+                      abandoned = true;
+                  },
+              })
             : null;
     const drawToken =
         false !== options.suspendBackground ? View.suspendBackgroundDraw(client) : null;
@@ -75,15 +92,29 @@ function coverScreen(client, options, fn, cb) {
             }
             if (drawToken) {
                 View.resumeBackgroundDraw(client, drawToken, {
-                    redrawMissed: false !== options.redrawMissed,
+                    redrawMissed: false !== options.redrawMissed && !abandoned,
                 });
+            }
+            if (abandoned) {
+                if (client.log) {
+                    client.log.debug(
+                        {
+                            restoreSkipped: !restoreRan,
+                            error: (err || restoreErr || {}).message,
+                        },
+                        'Screen cover was cut short by a menu change or disconnect; not continuing it'
+                    );
+                }
+                return;
             }
             if (_.isFunction(cb)) {
                 return cb(err || restoreErr || null, ...results);
             }
         };
 
-        if (!err && _.isFunction(options.restore)) {
+        let restoreRan = false;
+        if (!abandoned && !err && _.isFunction(options.restore)) {
+            restoreRan = true;
             try {
                 return options.restore(uncover);
             } catch (e) {

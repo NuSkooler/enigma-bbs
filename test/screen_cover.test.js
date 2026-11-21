@@ -168,21 +168,78 @@ describe('coverScreen()', () => {
     it('its capture is dropped, not passed through, if the menu changes under it', () => {
         const client = makeClient();
         const { field } = makeForm(client);
+        const events = [];
+        //  the real path: a pause in the cover waits with waitForKeyPress()
+        coverScreen(
+            client,
+            { restore: cb => (events.push('restore'), cb()) },
+            done =>
+                client.waitForKeyPress(ch => {
+                    events.push(`pause:${ch}`);
+                    done(null, 'result');
+                }),
+            () => events.push('cb')
+        );
+        //  what MenuStack._settleCovers() does on a sysop break-in
+        assert.deepEqual(InputCapture.menuChanged(client), {
+            dropped: 1,
+            passThrough: 1,
+        });
+        View.dropBackgroundDrawSuspends(client);
+
+        client.emit('key press', 'z');
+        assert.deepEqual(events, ['pause:z'], 'no restore, no cb for a gone menu');
+        assert.equal(field.getData(), 'z', 'the form (the new menu’s) gets the key');
+        assert.deepEqual(isCovered(client), { input: false, background: false });
+        client.emit('key press', 'y');
+        assert.equal(field.getData(), 'zy');
+        assert.deepEqual(events, ['pause:z']);
+    });
+
+    it('is abandoned when the client ends: no restore, no cb, nothing held', () => {
+        const client = makeClient();
+        const events = [];
         let finish;
         coverScreen(
             client,
+            { restore: cb => (events.push('restore'), cb()) },
             done => (finish = done),
-            () => {}
+            () => events.push('cb')
         );
-        assert.deepEqual(InputCapture.menuChanged(client), {
-            dropped: 1,
-            passThrough: 0,
-        });
-        client.emit('key press', 'z');
-        assert.equal(field.getData(), 'z', 'nothing left holding keys');
-        View.dropBackgroundDrawSuspends(client);
-        finish(); //  a late end is harmless
+        InputCapture.dropAllInput(client); //  what Client.end() does
+        finish(); //  something inside the cover finishing late
+        assert.deepEqual(events, []);
+        assert.equal(View.isBackgroundDrawSuspended(client), false, 'resumed');
+    });
+
+    it('a menu change during restore: restore finishes, cb is skipped', () => {
+        const client = makeClient();
+        const events = [];
+        coverScreen(
+            client,
+            {
+                restore: cb => {
+                    events.push('restore');
+                    InputCapture.menuChanged(client); //  break-in mid-repaint
+                    cb();
+                },
+            },
+            done => done(),
+            () => events.push('cb')
+        );
+        assert.deepEqual(events, ['restore']);
         assert.deepEqual(isCovered(client), { input: false, background: false });
+    });
+
+    it('a plain waitForKeyPress() outside any cover still passes through, as before', () => {
+        const client = makeClient();
+        const { field } = makeForm(client);
+        const got = [];
+        client.waitForKeyPress(ch => got.push(ch));
+        InputCapture.menuChanged(client);
+        client.emit('key press', 'p');
+        assert.deepEqual(got, ['p'], 'its callback still runs');
+        assert.equal(field.getData(), 'p');
     });
 
     it('passes fn’s results and error to cb, and skips restore on error', () => {
