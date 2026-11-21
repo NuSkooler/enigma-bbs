@@ -213,7 +213,9 @@ Sometimes a module shows something over its own screen and then gives the screen
 * **Your own key handling for a while,** with nothing covered (a "press Y or N" read by code, a key-driven mini screen): use `client.captureInput(handler, options)` and `client.releaseInput(token)`. The forms get no keys while you hold it. See [Input capture](../art/views/views.md#input-capture).
 * **A pause on the same screen,** drawn under the menu's art: `pausePrompt()` (or `client.waitForKeyPress()`) on its own. The key that ends it is not passed to the forms, and the tickers and status bars on screen keep animating.
 
-A prompt shown with `clearScreen` (`promptForInput()`, `displayThemedPrompt()`) also pauses the background drawing of the screen under it while it is up.
+A pause shown with `clearScreen` (`displayThemedPause()`, or `displayThemedPrompt()` with both `clearScreen` and `pause`) also pauses the background drawing of the screen under it while it waits for its key. A prompt that clears the screen without pausing (an `ET` prompt the module then reads) pauses nothing: the module owns the screen from there, as before.
+
+If the menu changes while a cover is up (a sysop break-in, a time-up, an idle logoff), the cover is abandoned: its `restore` and callback do not run, since the menu they belong to is gone, and the key that would have ended it goes to the new menu.
 
 ## MenuModule Helper Methods
 Many helper methods exist and are available to code inheriting from `MenuModule`. Below are some examples. Poke around at [menu_module.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/menu_module.js) to discover more!
