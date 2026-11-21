@@ -521,6 +521,7 @@ exports.getModule = class mrcModule extends MenuModule {
         //  The lines go into the log first, and are drawn after: a background
         //  draw only draws (it is skipped, or its output dropped, while
         //  something covers the screen, and the log redrawn after)
+        let trimmed = false;
         lines.forEach(line => {
             const { wrapped } = wordWrapText(line, {
                 width: viewWidth,
@@ -537,9 +538,17 @@ exports.getModule = class mrcModule extends MenuModule {
 
                 if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
                     chatLogView.deleteLine(0);
+                    trimmed = true;
                 }
             });
         });
+
+        //  deleteLine() leaves the scroll position as it was, now one line
+        //  past the end for each line trimmed: scroll back to the end so
+        //  the newest line is on the bottom row
+        if (trimmed) {
+            chatLogView._scrollToEndOfDocument();
+        }
 
         //  Lines arrive whenever the server sends them, usually while the
         //  user is typing: drawInBackground() puts the cursor back in the

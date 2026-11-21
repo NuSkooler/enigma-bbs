@@ -60,13 +60,13 @@ describe('MRC chat log lines leave the cursor in the input line', () => {
         mrcModule = require('../core/mrc.js').getModule;
     });
 
-    function setup() {
+    function setup({ height = 15, maxScrollbackLines = 500 } = {}) {
         const client = makeClient();
         const chatLog = new MultiLineEditTextView({
             client,
             id: 1,
             position: { row: 2, col: 1 },
-            dimens: { width: 70, height: 15 },
+            dimens: { width: 70, height },
         });
         chatLog.setPropertyValue('mode', 'preview');
         const input = new EditTextView({
@@ -82,7 +82,7 @@ describe('MRC chat log lines leave the cursor in the input line', () => {
         const mod = Object.create(mrcModule.prototype);
         mod.client = client;
         mod.userPrefs = {};
-        mod.config = { maxScrollbackLines: 500 };
+        mod.config = { maxScrollbackLines };
         mod.viewControllers = {
             mrcChat: { getView: id => ({ 1: chatLog, 2: input })[id] },
         };
@@ -149,5 +149,37 @@ describe('MRC chat log lines leave the cursor in the input line', () => {
         const out = writes.join('');
         assert.ok(out.includes('second line'));
         assert.ok(!out.includes('first line'), 'the row above is not redrawn');
+    });
+
+    //  Once the scrollback is full the oldest line is trimmed as each new
+    //  one arrives: the newest line must still be on the bottom row
+    it('keeps the newest line on the bottom row once the scrollback trims', () => {
+        const { mod, term } = setup({ height: 5, maxScrollbackLines: 8 });
+        const chatLog = mod.viewControllers.mrcChat.getView(1);
+        const rowText = row => {
+            let text = '';
+            for (let col = 1; col <= 70; ++col) {
+                text += term.cells.get(`${row},${col}`) || ' ';
+            }
+            return text.trimEnd();
+        };
+        const rows = () => [2, 3, 4, 5, 6].map(rowText);
+
+        for (let n = 1; n <= 8; ++n) {
+            mod.addMessageToChatLog(`line ${n}`);
+        }
+        assert.deepEqual(rows(), ['line 4', 'line 5', 'line 6', 'line 7', 'line 8']);
+
+        mod.addMessageToChatLog('line 9');
+        assert.equal(chatLog.getLineCount(), 8, 'the oldest line was trimmed');
+        assert.deepEqual(rows(), ['line 5', 'line 6', 'line 7', 'line 8', 'line 9']);
+
+        mod.addMessageToChatLog('line 10');
+        assert.deepEqual(rows(), ['line 6', 'line 7', 'line 8', 'line 9', 'line 10']);
+        assert.equal(term.pos(), '22,6', 'cursor back in the input line');
+
+        //  a full redraw (the one owed after a cover) shows the same
+        chatLog.redraw();
+        assert.deepEqual(rows(), ['line 6', 'line 7', 'line 8', 'line 9', 'line 10']);
     });
 });
