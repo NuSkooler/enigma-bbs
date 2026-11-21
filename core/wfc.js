@@ -672,11 +672,20 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this._stopRefreshing();
         this._releaseMainForm();
 
-        this.displayAsset(this.menuConfig.config.art.help, { clearScreen: true }, () => {
-            this.client.waitForKeyPress(() => {
-                return this._displayMainPage(true, cb);
-            });
-        });
+        //  a cover: any other form still attached gets no key, draws nothing
+        this.coverScreen(
+            { restore: done => this._displayMainPage(true, done) },
+            done => {
+                this.displayAsset(
+                    this.menuConfig.config.art.help,
+                    { clearScreen: true },
+                    () => {
+                        this.client.waitForKeyPress(() => done(null));
+                    }
+                );
+            },
+            cb
+        );
     }
 
     //  Follow the op's arrow/page keys in the node list. Not tied to the

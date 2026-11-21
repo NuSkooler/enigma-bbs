@@ -574,12 +574,22 @@ exports.getModule = class FileAreaList extends MenuModule {
         );
     }
 
+    //  Shown over the browse form, which stays attached: a cover, so the
+    //  dismissing key does not reach the form and nothing draws over it
     displayHelpPage(cb) {
-        this.displayAsset(this.menuConfig.config.art.help, { clearScreen: true }, () => {
-            this.client.waitForKeyPress(() => {
-                return this.displayBrowsePage(true, cb);
-            });
-        });
+        this.coverScreen(
+            { restore: done => this.displayBrowsePage(true, done) },
+            done => {
+                this.displayAsset(
+                    this.menuConfig.config.art.help,
+                    { clearScreen: true },
+                    () => {
+                        this.client.waitForKeyPress(() => done(null));
+                    }
+                );
+            },
+            cb
+        );
     }
 
     _handleMovementKeyPress(keyName, cb) {

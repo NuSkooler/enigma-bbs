@@ -1534,19 +1534,26 @@ exports.FullScreenEditorModule =
             );
         }
 
+        //  Help is shown over the editor, whose forms stay attached: as a
+        //  cover, so the key that dismisses it is not typed into the message
+        //  (#1137) and nothing in the editor draws over it
         displayHelp(cb) {
-            this.client.term.rawWrite(ansi.resetScreen());
+            this.coverScreen(
+                { restore: done => this.redrawScreen(done) },
+                done => {
+                    this.client.term.rawWrite(ansi.resetScreen());
 
-            theme.displayThemeArt(
-                { name: this.menuConfig.config.art.help, client: this.client },
-                () => {
-                    this.client.waitForKeyPress(() => {
-                        this.redrawScreen(err => {
-                            if (err) return cb(err);
-                            this.viewControllers[this.getFooterName()].setFocus(true);
-                            return cb(null);
-                        });
-                    });
+                    theme.displayThemeArt(
+                        { name: this.menuConfig.config.art.help, client: this.client },
+                        () => {
+                            this.client.waitForKeyPress(() => done(null));
+                        }
+                    );
+                },
+                err => {
+                    if (err) return cb(err);
+                    this.viewControllers[this.getFooterName()].setFocus(true);
+                    return cb(null);
                 }
             );
         }
@@ -1636,16 +1643,19 @@ exports.FullScreenEditorModule =
                             Buffer.from(
                                 'Exported message has been added to your download queue!'
                             );
-                        this.displayAsset(artSpec, { clearScreen: true }, () => {
-                            this.client.waitForKeyPress(() => {
-                                this.redrawScreen(() => {
-                                    this.viewControllers[this.getFooterName()].setFocus(
-                                        true
-                                    );
-                                    return callback(null);
+                        //  over the attached message view: a cover, as help is
+                        this.coverScreen(
+                            { restore: done => this.redrawScreen(() => done(null)) },
+                            done => {
+                                this.displayAsset(artSpec, { clearScreen: true }, () => {
+                                    this.client.waitForKeyPress(() => done(null));
                                 });
-                            });
-                        });
+                            },
+                            () => {
+                                this.viewControllers[this.getFooterName()].setFocus(true);
+                                return callback(null);
+                            }
+                        );
                     },
                 ],
                 err => {

@@ -17,7 +17,11 @@ const { TickerView } = require('../core/ticker_view.js');
 //  action key), and the menu is repainted after.
 //
 
-const MENU_CONFIG = { debug: { assertsEnabled: false }, menus: { cls: false } };
+const MENU_CONFIG = {
+    debug: { assertsEnabled: false },
+    menus: { cls: false },
+    general: { boardName: 'Test' },
+};
 const MENU_TICKER_GOTO = '\x1b[2;10H';
 
 function makeClient() {
@@ -187,6 +191,164 @@ describe('Screens shown over a menu are covers', () => {
             timers.fireAll();
             assert.ok(!client.term.since(n).includes(MENU_TICKER_GOTO), 'no ticker');
             client.emit('key press', '\x1b', { name: 'escape' });
+        });
+    });
+
+    //  A menu-module instance without its constructor: just what the help
+    //  path uses
+    function bareModule(modulePath, client, extra) {
+        const Module = require(modulePath).getModule;
+        const mod = Object.create(Module.prototype);
+        mod.client = client;
+        mod.menuConfig = { config: { art: { help: 'HELP' } } };
+        client.currentMenuModule = mod;
+        return Object.assign(mod, extra);
+    }
+
+    //  The common checks for a help page over an attached form: no ticker
+    //  bytes while it is up, the dismissing key (Escape) goes nowhere else,
+    //  the restore runs still covered, and nothing is left covered after
+    function checkHelpCover({ client, start, restored, finished, menu }) {
+        const n = client.term.out.length;
+        start();
+        timers.fireAll();
+        timers.fireAll();
+        assert.ok(
+            !client.term.since(n).includes(MENU_TICKER_GOTO),
+            'no menu ticker bytes'
+        );
+
+        client.emit('key press', '\x1b', { name: 'escape' });
+        assert.equal(restored.length, 1, 'restored once');
+        assert.deepEqual(restored[0], { suspended: true, captured: true });
+        assert.equal(finished.length, 1, 'finished');
+        assert.ifError(finished[0]);
+        assert.equal(menu.submits.n, 0, 'no form action on the dismissing key');
+        assert.equal(menu.field.getData(), '', 'nothing typed into the form');
+        assert.equal(View.isBackgroundDrawSuspended(client), false);
+        assert.equal(client.hasInputCapture(), false);
+
+        client.emit('key press', 'k');
+        assert.equal(menu.field.getData(), 'k', 'the form has keys again');
+    }
+
+    const coverState = client => ({
+        suspended: View.isBackgroundDrawSuspended(client),
+        captured: client.hasInputCapture(),
+    });
+
+    describe('FSE help (#1137) and the download queue message', () => {
+        let theme;
+        let savedDisplayThemeArt;
+        before(() => {
+            theme = require('../core/theme.js');
+            savedDisplayThemeArt = theme.displayThemeArt;
+            theme.displayThemeArt = (options, cb) => {
+                options.client.term.write('<help art>');
+                return cb(null);
+            };
+        });
+        after(() => {
+            theme.displayThemeArt = savedDisplayThemeArt;
+        });
+
+        function fseModule(client, menu, restored) {
+            const footer = { focused: 0, setFocus: v => (footer.focused += v ? 1 : 0) };
+            const mod = bareModule('../core/fse.js', client, {
+                getFooterName: () => 'footerView',
+                redrawScreen: cb => {
+                    restored.push(coverState(client));
+                    menu.vc.redrawAll();
+                    return cb(null);
+                },
+            });
+            mod.viewControllers = { footerView: footer };
+            return { mod, footer };
+        }
+
+        it('Ctrl-O help is a cover; redrawScreen() repaints, still covered', () => {
+            const client = makeClient();
+            const menu = attachMenuForm(client);
+            const restored = [];
+            const finished = [];
+            const { mod, footer } = fseModule(client, menu, restored);
+            checkHelpCover({
+                client,
+                menu,
+                restored,
+                finished,
+                start: () => mod.displayHelp(err => finished.push(err)),
+            });
+            assert.equal(footer.focused, 1, 'footer focus back');
+        });
+
+        it('a static ticker in the editor is repainted after help', () => {
+            const client = makeClient();
+            const menu = attachMenuForm(client);
+            menu.ticker.setPropertyValue('motion', 'bounce');
+            menu.ticker.setText('short');
+            timers.fireAll(); //  drawn, and static from now on
+            const { mod } = fseModule(client, menu, []);
+            mod.displayHelp(() => {});
+            const n = client.term.out.length;
+            client.emit('key press', 'q');
+            assert.ok(client.term.since(n).includes(MENU_TICKER_GOTO), 'repainted');
+        });
+    });
+
+    describe('file area list help', () => {
+        it('is a cover; displayBrowsePage() repaints, still covered', () => {
+            const client = makeClient();
+            const menu = attachMenuForm(client);
+            const restored = [];
+            const finished = [];
+            const mod = bareModule('../core/file_area_list.js', client, {
+                displayAsset: (spec, options, cb) => {
+                    client.term.write('<help art>');
+                    return cb(null);
+                },
+                displayBrowsePage: (clearScreen, cb) => {
+                    assert.equal(clearScreen, true);
+                    restored.push(coverState(client));
+                    return cb(null);
+                },
+            });
+            checkHelpCover({
+                client,
+                menu,
+                restored,
+                finished,
+                start: () => mod.displayHelpPage(err => finished.push(err)),
+            });
+        });
+    });
+
+    describe('WFC help', () => {
+        it('is a cover; _displayMainPage() repaints, still covered', () => {
+            const client = makeClient();
+            const menu = attachMenuForm(client);
+            const restored = [];
+            const finished = [];
+            const mod = bareModule('../core/wfc.js', client, {
+                _stopRefreshing: () => {},
+                _releaseMainForm: () => {},
+                displayAsset: (spec, options, cb) => {
+                    client.term.write('<help art>');
+                    return cb(null);
+                },
+                _displayMainPage: (clearScreen, cb) => {
+                    assert.equal(clearScreen, true);
+                    restored.push(coverState(client));
+                    return cb(null);
+                },
+            });
+            checkHelpCover({
+                client,
+                menu,
+                restored,
+                finished,
+                start: () => mod._displayHelpPage(err => finished.push(err)),
+            });
         });
     });
 });
