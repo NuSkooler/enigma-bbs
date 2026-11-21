@@ -12,7 +12,8 @@ const { MaskEditTextView } = require('../core/mask_edit_text_view.js');
 //
 //  *   applyViewConfig(): an `mci` key that does not parse is skipped with a
 //      warning; the rest of the form loads (it used to hang the menu). Keys
-//      are still matched unanchored, as before (`MET3` configures view 3).
+//      are still matched unanchored, as before (`MET3` configures view 3),
+//      now with a warning (F4).
 //  *   redrawAll(): every view is drawn, the initial focus view included
 //      (it is drawn again at focus, as it always has been). A %FM with
 //      `items` and no `height` is sized by that first draw.
@@ -59,7 +60,10 @@ describe('ViewController form loading', () => {
             assert.equal(called, 1, 'called back');
             assert.equal(field.submitArgName, 'name', 'the good key applied');
             assert.equal(client.log.warnings.length, 1);
-            assert.deepEqual(client.log.warnings[0].obj, { mci: 'tl1' });
+            assert.equal(client.log.warnings[0].obj.mci, 'tl1');
+            //  and which form it is in
+            assert.equal(client.log.warnings[0].obj.formId, 0);
+            assert.ok('menuName' in client.log.warnings[0].obj);
         });
 
         it('a form whose only key does not parse calls back too', () => {
@@ -84,7 +88,11 @@ describe('ViewController form loading', () => {
                 assert.ifError(err)
             );
             assert.equal(birthdate.submitArgName, 'birthdate');
-            assert.equal(client.log.warnings.length, 0);
+            //  F4: applied as before, with a warning that the key is not
+            //  exactly a code and an ID
+            assert.equal(client.log.warnings.length, 1);
+            assert.equal(client.log.warnings[0].obj.mci, 'MET3');
+            assert.equal(client.log.warnings[0].obj.readAs, 'ET3');
         });
     });
 

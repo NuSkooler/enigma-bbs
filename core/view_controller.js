@@ -8,6 +8,7 @@ const menuUtil = require('./menu_util.js');
 const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
 const { isKeyPressCaptured, ensureKeyDispatch } = require('./input_capture.js');
+const { getArtOrigin } = require('./mci_map_origin.js');
 
 //  deps
 const events = require('events');
@@ -16,7 +17,35 @@ const async = require('async');
 const _ = require('lodash');
 const paths = require('path');
 
+//  How an `mci` config key is read: a code and a view ID, found anywhere in
+//  the key (`MET3` is read as ET3, as it always has been)
 const MCI_REGEXP = /([A-Z]{2})([0-9]{1,2})/;
+
+//  What an `mci` config key should be: anything else still applies as read
+//  by MCI_REGEXP, with a warning
+const MCI_KEY_EXACT_REGEXP = /^[A-Z]{2}[0-9]{1,2}$/;
+
+//
+//  Views created from an `mci` config key with a `position` and no marker in
+//  the art ("config-placed"). Their keys are left out of the implicit submit
+//  choice (see applyViewConfig()).
+//
+const configPlacedViews = new WeakSet();
+
+//  |position| from an `mci` config block as { row, col }, or null
+function parseConfigPosition(position) {
+    let row;
+    let col;
+    if (Array.isArray(position)) {
+        [row, col] = position;
+    } else if (_.isObject(position)) {
+        ({ row, col } = position);
+    }
+    if (!Number.isInteger(row) || !Number.isInteger(col) || row < 1 || col < 1) {
+        return null;
+    }
+    return { row, col };
+}
 
 //
 //  Tear down every view of |vc|: it takes no more input, its listeners are
@@ -388,29 +417,42 @@ class ViewController extends events.EventEmitter {
         }
     }
 
+    //
+    //  Create the view for |mci| (an mciMap entry) and add it, unless its ID
+    //  is taken. |name| is its MCI code and ID ("TL1"), for the log. Returns
+    //  the view added, or undefined.
+    //
+    _addViewFromMCI(mci, name, logExtra) {
+        const view = this.mciViewFactory.createFromMCI(mci);
+        if (!view) {
+            return;
+        }
+
+        if (this.viewExists(view.id)) {
+            this.client.log.warn(
+                Object.assign({ viewId: view.id, mciCode: name }, logExtra),
+                'Duplicate MCI view ID — skipping. Check art for conflicting codes.'
+            );
+            return;
+        }
+
+        if (false === this.noInput) {
+            view.on('action', this.viewActionListener);
+        }
+
+        this.addView(view);
+        return view;
+    }
+
     createViewsFromMCI(mciMap, cb) {
         const views = [];
 
         async.each(
             Object.keys(mciMap),
             (name, nextItem) => {
-                const mci = mciMap[name];
-                const view = this.mciViewFactory.createFromMCI(mci);
-
+                const view = this._addViewFromMCI(mciMap[name], name);
                 if (view) {
-                    if (this.viewExists(view.id)) {
-                        this.client.log.warn(
-                            { viewId: view.id, mciCode: name },
-                            'Duplicate MCI view ID — skipping. Check art for conflicting codes.'
-                        );
-                    } else {
-                        if (false === this.noInput) {
-                            view.on('action', this.viewActionListener);
-                        }
-
-                        views.push(view);
-                        this.addView(view);
-                    }
+                    views.push(view);
                 }
 
                 return nextItem(null);
@@ -504,7 +546,166 @@ class ViewController extends events.EventEmitter {
         }
     }
 
-    applyViewConfig(config, cb) {
+    //
+    //  Which form this is, for warnings about its config: the menu, the
+    //  form (or prompt) and |mci|, the config key.
+    //
+    _formLogContext(mci) {
+        const context = {
+            menuName: _.get(this.client, 'currentMenuModule.menuName'),
+            formId: undefined === this._configFormId ? this.formId : this._configFormId,
+        };
+        if (this._configPromptName) {
+            context.promptName = this._configPromptName;
+        }
+        context.mci = mci;
+        return context;
+    }
+
+    //
+    //  Placement from config (run once per form load, before
+    //  applyViewConfig()): every `mci` key in |config| with a `position`.
+    //
+    //  *   No view with its ID yet: a view is created as if the art held the
+    //      code there ("config-placed").
+    //  *   A view with its ID and code (an art marker): the explicit
+    //      position wins; the view is moved.
+    //  *   A view with its ID but another code: the ID is taken; skipped
+    //      with the "Duplicate MCI view ID" warning. Its other properties
+    //      still apply to that view, as they always have.
+    //
+    //  |position| is { row, col } from the art's top-left corner (row 1,
+    //  column 1), wherever |mciMap|'s art was drawn, plus |viewOffsets| as
+    //  marker views get. A position off screen is skipped with a warning.
+    //
+    //  Returns the IDs of keys asking for config placement whose ID had no
+    //  view from the art (created or not): applyViewConfig() leaves them
+    //  out of the implicit submit choice.
+    //
+    _placeViewsFromConfig(config, mciMap, viewOffsets) {
+        const configOnlyIds = new Set();
+        const mciConfig = _.isObject(config) && _.isObject(config.mci) ? config.mci : {};
+        const origin = getArtOrigin(mciMap);
+        const offsetRow = _.get(viewOffsets, 'row', 0) || 0;
+        const offsetCol = _.get(viewOffsets, 'col', 0) || 0;
+        const term = this.client.term;
+        let added = false;
+
+        Object.keys(mciConfig).forEach(mci => {
+            const mciConf = mciConfig[mci];
+            if (!_.isObject(mciConf) || !_.has(mciConf, 'position')) {
+                return;
+            }
+
+            const mciMatch = mci.match(MCI_REGEXP);
+            if (null === mciMatch) {
+                return; //  applyViewConfig() warns
+            }
+
+            const code = mciMatch[1];
+            const viewId = parseInt(mciMatch[2]);
+            const existing = this.getView(viewId);
+            if (!existing) {
+                configOnlyIds.add(viewId);
+            }
+
+            const pos = parseConfigPosition(mciConf.position);
+            if (!pos) {
+                return this.client.log.warn(
+                    Object.assign(this._formLogContext(mci), {
+                        position: mciConf.position,
+                    }),
+                    'MCI "position" needs a whole row and col from 1 (e.g. { row: 5, col: 10 }); ignoring it'
+                );
+            }
+
+            const screenPos = {
+                row: origin.row + pos.row - 1 + offsetRow,
+                col: origin.col + pos.col - 1 + offsetCol,
+            };
+            const offScreen =
+                screenPos.row < 1 ||
+                screenPos.col < 1 ||
+                (term.termHeight > 0 && screenPos.row > term.termHeight) ||
+                (term.termWidth > 0 && screenPos.col > term.termWidth);
+
+            if (existing) {
+                if (existing.mciCode && existing.mciCode !== code) {
+                    //  a view of its own was asked for: its ID is taken
+                    this.client.log.warn(
+                        Object.assign(
+                            { viewId, mciCode: mci },
+                            this._formLogContext(mci),
+                            { existingMciCode: existing.mciCode }
+                        ),
+                        'Duplicate MCI view ID — skipping. Check art for conflicting codes.'
+                    );
+                    return;
+                }
+
+                if (offScreen) {
+                    return this.client.log.warn(
+                        Object.assign(this._formLogContext(mci), {
+                            position: pos,
+                            screenPosition: screenPos,
+                        }),
+                        'MCI "position" is off screen; the view stays where its art marker is'
+                    );
+                }
+
+                //  an explicit position wins over the art marker
+                existing.setPosition(screenPos);
+                existing.offsetsApplied = true;
+                return;
+            }
+
+            if (offScreen) {
+                return this.client.log.warn(
+                    Object.assign(this._formLogContext(mci), {
+                        position: pos,
+                        screenPosition: screenPos,
+                    }),
+                    'MCI "position" is off screen; view not created'
+                );
+            }
+
+            //  as if the art held the code at |screenPos|
+            const view = this._addViewFromMCI(
+                {
+                    code,
+                    id: viewId,
+                    position: [screenPos.row, screenPos.col],
+                    args: [],
+                },
+                `${code}${viewId}`,
+                this._formLogContext(mci)
+            );
+
+            if (!view) {
+                return this.client.log.warn(
+                    this._formLogContext(mci),
+                    `MCI code "${code}" makes no view; view not created`
+                );
+            }
+
+            view.offsetsApplied = true;
+            configPlacedViews.add(view);
+            added = true;
+        });
+
+        if (added) {
+            this.setViewOrder();
+        }
+
+        return configOnlyIds;
+    }
+
+    //
+    //  |configOnlyIds|: from _placeViewsFromConfig(), view IDs placed by
+    //  config with no art marker. They are left out of the implicit submit
+    //  choice below; anything else is as it always was.
+    //
+    applyViewConfig(config, cb, configOnlyIds) {
         let highestId = 1;
         let submitId;
         let initialFocusId = 1;
@@ -515,21 +716,48 @@ class ViewController extends events.EventEmitter {
                 const mciMatch = mci.match(MCI_REGEXP); //  :TODO: How to handle auto-generated IDs????
                 if (null === mciMatch) {
                     //  skip it: the rest of the form still loads
-                    this.client.log.warn({ mci: mci }, 'Unable to parse MCI code');
+                    this.client.log.warn(
+                        Object.assign({ mci: mci }, this._formLogContext(mci)),
+                        'Unable to parse MCI code'
+                    );
                     return nextItem(null);
+                }
+
+                if (!MCI_KEY_EXACT_REGEXP.test(mci)) {
+                    //  applied as read, as it always has been
+                    this.client.log.warn(
+                        Object.assign(this._formLogContext(mci), {
+                            readAs: mciMatch[0],
+                        }),
+                        `MCI key "${mci}" is not a code and view ID alone; read as "${mciMatch[0]}"`
+                    );
                 }
 
                 const viewId = parseInt(mciMatch[2]);
                 assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]); //  shouldn't be possible with RegExp used
 
-                if (viewId > highestId) {
+                const view = this.getView(viewId);
+                const configOnly =
+                    (configOnlyIds && configOnlyIds.has(viewId)) ||
+                    (view && configPlacedViews.has(view));
+
+                if (viewId > highestId && !configOnly) {
                     highestId = viewId;
                 }
 
-                const view = this.getView(viewId);
-
                 if (!view) {
                     return nextItem(null);
+                }
+
+                if (view.mciCode && view.mciCode !== mciMatch[1]) {
+                    //  applied anyway, as it always has been (views are
+                    //  matched by ID)
+                    this.client.log.warn(
+                        Object.assign(this._formLogContext(mci), {
+                            viewMciCode: view.mciCode,
+                        }),
+                        `MCI key "${mci}" configures view ${viewId}, which is a %${view.mciCode}; applying it anyway`
+                    );
                 }
 
                 const mciConf = config.mci[mci];
@@ -958,6 +1186,16 @@ class ViewController extends events.EventEmitter {
             ? options.config
             : this.client.currentMenuModule.menuConfig.promptConfig;
 
+        //  for warnings about its config
+        const promptName = _.isObject(options.config)
+            ? options.promptName
+            : _.get(this.client, 'currentMenuModule.menuConfig.prompt');
+        if (_.isString(promptName)) {
+            this._configPromptName = promptName;
+        }
+
+        let configOnlyIds;
+
         async.waterfall(
             [
                 callback => {
@@ -966,11 +1204,24 @@ class ViewController extends events.EventEmitter {
                     });
                 },
                 callback => {
+                    //  views placed by config `position`; the prompt's art
+                    //  markers are already where the prompt was drawn
+                    configOnlyIds = this._placeViewsFromConfig(
+                        promptConfig,
+                        options.mciMap
+                    );
+                    return callback(null);
+                },
+                callback => {
                     if (promptConfig && _.isObject(promptConfig.mci)) {
-                        this.applyViewConfig(promptConfig, (err, info) => {
-                            initialFocusId = info.initialFocusId;
-                            callback(err);
-                        });
+                        this.applyViewConfig(
+                            promptConfig,
+                            (err, info) => {
+                                initialFocusId = info.initialFocusId;
+                                callback(err);
+                            },
+                            configOnlyIds
+                        );
                     } else {
                         callback(null);
                     }
@@ -1122,6 +1373,8 @@ class ViewController extends events.EventEmitter {
         const formIdKey = options.formId ? options.formId.toString() : '0';
         this.formInitialFocusId = 1; //  default to first
         let formConfig;
+        let configOnlyIds;
+        this._configFormId = formIdKey; //  for warnings about its config
 
         //  :TODO: honor options.withoutForm
 
@@ -1163,6 +1416,20 @@ class ViewController extends events.EventEmitter {
                         callback(err);
                     });
                 },
+                callback => {
+                    //  Views placed by config `position`: after the form
+                    //  config was matched above, so the art's MCI codes that
+                    //  explicit form keys (`VMTL: { ... }`) match are as
+                    //  they were
+                    if (_.isObject(formConfig)) {
+                        configOnlyIds = this._placeViewsFromConfig(
+                            formConfig,
+                            options.mciMap,
+                            _.isObject(options.viewOffsets) ? options.viewOffsets : null
+                        );
+                    }
+                    return callback(null);
+                },
                 /*
                 callback => {
                     formConfig = formConfig || {};
@@ -1181,10 +1448,14 @@ class ViewController extends events.EventEmitter {
                 */
                 callback => {
                     if (_.isObject(formConfig)) {
-                        this.applyViewConfig(formConfig, (err, info) => {
-                            this.formInitialFocusId = info.initialFocusId;
-                            callback(err);
-                        });
+                        this.applyViewConfig(
+                            formConfig,
+                            (err, info) => {
+                                this.formInitialFocusId = info.initialFocusId;
+                                callback(err);
+                            },
+                            configOnlyIds
+                        );
                     } else {
                         callback(null);
                     }
@@ -1349,3 +1620,4 @@ exports.FormLifecycle = Object.freeze({
     },
 });
 exports.MCI_REGEXP = MCI_REGEXP;
+exports.MCI_KEY_EXACT_REGEXP = MCI_KEY_EXACT_REGEXP;

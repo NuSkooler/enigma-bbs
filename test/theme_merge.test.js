@@ -491,3 +491,128 @@ describe('ThemeManager._setThemeHelpers() — getTimeWarningText', () => {
         );
     });
 });
+
+//
+//  F4: a theme alone can add a view placed by config (`position`, no marker
+//  in the art) to a stock menu, or move an art marker. mergeMciProperties()
+//  copies an `mci` key the menu does not have; a menu with no form gets
+//  form 0 for it.
+//
+describe('ThemeManager._finalizeTheme() — views placed by a theme (F4)', () => {
+    const events = require('events');
+    const { ViewController } = require('../core/view_controller.js');
+
+    function loadForm(menuConfig, mciMap) {
+        const client = new events.EventEmitter();
+        client.log = { warnings: [] };
+        ['trace', 'debug', 'info', 'error', 'fatal'].forEach(level => {
+            client.log[level] = () => {};
+        });
+        client.log.warn = (obj, msg) => client.log.warnings.push({ obj, msg });
+        const term = { termWidth: 80, termHeight: 25, outputEncoding: 'cp437' };
+        ['write', 'rawWrite', 'beginWrite', 'commitWrite'].forEach(fn => {
+            term[fn] = () => {};
+        });
+        client.term = term;
+        client.currentMenuModule = { menuName: 'stock', menuConfig, menuMethods: {} };
+        const vc = new ViewController({ client });
+        vc.loadFromMenuConfig({ mciMap }, err => assert.ifError(err));
+        return { vc, client };
+    }
+
+    const marker = (code, id, row, col) => ({
+        code,
+        id,
+        position: [row, col],
+        args: [],
+        SGR: '\x1b[0m',
+    });
+
+    it('adds a config-placed %TL to a stock menu form, and moves a marker', () => {
+        const menuData = {
+            menus: {
+                stock: {
+                    art: 'STOCK',
+                    form: {
+                        0: {
+                            mci: {
+                                ET1: { argName: 'name', focus: true },
+                                TL2: { text: 'label' },
+                            },
+                        },
+                    },
+                },
+            },
+            prompts: {},
+        };
+        const themeData = {
+            info: { name: 'T', author: 'A', enabled: true },
+            customization: {
+                menus: {
+                    stock: {
+                        mci: {
+                            TL50: { position: { row: 20, col: 5 }, text: 'theme' },
+                            TL2: { position: { row: 3, col: 40 } },
+                        },
+                    },
+                },
+            },
+        };
+        const tm = makeThemeManager(menuData);
+        const themeConfig = makeThemeConfig(themeData);
+        tm._finalizeTheme('t', themeConfig);
+
+        const menu = themeConfig.current.menus.stock;
+        assert.deepEqual(menu.form[0].mci.TL50.position, { row: 20, col: 5 });
+
+        const { vc, client } = loadForm(menu, {
+            ET1: marker('ET', 1, 1, 1),
+            TL2: marker('TL', 2, 2, 1),
+        });
+        assert.deepEqual(vc.getView(50).position, { row: 20, col: 5 });
+        assert.equal(vc.getView(50).getData(), 'theme');
+        assert.deepEqual(vc.getView(2).position, { row: 3, col: 40 });
+        assert.equal(vc.getView(2).getData(), 'label');
+        //  implicit submit: the highest art ID (TL2), as before, not TL50
+        assert.equal(vc.getView(2).submit, true);
+        assert.notEqual(vc.getView(50).submit, true);
+        assert.equal(client.log.warnings.length, 0);
+        vc.destroy();
+    });
+
+    it('a menu with no form: the theme mci goes to form 0 and is placed', () => {
+        const menuData = {
+            menus: { artOnly: { art: 'ARTONLY', next: 'elsewhere' } },
+            prompts: {},
+        };
+        const themeData = {
+            info: { name: 'T', author: 'A', enabled: true },
+            customization: {
+                menus: {
+                    artOnly: {
+                        mci: {
+                            TK60: {
+                                position: { row: 24, col: 1 },
+                                width: 30,
+                                text: 'news',
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const tm = makeThemeManager(menuData);
+        const themeConfig = makeThemeConfig(themeData);
+        tm._finalizeTheme('t', themeConfig);
+
+        const menu = themeConfig.current.menus.artOnly;
+        assert.ok(menu.form[0].mci.TK60);
+        //  still moves on by itself, as an art-only menu does
+        assert.equal(menu.runtime.autoNext, true);
+
+        const { vc } = loadForm(menu, {});
+        assert.equal(vc.getView(60).mciCode, 'TK');
+        assert.deepEqual(vc.getView(60).position, { row: 24, col: 1 });
+        vc.destroy();
+    });
+});
