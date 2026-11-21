@@ -999,6 +999,14 @@
 
 			fullLoginSequenceUserStats: {
 				mci: {
+					//	A theme can add a view with no %code in the art:
+					//	`position` places it (row/col from the art's top-left).
+					//	Use high IDs. See "Placing Views from Configuration".
+					//	TK50: {
+					//		position: { row: 24, col: 2 }
+					//		width: 76
+					//		text: "Thanks for calling!"
+					//	}
 					UN1: { width: 15 }
 					UR2: { width: 15 }
 					MS3: { width: 15 }

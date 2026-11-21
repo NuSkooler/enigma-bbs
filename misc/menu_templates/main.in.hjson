@@ -1749,6 +1749,19 @@
                     textStyle: upper
                     focus: true
                 }
+
+                //
+                //  A view needs no %code in the art: `position` places it,
+                //  counted from the art's top-left corner (here, the prompt's),
+                //  as if the art held the code there. A theme can add one the
+                //  same way. Use high IDs (50-99). See "Placing Views from
+                //  Configuration" in the MCI Codes docs.
+                //
+                //  TK50: {
+                //      position: { row: 2, col: 1 }
+                //      width: 79
+                //      text: "Type a command, or ? for help"
+                //  }
             }
         }
 

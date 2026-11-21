@@ -195,6 +195,59 @@ As mentioned above, MCI codes can (and often should) be explicitly tied to a *Vi
 
 A view ID is tied to a MCI code by specifying it after the code. For example: `%VM1` or `%SM10`.
 
+Some rules for view IDs:
+* A form holds one view per ID. Two codes with the same ID in one art file (`%TL1` and `%ET1`) clash: the second is skipped and a `Duplicate MCI view ID` warning is logged.
+* Codes without an ID (`%BN`) get generated IDs from 100 up.
+* An `mci` key in `menu.hjson` or `theme.hjson` is the code followed by the view ID, and nothing else: `ET1`, `TL20`. IDs in keys go up to 99.
+* Views are matched to `mci` keys **by ID**. A key whose code is not the code in the art (`ET8` for a `%ME8`) still configures that view, as it always has, but a warning is logged naming the menu, the form and the key. Fix the key to match the art.
+* A key that is not exactly a code and an ID (`MET3`) is read from the first code and ID found in it (`ET3`), with a warning.
+
+### Placing Views from Configuration
+A view does not need a code in the art. An `mci` key with a `position` places a view there, as if the art held the code at that spot. This is useful where a `%` code would draw over the art itself, such as a ticker over a logo, and it lets a theme add or move views on a stock menu without touching the art.
+
+```hjson
+mci: {
+    //  no %TK50 in the art: the ticker is created at row 23, column 2
+    TK50: {
+        position: { row: 23, col: 2 }
+        width: 76
+        text: "Welcome to the board!"
+    }
+    //  %TL2 is in the art: the explicit position wins and moves it
+    TL2: {
+        position: { row: 5, col: 40 }
+    }
+}
+```
+
+* `position` is `{ row: <row>, col: <col> }`, counted from the art's top-left corner (row 1, column 1). For full screen art drawn from the top of the screen, that is the screen position. Art drawn lower down (a menu's prompt below its art, a prompt drawn at a position, art a module places in part of the screen) moves its placed views with it, just as it moves its `%` codes.
+* Any view code can be placed, input views included. A placed input view takes part in the form like any other: focus order (by ID) and form data.
+* With a code in the art **and** a `position`, the position wins.
+* A position off the screen is skipped with a warning. Art taller than the screen that scrolls is not supported for placed views.
+* Use **high IDs** for placed views (for example 50 to 99), so they do not clash with IDs the art uses now or later. A placed view whose ID is already taken by a different code in the art is skipped with the `Duplicate MCI view ID` warning.
+* A theme can add a placed view to a stock menu: an `mci` key the menu does not have is added by the theme. See [Themes](themes.md).
+* A menu with **no `form`** (an art-only display menu) needs a form for the `mci` block in `menu.hjson`: `form: { 0: { mci: { ... } } }`. Adding a `form` to such a menu in `menu.hjson` stops it moving on to its `next` menu by itself. Putting the `mci` block in the theme instead keeps that behaviour:
+
+```hjson
+//  theme.hjson
+customization: {
+    menus: {
+        fullLoginSequenceUserStats: {
+            mci: {
+                TK50: {
+                    position: { row: 24, col: 1 }
+                    width: 79
+                    text: "Thanks for calling!"
+                }
+            }
+        }
+    }
+}
+```
+
+### The Submit View
+Pressing Enter on a form only submits it from a view with `submit: true`. If no view in the form's `mci` block sets `submit`, the view with the **highest ID among the configured keys** gets it (if the art has no view with that ID, no view does). Placed views (a `position` with no code in the art) are left out of that choice, so a theme adding a placed view with a high ID does not move submit off the form's real field. To be sure, set `submit: true` on the view that should submit.
+
 ## Properties & Theming
 Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`. See [Themes](themes.md) for more information on this subject.
 
@@ -209,7 +262,8 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 | `width` | Sets the width of a view |
 | `focus` | If set to `true`, establishes initial focus |
 | `text` | Set's the view's text if applicable, such as a [TextView](./views/text_view.md) or [EditTextView](./views/edit_text_view.md) amongst others. See [MCI Formatting](#mci-formatting) below for advanced formatting options using the |
-| `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
+| `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form**. See [The Submit View](#the-submit-view) |
+| `position` | Places the view at `{ row, col }` from the art's top-left corner, with or without a code in the art. See [Placing Views from Configuration](#placing-views-from-configuration) |
 | `itemFormat` | Sets the format for a list entry. See [Entry Formatting](#entry-formatting) below |
 | `focusItemFormat` | Sets the format for a focused list entry. See [Entry Formatting](#entry-formatting) below |
 
