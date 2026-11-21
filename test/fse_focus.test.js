@@ -213,10 +213,12 @@ describe('FSE _finishEditModeInit (#712)', () => {
     });
 });
 
-// ─── FSE _returnFocusToBody detaches the header (defense in depth, #712) ───────
+// ─── FSE _returnFocusToBody deactivates the header (defense in depth, #712) ──
 
 describe('FSE _returnFocusToBody (#712)', () => {
     let FullScreenEditorModule;
+    const { ViewController } = require('../core/view_controller.js');
+    const FormState = require('../core/form_state.js');
 
     before(() => {
         const prev = configModule._pushTestConfig(BASE_CONFIG);
@@ -233,27 +235,46 @@ describe('FSE _returnFocusToBody (#712)', () => {
         return view;
     }
 
+    //  A header field: a real ViewController's focused view
+    function makeHeaderField() {
+        const view = new events.EventEmitter();
+        view.id = 2;
+        view.acceptsFocus = true;
+        view.acceptsInput = true;
+        view.hasFocus = false;
+        view.keyPresses = [];
+        view.setFocus = focused => {
+            view.hasFocus = focused;
+        };
+        view.onKeyPress = ch => view.keyPresses.push(ch);
+        return view;
+    }
+
     function makeInst({ headerAttached }) {
         const inst = Object.create(FullScreenEditorModule.prototype);
         inst.editorMode = 'view'; //  short-circuits updateTextEditMode/Position work
-        inst.client = {
-            term: { beginWrite: () => {}, commitWrite: () => {} },
+        const client = new events.EventEmitter();
+        client.term = {
+            write: () => {},
+            rawWrite: () => {},
+            beginWrite: () => {},
+            commitWrite: () => {},
         };
+        inst.client = client;
 
         const bodyView = makeBodyView();
-        inst._headerSetFocusCalls = [];
+        const header = new ViewController({ client, formId: 0, detached: true });
+        const field = makeHeaderField();
+        header.addView(field);
+        header.focusedView = field;
+        if (headerAttached) {
+            header.attachClientEvents();
+            field.setFocus(true);
+        }
+        inst._headerField = field;
 
         inst.viewControllers = {
-            header: {
-                attached: headerAttached,
-                setFocus(focused) {
-                    inst._headerSetFocusCalls.push(focused);
-                    //  Mirror ViewController.setFocus → detachClientEvents guard.
-                    if (!focused) {
-                        this.attached = false;
-                    }
-                },
-            },
+            header,
             body: {
                 switchFocusCalls: [],
                 switchFocus(id) {
@@ -265,17 +286,25 @@ describe('FSE _returnFocusToBody (#712)', () => {
         return inst;
     }
 
-    it('detaches the header (setFocus(false)) before focusing the body', () => {
+    it('deactivates the header (no keys, views kept) before focusing the body', () => {
         const inst = makeInst({ headerAttached: true });
+        const header = inst.viewControllers.header;
 
         inst._returnFocusToBody();
 
-        assert.deepEqual(
-            inst._headerSetFocusCalls,
-            [false],
-            'header must be told to lose focus (detach) exactly once'
+        assert.equal(header.attached, false, 'header must take no more keys');
+        assert.equal(inst.client.listenerCount('key press'), 0);
+        assert.equal(inst._headerField.hasFocus, false, 'header field blurred');
+        assert.ok(FormState.isFormInactive(header), 'header is inactive');
+        assert.ok(!FormState.isFormDestroyed(header), 'header is not torn down');
+        assert.equal(
+            inst._headerField.listenerCount('action'),
+            1,
+            'the header field keeps its listener'
         );
-        assert.equal(inst.viewControllers.header.attached, false);
+
+        inst.client.emit('key press', 'x', undefined);
+        assert.deepEqual(inst._headerField.keyPresses, [], 'no key reaches the header');
         assert.deepEqual(
             inst.viewControllers.body.switchFocusCalls,
             [1],
@@ -287,8 +316,6 @@ describe('FSE _returnFocusToBody (#712)', () => {
         const inst = makeInst({ headerAttached: false });
 
         assert.doesNotThrow(() => inst._returnFocusToBody());
-
-        //  setFocus(false) is still called, but it is a no-op when not attached.
         assert.deepEqual(inst.viewControllers.body.switchFocusCalls, [1]);
     });
 

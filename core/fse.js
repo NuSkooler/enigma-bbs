@@ -3,7 +3,7 @@
 
 //  ENiGMA½
 const { MenuModule } = require('./menu_module.js');
-const { ViewController } = require('./view_controller.js');
+const { ViewController, FormLifecycle } = require('./view_controller.js');
 const { View } = require('./view.js');
 const ansi = require('./ansi_term.js');
 const theme = require('./theme.js');
@@ -106,6 +106,9 @@ const FormIds = {
 
     help: 50,
 };
+
+//  The forms that take turns in the footer rows (see getFooterName())
+const FooterFormNames = ['footerEditor', 'footerEditorMenu', 'footerView', 'footerFind'];
 
 /*
     Custom formatting:
@@ -227,7 +230,7 @@ exports.FullScreenEditorModule =
                 //  (headerSubmit → switchToBody); Escape cancels (headerEscapePressed).
                 editModeChangeSubject: (_formData, _extraArgs, cb) => {
                     this._changingSubject = true;
-                    this.viewControllers.body.setFocus(false);
+                    FormLifecycle.deactivate(this.viewControllers.body);
                     this.viewControllers.header.switchFocus(MciViewIds.header.subject);
                     return cb(null);
                 },
@@ -238,7 +241,9 @@ exports.FullScreenEditorModule =
 
                 //  ── Quote Builder ────────────────────────────────────────────────────
                 editModeMenuQuote: (_formData, _extraArgs, cb) => {
-                    this.viewControllers.footerEditorMenu.setFocus(false);
+                    //  the quote builder is drawn over the body and the footer
+                    FormLifecycle.cover(this.viewControllers.footerEditorMenu);
+                    FormLifecycle.cover(this.viewControllers.body);
                     this.displayQuoteBuilder();
                     return cb(null);
                 },
@@ -251,7 +256,7 @@ exports.FullScreenEditorModule =
 
                 //  ── Editor Menu ──────────────────────────────────────────────────────
                 editModeMenuHelp: (_formData, _extraArgs, cb) => {
-                    this.viewControllers.footerEditorMenu.setFocus(false);
+                    FormLifecycle.cover(this.viewControllers.footerEditorMenu);
                     return this.displayHelp(cb);
                 },
                 //  Ctrl-S quick save: delegates to whichever subclass defined editModeMenuSave.
@@ -268,7 +273,7 @@ exports.FullScreenEditorModule =
 
                 //  ── Find / Search ────────────────────────────────────────────────────
                 editModeFind: (_formData, _extraArgs, cb) => {
-                    this.viewControllers.body.setFocus(false);
+                    FormLifecycle.deactivate(this.viewControllers.body);
                     return this.openFindPrompt(err => {
                         if (err) {
                             //  If the prompt fails to open (e.g. missing art),
@@ -288,7 +293,7 @@ exports.FullScreenEditorModule =
                 },
                 viewModeFind: (_formData, _extraArgs, cb) => {
                     if (this.viewControllers.footerView) {
-                        this.viewControllers.footerView.setFocus(false);
+                        FormLifecycle.deactivate(this.viewControllers.footerView);
                     }
                     return this.openFindPrompt(cb);
                 },
@@ -309,11 +314,11 @@ exports.FullScreenEditorModule =
 
                 //  ── View Mode ───────────────────────────────────────────────────────
                 viewModeMenuHelp: (_formData, _extraArgs, cb) => {
-                    this.viewControllers.footerView.setFocus(false);
+                    FormLifecycle.cover(this.viewControllers.footerView);
                     return this.displayHelp(cb);
                 },
                 addToDownloadQueue: (_formData, _extraArgs, cb) => {
-                    this.viewControllers.footerView.setFocus(false);
+                    FormLifecycle.cover(this.viewControllers.footerView);
                     return this.addToDownloadQueue(cb);
                 },
             };
@@ -378,15 +383,17 @@ exports.FullScreenEditorModule =
 
                 switch (this.footerMode) {
                     case 'editor':
+                        //  (switchFooter() covered it already; kept, as it is
+                        //  shown again on the next Escape)
                         if (this.viewControllers.footerEditorMenu !== undefined) {
-                            this.viewControllers.footerEditorMenu.detachClientEvents();
+                            FormLifecycle.cover(this.viewControllers.footerEditorMenu);
                         }
                         this.viewControllers.body.switchFocus(1);
                         this.observeEditorEvents();
                         break;
 
                     case 'editorMenu':
-                        this.viewControllers.body.setFocus(false);
+                        FormLifecycle.deactivate(this.viewControllers.body);
                         this.viewControllers.footerEditorMenu.switchFocus(1);
                         break;
 
@@ -565,15 +572,15 @@ exports.FullScreenEditorModule =
         //  after returning from any overlay (quote builder, find prompt, help, etc.).
         _returnFocusToBody() {
             this.client.term.beginWrite();
-            //  Detach any other input-accepting section (in particular the
+            //  Deactivate any other input-accepting section (in particular the
             //  header) so the body is the only ViewController attached to the
             //  client 'key press' event. Otherwise a still-attached header would
-            //  receive the same keystrokes as the body (#712). setFocus(false)
-            //  is a no-op when the ViewController isn't attached, so this is safe
-            //  on the overlay-return paths (find/quote/help) where the header was
-            //  never attached to begin with.
+            //  receive the same keystrokes as the body (#712). The header stays
+            //  on screen, so it is deactivated, not torn down: its views and
+            //  their timers live on. Safe on the overlay-return paths
+            //  (find/quote/help) where the header was inactive already.
             if (this.viewControllers.header) {
-                this.viewControllers.header.setFocus(false);
+                FormLifecycle.deactivate(this.viewControllers.header);
             }
             this.viewControllers.body.switchFocus(1);
             const bodyView = this._bodyView;
@@ -596,8 +603,9 @@ exports.FullScreenEditorModule =
         //  the cursor there without setting _findState, so no highlight overlay
         //  is painted and no ESC sequences can bleed into the editing session.
         _closeFindPrompt(query, cb) {
+            //  kept for the next find: covered, not torn down
             if (this.viewControllers.footerFind) {
-                this.viewControllers.footerFind.detachClientEvents();
+                FormLifecycle.cover(this.viewControllers.footerFind);
             }
             this.footerMode = this._prevFooterMode;
             this.switchFooter(err => {
@@ -1097,8 +1105,11 @@ exports.FullScreenEditorModule =
                     (err, vc, created) => {
                         try {
                             //  (a left menu's form is torn down: not drawn)
-                            if (!err && !created && !this.hasLeftMenu()) {
-                                vc.redrawAll();
+                            if (!err && !this.hasLeftMenu()) {
+                                this._coverOtherFooters(footerName);
+                                if (!created) {
+                                    vc.redrawAll();
+                                }
                             }
                         } finally {
                             endBatch();
@@ -1109,6 +1120,22 @@ exports.FullScreenEditorModule =
             } catch (e) {
                 endBatch();
                 throw e;
+            }
+        }
+
+        //
+        //  The footers share the rows below the body, and only |footerName|
+        //  is shown: every other footer form is covered (no keys, no
+        //  background drawing) until it is shown again. They are kept, not
+        //  torn down, as each is shown again later (prepViewController()
+        //  activates an existing form).
+        //
+        _coverOtherFooters(footerName) {
+            for (const name of FooterFormNames) {
+                const vc = this.viewControllers[name];
+                if (name !== footerName && vc instanceof ViewController) {
+                    FormLifecycle.cover(vc);
+                }
             }
         }
 
@@ -1890,7 +1917,7 @@ exports.FullScreenEditorModule =
         }
 
         switchToHeader() {
-            this.viewControllers.body.setFocus(false);
+            FormLifecycle.deactivate(this.viewControllers.body);
             this.viewControllers.header.switchFocus(2); //  to
         }
 
@@ -1909,21 +1936,22 @@ exports.FullScreenEditorModule =
                 this.initBodyReplyEditMode();
             }
 
-            this.viewControllers.header.setFocus(false);
+            FormLifecycle.deactivate(this.viewControllers.header);
             this.viewControllers.body.switchFocus(1);
 
             this.observeEditorEvents();
         }
 
         switchToFooter() {
-            this.viewControllers.header.setFocus(false);
-            this.viewControllers.body.setFocus(false);
+            FormLifecycle.deactivate(this.viewControllers.header);
+            FormLifecycle.deactivate(this.viewControllers.body);
 
             this.viewControllers[this.getFooterName()].switchFocus(1); //  HM1
         }
 
         switchFromQuoteBuilderToBody() {
-            this.viewControllers.quoteBuilder.setFocus(false);
+            //  kept for the next quote: covered, not torn down
+            FormLifecycle.cover(this.viewControllers.quoteBuilder);
             this.client.term.beginWrite();
             this._bodyView.redraw();
             this._returnFocusToBody(); //  has its own nested beginWrite/commitWrite
