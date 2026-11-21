@@ -544,8 +544,22 @@ describe('MenuModule left state', function () {
         });
     });
 
+    //
+    //  The prep helpers once the menu has been left: they call back with
+    //  the arguments they always have (a mod's cleanup still runs), but a
+    //  form built or refocused for the left menu is torn down first: no
+    //  key listener, views destroyed, no ticker timer.
+    //
     describe('prep helpers once the menu has been left', () => {
-        it('prepViewControllerWithArt() and displayArtAndPrepViewController() stop quietly', done => {
+        let restore = [];
+        afterEach(() => {
+            restore.reverse().forEach(fn => fn());
+            restore = [];
+        });
+
+        //  art the test finishes by hand; forms that hold a ticker
+        function setup() {
+            timers = captureTimers();
             const counters = makeCounters();
             const Menu = defineMenu(counters, 'm');
             const client = makeClient({ m: menuConfig('m') });
@@ -556,35 +570,122 @@ describe('MenuModule left state', function () {
                 client,
             });
             const pending = [];
+            const artInfo = { mciMap: {}, height: 1 };
             menu.displayAsset = (art, options, cb) => pending.push(cb);
-            const theme = require('../core/theme.js');
-            const savedDisplay = theme.displayThemedAsset;
-            theme.displayThemedAsset = (art, c, options, cb) => pending.push(cb);
 
-            let calls = 0;
-            try {
-                menu.prepViewControllerWithArt('main', 0, {}, () => ++calls);
-                menu.displayArtAndPrepViewController('main', 0, {}, () => ++calls);
-            } finally {
+            const theme = require('../core/theme.js');
+            const { ViewController } = require('../core/view_controller.js');
+            const { TickerView } = require('../core/ticker_view.js');
+            const savedDisplay = theme.displayThemedAsset;
+            const savedLoad = ViewController.prototype.loadFromMenuConfig;
+            theme.displayThemedAsset = (art, c, options, cb) => pending.push(cb);
+            ViewController.prototype.loadFromMenuConfig = function (opts, cb) {
+                this.addView(
+                    new TickerView({
+                        client: this.client,
+                        id: 1,
+                        position: { row: 2, col: 1 },
+                        dimens: { width: 20, height: 1 },
+                        text: 'news of the day',
+                    })
+                );
+                return cb(null);
+            };
+            restore.push(() => {
                 theme.displayThemedAsset = savedDisplay;
-            }
-            assert.equal(pending.length, 2);
+                ViewController.prototype.loadFromMenuConfig = savedLoad;
+            });
+
+            const finishArt = () => pending.splice(0).forEach(cb => cb(null, artInfo));
+            return { client, menu, pending, artInfo, finishArt };
+        }
+
+        function assertTornDown(client, vc) {
+            const { View } = require('../core/view.js');
+            assert.equal(vc.attached, false, 'keys detached');
+            assert.equal(client.listenerCount('key press'), 0, 'no key listener');
+            Object.values(vc.views).forEach(v => assert.ok(View.isDestroyed(v)));
+            assert.equal(timers.intervals.size, 0, 'no ticker timer');
+        }
+
+        it('prepViewControllerWithArt(): calls back (err, vc, true) with the form torn down', () => {
+            const { client, menu, pending, finishArt } = setup();
+            const calls = [];
+            menu.prepViewControllerWithArt('main', 0, {}, (...args) => calls.push(args));
+            assert.equal(pending.length, 1);
 
             menu.leave();
-            pending.forEach(cb => cb(null, { mciMap: {}, height: 1 }));
-            pending.forEach(cb => cb(new Error('no art')));
-            settle(() => {
-                assert.equal(calls, 0);
-                assert.deepEqual(menu.viewControllers, {});
-                menu.prepViewController('late', 0, {}, () => ++calls);
-                assert.equal(calls, 0);
-                assert.deepEqual(menu.viewControllers, {});
+            finishArt();
+
+            assert.equal(calls.length, 1, 'called back, as before');
+            const [err, vc, created] = calls[0];
+            assert.ifError(err);
+            assert.equal(vc, menu.viewControllers.main);
+            assert.equal(created, true);
+            assertTornDown(client, vc);
+        });
+
+        it('prepViewControllerWithArt(): an art error after leave() is called back as before', () => {
+            const { menu, pending } = setup();
+            const calls = [];
+            menu.prepViewControllerWithArt('main', 0, {}, (...args) => calls.push(args));
+            menu.leave();
+            const error = new Error('no art');
+            pending.splice(0).forEach(cb => cb(error));
+            assert.deepEqual(calls, [[error]]);
+            assert.deepEqual(menu.viewControllers, {});
+        });
+
+        it('displayArtAndPrepViewController(): calls back (err) with the form torn down', done => {
+            const { client, menu, pending, finishArt } = setup();
+            menu.displayArtAndPrepViewController('main', 0, {}, (...args) => {
+                assert.equal(args.length, 1, 'just (err), as before');
+                assert.ifError(args[0]);
+                assertTornDown(client, menu.viewControllers.main);
                 return done();
             });
+            assert.equal(pending.length, 1);
+            menu.leave();
+            finishArt();
+        });
+
+        it('prepViewController() after leave(): built and torn down, then (null, vc, true)', () => {
+            const { client, menu } = setup();
+            menu.leave();
+            const calls = [];
+            menu.prepViewController('late', 0, {}, (...args) => calls.push(args));
+            assert.equal(calls.length, 1);
+            const [err, vc, created] = calls[0];
+            assert.ifError(err);
+            assert.equal(created, true);
+            assertTornDown(client, vc);
+        });
+
+        it('a form that already existed is not refocused (re-attached) after leave()', () => {
+            const { client, menu, finishArt } = setup();
+            let vc;
+            menu.prepViewControllerWithArt('main', 0, {}, (err, v) => (vc = v));
+            finishArt();
+            assert.equal(vc.attached, true);
+            assert.equal(timers.intervals.size, 1, 'a live form ticks');
+
+            menu.leave();
+            assertTornDown(client, vc);
+
+            const calls = [];
+            menu.prepViewController('main', 0, {}, (...args) => calls.push(args));
+            assert.deepEqual(calls, [[null, vc, false]]);
+            menu.displayArtAndPrepViewController('main', 0, {}, (...args) =>
+                calls.push(args)
+            );
+            finishArt();
+            assert.deepEqual(calls[1], [null]);
+            assertTornDown(client, vc);
         });
     });
-    describe('displayArtAndPrepViewController() calls back like prepViewController()', () => {
-        it('(err, artInfo, wasCreated): true when it built the form, false when it refocused it', done => {
+
+    describe('displayArtAndPrepViewController() calls back (err), as before', () => {
+        it('built or refocused, the callback gets just err', done => {
             const counters = makeCounters();
             const Menu = defineMenu(counters, 'm');
             const client = makeClient({ m: menuConfig('m') });
@@ -594,43 +695,45 @@ describe('MenuModule left state', function () {
                 menuConfig: { config: { art: { main: 'MAIN' } } },
                 client,
             });
-            const artInfo = { mciMap: {}, height: 3 };
             const theme = require('../core/theme.js');
             const { ViewController } = require('../core/view_controller.js');
             const savedDisplay = theme.displayThemedAsset;
             const savedLoad = ViewController.prototype.loadFromMenuConfig;
-            theme.displayThemedAsset = (art, c, options, cb) => cb(null, artInfo);
+            theme.displayThemedAsset = (art, c, options, cb) =>
+                cb(null, { mciMap: {}, height: 3 });
             ViewController.prototype.loadFromMenuConfig = (opts, cb) => cb(null);
             const restore = () => {
                 theme.displayThemedAsset = savedDisplay;
                 ViewController.prototype.loadFromMenuConfig = savedLoad;
             };
 
-            menu.displayArtAndPrepViewController(
-                'main',
-                0,
-                {},
-                (err, info, wasCreated) => {
+            //  as an async.waterfall() step: the next step gets only its callback
+            const async = require('async');
+            async.waterfall(
+                [
+                    callback =>
+                        menu.displayArtAndPrepViewController('main', 0, {}, callback),
+                    callback => {
+                        assert.equal(typeof callback, 'function');
+                        assert.ok(menu.viewControllers.main);
+                        return menu.displayArtAndPrepViewController(
+                            'main',
+                            0,
+                            {},
+                            (...args) => callback(null, args)
+                        );
+                    },
+                ],
+                (err, args) => {
+                    restore();
                     try {
                         assert.ifError(err);
-                        assert.equal(info, artInfo);
-                        assert.equal(wasCreated, true);
+                        assert.deepEqual(args, [null]);
+                        menu.leave();
                     } catch (e) {
-                        restore();
                         return done(e);
                     }
-                    menu.displayArtAndPrepViewController(
-                        'main',
-                        0,
-                        {},
-                        (err, info, wasCreated) => {
-                            restore();
-                            assert.ifError(err);
-                            assert.equal(info, artInfo);
-                            assert.equal(wasCreated, false);
-                            return done();
-                        }
-                    );
+                    return done();
                 }
             );
         });
