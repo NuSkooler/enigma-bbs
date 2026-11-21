@@ -500,7 +500,7 @@ describe('Form states (ViewController)', () => {
             assert.equal(field.getData(), 'x');
         });
 
-        it('removeViewController() on a form that never attached stops its views', () => {
+        it('removeViewController() on a form that never attached leaves its views alone (as on master)', () => {
             const client = makeClient();
             const menu = makeModule(client);
             const vc = menu.addViewController(
@@ -511,12 +511,14 @@ describe('Form states (ViewController)', () => {
             vc.addView(ticker);
             assert.equal(timers.live(), 1);
             menu.removeViewController('pending');
-            assert.equal(timers.live(), 0, 'ticker timer stopped');
-            assert.equal(View.isDestroyed(ticker), true);
+            assert.equal(timers.live(), 1, 'ticker timer still running');
+            assert.equal(View.isDestroyed(ticker), false);
             assert.equal(FormState.isFormDestroyed(vc), false, 'not terminal');
             menu.addViewController('pending', vc);
             vc.setFocus(true);
             assert.equal(vc.attached, true);
+            vc.destroy();
+            assert.equal(timers.live(), 0);
         });
 
         it('leave() still destroys a form removed and added back', () => {

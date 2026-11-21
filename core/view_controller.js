@@ -660,8 +660,10 @@ class ViewController extends events.EventEmitter {
     //
     //  "Inactive" means deactivate() or cover() was called: a form built and
     //  never attached is not inactive. attachClientEvents() (also through
-    //  switchFocus()) on an inactive or covered form makes it active again,
-    //  as activate() does.
+    //  switchFocus()) on an inactive or covered form makes it active again:
+    //  it uncovers it and gives it the keys. Unlike activate() it does not
+    //  refocus the focused view or redraw paused views (switchFocus()
+    //  focuses its target).
     //
     //  setFocus(false) is unchanged: it detaches and tears down
     //  (detachClientEvents()). setFocus(true) is activate().
@@ -1323,6 +1325,5 @@ exports.FormLifecycle = Object.freeze({
     cover: coverForm,
     uncover: uncoverForm,
     destroy: destroyForm,
-    tearDownViews,
 });
 exports.MCI_REGEXP = MCI_REGEXP;

@@ -14,7 +14,6 @@ const MultiLineEditTextView =
 const { TextView } = require('../core/text_view.js');
 const { View } = require('./view');
 const ScreenCover = require('./screen_cover.js');
-const FormState = require('./form_state.js');
 const { Errors, ErrorReasons } = require('../core/enig_error.js');
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
@@ -667,23 +666,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     //
-    //  Detach the form (detachClientEvents(), as always) and forget it. It
-    //  is not destroyed: a module that kept it can add it again and
-    //  setFocus(true) it. A form that never attached has its views torn
-    //  down too (detachClientEvents() leaves those alone), so a ticker on
-    //  it does not keep running.
+    //  Unchanged from before form states: detach the form
+    //  (detachClientEvents(), which does nothing on a form that never
+    //  attached) and forget it. It is not destroyed: a module that kept it
+    //  can add it again and setFocus(true) it.
     //
     removeViewController(name) {
-        const vc = this.viewControllers[name];
-        if (vc) {
-            const neverAttached =
-                vc instanceof ViewController &&
-                !vc.attached &&
-                !FormState.isFormInactive(vc);
-            vc.detachClientEvents();
-            if (neverAttached) {
-                FormLifecycle.tearDownViews(vc);
-            }
+        if (this.viewControllers[name]) {
+            this.viewControllers[name].detachClientEvents();
             delete this.viewControllers[name];
         }
     }
