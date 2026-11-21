@@ -4,10 +4,8 @@ const { strict: assert } = require('assert');
 const events = require('events');
 
 const { ViewController } = require('../core/view_controller.js');
-const { TextView } = require('../core/text_view.js');
 const { EditTextView } = require('../core/edit_text_view.js');
 const { MaskEditTextView } = require('../core/mask_edit_text_view.js');
-const { MultiLineEditTextView } = require('../core/multi_line_edit_text_view.js');
 
 //
 //  ViewController form loading:
@@ -15,9 +13,9 @@ const { MultiLineEditTextView } = require('../core/multi_line_edit_text_view.js'
 //  *   applyViewConfig(): an `mci` key that does not parse is skipped with a
 //      warning; the rest of the form loads (it used to hang the menu). Keys
 //      are still matched unanchored, as before (`MET3` configures view 3).
-//  *   redrawAll(initialFocusId): the initial focus view is drawn once, by
-//      switchFocus(), when its setFocus() draws it; otherwise (an MLE, a
-//      view that takes no focus) redrawAll() draws it as before.
+//  *   redrawAll(): every view is drawn, the initial focus view included
+//      (it is drawn again at focus, as it always has been). A %FM with
+//      `items` and no `height` is sized by that first draw.
 //
 
 function makeClient() {
@@ -34,16 +32,6 @@ function makeClient() {
     term.commitWrite = () => {};
     client.term = term;
     return client;
-}
-
-function countDraws(view) {
-    view.draws = 0;
-    const redraw = view.redraw.bind(view);
-    view.redraw = (...args) => {
-        ++view.draws;
-        return redraw(...args);
-    };
-    return view;
 }
 
 describe('ViewController form loading', () => {
@@ -100,91 +88,70 @@ describe('ViewController form loading', () => {
         });
     });
 
-    describe('redrawAll(initialFocusId)', () => {
-        function load(client, views, initialFocusId) {
-            const vc = new ViewController({ client });
-            views.forEach(v => vc.addView(countDraws(v)));
-            vc.setViewOrder();
-            vc.redrawAll(initialFocusId);
-            if (initialFocusId) {
-                vc.switchFocus(initialFocusId);
-            }
-            return vc;
-        }
-
-        it('draws a focused text field once (by switchFocus), the others once', () => {
+    describe('redrawAll()', () => {
+        it('redrawAll(id) draws every view, view |id| included', () => {
             const client = makeClient();
-            const label = new TextView({
-                client,
-                id: 1,
-                position: { row: 1, col: 1 },
-                text: 'Name:',
-            });
+            const vc = new ViewController({ client, detached: true });
             const field = new EditTextView({
                 client,
-                id: 2,
-                position: { row: 1, col: 8 },
+                id: 1,
+                position: { row: 2, col: 2 },
+                dimens: { width: 10, height: 1 },
                 acceptsFocus: true,
+                acceptsInput: true,
             });
-            const other = new EditTextView({
-                client,
-                id: 3,
-                position: { row: 2, col: 8 },
-                acceptsFocus: true,
-            });
-            load(client, [label, field, other], 2);
+            field.setText('VISIBLE', false);
+            vc.addView(field);
 
-            assert.equal(field.draws, 1, 'the focus view is drawn once');
-            assert.equal(field.hasFocus, true);
-            assert.equal(label.draws, 1);
-            assert.equal(other.draws, 1);
+            client.term.out.length = 0;
+            vc.redrawAll(1);
+            assert.ok(client.term.out.join('').includes('VISIBLE'));
         });
 
-        it('draws an initial focus view that takes no focus (switchFocus skips it)', () => {
+        it('a %FM with items and no height keeps its layout (sized by the first draw)', () => {
             const client = makeClient();
-            const label = new TextView({
-                client,
-                id: 1,
-                position: { row: 1, col: 1 },
-                text: 'Hello',
-            });
-            load(client, [label], 1);
-            assert.equal(label.draws, 1);
-            assert.equal(label.hasFocus, undefined);
-        });
+            client.term.outputEncoding = 'cp437';
+            client.currentMenuModule = {
+                menuConfig: { config: {} },
+                menuMethods: {},
+                menuName: 'fm',
+            };
+            const items = Array.from({ length: 40 }, (_, i) => `item${i + 1}`);
+            const vc = new ViewController({ client });
+            let called = 0;
+            vc.loadFromPromptConfig(
+                {
+                    mciMap: {
+                        FM1: {
+                            code: 'FM',
+                            id: 1,
+                            position: [3, 5],
+                            args: [],
+                            SGR: '\x1b[0;37m',
+                            focusSGR: '\x1b[0;1;33;44m',
+                        },
+                    },
+                    config: { mci: { FM1: { items, focus: true, width: 60 } } },
+                },
+                err => {
+                    ++called;
+                    assert.ifError(err);
+                }
+            );
+            assert.equal(called, 1);
 
-        it('draws a focused MultiLineEditTextView: its setFocus() does not draw the text', () => {
-            const client = makeClient();
-            const body = new MultiLineEditTextView({
-                client,
-                id: 1,
-                position: { row: 1, col: 1 },
-                dimens: { width: 20, height: 3 },
-                mode: 'preview',
-            });
-            body.setText('message body');
-            load(client, [body], 1);
-            assert.equal(body.draws, 1, 'drawn by redrawAll()');
-            assert.ok(client.term.out.join('').includes('message body'));
-        });
+            const fm = vc.getView(1);
+            //  the same as before F2: 22 rows (to the bottom of a 25 row
+            //  terminal from row 3), two columns of 22 items on one page
+            assert.deepEqual(fm.dimens, { width: 60, height: 22 });
+            assert.equal(fm.itemsPerRow, 22);
+            assert.equal(fm.pages.length, 1);
 
-        it('without an initial focus id every view is drawn', () => {
-            const client = makeClient();
-            const a = new EditTextView({
-                client,
-                id: 1,
-                position: { row: 1, col: 1 },
-                acceptsFocus: true,
-            });
-            const b = new EditTextView({
-                client,
-                id: 2,
-                position: { row: 2, col: 1 },
-                acceptsFocus: true,
-            });
-            load(client, [a, b]);
-            assert.equal(a.draws, 1);
-            assert.equal(b.draws, 1);
+            //  and nothing drawn below the terminal
+            const out = client.term.out.join('');
+            const rows = [...out.matchAll(/\x1b\[(\d+);\d+H/g)].map(m => +m[1]);
+            assert.ok(Math.max(...rows) <= 25, `lowest row ${Math.max(...rows)}`);
+            vc.detachClientEvents();
         });
     });
 });

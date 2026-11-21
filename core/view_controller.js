@@ -7,14 +7,6 @@ const menuUtil = require('./menu_util.js');
 const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
 const { isKeyPressCaptured, ensureKeyDispatch } = require('./input_capture.js');
-const { TextView } = require('./text_view.js');
-const { EditTextView } = require('./edit_text_view.js');
-const { VerticalMenuView } = require('./vertical_menu_view.js');
-const { HorizontalMenuView } = require('./horizontal_menu_view.js');
-const { FullMenuView } = require('./full_menu_view.js');
-const { SpinnerMenuView } = require('./spinner_menu_view.js');
-const { ToggleMenuView } = require('./toggle_menu_view.js');
-const { TableView } = require('./table_view.js');
 
 //  deps
 const events = require('events');
@@ -24,30 +16,6 @@ const _ = require('lodash');
 const paths = require('path');
 
 const MCI_REGEXP = /([A-Z]{2})([0-9]{1,2})/;
-
-//
-//  The core setFocus() implementations that draw the whole view. A form's
-//  initial focus view with one of these is drawn by switchFocus() right
-//  after redrawAll(), so redrawAll() leaves it out rather than draw it
-//  twice. Any other setFocus() (MultiLineEditTextView's draws only in edit
-//  mode, a mod's own) may not draw the view, so it is drawn as before.
-//
-const SetFocusDrawsView = new Set(
-    [
-        TextView,
-        EditTextView,
-        VerticalMenuView,
-        HorizontalMenuView,
-        FullMenuView,
-        SpinnerMenuView,
-        ToggleMenuView,
-        TableView,
-    ].map(viewClass => viewClass.prototype.setFocus)
-);
-
-function drawnBySwitchFocus(view) {
-    return view && view.acceptsFocus && SetFocusDrawsView.has(view.setFocus);
-}
 
 class ViewController extends events.EventEmitter {
     constructor(options) {
@@ -660,16 +628,10 @@ class ViewController extends events.EventEmitter {
             term.rawWrite(ansi.hideCursor());
 
             for (const id in this.views) {
-                //  |id| is a key (a string); |initialFocusId| a number
-                const view = this.views[id];
-                if (
-                    undefined !== initialFocusId &&
-                    String(initialFocusId) === id &&
-                    drawnBySwitchFocus(view)
-                ) {
+                if (initialFocusId === id) {
                     continue; //  will draw @ focus
                 }
-                view.redraw();
+                this.views[id].redraw();
             }
 
             term.rawWrite(ansi.showCursor());
