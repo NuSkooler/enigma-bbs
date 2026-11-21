@@ -1178,11 +1178,18 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         options.trailingLF = _.get(options, 'trailingLF', false);
 
+        //
+        //  The prompt is drawn over (or beside) the previous form, which is
+        //  covered meanwhile: it takes no keys and its views do not draw in
+        //  the background (a ticker under the prompt), but they and their
+        //  listeners are kept. On submit it is uncovered (a view that
+        //  missed a background draw is redrawn once) and gets the keys back.
+        //
         let prevVc;
         if (prevFormName) {
             prevVc = this.viewControllers[prevFormName];
             if (prevVc) {
-                prevVc.setFocus(false);
+                FormLifecycle.cover(prevVc);
             }
         }
 
@@ -1194,7 +1201,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
             }
 
             if (prevVc) {
-                prevVc.setFocus(true);
+                FormLifecycle.activate(prevVc);
             }
             this.removeViewController(formName);
             if (options.clearAtSubmit) {

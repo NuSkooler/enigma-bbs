@@ -37,6 +37,11 @@ const FormIds = {
     delPrompt: 1,
 };
 
+//  module -> its list's 'index update' listener (see
+//  enableMessageListIndexUpdates()). Kept here, not on the module, so no
+//  name is taken from a subclass.
+const indexUpdateListeners = new WeakMap();
+
 const MciViewIds = {
     allViews: {
         msgList: 1, //  VM1 - see above
@@ -499,8 +504,17 @@ exports.getModule = class MessageListModule extends (
         return this.menuResult;
     }
 
+    //  Removes, then adds: the list keeps its listener under the delete
+    //  prompt (promptForInput() covers the list's form), so adding again
+    //  would fire it twice
     enableMessageListIndexUpdates(msgListView) {
-        msgListView.on('index update', idx => this.populateCustomLabelsForSelected(idx));
+        let onIndexUpdate = indexUpdateListeners.get(this);
+        if (!onIndexUpdate) {
+            onIndexUpdate = idx => this.populateCustomLabelsForSelected(idx);
+            indexUpdateListeners.set(this, onIndexUpdate);
+        }
+        msgListView.removeListener('index update', onIndexUpdate);
+        msgListView.on('index update', onIndexUpdate);
     }
 
     markAllMessagesAsRead(cb) {
