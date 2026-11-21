@@ -83,6 +83,9 @@ function activateForm(vc) {
         uncoverForm(vc);
     }
 
+    //  active again here, not only in attachClientEvents(): a subclass may
+    //  replace that method without calling it
+    FormState.setFormInactive(vc, false);
     vc.attachClientEvents();
     vc.setViewFocusWithEvents(vc.focusedView, true);
 
@@ -205,11 +208,12 @@ class ViewController extends events.EventEmitter {
                 return;
             }
 
-            //  Deactivated, covered or destroyed while this key was being
-            //  delivered (another form's action did it): the key went out
-            //  to the listeners as they were, this one included, but the
-            //  form takes no keys now. Forms torn down with setFocus(false)
-            //  are not marked inactive, and behave as before.
+            //  Deactivated, covered or destroyed: no keys. This matters for
+            //  a key still being delivered when that happened (another
+            //  listener's action for it covered this form): Node hands a key
+            //  to the listeners as they were when it was sent. Forms torn
+            //  down with setFocus(false) are not marked inactive, and behave
+            //  as before.
             if (FormState.isFormInactive(this) || FormState.isFormDestroyed(this)) {
                 return;
             }
