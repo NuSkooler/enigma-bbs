@@ -416,6 +416,11 @@ class View extends events.EventEmitter {
         }
     }
 
+    //  True once |view| has been destroyed (destroy(), or torn down by its form)
+    static isDestroyed(view) {
+        return destroyedViews.has(view);
+    }
+
     //
     //  forceNextRedraw() -- the next redraw() must draw in full, even where
     //  the view would skip output it believes is already on screen (a

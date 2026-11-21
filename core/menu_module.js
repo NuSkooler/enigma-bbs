@@ -40,6 +40,39 @@ const MenuFlags = {
 
 exports.MenuFlags = MenuFlags;
 
+//
+//  Menus that have been left (leave() has run). Kept here rather than as a
+//  property, so no name is taken from a mod's MenuModule subclass (some
+//  keep their own `left`). See hasLeftMenu().
+//
+const leftMenus = new WeakSet();
+
+//  passed down initSequence()'s waterfall to stop it once the menu is left
+const MenuLeftStop = Symbol('menuLeft');
+
+//
+//  Tear down |vc| for a menu that has been left. detachClientEvents() does
+//  it for an attached form; a form that never attached (or was blurred)
+//  still has its views, and a ticker among them its timer.
+//
+function destroyForm(vc) {
+    if (vc.attached) {
+        return vc.detachClientEvents();
+    }
+
+    _.forEach(vc.views, view => {
+        if (View.isDestroyed(view)) {
+            return;
+        }
+        View.releaseInputFocus(view);
+        view.removeAllListeners();
+        if (_.isFunction(view.destroy)) {
+            view.destroy();
+        }
+        View.markDestroyed(view);
+    });
+}
+
 exports.MenuModule = class MenuModule extends PluginModule {
     constructor(options) {
         super(options);
@@ -127,8 +160,43 @@ exports.MenuModule = class MenuModule extends PluginModule {
         });
     }
 
+    //
+    //  The caller is leaving this menu (or it is being reloaded). A module
+    //  that overrides this must call super.leave(): that marks the menu
+    //  left (hasLeftMenu()) and tears down its forms.
+    //
     leave() {
+        leftMenus.add(this);
         this.detachViewControllers();
+    }
+
+    //
+    //  True once leave() has run. Anything that finishes after an async
+    //  step (art loading, a pause, a database read) and would draw or build
+    //  forms checks this first: the screen belongs to another menu now. The
+    //  default initSequence() and the prep*() helpers below do.
+    //
+    hasLeftMenu() {
+        return leftMenus.has(this);
+    }
+
+    //  Forms that may have been built after leave() tore down the others
+    _destroyFormsAfterLeave() {
+        Object.keys(this.viewControllers).forEach(name => {
+            destroyForm(this.viewControllers[name]);
+        });
+    }
+
+    //  For a step that finished after leave(): note it, and stop
+    _stoppedAfterLeave(step) {
+        if (!this.hasLeftMenu()) {
+            return false;
+        }
+        this.client.log.debug(
+            { menuName: this.menuName, step },
+            'Menu was left; not continuing'
+        );
+        return true;
     }
 
     initSequence() {
@@ -151,6 +219,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     return self.beforeArt(callback);
                 },
                 function displayMenuArt(callback) {
+                    if (self._stoppedAfterLeave('beforeArt')) {
+                        return callback(MenuLeftStop);
+                    }
+
                     if (!hasArt()) {
                         return callback(null, null);
                     }
@@ -187,6 +259,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     );
                 },
                 function displayPromptArt(artData, callback) {
+                    if (self._stoppedAfterLeave('art')) {
+                        return callback(MenuLeftStop);
+                    }
+
                     if (!_.isString(self.menuConfig.prompt)) {
                         return callback(null);
                     }
@@ -219,9 +295,21 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     );
                 },
                 function afterArtDisplayed(callback) {
+                    //  left while the art loaded: no forms (or tickers) for
+                    //  a menu that is gone
+                    if (self._stoppedAfterLeave('promptArt')) {
+                        return callback(MenuLeftStop);
+                    }
+
                     return self.mciReady(mciData, callback);
                 },
                 function displayPauseIfRequested(callback) {
+                    if (self._stoppedAfterLeave('mciReady')) {
+                        //  forms built after leave() tore down the others
+                        self._destroyFormsAfterLeave();
+                        return callback(MenuLeftStop);
+                    }
+
                     if (!self.shouldPause() || self.getPauseMode() === 'pageBreak') {
                         return callback(null, null);
                     }
@@ -233,12 +321,20 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     );
                 },
                 function finishAndNext(artInfo, callback) {
+                    if (self._stoppedAfterLeave('pause')) {
+                        return callback(MenuLeftStop);
+                    }
+
                     self.finishedLoading();
                     self.realTimeInterrupt = 'allowed';
                     return self.autoNextMenu(callback);
                 },
             ],
             err => {
+                if (MenuLeftStop === err) {
+                    return; //  left part-way; see hasLeftMenu()
+                }
+
                 if (err) {
                     return self.initSequenceFailed(err);
                 }
@@ -852,7 +948,16 @@ exports.MenuModule = class MenuModule extends PluginModule {
         );
     }
 
+    //
+    //  The prep*() helpers stop quietly, without calling |cb|, once the menu
+    //  has been left (hasLeftMenu()): what would follow draws on a screen
+    //  that belongs to another menu.
+    //
     prepViewController(name, formId, mciMap, cb) {
+        if (this._stoppedAfterLeave(`prepViewController:${name}`)) {
+            return;
+        }
+
         const needsCreated = this.viewControllers[name] === undefined;
         if (needsCreated) {
             const vcOpts = {
@@ -869,6 +974,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
             };
 
             return vc.loadFromMenuConfig(loadOpts, err => {
+                if (this._stoppedAfterLeave(`prepViewController:${name}`)) {
+                    destroyForm(vc);
+                    return;
+                }
                 return cb(err, vc, true);
             });
         }
@@ -880,6 +989,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     prepViewControllerWithArt(name, formId, options, cb) {
         this.displayAsset(this.menuConfig.config.art[name], options, (err, artData) => {
+            if (this._stoppedAfterLeave(`prepViewControllerWithArt:${name}`)) {
+                return;
+            }
+
             if (err) {
                 return cb(err);
             }
@@ -1018,6 +1131,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
         });
     }
 
+    //
+    //  Show art |name| (menu config `art.<name>`) and load form |formId|
+    //  over it into view controller |name|, or refocus that controller if
+    //  it already exists. Nothing at all once the menu has been left.
+    //
     displayArtAndPrepViewController(name, formId, options, cb) {
         const config = this.menuConfig.config;
         EnigAssert(_.isObject(config));
@@ -1046,6 +1164,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
                             modArtPath: this.modArtPath,
                         },
                         (err, artData) => {
+                            //  quietly, error or not: see prepViewController()
+                            if (
+                                this._stoppedAfterLeave(
+                                    `displayArtAndPrepViewController:${name}`
+                                )
+                            ) {
+                                return;
+                            }
                             return callback(err, artData);
                         }
                     );
@@ -1081,7 +1207,16 @@ exports.MenuModule = class MenuModule extends PluginModule {
                             viewOffsets: options.viewOffsets,
                         };
 
-                        return vc.loadFromMenuConfig(loadOpts, callback);
+                        return vc.loadFromMenuConfig(loadOpts, err => {
+                            if (
+                                this._stoppedAfterLeave(
+                                    `displayArtAndPrepViewController:${name}`
+                                )
+                            ) {
+                                return destroyForm(vc);
+                            }
+                            return callback(err);
+                        });
                     }
 
                     this.viewControllers[name].setFocus(true);
