@@ -205,6 +205,15 @@ class ViewController extends events.EventEmitter {
                 return;
             }
 
+            //  Deactivated, covered or destroyed while this key was being
+            //  delivered (another form's action did it): the key went out
+            //  to the listeners as they were, this one included, but the
+            //  form takes no keys now. Forms torn down with setFocus(false)
+            //  are not marked inactive, and behave as before.
+            if (FormState.isFormInactive(this) || FormState.isFormDestroyed(this)) {
+                return;
+            }
+
             //
             //  Process key presses treating form submit mapped keys special.
             //  Everything else is forwarded on to the focused View, if any.
