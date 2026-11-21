@@ -1096,7 +1096,8 @@ exports.FullScreenEditorModule =
                     { startRow },
                     (err, vc, created) => {
                         try {
-                            if (!err && !created) {
+                            //  (a left menu's form is torn down: not drawn)
+                            if (!err && !created && !this.hasLeftMenu()) {
                                 vc.redrawAll();
                             }
                         } finally {

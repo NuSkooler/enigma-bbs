@@ -194,11 +194,32 @@ describe('FSE batches that wait on art suspend background drawing', () => {
             inst.ticker.destroy();
         });
 
+        it('the art finishing after leave(): called back, a refocused footer not redrawn', () => {
+            const inst = makeEditor();
+            const art = pendingArt(inst);
+            let redrawn = 0;
+            inst.prepViewControllerWithArt = (name, formId, options, cb) => {
+                art.finish = () => cb(null, { redrawAll: () => ++redrawn }, false);
+            };
+            inst.tempMessageConfAndAreaRestore = () => {};
+            let called = 0;
+            inst.switchFooter(err => {
+                assert.ifError(err);
+                ++called;
+            });
+            inst.leave();
+            art.finish();
+            assert.equal(called, 1, 'called back, as the prep helper is');
+            assert.equal(redrawn, 0, "a left menu's form is not drawn");
+            assert.equal(inst.client.sent(), '\x1b[19;1H\x1b[2K', 'only the erase');
+            inst.ticker.destroy();
+        });
+
         it('leave() with the art still pending ends both; nothing is redrawn', () => {
             const inst = makeEditor();
             pendingArt(inst);
             inst.tempMessageConfAndAreaRestore = () => {};
-            inst.switchFooter(() => assert.fail('a left menu is not called back'));
+            inst.switchFooter(() => assert.fail('the art never finishes here'));
             timers.fire(inst.ticker._timer);
             inst.leave();
             assert.equal(inst.client.term._writeBuf, null);
