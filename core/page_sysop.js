@@ -138,6 +138,11 @@ exports.getModule = class PageSysopModule extends MenuModule {
     }
 
     _showArtAndExit(artSpec, fallbackText, cb) {
+        //  the page form (if up) takes no more keys: one typed while the
+        //  art loads, or the one ending the pause, would be echoed into
+        //  ET1 over the art (#1138)
+        this.removeViewController('main');
+
         this.displayAsset(artSpec, { clearScreen: true }, err => {
             if (err && fallbackText) {
                 this.client.term.write(
@@ -186,6 +191,11 @@ exports.getModule = class PageSysopModule extends MenuModule {
 
     //  Show combined "not available + send as mail?" art (form 1).
     _offerSendAsMail(cb) {
+        //  The sysop may have gone away while the page was typed: the page
+        //  form must not stay attached under the offer, or it takes the
+        //  keys too and one Enter submits both forms (#1138)
+        this.removeViewController('main');
+
         return this.displayArtAndPrepViewController(
             'mailConfirm',
             FormIds.mailConfirm,
