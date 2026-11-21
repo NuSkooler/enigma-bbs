@@ -55,7 +55,10 @@ function getState(client) {
         }
     };
     state.dispatcher = dispatcher;
-    client.prependListener('key press', dispatcher);
+    //  (a stand-in client that emits no keys has nothing to listen on)
+    if (typeof client.prependListener === 'function') {
+        client.prependListener('key press', dispatcher);
+    }
 
     return state;
 }
@@ -103,7 +106,10 @@ function keyReceivers(state) {
 //  first again.
 //
 function ensureDispatcher(client, state) {
-    if (typeof client.listeners !== 'function') {
+    if (
+        typeof client.listeners !== 'function' ||
+        typeof client.prependListener !== 'function'
+    ) {
         return;
     }
     if (!client.listeners('key press').includes(state.dispatcher)) {

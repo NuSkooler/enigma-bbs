@@ -403,6 +403,72 @@ describe('pause prompts set the input focus aside', function () {
             assert.equal(field.getData(), 'ab', 'the field has the keys again');
         });
 
+        //  #1136, the drawing half: the menu's own ticker stays off the
+        //  interrupt screen, the interrupt's pause ticker animates, and the
+        //  cover has ended before the menu reloads
+        it('a realtime interrupt over a menu with a ticker: end to end (#1136)', async function () {
+            const { TickerView } = require('../core/ticker_view.js');
+            const client = makeCapturingClient();
+            const { vc, field } = makeMenuForm(client);
+            vc.addView(
+                new TickerView({
+                    client,
+                    id: 9,
+                    position: { row: 3, col: 40 },
+                    dimens: { width: 20, height: 1 },
+                    text: 'Welcome to the board -- news, files and doors',
+                    motion: 'left',
+                })
+            );
+            const menuTickerTimers = timers.length;
+            fireAll();
+            assert.ok(client.track.since(0).includes('\x1b[3;40H'), 'precondition');
+
+            const mod = Object.create(MenuModule.prototype);
+            mod.client = client;
+            mod.menuConfig = { config: { pausePrompt: 'pauseTk' } };
+            mod.interrupt = MenuModule.InterruptTypes.Realtime;
+            mod.realTimeInterrupt = 'allowed';
+            let atReload = null;
+            mod.reload = cb => {
+                atReload = {
+                    suspended: View.isBackgroundDrawSuspended(client),
+                    captured: client.hasInputCapture
+                        ? client.hasInputCapture()
+                        : require('../core/input_capture.js').hasInputCapture(client),
+                };
+                return cb(null);
+            };
+            client.currentMenuModule = mod;
+            client.interruptQueue = new UserInterruptQueue(client);
+
+            let result = null;
+            mod.attemptInterruptNow(
+                { text: 'A message from the sysop', pause: true },
+                (err, ateIt) => {
+                    assert.ifError(err);
+                    result = ateIt;
+                }
+            );
+            await waitFor(() => timers.length > menuTickerTimers, 'the pause ticker');
+
+            const n = client.track.all.length;
+            fireAll();
+            fireAll();
+            const whileUp = client.track.since(n);
+            assert.ok(!whileUp.includes('\x1b[3;40H'), 'no menu ticker bytes');
+            assert.ok(
+                whileUp.includes(`\x1b[${client.term.termHeight};`),
+                'pause ticker'
+            );
+
+            client.emit('key press', 'x');
+            await waitFor(() => null !== result, 'the interrupt to finish');
+            assert.equal(result, true, 'eaten');
+            assert.deepEqual(atReload, { suspended: false, captured: false });
+            assert.equal(field.getData(), '', 'the key went to the pause only');
+        });
+
         it('an action key on the menu form does not fire on the pause key', async function () {
             const client = makeCapturingClient();
             const { vc } = makeMenuForm(client);
