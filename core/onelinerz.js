@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const MenuModule = require('./menu_module.js').MenuModule;
+const { ViewController, FormLifecycle } = require('./view_controller.js');
 
 const { getModDatabasePath, openDatabase } = require('./database.js');
 
@@ -39,6 +40,72 @@ const FormIds = {
     view: 0,
     add: 1,
 };
+
+//  Ends a screen's steps early: the menu was left (see hasLeftMenu())
+const MenuLeft = Symbol('menuLeft');
+
+//  module -> its add form's preview updates (see bindPreviewUpdates()).
+//  Kept here, not on the module, so no name is taken from a subclass.
+const previewUpdates = new WeakMap();
+
+//
+//  The view and add screens take turns: the one not shown is covered (no
+//  keys, no background drawing), not torn down, as it is shown again. It
+//  is covered before the other screen's art is drawn, as blurring its
+//  focused view draws that view. A preview update still pending for the
+//  add form is dropped with it.
+//
+function coverForm(menu, name) {
+    if ('add' === name) {
+        const preview = previewUpdates.get(menu);
+        if (preview && preview.timer) {
+            menu.clearMenuTimeout(preview.timer);
+            preview.timer = null;
+        }
+    }
+
+    const vc = menu.viewControllers[name];
+    if (vc instanceof ViewController) {
+        FormLifecycle.cover(vc);
+    } else if (vc) {
+        vc.setFocus(false);
+    }
+}
+
+//
+//  The preview shows the new entry 500 ms after the last key. Removed, then
+//  added: the add form keeps its views' listeners while covered, so adding
+//  again on each show would update the preview once more per visit. The
+//  timer is the menu's (setMenuTimeout()), so leaving the menu drops it.
+//
+function bindPreviewUpdates(menu, entryView, previewView) {
+    let preview = previewUpdates.get(menu);
+    if (!preview) {
+        preview = { timer: null };
+        preview.onKeyPress = () => {
+            if (preview.timer) {
+                menu.clearMenuTimeout(preview.timer);
+            }
+            preview.timer = menu.setMenuTimeout(() => {
+                preview.timer = null;
+                const focused = menu.viewControllers.add.getFocusedView();
+                if (focused === preview.entryView) {
+                    preview.previewView.setText(preview.entryView.getData());
+                    focused.setFocus(true);
+                }
+            }, 500);
+        };
+        previewUpdates.set(menu, preview);
+    }
+
+    if (preview.entryView && preview.entryView !== entryView) {
+        preview.entryView.removeListener('key press', preview.onKeyPress);
+    }
+    preview.entryView = entryView;
+    preview.previewView = previewView;
+    entryView.removeListener('key press', preview.onKeyPress);
+    entryView.on('key press', preview.onKeyPress);
+}
 
 exports.getModule = class OnelinerzModule extends MenuModule {
     constructor(options) {
@@ -108,9 +175,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
         async.waterfall(
             [
                 function prepArtAndViewController(callback) {
-                    if (self.viewControllers.add) {
-                        self.viewControllers.add.setFocus(false);
-                    }
+                    coverForm(self, 'add');
 
                     return self.prepViewControllerWithArt(
                         'view',
@@ -122,6 +187,10 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         (err, artInfo, wasCreated) => {
                             if (err) {
                                 return callback(err);
+                            }
+                            //  the screen is another menu's now
+                            if (self.hasLeftMenu()) {
+                                return callback(MenuLeft);
                             }
                             if (!wasCreated) {
                                 self.viewControllers.view.setFocus(true);
@@ -199,7 +268,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(err);
+                    return cb(MenuLeft === err ? null : err);
                 }
             }
         );
@@ -211,7 +280,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
         async.waterfall(
             [
                 function clearAndDisplayArt(callback) {
-                    self.viewControllers.view.setFocus(false);
+                    coverForm(self, 'view');
 
                     return self.prepViewControllerWithArt(
                         'add',
@@ -223,6 +292,10 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         (err, artInfo, wasCreated) => {
                             if (err) {
                                 return callback(err);
+                            }
+                            //  the screen is another menu's now
+                            if (self.hasLeftMenu()) {
+                                return callback(MenuLeft);
                             }
                             if (!wasCreated) {
                                 self.viewControllers.add.setFocus(true);
@@ -248,24 +321,14 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         MciViewIds.add.newEntry
                     );
                     if (previewView) {
-                        let timerId;
-                        entryView.on('key press', () => {
-                            clearTimeout(timerId);
-                            timerId = setTimeout(() => {
-                                const focused = self.viewControllers.add.getFocusedView();
-                                if (focused === entryView) {
-                                    previewView.setText(entryView.getData());
-                                    focused.setFocus(true);
-                                }
-                            }, 500);
-                        });
+                        bindPreviewUpdates(self, entryView, previewView);
                     }
                     return callback(null);
                 },
             ],
             err => {
                 if (cb) {
-                    return cb(err);
+                    return cb(MenuLeft === err ? null : err);
                 }
             }
         );
