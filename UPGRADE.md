@@ -28,6 +28,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none for most mods. A `drawInBackground()` draw function should only draw: while the screen is covered it still runs, but its output is thrown away, and the view gets a full `redraw()` afterwards. If a view of yours changes state inside its draw function, move that change before the call. See [When something covers the screen](website/src/content/docs/art/views/views.md#when-something-covers-the-screen).
 
+* **Mod authors: a menu that has been left stops** (new `hasLeftMenu()`). Nothing in your configuration, menus, art or themes needs to change.
+
+  **What changes by itself:** once `leave()` has run, the default `initSequence()` stops at its next step. `prepViewController()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` still call back, with the same arguments, but a form they build for the left menu is torn down first (and one that already existed is not refocused). `nextTimeout` and `prevMenuOnTimeout()` do nothing after `leave()`. A module that overrides `initSequence()` is unaffected, and can check `this.hasLeftMenu()` after its own async steps.
+
+  **Action:** if your module overrides `leave()`, make sure it calls `super.leave()` (it already had to, to tear down its forms).
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).

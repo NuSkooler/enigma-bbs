@@ -657,25 +657,47 @@ class TickerView extends View {
 
     //  ── Rendering ─────────────────────────────────────────────────────────────
 
+    //  Started by the constructor, as it always has been: a ticker built
+    //  outside a form ticks too. destroy() stops it (View's background
+    //  interval). |_timer| is the timer handle, null when stopped.
     _startTicker() {
         if (this._timer) {
             return;
         }
-        this._timer = setInterval(() => {
+        //  _tick() draws (through drawInBackground()), as it always has, so
+        //  a subclass that overrides it still runs each tick
+        this._timer = this.setBackgroundInterval(() => {
             this._advanceMotion();
             this._tick();
         }, this.tickInterval);
     }
 
+    _stopTicker() {
+        if (this._timer) {
+            this.clearBackgroundInterval(this._timer);
+            this._timer = null;
+        }
+    }
+
     //  A tick draws while the user may be typing into a field elsewhere on
     //  the screen: drawInBackground() puts the cursor and SGR back there.
-    //  While covered (a background draw suspend) nothing a tick draws
-    //  reaches the screen, so it does not count as drawn: see _nextFrame().
     _tick() {
+        const drawFn = this._tickDraw();
+        if (drawFn) {
+            this.drawInBackground(drawFn);
+        }
+    }
+
+    //  The next frame, and a function that draws it (null if nothing
+    //  changed). While covered (a background draw suspend) nothing a tick
+    //  draws reaches the screen, so it does not count as drawn: see
+    //  _nextFrame().
+    _tickDraw() {
         const rendered = this._nextFrame({ drawn: !this.isBackgroundDrawSuspended() });
         if (null !== rendered) {
-            this.drawInBackground(() => this._drawFrame(rendered));
+            return () => this._drawFrame(rendered);
         }
+        return null;
     }
 
     redraw() {
@@ -740,10 +762,7 @@ class TickerView extends View {
     }
 
     destroy() {
-        if (this._timer) {
-            clearInterval(this._timer);
-            this._timer = null;
-        }
+        this._stopTicker();
         super.destroy();
     }
 
@@ -773,8 +792,7 @@ class TickerView extends View {
             case 'tickInterval':
                 this.tickInterval = parseInt(value, 10) || 100;
                 if (this._timer) {
-                    clearInterval(this._timer);
-                    this._timer = null;
+                    this._stopTicker();
                     this._startTicker();
                 }
                 break;

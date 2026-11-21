@@ -339,8 +339,9 @@ class ViewController extends events.EventEmitter {
             (mci, nextItem) => {
                 const mciMatch = mci.match(MCI_REGEXP); //  :TODO: How to handle auto-generated IDs????
                 if (null === mciMatch) {
+                    //  skip it: the rest of the form still loads
                     this.client.log.warn({ mci: mci }, 'Unable to parse MCI code');
-                    return;
+                    return nextItem(null);
                 }
 
                 const viewId = parseInt(mciMatch[2]);

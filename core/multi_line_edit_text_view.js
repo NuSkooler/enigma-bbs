@@ -421,6 +421,15 @@ class MultiLineEditTextView extends View {
         return ColorPreview.cursorNearCompleteCode(chars, col);
     }
 
+    //  A pending pipe code collapse would draw after the view is gone
+    destroy() {
+        if (this._pipeCodeDebounceTimer !== null) {
+            clearTimeout(this._pipeCodeDebounceTimer);
+            this._pipeCodeDebounceTimer = null;
+        }
+        super.destroy();
+    }
+
     //  Cancel any pending debounce timer and leave expanded mode.
     _ensureCollapsed() {
         if (this._pipeCodeDebounceTimer !== null) {

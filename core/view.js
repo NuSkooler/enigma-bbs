@@ -50,10 +50,39 @@ const destroyedViews = new WeakSet();
 //  client -> the seq of the latest suspend taken: see View.coverMark()
 const lastCoverMarks = new WeakMap();
 
+//  view -> Set of interval handles from setBackgroundInterval()
+const backgroundIntervals = new WeakMap();
+
 function nextBackgroundSeq(client) {
     const seq = (backgroundSeqs.get(client) || 0) + 1;
     backgroundSeqs.set(client, seq);
     return seq;
+}
+
+//  terms whose drips cover background drawing: see coverDrips()
+const dripCoveredTerms = new WeakSet();
+
+//
+//  A drip (baud emulated art: ClientTerminal dripWrite() and the like) is
+//  a cover for background drawing: while it is in flight, views that
+//  existed when it began do not draw on their own (a %TK tick drawn
+//  between two pieces of the art would move the cursor the art carries on
+//  from, and on PETSCII or ATASCII would be translated against the wrong
+//  state), and a view that missed a draw is drawn once when the drip is
+//  over. It is the same suspend as suspendBackgroundDraw(), one token per
+//  drip, so drips nest with each other and with covers. Set up on a
+//  client's terminal when its first view is created.
+//
+function coverDrips(client) {
+    const term = client.term;
+    if (!term || !_.isFunction(term.setDripCover) || dripCoveredTerms.has(term)) {
+        return;
+    }
+    dripCoveredTerms.add(term);
+    term.setDripCover({
+        begin: () => View.suspendBackgroundDraw(client),
+        end: token => View.resumeBackgroundDraw(client, token),
+    });
 }
 
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
@@ -81,6 +110,7 @@ class View extends events.EventEmitter {
         this.client = options.client;
         //  see suspendBackgroundDraw(): which covers this view is under
         viewBackgroundSeqs.set(this, nextBackgroundSeq(this.client));
+        coverDrips(this.client);
         this.cursor = options.cursor || 'show';
         this.cursorStyle = options.cursorStyle || 'default';
 
@@ -400,7 +430,56 @@ class View extends events.EventEmitter {
     //  and call super.destroy().
     //
     destroy() {
+        this.clearBackgroundIntervals();
         View.markDestroyed(this);
+    }
+
+    //
+    //  setBackgroundInterval(fn, ms) -- a timer for a view that draws on its
+    //  own (a ticker, a clock). Every |ms|, fn() is called; it updates the
+    //  view's state and returns a function that draws the change, or
+    //  nothing when there is nothing to draw. That function is run through
+    //  drawInBackground(), so the cursor goes back to the field being typed
+    //  into and nothing is drawn while the screen is covered. destroy()
+    //  clears the timer; so does clearBackgroundInterval(handle). Returns
+    //  the handle (the setInterval() timer), or null for a view that has
+    //  been destroyed: no timer is started for it.
+    //
+    setBackgroundInterval(fn, ms) {
+        if (destroyedViews.has(this)) {
+            return null;
+        }
+
+        let intervals = backgroundIntervals.get(this);
+        if (!intervals) {
+            intervals = new Set();
+            backgroundIntervals.set(this, intervals);
+        }
+
+        const handle = setInterval(() => {
+            const drawFn = fn();
+            if (_.isFunction(drawFn)) {
+                this.drawInBackground(drawFn);
+            }
+        }, ms);
+        intervals.add(handle);
+        return handle;
+    }
+
+    clearBackgroundInterval(handle) {
+        const intervals = backgroundIntervals.get(this);
+        if (intervals) {
+            intervals.delete(handle);
+        }
+        clearInterval(handle);
+    }
+
+    clearBackgroundIntervals() {
+        const intervals = backgroundIntervals.get(this);
+        if (intervals) {
+            intervals.forEach(handle => clearInterval(handle));
+            intervals.clear();
+        }
     }
 
     //
@@ -414,6 +493,11 @@ class View extends events.EventEmitter {
         if (suspended) {
             suspended.missed.delete(view);
         }
+    }
+
+    //  True once |view| has been destroyed (destroy(), or torn down by its form)
+    static isDestroyed(view) {
+        return destroyedViews.has(view);
     }
 
     //

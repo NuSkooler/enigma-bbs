@@ -122,12 +122,14 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                         this.viewControllers.main.setFocus(false);
                     }
 
+                    //  built by the call below, or already there (shown before)
+                    const wasCreated = !this.viewControllers.view;
                     return this.displayArtAndPrepViewController(
                         'view',
                         FormIds.view,
                         { clearScreen: true },
-                        (err, artInfo, wasCreated) => {
-                            if (!err && !wasCreated) {
+                        err => {
+                            if (!err && !wasCreated && !this.hasLeftMenu()) {
                                 this.viewControllers.view.setFocus(true);
                             }
                             return callback(err);

@@ -1356,3 +1356,27 @@ describe('MultiLineEditTextView — setWidth on a narrow terminal', () => {
         assert.strictEqual(v.buffer.width, 79);
     });
 });
+
+// ─── destroy() ────────────────────────────────────────────────────────────────
+
+describe('MultiLineEditTextView — destroy()', () => {
+    const { View } = require('../core/view.js');
+
+    it('cancels a pending pipe code collapse and marks the view destroyed', () => {
+        const v = makeMltev();
+        load(v, 'hello |04world');
+        v._flashAndScheduleCollapse();
+        const timer = v._pipeCodeDebounceTimer;
+        assert.ok(timer, 'a collapse is pending');
+
+        let collapsed = 0;
+        v._collapsePipeCodes = () => ++collapsed;
+        v.destroy();
+        assert.strictEqual(v._pipeCodeDebounceTimer, null);
+        assert.ok(View.isDestroyed(v));
+        //  the cleared timer never runs
+        assert.strictEqual(timer._destroyed, true);
+        assert.strictEqual(collapsed, 0);
+        assert.doesNotThrow(() => v.destroy());
+    });
+});

@@ -169,8 +169,11 @@ classDiagram
         +setFocus(focused)
         +redraw()
         +drawInBackground(drawFn)
+        +setBackgroundInterval(fn, ms)
+        +clearBackgroundInterval(handle)
         +forceNextRedraw()
         +destroy()
+        +isDestroyed(view)$
         +suspendBackgroundDraw(client)$
         +resumeBackgroundDraw(client, token, options)$
         +restoreFocusPosition()
@@ -242,6 +245,7 @@ classDiagram
         +getData()
         +addText(text, options)
         +redrawChanged()
+        +destroy()
     }
 
     class KeyEntryView {
@@ -374,15 +378,25 @@ See [MCI](../mci.md) for details on formatting, text styles, and how MCI codes r
 
 ### Views that draw on a timer
 
-A view that redraws on its own timer, as [TickerView](ticker_view.md) and a [StatusBarView](status_bar_view.md) with `refreshInterval` do, draws while the user may be typing into another view. Drawing moves the terminal cursor and leaves the drawing view's color set, and a text entry view echoes the next key wherever the cursor is, in whatever color is set. Wrap a timer-driven draw in `drawInBackground()`:
+A view that redraws on its own timer, as [TickerView](ticker_view.md) and a [StatusBarView](status_bar_view.md) with `refreshInterval` do, draws while the user may be typing into another view. Drawing moves the terminal cursor and leaves the drawing view's color set, and a text entry view echoes the next key wherever the cursor is, in whatever color is set. Use `setBackgroundInterval()` for the timer:
 
 ```js
-this._timer = setInterval(() => {
-    this.drawInBackground(() => this.redraw());
+this._timer = this.setBackgroundInterval(() => {
+    this.setText(this._format, false); //  update the state: no drawing here
+    if (this.text !== this._lastRendered) {
+        this._lastRendered = this.text;
+        return () => this.redraw(); //  what to draw, if anything
+    }
 }, this.refreshInterval);
 ```
 
+`setBackgroundInterval(fn, ms)` calls `fn()` every `ms`. `fn` updates the view and returns a function that draws the change, or nothing when there is nothing to draw; that function is run through `drawInBackground()` (below). It returns the timer's handle, or `null` on a view that has already been destroyed (no timer is started). `destroy()` clears every background interval the view has, so a view whose form is torn down stops on its own; `clearBackgroundInterval(handle)` stops one sooner (a changed interval, say). A timer of your own (`setInterval()`) works too: draw from it through `drawInBackground()`, and clear it in your `destroy()`.
+
+A view with a timer, a listener or anything else that outlives a draw overrides `destroy()` to stop it, and calls `super.destroy()`: the base `destroy()` clears the background intervals and marks the view destroyed (`View.isDestroyed(view)`), so no redraw is owed to it after a cover. A view that does not override `destroy()` gets the base one, which is enough for background intervals. `destroy()` may be called more than once; make yours safe to repeat.
+
 `drawInBackground(drawFn)` hides the cursor, runs `drawFn`, then calls `restoreFocusCursor()` on the view that has input focus (the view last given focus, on any of the screen's forms), and sends it all in one write; if `drawFn` throws, the cursor is still put back before the error goes on to the caller. `restoreFocusCursor()` calls `restoreFocusPosition()`, which puts the cursor and color back where that view echoes its next key, then shows or hides the cursor as the view's `cursor` property says. `EditTextView` returns to its edit position, `MultiLineEditTextView` (the full screen editor) to its edit row and column, `TextView` and its subclasses to where `setFocus(true)` leaves the cursor; the base `View` does not move it. Override `restoreFocusPosition()` in a focusable view that knows where its cursor belongs. A menu module's `updateCustomViewTextsWithFilter()` uses the same `restoreFocusPosition()` after redrawing custom views. When no view has focus the cursor is left where `drawFn` leaves it. A pause prompt waiting for its key counts as that: it sets the input focus aside while it waits (`View.suspendInputFocus(client)`, given back with `View.resumeInputFocus(client, token)`), so a ticker in the pause art leaves the cursor alone even when a menu form under the pause still has a focused field. Use the same pair around anything else that takes the screen without taking typing.
+
+While art is drawn with baud emulation (a drip: `dripWrite()` and the like), background drawing is paused for every view that was already there when the art started, as it is under a cover (below): a tick drawn between two pieces of the art would move the cursor the art carries on from. A view that missed a draw is drawn once when the art is done. Other output during the art goes out at once, as it always has.
 
 `drawFn` should only draw. Change the view's state (add a line, advance a frame) before calling `drawInBackground()`, not inside `drawFn`: while the screen is covered (below), `drawFn` still runs but its output is thrown away, and a terminal that cannot discard output skips it.
 
