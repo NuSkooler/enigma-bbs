@@ -170,6 +170,9 @@ function ClientTerminal(output) {
 ClientTerminal.prototype.disconnect = function () {
     this.output = null;
 
+    //  a drip cut off here may never call back: end its cover now
+    this._endDripCovers();
+
     //
     //  An input decoder that holds a pending decision on a timer (ATASCII's
     //  Escape, ANSI's possible start of a RIPscrip reply) is told the session
@@ -678,10 +681,66 @@ ClientTerminal.prototype.nativeDripWrite = function (buf, options, bytesPerSec, 
     );
 };
 
+//
+//  setDripCover({ begin, end }) -- what a drip (baud emulated art) covers
+//  while it is in flight. begin() is called as each drip starts and returns
+//  a token; end(token) is called once when that drip is over: done, failed,
+//  thrown out of, or cut off by disconnect(). Set by core/view.js, so that
+//  background drawing (a %TK ticker, a %SB status bar) waits for the art
+//  rather than drawing between two of its pieces: see View's drip cover.
+//  Other output during a drip goes out at once, as it always has.
+//
+ClientTerminal.prototype.setDripCover = function (cover) {
+    this._dripCover = cover;
+};
+
+//  A drip starts: begin its cover. Returns the function that ends it (only
+//  the first call does anything).
+ClientTerminal.prototype._beginDripCover = function () {
+    const cover = this._dripCover;
+    if (!cover) {
+        return () => {};
+    }
+
+    let token;
+    try {
+        token = cover.begin();
+    } catch (e) {
+        Log.warn({ error: e.message }, 'Failed to cover background drawing for a drip');
+        return () => {};
+    }
+
+    if (!this._dripCoverEnds) {
+        this._dripCoverEnds = new Set();
+    }
+    const ends = this._dripCoverEnds;
+    const end = () => {
+        if (!ends.delete(end)) {
+            return;
+        }
+        try {
+            cover.end(token);
+        } catch (e) {
+            Log.warn({ error: e.message }, 'Failed to end the drip cover');
+        }
+    };
+    ends.add(end);
+    return end;
+};
+
+ClientTerminal.prototype._endDripCovers = function () {
+    if (this._dripCoverEnds) {
+        [...this._dripCoverEnds].forEach(end => end());
+    }
+};
+
 //  |buf| as it goes on the wire, at |bytesPerSec|. Each piece goes through
 //  |onChunk| (the output filter's part) just before it is written; a piece
 //  the filter leaves empty is not written, and the drip goes on as if it had
 //  been. Without an output filter |onChunk| hands every piece back as it is.
+//  Background drawing is covered from the first piece until the drip is
+//  over, however it ends (see setDripCover()); a missed draw is made up
+//  just before |cb| is called.
 ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb, onChunk) {
     if (!buf || buf.length === 0) {
         return cb(null);
@@ -691,26 +750,39 @@ ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb, onChunk) {
     const bytesPerInterval = Math.max(1, Math.round((bytesPerSec * INTERVAL_MS) / 1000));
     let offset = 0;
 
+    const endCover = this._beginDripCover();
+    const done = err => {
+        endCover();
+        return cb(err);
+    };
+
     const sendChunk = () => {
-        if (!this.output || !this.output.writable) {
-            return cb(new Error('Connection closed during baud emulation'));
-        }
-        const end = Math.min(offset + bytesPerInterval, buf.length);
-        const chunk = onChunk(buf.slice(offset, end));
-        offset = end;
-        const written = err => {
-            if (err) {
-                return cb(err);
+        try {
+            if (!this.output || !this.output.writable) {
+                return done(new Error('Connection closed during baud emulation'));
             }
-            if (offset >= buf.length) {
-                return cb(null);
+            const end = Math.min(offset + bytesPerInterval, buf.length);
+            const chunk = onChunk(buf.slice(offset, end));
+            offset = end;
+            const written = err => {
+                if (err) {
+                    return done(err);
+                }
+                if (offset >= buf.length) {
+                    return done(null);
+                }
+                setTimeout(sendChunk, INTERVAL_MS);
+            };
+            if (0 === chunk.length) {
+                return written(null);
             }
-            setTimeout(sendChunk, INTERVAL_MS);
-        };
-        if (0 === chunk.length) {
-            return written(null);
+            this.output.write(chunk, written);
+        } catch (e) {
+            //  (an output filter that threw): the drip is over, and must
+            //  not leave background drawing covered for good
+            endCover();
+            throw e;
         }
-        this.output.write(chunk, written);
     };
 
     sendChunk();

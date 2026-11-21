@@ -59,6 +59,32 @@ function nextBackgroundSeq(client) {
     return seq;
 }
 
+//  terms whose drips cover background drawing: see coverDrips()
+const dripCoveredTerms = new WeakSet();
+
+//
+//  A drip (baud emulated art: ClientTerminal dripWrite() and the like) is
+//  a cover for background drawing: while it is in flight, views that
+//  existed when it began do not draw on their own (a %TK tick drawn
+//  between two pieces of the art would move the cursor the art carries on
+//  from, and on PETSCII or ATASCII would be translated against the wrong
+//  state), and a view that missed a draw is drawn once when the drip is
+//  over. It is the same suspend as suspendBackgroundDraw(), one token per
+//  drip, so drips nest with each other and with covers. Set up on a
+//  client's terminal when its first view is created.
+//
+function coverDrips(client) {
+    const term = client.term;
+    if (!term || !_.isFunction(term.setDripCover) || dripCoveredTerms.has(term)) {
+        return;
+    }
+    dripCoveredTerms.add(term);
+    term.setDripCover({
+        begin: () => View.suspendBackgroundDraw(client),
+        end: token => View.resumeBackgroundDraw(client, token),
+    });
+}
+
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
     accept: ['return'],
     exit: ['esc'],
@@ -84,6 +110,7 @@ class View extends events.EventEmitter {
         this.client = options.client;
         //  see suspendBackgroundDraw(): which covers this view is under
         viewBackgroundSeqs.set(this, nextBackgroundSeq(this.client));
+        coverDrips(this.client);
         this.cursor = options.cursor || 'show';
         this.cursorStyle = options.cursorStyle || 'default';
 
