@@ -30,13 +30,9 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 * **Mod authors: a menu that has been left stops** (new `hasLeftMenu()`). Nothing in your configuration, menus, art or themes needs to change.
 
-  **What changes by itself:** once `leave()` has run, the default `initSequence()` stops at its next step, and `prepViewController()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` no longer call back. `nextTimeout` and `prevMenuOnTimeout()` do nothing after `leave()`. A module that overrides `initSequence()` is unaffected, and can check `this.hasLeftMenu()` after its own async steps.
+  **What changes by itself:** once `leave()` has run, the default `initSequence()` stops at its next step. `prepViewController()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` still call back, with the same arguments, but a form they build for the left menu is torn down first (and one that already existed is not refocused). `nextTimeout` and `prevMenuOnTimeout()` do nothing after `leave()`. A module that overrides `initSequence()` is unaffected, and can check `this.hasLeftMenu()` after its own async steps.
 
-  **Action:**
-  * If your module overrides `leave()`, make sure it calls `super.leave()` (it already had to, to tear down its forms).
-  * `displayArtAndPrepViewController()` now calls back `(err, artInfo, created)` instead of `(err)`. Passed straight to `async.series()`, or with a callback that takes only `err`, nothing changes. **Passed straight as a step of `async.waterfall()`, the next step now receives `artInfo` and `created` before its callback:** wrap it, `callback => this.displayArtAndPrepViewController(name, formId, options, err => callback(err))`. No core module or known mod does this.
-
-* **Mod authors: output written while art drips at a baud rate waits for it.** A `term.write()`, `rawWrite()` or committed `beginWrite()` batch made while `dripWrite()` (baud emulated art) is still sending is held and sent, in order, when the art is done, before the drip's callback; its write callback is called then too. A drip started during another starts when it is done. **Action:** none, unless a mod relied on its output landing in the middle of a drip.
+  **Action:** if your module overrides `leave()`, make sure it calls `super.leave()` (it already had to, to tear down its forms).
 
 ## 0.6.0-beta to 0.6.1-beta
 

@@ -172,6 +172,8 @@ A module that overrides `initSequence()` (see [Creating a New Module](#creating-
 ### Leaving a menu
 The caller can leave a menu while it is still loading: a hotkey, a sysop break-in, a time-up or a disconnect while its art is being drawn at a baud rate, or while it reads the database. `leave()` then runs before the menu's own callbacks have finished, and anything they draw or build next would land on the next menu's screen.
 
+The default `initSequence()`:
+
 ```mermaid
 sequenceDiagram
     participant S as menu stack
@@ -185,9 +187,23 @@ sequenceDiagram
     Note over M: no mciReady(), no forms or tickers,<br/>no pause, no autoNextMenu()
 ```
 
+A prep helper (`prepViewControllerWithArt()` here) still calls back:
+
+```mermaid
+sequenceDiagram
+    participant S as menu stack
+    participant M as menu
+    participant A as art
+    M->>A: prepViewControllerWithArt(name, ...)
+    S->>M: leave(): left, menu timeouts cleared, forms destroyed
+    A-->>M: art done
+    M->>M: form built, then torn down<br/>(keys detached, views destroyed, timers stopped)
+    M-->>M: callback(err, viewController, true), as before
+```
+
 * `hasLeftMenu()` is true once `leave()` has run. Check it after your own async steps before drawing, building forms or navigating.
 * The default `initSequence()` checks it after each async step, as above. A form built by an `mciReady()` that finishes after `leave()` is torn down.
-* `prepViewController()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` check it too, and once the menu has been left they stop without calling back.
+* `prepViewController()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` call back as they always have, with the same arguments, so your callback's cleanup still runs. But a form they build for a menu that has been left is torn down before they call back (its keys detached, its views destroyed, their timers stopped), and one that already existed is not refocused. Check `hasLeftMenu()` in the callback before drawing, refocusing a form or navigating.
 * `setMenuTimeout(fn, ms)` is a `setTimeout()` that belongs to the menu: `leave()` clears it, so `fn` never runs for a menu the caller has left. It returns a handle for `clearMenuTimeout(handle)`. `autoNextMenu()` (`nextTimeout`) and `prevMenuOnTimeout(ms, cb)` use it. Prefer it to a bare `setTimeout()` for anything that draws or moves the caller on.
 
 ### Realtime interrupts
@@ -257,9 +273,9 @@ Display an asset by `name` or by supplying an `Buffer`.
 Prepares the menu's View Controller for a form of `name` and `formId` using the supplied `mciMap`. `callback` has the following siguature: `(err, viewController, created)` where `created` is `true` if a new View Controller was made.
 
 #### `displayArtAndPrepViewController(name, formId, options, callback)`:
-Displays the art `name` from the menu's `config.art` block, then prepares the View Controller `name` for form `formId` over it (or refocuses it, if it already exists). `options` may hold `clearScreen`, `noInput`, `viewOffsets` and `artDataPrep(name, artData, viewController)`. `callback` has the signature `(err, artInfo, created)`, with `created` as for `prepViewController()`.
+Displays the art `name` from the menu's `config.art` block, then prepares the View Controller `name` for form `formId` over it (or refocuses it, if it already exists). `options` may hold `clearScreen`, `noInput`, `viewOffsets` and `artDataPrep(name, artData, viewController)`. `callback` has the signature `(err)`. To know whether the View Controller was made, check `this.viewControllers[name]` before the call.
 
-Neither helper (nor `prepViewControllerWithArt()`) calls back once the menu has been left: see [Leaving a menu](#leaving-a-menu).
+Once the menu has been left, these helpers (and `prepViewControllerWithArt()`) still call back, but with the form torn down: see [Leaving a menu](#leaving-a-menu).
 
 * `prepViewControllerWithArt()`
 * `setViewText()`
