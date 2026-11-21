@@ -36,8 +36,9 @@ class ViewController extends events.EventEmitter {
         //  It needs a stable reference for attach/detachClientEvents.
         //
         this.clientKeyPressHandler = (ch, key) => {
-            //  Something covering the screen owns the input (a pause or help
-            //  page waiting for its key): the form under it gets nothing.
+            //  Something covering the screen owns the input (an interrupt or
+            //  a help page, or a mod's captureInput()): the form under it
+            //  gets nothing.
             if (isKeyPressCaptured(this.client)) {
                 return;
             }
