@@ -66,7 +66,9 @@ function makeClient() {
     client.user = {
         userId: 1,
         username: 'tester',
+        properties: {},
         isSysOp: () => true,
+        getProperty: () => undefined,
     };
     client.currentTheme = {
         helpers: { getDateFormat: () => 'YYYY-MM-DD' },
@@ -223,27 +225,45 @@ function formViews(vc) {
 //  page's focused view blurs (and draws) before the incoming art, and the
 //  incoming page then takes the keys
 //
-function switchPage(env, { from, to, art, doSwitch }) {
+function switchPage(env, { from, to, art, doSwitch, alsoAttached = [] }) {
     const { client, menu } = env;
+    //  a page with nothing to focus (an actor view) has nothing to blur
     const outgoing = menu.viewControllers[from].getFocusedView();
-    markBlur(client, outgoing);
+    if (outgoing) {
+        markBlur(client, outgoing);
+    }
     const n = client.term.out.length;
     doSwitch();
-    const blurred = indexOfWrite(client, n, '<<BLURRED>>');
     const artAt = indexOfWrite(client, n, `<<ART:${art}>>`);
-    assert.ok(blurred >= 0, `${from}: the outgoing focused view blurred`);
     assert.ok(artAt >= 0, `${to}: its art was drawn`);
-    assert.ok(blurred < artAt, `${from}: blur drew before the ${art} art`);
-    assert.deepEqual(attached(menu), [to], `only ${to} takes keys`);
+    if (outgoing) {
+        const blurred = indexOfWrite(client, n, '<<BLURRED>>');
+        assert.ok(blurred >= 0, `${from}: the outgoing focused view blurred`);
+        assert.ok(blurred < artAt, `${from}: blur drew before the ${art} art`);
+    }
+    assert.deepEqual(
+        attached(menu),
+        [to, ...alsoAttached].sort(),
+        `only ${to} takes keys`
+    );
     assert.ok(FormState.getFormCoverToken(menu.viewControllers[from]), `${from} covered`);
     assert.equal(
         FormState.getFormCoverToken(menu.viewControllers[to]),
         null,
         `${to} not covered`
     );
-    const focused = menu.viewControllers[to].getFocusedView();
-    assert.ok(focused && focused.hasFocus, `${to}: its focused view has focus`);
-    assert.equal(View.getInputFocusView(client), focused, `${to}: input focus`);
+    const incoming = menu.viewControllers[to];
+    if (formViews(incoming).some(v => v.acceptsFocus)) {
+        const focused = incoming.getFocusedView();
+        assert.ok(focused && focused.hasFocus, `${to}: its focused view has focus`);
+        assert.equal(View.getInputFocusView(client), focused, `${to}: input focus`);
+    } else {
+        const holder = View.getInputFocusView(client);
+        assert.ok(
+            !holder || FormState.getViewForm(holder) !== menu.viewControllers[from],
+            `${from}: none of its views keeps the input focus`
+        );
+    }
 }
 
 //  A covered page's ticker draws nothing; the shown page's does
@@ -892,6 +912,650 @@ describe('Page swaps cover the hidden page (F3c)', () => {
             User.getUserName = stubbed;
             assert.equal(client.term.since(n), '', 'nothing drawn after leave');
             assert.deepEqual(calls, [[null]]);
+        });
+    });
+
+    //  ── file_area_list: browse -> details -> browse ──────────────────────
+
+    //
+    //  Browse: description TL1, nav HM2 ('v' shows details, as the stock
+    //  menu binds it). Details: nav HM1 (moving it shows another section),
+    //  the info area XY2/XY3, Escape back to browse. The sections are forms
+    //  of their own, without input, shown below the nav: general and nfo.
+    //  A ticker on browse and one on details.
+    //
+    const BROWSE_TICKER = gotoFor(2, 60);
+    const DETAILS_TICKER = gotoFor(3, 60);
+
+    function fileListEnv() {
+        timers = captureTimers();
+        const client = makeClient();
+        art = stubArt(theme, {
+            FBRWSE: {
+                TL1: mci('TL', 1, 5, 2, ['', '40']),
+                HM2: mci('HM', 2, 22, 2),
+                TK19: mci('TK', 19, 2, 60),
+            },
+            FDETAIL: {
+                HM1: mci('HM', 1, 4, 2),
+                XY2: mci('XY', 2, 6, 1),
+                XY3: mci('XY', 3, 20, 1),
+                TK19: mci('TK', 19, 3, 60),
+            },
+            FDETGEN: { TL10: mci('TL', 10, 1, 2, ['', '30']) },
+            FDETNFO: { TL1: mci('TL', 1, 1, 2, ['', '30']) },
+        });
+
+        const FileEntry = require('../core/file_entry.js');
+        const savedLoad = FileEntry.prototype.load;
+        FileEntry.prototype.load = function (fileId, cb) {
+            this.fileId = fileId;
+            this.desc = `file ${fileId}`;
+            return cb(null);
+        };
+        const restoreArt = art.restore;
+        art.restore = () => {
+            restoreArt();
+            FileEntry.prototype.load = savedLoad;
+        };
+
+        const { getModule } = require('../core/file_area_list.js');
+        const menu = new getModule({
+            menuName: 'fileListTest',
+            extraArgs: { filterCriteria: {} },
+            menuConfig: {
+                config: {
+                    art: {
+                        browse: 'FBRWSE',
+                        details: 'FDETAIL',
+                        detailsGeneral: 'FDETGEN',
+                        detailsNfo: 'FDETNFO',
+                        detailsFileList: 'FDETLST',
+                    },
+                },
+                form: {
+                    0: {
+                        mci: {
+                            TL1: {},
+                            HM2: {
+                                focus: true,
+                                items: ['prev', 'next', 'details'],
+                                argName: 'navSelect',
+                            },
+                            TK19: { text: 'BROWSE NEWS', width: 8 },
+                        },
+                        actionKeys: [{ keys: ['v'], action: '@method:viewDetails' }],
+                    },
+                    1: {
+                        mci: {
+                            HM1: {
+                                focus: true,
+                                items: ['general', 'nfo/readme', 'file listing'],
+                                argName: 'navSelect',
+                            },
+                            TK19: { text: 'DETAILS NEWS', width: 8 },
+                        },
+                        actionKeys: [{ keys: ['escape'], action: '@method:detailsQuit' }],
+                    },
+                    2: { mci: {} },
+                    3: { mci: { TL1: {} } },
+                },
+            },
+            client,
+        });
+        menu.fileList = [1, 2, 3];
+        menu.fileListPosition = 0;
+        menu.populateCurrentEntryInfo = cb => {
+            menu.currentFileEntry.entryInfo = { descLong: 'the nfo' };
+            return cb(null);
+        };
+        menu.updateQueueIndicator = () => {};
+        client.currentMenuModule = menu;
+        return { client, menu };
+    }
+
+    function showBrowse(env) {
+        let done = false;
+        env.menu.displayBrowsePage(false, err => {
+            assert.ifError(err);
+            done = true;
+        });
+        assert.ok(done, 'browse shown');
+        return env;
+    }
+
+    function fileToDetails(env) {
+        switchPage(env, {
+            from: 'browse',
+            to: 'details',
+            art: 'FDETAIL',
+            //  the section shown below the nav takes keys too, as it always has
+            alsoAttached: ['detailsGeneral'],
+            doSwitch: () => type(env.client, 'v'),
+        });
+        return env;
+    }
+
+    function fileToBrowse(env) {
+        switchPage(env, {
+            from: 'details',
+            to: 'browse',
+            art: 'FBRWSE',
+            doSwitch: () => key(env.client, undefined, ESC),
+        });
+        //  every section is covered too
+        ['detailsGeneral', 'detailsNfo'].forEach(name => {
+            const vc = env.menu.viewControllers[name];
+            if (vc) {
+                assert.ok(FormState.getFormCoverToken(vc), `${name} covered`);
+            }
+        });
+        return env;
+    }
+
+    describe('file_area_list', () => {
+        it('browse <-> details: keys reach only the page shown; the hidden page is covered, not torn down', () => {
+            const env = showBrowse(fileListEnv());
+            const { client, menu } = env;
+            for (let i = 0; i < SWAPS; ++i) {
+                fileToDetails(env);
+                formViews(menu.viewControllers.browse).forEach(v =>
+                    assert.equal(View.isDestroyed(v), false, 'browse views kept')
+                );
+                const browseNav = menu.viewControllers.browse.getView(2);
+                const before = browseNav.getFocusItemIndex();
+                key(client, undefined, { name: 'right arrow' });
+                assert.equal(
+                    browseNav.getFocusItemIndex(),
+                    before,
+                    'browse nav untouched'
+                );
+
+                fileToBrowse(env);
+                formViews(menu.viewControllers.details).forEach(v =>
+                    assert.equal(View.isDestroyed(v), false, 'details views kept')
+                );
+                const detailsNav = menu.viewControllers.details.getView(1);
+                const at = detailsNav.getFocusItemIndex();
+                key(client, undefined, { name: 'right arrow' });
+                assert.equal(detailsNav.getFocusItemIndex(), at, 'details nav untouched');
+                key(client, undefined, { name: 'left arrow' });
+            }
+        });
+
+        it("the details nav 'index update' listener is bound once: one section drawn per move", () => {
+            const env = showBrowse(fileListEnv());
+            const { client, menu } = env;
+            for (let i = 0; i < SWAPS; ++i) {
+                fileToDetails(env);
+                const nav = menu.viewControllers.details.getView(1);
+                assert.equal(nav.listenerCount('index update'), 1, 'one listener');
+
+                const shown = [];
+                const orig = menu.displayDetailsSection;
+                menu.displayDetailsSection = function (name, ...args) {
+                    shown.push(name);
+                    return orig.call(this, name, ...args);
+                };
+                key(client, undefined, { name: 'right arrow' });
+                menu.displayDetailsSection = orig;
+                assert.deepEqual(shown, ['nfo'], 'one section drawn for one move');
+                assert.deepEqual(
+                    attached(menu),
+                    ['details', 'detailsNfo'],
+                    'the nfo section replaced general'
+                );
+                assert.ok(
+                    FormState.getFormCoverToken(menu.viewControllers.detailsGeneral),
+                    'general covered'
+                );
+                key(client, undefined, { name: 'left arrow' });
+                fileToBrowse(env);
+            }
+        });
+
+        it('a ticker on the page shown keeps running across switches; the covered page draws nothing', () => {
+            const env = showBrowse(fileListEnv());
+            for (let i = 0; i < SWAPS; ++i) {
+                assertTickers(env, timers, {
+                    shown: BROWSE_TICKER,
+                    hidden: DETAILS_TICKER,
+                });
+                fileToDetails(env);
+                assertTickers(env, timers, {
+                    shown: DETAILS_TICKER,
+                    hidden: BROWSE_TICKER,
+                });
+                fileToBrowse(env);
+            }
+            assertTickers(env, timers, { shown: BROWSE_TICKER, hidden: DETAILS_TICKER });
+            assert.equal(timers.liveIntervals(), 2, 'both tickers alive, one timer each');
+        });
+
+        it('leaving while the details or browse art loads (shown again): nothing drawn afterwards, called back (null)', () => {
+            ['viewDetails', 'detailsQuit'].forEach(method => {
+                const env = showBrowse(fileListEnv());
+                const { client, menu } = env;
+                fileToBrowse(fileToDetails(env));
+                if ('detailsQuit' === method) {
+                    fileToDetails(env);
+                }
+                art.hold = true;
+                const calls = [];
+                menu.menuMethods[method]({}, {}, (...args) => calls.push(args));
+                menu.leave();
+                const n = client.term.out.length;
+                art.finish();
+                assert.equal(
+                    client.term.since(n),
+                    '',
+                    `${method}: nothing drawn after leave`
+                );
+                assert.deepEqual(calls, [[null]], `${method}: called back (null)`);
+                assert.deepEqual(attached(menu), [], `${method}: no form takes keys`);
+                assert.equal(timers.liveIntervals(), 0, `${method}: tickers stopped`);
+                art.restore();
+                timers.restore();
+            });
+            art = null;
+            timers = null;
+        });
+    });
+
+    //  ── ActivityPub screens ──────────────────────────────────────────────
+
+    //
+    //  The AP screens build their pages with displayArtAndPrepViewController(),
+    //  which activates a page shown again. A ticker on each page. Remote
+    //  look-ups are stubbed on the instance.
+    //
+    const MAIN_TICKER = gotoFor(2, 60);
+    const OTHER_TICKER = gotoFor(3, 60);
+
+    function apEnv(modulePath, menuConfig, artMaps) {
+        timers = captureTimers();
+        const client = makeClient();
+        art = stubArt(theme, artMaps);
+        const { getModule } = require(modulePath);
+        const menu = new getModule({ menuName: 'apTest', menuConfig, client });
+        client.currentMenuModule = menu;
+        return { client, menu };
+    }
+
+    function showWith(env, fn) {
+        let done = false;
+        fn(err => {
+            assert.ifError(err);
+            done = true;
+        });
+        assert.ok(done, 'page shown');
+        return env;
+    }
+
+    //  actor search: the query (ET1, Enter searches) and the actor (TL1-7)
+    function actorSearchEnv() {
+        const view = { TK19: mci('TK', 19, 3, 60), MT7: mci('MT', 7, 12, 2, ['', '40']) };
+        const viewMci = {
+            TK19: { text: 'ACTOR NEWS', width: 8 },
+            MT7: { mode: 'preview', acceptsFocus: false },
+        };
+        for (let id = 1; id <= 6; ++id) {
+            view[`TL${id}`] = mci('TL', id, 4 + id, 2, ['', '30']);
+            viewMci[`TL${id}`] = {};
+        }
+        const env = apEnv(
+            '../core/activitypub/actor_search.js',
+            {
+                config: { art: { main: 'APMAIN', view: 'APVIEW' } },
+                form: {
+                    0: {
+                        mci: {
+                            ET1: { focus: true, argName: 'searchQuery', submit: true },
+                            TK19: { text: 'MAIN NEWS', width: 8 },
+                        },
+                        submit: {
+                            '*': [
+                                {
+                                    value: { searchQuery: null },
+                                    action: '@method:search',
+                                },
+                            ],
+                        },
+                    },
+                    1: {
+                        mci: viewMci,
+                        actionKeys: [
+                            { keys: ['escape'], action: '@method:backKeyPressed' },
+                        ],
+                    },
+                },
+            },
+            {
+                APMAIN: {
+                    ET1: mci('ET', 1, 5, 10, ['', '30']),
+                    TK19: mci('TK', 19, 2, 60),
+                },
+                APVIEW: view,
+            }
+        );
+        const { menu } = env;
+        menu.getDateFormat = () => 'YYYY';
+        menu._search = (values, cb) => {
+            menu.selectedActorInfo = {
+                preferredUsername: values.searchQuery.trim(),
+                name: 'Some One',
+                published: '',
+                manuallyApprovesFollowers: false,
+                summary: 'hello',
+            };
+            return menu._displayViewPage(cb);
+        };
+        menu._updateCollectionItemCount = (name, cb) => cb(null);
+        menu._setFollowStatus = cb => cb(null);
+        return showWith(env, cb => menu._displayMainPage(false, cb));
+    }
+
+    //  ap search: tabs HM1, query ET2 (Enter opens the actor), results VM3
+    function apSearchEnv() {
+        const env = apEnv(
+            '../core/activitypub/ap_search.js',
+            {
+                config: { art: { main: 'SRCHMAIN', actorView: 'SRCHACTOR' } },
+                form: {
+                    0: {
+                        mci: {
+                            HM1: { items: ['People', 'Posts'], argName: 'tab' },
+                            ET2: { focus: true, argName: 'searchQuery', submit: true },
+                            VM3: { argName: 'result' },
+                            TK19: { text: 'MAIN NEWS', width: 8 },
+                        },
+                        submit: {
+                            '*': [
+                                {
+                                    value: { searchQuery: null },
+                                    action: '@method:openActor',
+                                },
+                            ],
+                        },
+                    },
+                    1: {
+                        mci: {
+                            MT1: {
+                                mode: 'preview',
+                                acceptsFocus: false,
+                                acceptsInput: false,
+                            },
+                            TL10: {},
+                            TK19: { text: 'ACTOR NEWS', width: 8 },
+                        },
+                        actionKeys: [
+                            { keys: ['escape'], action: '@method:backKeyPressed' },
+                        ],
+                    },
+                },
+            },
+            {
+                SRCHMAIN: {
+                    HM1: mci('HM', 1, 3, 2),
+                    ET2: mci('ET', 2, 5, 10, ['', '30']),
+                    VM3: mci('VM', 3, 7, 2, ['', '40']),
+                    TK19: mci('TK', 19, 2, 60),
+                },
+                SRCHACTOR: {
+                    MT1: mci('MT', 1, 8, 2, ['', '40']),
+                    TL10: mci('TL', 10, 5, 2, ['', '30']),
+                    TK19: mci('TK', 19, 3, 60),
+                },
+            }
+        );
+        const { menu } = env;
+        menu.menuMethods.openActor = (formData, extraArgs, cb) => {
+            menu._selectedActor = { id: 'https://x.example/u', summary: 'hi' };
+            return menu._displayActorView(cb);
+        };
+        menu._setFollowStatus = cb => cb(null);
+        menu._fetchActorCounts = cb => cb(null);
+        menu._actorFormatObject = () => ({});
+        return showWith(env, cb => menu._displayMainPage(false, cb));
+    }
+
+    //  user config: TM1 enabled (its 'index update' is listened to), BT7
+    //  opens the images page; images: ET1, ET2, TM3, Escape back
+    function userConfigEnv() {
+        const env = apEnv(
+            '../core/activitypub/user_config.js',
+            {
+                config: { art: { main: 'UCMAIN', images: 'UCIMAGES' } },
+                form: {
+                    0: {
+                        mci: {
+                            TM1: {
+                                focus: true,
+                                items: ['no', 'yes'],
+                                argName: 'enabled',
+                            },
+                            TM2: {
+                                items: ['no', 'yes'],
+                                argName: 'manuallyApproveFollowers',
+                            },
+                            TM3: { items: ['no', 'yes'], argName: 'hideSocialGraph' },
+                            TM4: { items: ['no', 'yes'], argName: 'showRealName' },
+                            TL5: { argName: 'image' },
+                            TL6: { argName: 'icon' },
+                            BT7: {
+                                text: 'images',
+                                argName: 'manageImages',
+                                submit: true,
+                            },
+                            TM8: {
+                                items: ['save', 'cancel'],
+                                submit: true,
+                                argName: 'saveOrCancel',
+                            },
+                            TK19: { text: 'MAIN NEWS', width: 8 },
+                        },
+                        submit: {
+                            '*': [
+                                {
+                                    value: { manageImages: null },
+                                    action: '@method:mainSubmit',
+                                },
+                            ],
+                        },
+                    },
+                    1: {
+                        mci: {
+                            ET1: { argName: 'imageUrl', focus: true },
+                            ET2: { argName: 'iconUrl' },
+                            TM3: {
+                                items: ['save', 'cancel'],
+                                submit: true,
+                                argName: 'imagesSaveOrCancel',
+                            },
+                            TK19: { text: 'IMAGES NEWS', width: 8 },
+                        },
+                        actionKeys: [{ keys: ['escape'], action: '@method:backToMain' }],
+                    },
+                },
+            },
+            {
+                UCMAIN: {
+                    TM1: mci('TM', 1, 4, 20),
+                    TM2: mci('TM', 2, 5, 20),
+                    TM3: mci('TM', 3, 6, 20),
+                    TM4: mci('TM', 4, 7, 20),
+                    TL5: mci('TL', 5, 8, 20, ['', '30']),
+                    TL6: mci('TL', 6, 9, 20, ['', '30']),
+                    BT7: mci('BT', 7, 11, 20),
+                    TM8: mci('TM', 8, 13, 20),
+                    TK19: mci('TK', 19, 2, 60),
+                },
+                UCIMAGES: {
+                    ET1: mci('ET', 1, 5, 10, ['', '30']),
+                    ET2: mci('ET', 2, 6, 10, ['', '30']),
+                    TM3: mci('TM', 3, 8, 10),
+                    TK19: mci('TK', 19, 3, 60),
+                },
+            }
+        );
+        const { menu } = env;
+        //  enabled, so the manage images button takes focus
+        env.client.user.activityPubSettings = { enabled: true, image: '', icon: '' };
+        //  (the real one builds the user's subject from the web server config)
+        menu.customViewUpdates = 0;
+        menu._updateCustomViews = () => ++menu.customViewUpdates;
+        return showWith(env, cb => menu._displayMainPage(false, cb));
+    }
+
+    const apScreens = {
+        actor_search: {
+            make: actorSearchEnv,
+            main: 'main',
+            other: 'view',
+            otherArt: 'APVIEW',
+            mainArt: 'APMAIN',
+            toOther: env => {
+                type(env.client, 'bob');
+                key(env.client, undefined, RETURN);
+            },
+            toMain: env => key(env.client, undefined, ESC),
+            leaveCases: {
+                toOther: menu => cb => menu._search({ searchQuery: 'x' }, cb),
+                toMain: menu => cb => menu.menuMethods.backKeyPressed({}, {}, cb),
+            },
+        },
+        ap_search: {
+            make: apSearchEnv,
+            main: 'main',
+            other: 'actorView',
+            otherArt: 'SRCHACTOR',
+            mainArt: 'SRCHMAIN',
+            toOther: env => {
+                type(env.client, 'bob');
+                key(env.client, undefined, RETURN);
+            },
+            toMain: env => key(env.client, undefined, ESC),
+            leaveCases: {
+                toOther: menu => cb => menu.menuMethods.openActor({}, {}, cb),
+                toMain: menu => cb => menu.menuMethods.backKeyPressed({}, {}, cb),
+            },
+        },
+        user_config: {
+            make: userConfigEnv,
+            main: 'main',
+            other: 'images',
+            otherArt: 'UCIMAGES',
+            mainArt: 'UCMAIN',
+            toOther: env => {
+                //  to the manage images button, then Enter
+                const main = env.menu.viewControllers.main;
+                main.switchFocus(7);
+                key(env.client, undefined, RETURN);
+            },
+            toMain: env => key(env.client, undefined, ESC),
+            leaveCases: {
+                toOther: menu => cb =>
+                    menu.menuMethods.mainSubmit({ submitId: 7 }, {}, cb),
+                toMain: menu => cb => menu.menuMethods.backToMain({}, {}, cb),
+            },
+        },
+    };
+
+    Object.keys(apScreens).forEach(name => {
+        const screen = apScreens[name];
+
+        function toOther(env) {
+            switchPage(env, {
+                from: screen.main,
+                to: screen.other,
+                art: screen.otherArt,
+                doSwitch: () => screen.toOther(env),
+            });
+            return env;
+        }
+
+        function toMain(env) {
+            switchPage(env, {
+                from: screen.other,
+                to: screen.main,
+                art: screen.mainArt,
+                doSwitch: () => screen.toMain(env),
+            });
+            return env;
+        }
+
+        describe(`activitypub ${name}`, () => {
+            it('switching back and forth: keys reach only the page shown; the hidden page is covered, not torn down; tickers', () => {
+                const env = screen.make();
+                const { menu } = env;
+                for (let i = 0; i < SWAPS; ++i) {
+                    assertTickers(env, timers, {
+                        shown: MAIN_TICKER,
+                        hidden: OTHER_TICKER,
+                    });
+                    toOther(env);
+                    formViews(menu.viewControllers[screen.main]).forEach(v =>
+                        assert.equal(View.isDestroyed(v), false, 'main page views kept')
+                    );
+                    assertTickers(env, timers, {
+                        shown: OTHER_TICKER,
+                        hidden: MAIN_TICKER,
+                    });
+                    toMain(env);
+                    formViews(menu.viewControllers[screen.other]).forEach(v =>
+                        assert.equal(View.isDestroyed(v), false, 'other page views kept')
+                    );
+                }
+                assert.equal(
+                    timers.liveIntervals(),
+                    2,
+                    'both tickers alive, one timer each'
+                );
+            });
+
+            ['toOther', 'toMain'].forEach(which => {
+                it(`leaving while the art loads (${which}, shown again): nothing drawn afterwards, called back (null)`, () => {
+                    const env = toMain(toOther(screen.make()));
+                    const { client, menu } = env;
+                    if ('toMain' === which) {
+                        toOther(env);
+                    }
+                    art.hold = true;
+                    const calls = [];
+                    screen.leaveCases[which](menu)((...args) => calls.push(args));
+                    menu.leave();
+                    const n = client.term.out.length;
+                    art.finish();
+                    assert.equal(client.term.since(n), '', 'nothing drawn after leave');
+                    assert.deepEqual(calls, [[null]], 'called back (null), as before');
+                    assert.deepEqual(attached(menu), [], 'no form takes keys');
+                    assert.equal(timers.liveIntervals(), 0, 'tickers stopped');
+                });
+            });
+        });
+    });
+
+    describe('activitypub user_config: the enabled toggle listener', () => {
+        it('is bound once: the custom views updated once per change, however many visits', () => {
+            const env = userConfigEnv();
+            const { client, menu } = env;
+            for (let i = 0; i < SWAPS; ++i) {
+                const toggle = menu.viewControllers.main.getView(1);
+                assert.equal(toggle.listenerCount('index update'), 1, 'one listener');
+                const before = menu.customViewUpdates;
+                main(env).switchFocus(1);
+                key(client, undefined, { name: 'right arrow' });
+                key(client, undefined, { name: 'left arrow' });
+                const updates = menu.customViewUpdates - before;
+                assert.equal(updates, 2, 'once per change');
+
+                apScreens.user_config.toOther(env);
+                key(client, undefined, ESC);
+            }
+
+            function main(e) {
+                return e.menu.viewControllers.main;
+            }
         });
     });
 });
