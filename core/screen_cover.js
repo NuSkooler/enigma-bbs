@@ -13,9 +13,9 @@ const _ = require('lodash');
 //  screen back.
 //
 //  While fn runs:
-//  - input is captured: keys typed while the cover draws are dropped
-//    instead of reaching a form under it. A wait inside fn
-//    (client.waitForKeyPress()) captures on top and gets its key.
+//  - input is captured: no form under the cover gets a key, including the
+//    key that ends it. A wait inside fn (client.waitForKeyPress(), a
+//    pausePrompt()) is a plain listener and gets its key as usual.
 //  - background drawing is suspended: a ticker or status bar under the
 //    cover does not draw over it.
 //

@@ -244,14 +244,15 @@ module.exports = class MenuStack {
 
     //
     //  The menu just left may have been covered (an interrupt, a help page,
-    //  a pause) when something else moved the caller on: a sysop break-in,
-    //  a time-up, an idle logoff. What the cover held is settled before the
-    //  next menu draws:
+    //  a clear-screen pause) when something else moved the caller on: a
+    //  sysop break-in, a time-up, an idle logoff. What the cover held is
+    //  settled before the next menu draws:
     //  - background draw suspends are dropped: they would freeze the new
     //    menu's tickers and status bar, and the covered views are gone
-    //  - a cover's own input capture is dropped; a plain wait (a pause's
-    //    waitForKeyPress()) gets the next key without taking it, as it did
-    //    before waits were captures (see InputCapture.menuChanged())
+    //  - a cover's own input capture is dropped; a mod's captureInput()
+    //    left held hears keys without taking them from the new menu (see
+    //    InputCapture.menuChanged()). A pending waitForKeyPress() is a
+    //    plain listener and gets the next key, as it always has.
     //  A cover that ends normally has ended before any menu change it
     //  leads to (reload() after an interrupt), so this finds nothing.
     //

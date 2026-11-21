@@ -428,8 +428,8 @@ Client.prototype.end = function () {
             this.themeChangedListener
         );
 
-        //  No key will come for a capture now (a pending waitForKeyPress()):
-        //  drop them, giving each its onDrop() cleanup
+        //  No key will come for a capture now (a cover, a mod's own
+        //  captureInput()): drop them, giving each its onDrop() cleanup
         InputCapture.dropAllInput(this);
 
         //  Run the current module's leave(): it is a module's one chance
@@ -508,22 +508,15 @@ Client.prototype.hasInputCapture = function () {
 };
 
 //
-//  Call |cb(ch, key)| with the next key, once. The key is captured: it does
-//  not also reach a form still attached under whatever is waiting (a pause,
-//  a help page), as it did when this was a plain once('key press'). Other
-//  waits pending right under this one get the same key, as before.
-//  Returns the capture token; releaseInput(token) abandons the wait.
-//  options.onDrop: see captureInput() (the menu waiting has gone; cb will
-//  not be called).
+//  Call |cb(ch, key)| with the next key, once: a plain once('key press').
+//  The key also reaches every other 'key press' listener (a form still
+//  attached, unless a cover holds the input), and several waits pending at
+//  once all get the same key. Not a capture: see captureInput().
 //
-Client.prototype.waitForKeyPress = function (cb, options) {
-    const token = this.captureInput((ch, key) => {
-        this.releaseInput(token);
+Client.prototype.waitForKeyPress = function (cb) {
+    this.once('key press', function kp(ch, key) {
         cb(ch, key);
-    }, options);
-    //  waits under it hear the same key (see InputCapture keyReceivers())
-    token.isWait = true;
-    return token;
+    });
 };
 
 Client.prototype.isLocal = function () {

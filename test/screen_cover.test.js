@@ -183,7 +183,7 @@ describe('coverScreen()', () => {
         //  what MenuStack._settleCovers() does on a sysop break-in
         assert.deepEqual(InputCapture.menuChanged(client), {
             dropped: 1,
-            passThrough: 1,
+            passThrough: 0, //  the pause is a plain listener, not a capture
         });
         View.dropBackgroundDrawSuspends(client);
 
@@ -240,6 +240,36 @@ describe('coverScreen()', () => {
         client.emit('key press', 'p');
         assert.deepEqual(got, ['p'], 'its callback still runs');
         assert.equal(field.getData(), 'p');
+    });
+
+    //  A realtime menu's own pause is pending when an interrupt arrives;
+    //  the interrupt (a cover) is dismissed and the menu reloads. As before
+    //  covers: the menu's pause fires on the dismissing key, before the
+    //  reload, and the reloaded menu gets the next key.
+    it('a pause pending under an interrupt fires on the dismissing key, before the reload', () => {
+        const client = makeClient();
+        const { field: oldField } = makeForm(client);
+        const log = [];
+        client.waitForKeyPress(() => log.push('menu pause'));
+        coverScreen(
+            client,
+            { redrawMissed: false },
+            done => client.waitForKeyPress(() => done(null)), //  the interrupt's pause
+            () => {
+                log.push('reload');
+                InputCapture.menuChanged(client); //  what reload's goto() settles
+                View.dropBackgroundDrawSuspends(client);
+            }
+        );
+
+        client.emit('key press', ' ');
+        assert.deepEqual(log, ['menu pause', 'reload']);
+        assert.equal(oldField.getData(), '', 'the dismissing key reached no form');
+
+        const { field } = makeForm(client); //  the reloaded menu
+        client.emit('key press', 'x');
+        assert.deepEqual(log, ['menu pause', 'reload'], 'nothing fires late');
+        assert.equal(field.getData(), 'x');
     });
 
     it('passes fn’s results and error to cb, and skips restore on error', () => {

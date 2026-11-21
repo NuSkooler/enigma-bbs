@@ -8,6 +8,7 @@ const { ViewController } = require('../core/view_controller.js');
 const { EditTextView } = require('../core/edit_text_view.js');
 const { MultiLineEditTextView } = require('../core/multi_line_edit_text_view.js');
 const { TickerView } = require('../core/ticker_view.js');
+const { coverScreen } = require('../core/screen_cover.js');
 
 //
 //  Regression tests, at mechanism level, for the key that ends a screen
@@ -19,8 +20,20 @@ const { TickerView } = require('../core/ticker_view.js');
 //         was inserted into the message (and Escape ran the body's action).
 //
 //  Both waited with client.waitForKeyPress(), a plain once('key press')
-//  that the attached form's handler also heard. It is a capture now.
+//  that the attached form's handler also heard. It still is; both are
+//  covers now (coverScreen()), whose capture keeps every key -- including
+//  the one that ends the cover -- from the forms under it.
 //
+
+//  What the interrupt and FSE help do: a cover whose pause gets the key
+function coverUntilKey(client, onKey) {
+    coverScreen(client, done => {
+        client.waitForKeyPress((ch, key) => {
+            onKey(ch, key);
+            done(null);
+        });
+    });
+}
 
 function makeClient() {
     const client = new events.EventEmitter();
@@ -88,11 +101,15 @@ describe('A key that ends a cover does not reach the form under it', () => {
         client.emit('key press', 'g');
 
         const got = [];
-        client.waitForKeyPress(ch => got.push(ch));
+        coverUntilKey(client, ch => got.push(ch));
         client.emit('key press', 'x');
 
         assert.deepEqual(got, ['x'], 'the waiter has the key');
         assert.equal(field.getData(), 'g', 'the field does not');
+
+        //  the cover has gone: keys reach the field again
+        client.emit('key press', 'o');
+        assert.equal(field.getData(), 'go');
     });
 
     it('#1137: the message body (MLE) waiting behind help, Escape bound on its form', () => {
@@ -121,13 +138,13 @@ describe('A key that ends a cover does not reach the form under it', () => {
 
         //  help is up: a printable key dismisses it
         let dismissed = 0;
-        client.waitForKeyPress(() => ++dismissed);
+        coverUntilKey(client, () => ++dismissed);
         client.emit('key press', 'q');
         assert.equal(dismissed, 1);
         assert.equal(mle.getData(), before, 'not inserted into the message');
 
         //  ...and Escape
-        client.waitForKeyPress(() => ++dismissed);
+        coverUntilKey(client, () => ++dismissed);
         client.emit('key press', '\x1b', { name: 'escape' });
         assert.equal(dismissed, 2);
         assert.equal(submits, 0, 'the body form action did not run');

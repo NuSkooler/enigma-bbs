@@ -448,7 +448,7 @@ describe('pause prompts set the input focus aside', function () {
         });
     });
 
-    describe('with the real waitForKeyPress() (an input capture)', function () {
+    describe('with the real waitForKeyPress() and input capture', function () {
         let Client;
         before(function () {
             ({ Client } = require('../core/client.js'));
@@ -562,7 +562,7 @@ describe('pause prompts set the input focus aside', function () {
             assert.equal(field.getData(), '', 'the key went to the pause only');
         });
 
-        it('an action key on the menu form does not fire on the pause key', async function () {
+        it('a pause on the same screen passes its key to the form, as it always did', async function () {
             const client = makeCapturingClient();
             const { vc } = makeMenuForm(client);
             let submits = 0;
@@ -573,6 +573,31 @@ describe('pause prompts set the input focus aside', function () {
             await waitFor(tickerUp, 'the pause ticker');
             client.emit('key press', '\x1b', { name: 'escape' });
             await waitFor(() => state.done, 'the pause to finish');
+            assert.equal(submits, 1);
+        });
+
+        it('a pause inside a cover (a help page): the form action does not fire', async function () {
+            const { coverScreen } = require('../core/screen_cover.js');
+            const client = makeCapturingClient();
+            const { vc } = makeMenuForm(client);
+            let submits = 0;
+            vc.on('submit', () => ++submits);
+            vc.mapActionKeys([{ keys: ['escape'], viewId: 1 }], 'form');
+
+            let covered = true;
+            coverScreen(
+                client,
+                done =>
+                    theme.displayThemedPause(
+                        client,
+                        { promptName: 'pauseTk', clearPrompt: false },
+                        () => done(null)
+                    ),
+                () => (covered = false)
+            );
+            await waitFor(tickerUp, 'the pause ticker');
+            client.emit('key press', '\x1b', { name: 'escape' });
+            await waitFor(() => !covered, 'the cover to end');
             assert.equal(submits, 0);
         });
     });

@@ -3,25 +3,29 @@
 //
 //  Per-client input capture stack.
 //
-//  Something that owns the screen for a while -- a pause waiting for its
-//  key, an interrupt, a help page -- captures the client's input: while any
-//  capture is active only the top capture's handler gets a key, and every
-//  ViewController's key handler does nothing. The forms under the cover
-//  stay attached, so nothing has to find "every form" and put it back.
+//  Something that owns the screen for a while -- an interrupt, a help page
+//  (a cover: core/screen_cover.js), or a mod's own key handling --
+//  captures the client's input: while any capture is active only the top
+//  capture's handler gets a key, and every ViewController's key handler
+//  does nothing. The forms under the cover stay attached, so nothing has to
+//  find "every form" and put it back.
 //
 //  Direct 'key press' listeners on the client (a door's or WFC's own key
-//  handling) still see every key, as they always have.
+//  handling, and client.waitForKeyPress(), which is a plain
+//  once('key press')) still see every key, in the order they were added,
+//  as they always have.
 //
 //  Dispatch is one 'key press' listener per client, prepended so that it
-//  runs before any ViewController's. It decides once per key whether the key
-//  is captured; ViewController handlers ask isKeyPressCaptured(). Deciding
+//  runs before any other. It decides once per key whether the key is
+//  captured; ViewController handlers ask isKeyPressCaptured(). Deciding
 //  once matters both ways:
-//  - a capture whose handler releases itself (waitForKeyPress()) has gone
-//    before the forms' handlers run for that same key, and they must still
-//    leave it alone;
+//  - a cover whose pause gets the key ends, releasing its capture, while
+//    the key is being delivered: the forms' handlers that run after it must
+//    still leave that key alone;
 //  - a capture opened while the key is being delivered (a form's action
-//    starts a pause) is for the next key: every later listener still sees
-//    this one, as all 'key press' listeners did before captures existed.
+//    opens a help page) is for the next key: every later listener still
+//    sees this one, as all 'key press' listeners did before captures
+//    existed.
 //
 //  Kept in a WeakMap, like View's input focus, so a client (or a test's
 //  mock client) that goes away takes its state with it. No other
@@ -36,6 +40,8 @@
 //                  when it was taken, so a capture taken while key N is
 //                  being delivered (token.keySeq === N) is not counted for N
 //      dispatcher  the 'key press' listener
+//      listening   the dispatcher was added to the client (a stand-in
+//                  client that cannot add one has none)
 //  }
 //
 const captureStates = new WeakMap();
@@ -46,7 +52,7 @@ function getState(client) {
         return state;
     }
 
-    state = { stack: [], claimed: false, keySeq: 0 };
+    state = { stack: [], claimed: false, keySeq: 0, listening: false };
     captureStates.set(client, state);
 
     //  Installed once and kept, so it is still first for every key after
@@ -54,11 +60,10 @@ function getState(client) {
     const dispatcher = (ch, key) => {
         ++state.keySeq;
         //  Captures left over from a menu that has gone hear the next key
-        //  without taking it, as a plain once('key press') did: see
-        //  menuChanged()
+        //  without taking it: see menuChanged()
         const stale = state.stack.filter(t => t.passThrough);
-        const receivers = keyReceivers(state);
-        state.claimed = receivers.length > 0;
+        const top = topCapture(state);
+        state.claimed = !!top;
         //  A handler may release (or drop) another token, or the menu may
         //  change, while the key is delivered: only tokens still held get it
         for (const token of stale) {
@@ -66,16 +71,15 @@ function getState(client) {
                 token.handler(ch, key);
             }
         }
-        for (const token of receivers) {
-            if (state.stack.includes(token)) {
-                token.handler(ch, key);
-            }
+        if (top && state.stack.includes(top)) {
+            top.handler(ch, key);
         }
     };
     state.dispatcher = dispatcher;
     //  (a stand-in client that emits no keys has nothing to listen on)
     if (typeof client.prependListener === 'function') {
         client.prependListener('key press', dispatcher);
+        state.listening = true;
     }
 
     return state;
@@ -92,39 +96,15 @@ function topCapture(state) {
 }
 
 //
-//  Who gets this key: the top capture. When that is a plain wait
-//  (waitForKeyPress()), every plain wait directly under it gets the same
-//  key too, oldest first, as several once('key press') waits did before
-//  waits were captures; each releases itself. A general captureInput()
-//  handler stops the run: it, and whatever is under it, wait.
-//
-function keyReceivers(state) {
-    const top = topCapture(state);
-    if (!top || !top.isWait) {
-        return top ? [top] : [];
-    }
-    const run = [];
-    for (let i = state.stack.length - 1; i >= 0; --i) {
-        const token = state.stack[i];
-        if (token.passThrough) {
-            continue; //  heard the key already, as a leftover
-        }
-        if (!token.isWait) {
-            break;
-        }
-        run.unshift(token);
-    }
-    return run;
-}
-
-//
 //  Something removed every 'key press' listener (a mod calling
 //  client.removeAllListeners('key press')): without the dispatcher no
-//  capture would get a key, and a pause would wait forever. Put it back,
-//  first again.
+//  capture would get a key. Put it back, first again. Checked when a
+//  capture is taken or released and when a ViewController attaches, not
+//  per key.
 //
 function ensureDispatcher(client, state) {
     if (
+        !state.listening ||
         typeof client.listeners !== 'function' ||
         typeof client.prependListener !== 'function'
     ) {
@@ -135,15 +115,6 @@ function ensureDispatcher(client, state) {
         state.claimed = false;
         client.prependListener('key press', state.dispatcher);
     }
-}
-
-//  True when |client|'s dispatcher is listening (a mock client may have
-//  none: then every capture held counts for every key)
-function isDispatcherInstalled(client, state) {
-    return (
-        typeof client.listeners === 'function' &&
-        client.listeners('key press').includes(state.dispatcher)
-    );
 }
 
 //
@@ -165,10 +136,10 @@ function ensureKeyDispatch(client) {
 //  options:
 //    onMenuChange  what happens to the capture if the menu it was taken for
 //                  goes while it is still held (see menuChanged()):
-//                  'passThrough' (default) -- its handler still gets the next
-//                  key, which reaches the new menu as well, as a plain
-//                  once('key press') wait did; 'drop' -- it is dropped, the
-//                  handler is never called (a cover's own capture).
+//                  'passThrough' (default) -- its handler keeps getting
+//                  keys, which no longer stop there but reach the new menu
+//                  as well, until it is released; 'drop' -- it is dropped,
+//                  the handler is never called (a cover's own capture).
 //    onDrop()      called if the capture is dropped rather than released
 //                  (the client ended, or 'drop' above). The handler will
 //                  never be called; clean up here.
@@ -210,11 +181,9 @@ function releaseInput(client, token) {
 }
 
 //
-//  Drop every capture, calling each one's onDrop(), top first: the menu
-//  they were taken for has gone (a sysop break-in, a time-up while a pause
-//  waited). Unlike release, the handlers are never called, so nothing
-//  continues on behalf of the menu that has gone. Returns how many there
-//  were.
+//  Drop every capture, calling each one's onDrop(), top first: the client
+//  has ended and no key will come. Unlike release, the handlers are never
+//  called. Returns how many there were.
 //
 function dropAllInput(client) {
     const state = captureStates.get(client);
@@ -226,11 +195,11 @@ function dropAllInput(client) {
 
 //
 //  The menu stack has moved to another menu while captures were held (a
-//  sysop break-in, a time-up, an idle logoff while a pause waited). A
-//  capture taken with onMenuChange: 'drop' is dropped. Any other is left
-//  as a plain wait was before captures existed: its handler gets the next
-//  key, which no longer stops there but reaches the new menu's forms too.
-//  Returns { dropped, passThrough } counts.
+//  sysop break-in, a time-up, an idle logoff while an interrupt or help
+//  page was up). A capture taken with onMenuChange: 'drop' (a cover's) is
+//  dropped. Any other keeps hearing keys without taking them: they reach
+//  the new menu's forms too, until its owner releases it. Returns
+//  { dropped, passThrough } counts.
 //
 function menuChanged(client) {
     const state = captureStates.get(client);
@@ -277,7 +246,7 @@ function hasInputCapture(client) {
 //  For a ViewController's 'key press' handler: true when the key being
 //  delivered went to a capture, or a capture taken before this key's
 //  delivery began is still held. A capture taken during the delivery (a
-//  form's action opened a pause) is for the next key. Read only during
+//  form's action opened a help page) is for the next key. Read only during
 //  'key press' delivery: |claimed| and |keySeq| describe the key in flight.
 //  Without a dispatcher listening (a mock client), every capture held
 //  counts.
@@ -287,7 +256,7 @@ function isKeyPressCaptured(client) {
     if (!state) {
         return false;
     }
-    if (!isDispatcherInstalled(client, state)) {
+    if (!state.listening) {
         return !!topCapture(state);
     }
     return (

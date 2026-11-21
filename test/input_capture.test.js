@@ -11,10 +11,20 @@ const { EditTextView } = require('../core/edit_text_view.js');
 //
 //  The per-client input capture stack (core/input_capture.js): while a
 //  capture is active only the top capture's handler gets a key, and no
-//  ViewController's key handler does anything. client.waitForKeyPress() is a
-//  capture, so the key that ends a pause or a help page does not also reach
-//  a form left attached under it (#1136, #1137).
+//  ViewController's key handler does anything. Covers (an interrupt, a help
+//  page) hold one, so the key that ends them does not also reach a form
+//  left attached under it (#1136, #1137). client.waitForKeyPress() is not a
+//  capture: it is a plain once('key press'), as it always was.
 //
+
+//  A capture that takes one key and lets go, as a help page's does
+function captureOnce(client, cb) {
+    const token = client.captureInput((ch, key) => {
+        client.releaseInput(token);
+        cb(ch, key);
+    });
+    return token;
+}
 
 function makeTerm() {
     const term = {
@@ -225,7 +235,7 @@ describe('Input capture stack', () => {
 
         it('a capture opened while a key is delivered does not hide that key from later listeners', () => {
             //  Before captures, every 'key press' listener saw every key. A
-            //  form whose action opens a pause takes the pause for the next
+            //  form whose action opens a help page takes it for the next
             //  key; a form attached after it still sees this one.
             const client = makeClient();
             client.releaseInput(client.captureInput(() => {})); //  dispatcher in
@@ -235,7 +245,7 @@ describe('Input capture stack', () => {
                     return got.push('vc1 ignored');
                 }
                 got.push(`vc1 ${ch}`);
-                client.waitForKeyPress(() => got.push('pause'));
+                captureOnce(client, () => got.push('help'));
             });
             client.on('key press', ch => {
                 got.push(
@@ -248,25 +258,25 @@ describe('Input capture stack', () => {
             client.emit('key press', 'y', {});
             assert.deepEqual(
                 got,
-                ['vc1 x', 'vc2 x', 'pause', 'vc1 ignored', 'vc2 ignored'],
-                'the next key is the pause’s, and no form’s'
+                ['vc1 x', 'vc2 x', 'help', 'vc1 ignored', 'vc2 ignored'],
+                'the next key is the help page’s, and no form’s'
             );
         });
 
-        it('a form whose action opens a pause: a later form still gets that key, the pause the next', () => {
+        it('a form whose action opens a help page: a later form still gets that key, the help page the next', () => {
             const client = makeClient();
             client.releaseInput(client.captureInput(() => {}));
             const first = makeForm(client);
             const second = makeForm(client); //  attached after the first
             let paused = 0;
             first.vc.mapActionKeys([{ keys: ['x'], viewId: 1 }], 'form');
-            first.vc.on('submit', () => client.waitForKeyPress(() => ++paused));
+            first.vc.on('submit', () => captureOnce(client, () => ++paused));
 
             type(client, 'x');
             assert.equal(second.field.getData(), 'x', 'the later form saw it, as before');
             assert.equal(paused, 0);
             type(client, 'z');
-            assert.equal(paused, 1, 'the pause got the next key');
+            assert.equal(paused, 1, 'the help page got the next key');
             assert.equal(first.field.getData(), '');
             assert.equal(second.field.getData(), 'x', 'and no form did');
         });
@@ -287,57 +297,63 @@ describe('Input capture stack', () => {
         });
     });
 
-    describe('waitForKeyPress()', () => {
-        it('calls back once, with the key, and not the form', () => {
+    describe('waitForKeyPress() (a plain once(), not a capture)', () => {
+        it('calls back once, with the key, which also reaches the form', () => {
             const client = makeClient();
             const { field } = makeForm(client);
             const got = [];
             client.waitForKeyPress((ch, key) => got.push({ ch, key }));
+            assert.equal(client.hasInputCapture(), false, 'a wait is not a capture');
 
             const key = { name: 'x' };
             client.emit('key press', 'x', key);
             assert.deepEqual(got, [{ ch: 'x', key }]);
-            assert.equal(field.getData(), '', 'the dismissing key is not typed');
+            assert.equal(field.getData(), 'x', 'the form hears it too, as always');
 
             type(client, 'y');
             assert.equal(got.length, 1, 'called back once');
-            assert.equal(field.getData(), 'y', 'the next key is the form’s');
+            assert.equal(field.getData(), 'xy');
         });
 
-        it('lets a second key in the same burst reach the form', () => {
-            //  a paste: two keys decoded from one read, one after the other
+        it('runs in registration order with direct listeners', () => {
             const client = makeClient();
-            const { field } = makeForm(client);
-            let calls = 0;
-            client.waitForKeyPress(() => ++calls);
+            client.releaseInput(client.captureInput(() => {})); //  dispatcher in
+            const order = [];
+            let mode = 'paused';
+            client.on('key press', () => order.push(`direct(${mode})`));
+            client.waitForKeyPress(() => {
+                order.push('wait');
+                mode = 'list';
+            });
+            client.on('key press', () => order.push(`later(${mode})`));
 
-            type(client, 'ab');
-            assert.equal(calls, 1);
-            assert.equal(field.getData(), 'b');
+            type(client, 'x');
+            assert.deepEqual(order, ['direct(paused)', 'wait', 'later(list)']);
         });
 
-        it('returns a token that abandons the wait', () => {
+        it('a wait callback that throws does not keep the key from earlier listeners', () => {
             const client = makeClient();
-            let calls = 0;
-            const token = client.waitForKeyPress(() => ++calls);
-            assert.equal(client.releaseInput(token), true);
-            type(client, 'a');
-            assert.equal(calls, 0);
+            const seen = [];
+            client.on('key press', () => seen.push('direct'));
+            client.waitForKeyPress(() => {
+                throw new Error('boom');
+            });
+            assert.throws(() => type(client, 'x'), /boom/);
+            assert.deepEqual(seen, ['direct']);
         });
 
-        it('waits for the next key when started from a capture handler', () => {
+        it('an abandoned wait fires on the next key, which still reaches the form', () => {
             const client = makeClient();
             const got = [];
-            client.waitForKeyPress(ch => {
-                got.push(`first:${ch}`);
-                client.waitForKeyPress(ch2 => got.push(`second:${ch2}`));
-            });
-
-            type(client, '12');
-            assert.deepEqual(got, ['first:1', 'second:2']);
+            client.waitForKeyPress(() => got.push('stale wait'));
+            //  the operation it waited on ended by itself: back to the form
+            const { field } = makeForm(client);
+            type(client, 'abc');
+            assert.equal(field.getData(), 'abc');
+            assert.deepEqual(got, ['stale wait']);
         });
 
-        it('two pending waits both get the one key, oldest first, as once() waits did', () => {
+        it('two pending waits both get the one key, oldest first, and so does the form', () => {
             const client = makeClient();
             const { field } = makeForm(client);
             const got = [];
@@ -346,26 +362,7 @@ describe('Input capture stack', () => {
 
             type(client, '1');
             assert.deepEqual(got, ['outer:1', 'inner:1']);
-            assert.equal(field.getData(), '', 'and never the form');
-            assert.equal(client.hasInputCapture(), false);
-            type(client, '2');
-            assert.equal(field.getData(), '2');
-        });
-
-        it('a general capture stops the run: waits under it keep waiting', () => {
-            const client = makeClient();
-            const got = [];
-            client.waitForKeyPress(ch => got.push(`under:${ch}`));
-            const cover = client.captureInput(ch => got.push(`cover:${ch}`));
-            client.waitForKeyPress(ch => got.push(`top:${ch}`));
-
-            type(client, '1');
-            assert.deepEqual(got, ['top:1'], 'only the wait above the capture');
-            type(client, '2');
-            assert.deepEqual(got, ['top:1', 'cover:2'], 'a general capture: top only');
-            client.releaseInput(cover);
-            type(client, '3');
-            assert.deepEqual(got, ['top:1', 'cover:2', 'under:3']);
+            assert.equal(field.getData(), '1');
         });
 
         it('a wait started from a wait callback gets the next key, not this one', () => {
@@ -377,6 +374,26 @@ describe('Input capture stack', () => {
             });
             type(client, '12');
             assert.deepEqual(got, ['a:1', 'b:2']);
+        });
+
+        it('under a capture, a wait still hears its key; the forms do not', () => {
+            //  a cover's pause: the cover holds a capture, its pause waits
+            const client = makeClient();
+            const { field } = makeForm(client);
+            const got = [];
+            const cover = client.captureInput(() => got.push('cover'));
+            client.waitForKeyPress(ch => {
+                got.push(`wait:${ch}`);
+                client.releaseInput(cover); //  the cover ends on this key
+            });
+            const { field: later } = makeForm(client);
+
+            type(client, 'q');
+            assert.deepEqual(got, ['cover', 'wait:q']);
+            assert.equal(field.getData(), '', 'form attached before the wait');
+            assert.equal(later.getData(), '', 'form attached after it');
+            type(client, 'r');
+            assert.equal(field.getData(), 'r', 'the cover has gone');
         });
     });
 
@@ -391,10 +408,10 @@ describe('Input capture stack', () => {
             //  must still win the key
             const form = makeForm(client);
             const got = [];
-            client.waitForKeyPress(ch => got.push(ch));
+            captureOnce(client, ch => got.push(ch));
             assert.equal(client.listeners('key press')[0].name, 'dispatcher');
             type(client, 'x');
-            assert.deepEqual(got, ['x'], 'the wait gets its key: no hang');
+            assert.deepEqual(got, ['x'], 'the capture gets its key: no hang');
             assert.equal(form.field.getData(), '');
             assert.equal(field.getData(), '');
         });
@@ -402,17 +419,17 @@ describe('Input capture stack', () => {
         it('is put back, and its claim reset, when a form attaches', () => {
             const client = makeClient();
             const got = [];
-            client.waitForKeyPress(ch => got.push(ch)); //  installs it
-            type(client, 'a'); //  claimed by the wait
+            captureOnce(client, ch => got.push(ch)); //  installs it
+            type(client, 'a'); //  claimed by the capture
             client.removeAllListeners('key press'); //  a mod tidying up
 
             const { field } = makeForm(client); //  attaches: dispatcher back
             assert.equal(client.listeners('key press')[0].name, 'dispatcher');
             type(client, 'b');
             assert.equal(field.getData(), 'b', 'not left silent by a stale claim');
-            client.waitForKeyPress(ch => got.push(ch));
+            captureOnce(client, ch => got.push(ch));
             type(client, 'c');
-            assert.deepEqual(got, ['a', 'c'], 'a later wait still hears its key');
+            assert.deepEqual(got, ['a', 'c'], 'a later capture still hears its key');
             assert.equal(field.getData(), 'b');
         });
 
@@ -425,7 +442,7 @@ describe('Input capture stack', () => {
             assert.equal(client.listeners('key press')[0].name, 'dispatcher');
             const got = [];
             client.releaseInput(held);
-            client.waitForKeyPress(ch => got.push(ch));
+            captureOnce(client, ch => got.push(ch));
             type(client, 'k');
             assert.deepEqual(got, ['k']);
         });
@@ -454,18 +471,55 @@ describe('Input capture stack', () => {
     });
 
     describe('when the menu changes under a capture (menuChanged())', () => {
-        it('a plain wait gets the next key without taking it, as a once() wait did', () => {
+        it('a capture left held hears keys without taking them from the new menu', () => {
             const client = makeClient();
             const got = [];
-            client.waitForKeyPress(ch => got.push(ch));
+            const token = client.captureInput(ch => got.push(ch));
             const res = InputCapture.menuChanged(client);
             assert.deepEqual(res, { dropped: 0, passThrough: 1 });
             assert.equal(client.hasInputCapture(), false);
 
             const { field } = makeForm(client); //  the next menu's form
             type(client, 'ab');
-            assert.deepEqual(got, ['a'], 'the stale callback fires once');
-            assert.equal(field.getData(), 'ab', 'and the new form gets the key too');
+            assert.deepEqual(got, ['a', 'b'], 'it keeps hearing keys');
+            assert.equal(field.getData(), 'ab', 'and the new form gets them too');
+            client.releaseInput(token);
+            type(client, 'c');
+            assert.deepEqual(got, ['a', 'b'], 'until it is released');
+        });
+
+        it('leaves a pending wait alone: it fires on the next key, which the new menu gets too', () => {
+            const client = makeClient();
+            const got = [];
+            client.waitForKeyPress(ch => got.push(`before:${ch}`));
+            InputCapture.menuChanged(client);
+            const { field } = makeForm(client);
+            type(client, 'h');
+            assert.deepEqual(got, ['before:h']);
+            assert.equal(field.getData(), 'h');
+        });
+
+        it('a wait the old menu’s flow takes after the change does not steal the new menu’s keys', () => {
+            //  pause: pageBreak art, several page prompts to go, when a
+            //  break-in moves the caller to chat
+            const client = makeClient();
+            client.releaseInput(client.captureInput(() => {})); //  dispatcher in
+            let pages = 3;
+            let fired = 0;
+            const nextPage = () => {
+                client.waitForKeyPress(() => {
+                    ++fired;
+                    if (--pages > 0) {
+                        nextPage();
+                    }
+                });
+            };
+            nextPage();
+            InputCapture.menuChanged(client);
+            const { field } = makeForm(client);
+            type(client, 'hello');
+            assert.equal(field.getData(), 'hello');
+            assert.equal(fired, 3);
         });
 
         it("drops a capture taken with onMenuChange: 'drop', calling onDrop", () => {
@@ -490,16 +544,16 @@ describe('Input capture stack', () => {
         it('a capture taken by the new menu works as usual over a leftover', () => {
             const client = makeClient();
             const got = [];
-            client.waitForKeyPress(ch => got.push(`old:${ch}`));
+            client.captureInput(ch => got.push(`old:${ch}`));
             InputCapture.menuChanged(client);
             const { field } = makeForm(client);
-            client.waitForKeyPress(ch => got.push(`new:${ch}`));
+            client.captureInput(ch => got.push(`new:${ch}`));
             type(client, 'q');
             assert.deepEqual(got, ['old:q', 'new:q']);
             assert.equal(
                 field.getData(),
                 '',
-                'the new wait still keeps it from the form'
+                'the new capture still keeps it from the form'
             );
         });
 
@@ -523,21 +577,23 @@ describe('Input capture stack', () => {
             client.end(); //  removes its theme listener; safe to repeat
         });
 
-        it('has the capture methods, and waitForKeyPress() captures', () => {
+        it('has the capture methods; waitForKeyPress() is not a capture', () => {
+            const token = client.captureInput(() => {});
+            assert.equal(client.hasInputCapture(), true);
+            assert.equal(client.releaseInput(token), true);
+
             const got = [];
             client.waitForKeyPress(ch => got.push(ch));
-            assert.equal(client.hasInputCapture(), true);
-
+            assert.equal(client.hasInputCapture(), false);
             client.emit('key press', 'a');
             client.emit('key press', 'b');
             assert.deepEqual(got, ['a']);
-            assert.equal(client.hasInputCapture(), false);
         });
 
         it('drops every capture when the client ends', () => {
             let calls = 0;
             client.captureInput(() => ++calls);
-            client.waitForKeyPress(() => ++calls);
+            client.captureInput(() => ++calls);
 
             client.end();
             assert.equal(client.hasInputCapture(), false);
@@ -548,7 +604,7 @@ describe('Input capture stack', () => {
 
         it('gives a dropped capture its onDrop() when the client ends', () => {
             let drops = 0;
-            client.waitForKeyPress(() => {}, { onDrop: () => ++drops });
+            client.captureInput(() => {}, { onDrop: () => ++drops });
             client.end();
             assert.equal(drops, 1);
         });

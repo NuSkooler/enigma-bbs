@@ -425,7 +425,11 @@ describe('MenuStack navigation guards', function () {
                     .find(e => e.msg === 'Menu changed while the screen was covered');
                 assert.ok(logged, 'logged at debug');
                 assert.equal(logged.obj.droppedCaptures, 1);
-                assert.equal(logged.obj.passThroughCaptures, 1);
+                assert.equal(
+                    logged.obj.passThroughCaptures,
+                    0,
+                    'the pause is no capture'
+                );
                 assert.equal(logged.obj.droppedSuspends, 1);
 
                 const field = attachForm();
