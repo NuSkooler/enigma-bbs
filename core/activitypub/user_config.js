@@ -1,4 +1,5 @@
-const { MenuModule } = require('../menu_module');
+const { MenuModule, MenuLeftStop } = require('../menu_module');
+const { FormLifecycle } = require('../view_controller');
 const ActivityPubSettings = require('./settings');
 const { Errors } = require('../enig_error');
 const { getServer } = require('../listening_server');
@@ -38,6 +39,23 @@ const MciViewIds = {
         saveOrCancel: 3,
     },
 };
+
+//  Ends a page's steps early: the menu was left (see hasLeftMenu())
+
+//
+//  The pages take turns: the one not shown is covered (no keys, no
+//  background drawing), not torn down, as it is shown again (the prep
+//  helper activates it). It is covered before the other page's art is
+//  drawn, as blurring its focused view draws that view.
+//
+function coverForm(menu, name) {
+    FormLifecycle.coverAny(menu.viewControllers[name]);
+}
+
+//  module -> its enabled toggle's 'index update' listener (see
+//  _displayMainPage()). Kept here, not on the module, so no name is taken
+//  from a subclass.
+const enabledUpdateListeners = new WeakMap();
 
 const EnabledViewGroup = [
     MciViewIds.main.manuallyApproveFollowersToggle,
@@ -99,12 +117,12 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
     }
 
     _backToMain(cb) {
-        this.viewControllers.images.setFocus(false);
+        coverForm(this, 'images');
         return this._displayMainPage(true, cb);
     }
 
     _manageImagesButton(cb) {
-        this.viewControllers.main.setFocus(false);
+        coverForm(this, 'main');
         return this._displayImagesPage(true, cb);
     }
 
@@ -178,6 +196,10 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                     );
                 },
                 callback => {
+                    //  the screen is another menu's now
+                    if (this.hasLeftMenu()) {
+                        return callback(MenuLeftStop);
+                    }
                     return this.validateMCIByViewIds(
                         'main',
                         Object.values(MciViewIds.main).filter(
@@ -217,16 +239,25 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                     this._toggleEnabledViewGroup();
                     this._updateCustomViews();
 
-                    enabledToggleView.on('index update', () => {
-                        this._toggleEnabledViewGroup();
-                        this._updateCustomViews();
-                    });
+                    //  Removed, then added: the toggle keeps its listeners
+                    //  while the images page covers it, so adding again on
+                    //  each show would fire it once more per visit
+                    let onEnabledUpdate = enabledUpdateListeners.get(this);
+                    if (!onEnabledUpdate) {
+                        onEnabledUpdate = () => {
+                            this._toggleEnabledViewGroup();
+                            this._updateCustomViews();
+                        };
+                        enabledUpdateListeners.set(this, onEnabledUpdate);
+                    }
+                    enabledToggleView.removeListener('index update', onEnabledUpdate);
+                    enabledToggleView.on('index update', onEnabledUpdate);
 
                     return callback(null);
                 },
             ],
             err => {
-                return cb(err);
+                return cb(MenuLeftStop === err ? null : err);
             }
         );
     }
@@ -243,6 +274,10 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                     );
                 },
                 callback => {
+                    //  the screen is another menu's now
+                    if (this.hasLeftMenu()) {
+                        return callback(MenuLeftStop);
+                    }
                     return this.validateMCIByViewIds(
                         'images',
                         Object.values(MciViewIds.images),
@@ -265,7 +300,7 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                 },
             ],
             err => {
-                return cb(err);
+                return cb(MenuLeftStop === err ? null : err);
             }
         );
     }

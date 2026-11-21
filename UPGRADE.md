@@ -46,6 +46,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** a module that extends the full screen editor and adds listeners to its views each time a form gets the keys back should remove them first (`removeListener()`, then `on()`), or add them once; otherwise they fire once more after every focus change. `promptForInput({ prevFormName })` still removes the previous form's view listeners, as before.
 
+* **Mod authors: screens that switch pages keep the hidden page's view listeners.** Nothing in your configuration, menus, art or themes needs to change, and nothing changes for a mod that does not extend one of these stock modules: `onelinerz`, `rumorz`, `bbs_list`, `file_area_list`, `activitypub/ap_search`, `activitypub/actor_search`, `activitypub/user_config`.
+
+  **What changes by itself:** the page not shown is covered (`cover()`) instead of torn down with `setFocus(false)` (`detachClientEvents()` for the file list's details), and activated when it is shown again. Its tickers and status bars pause instead of stopping, and listeners added to its views are still there when it is shown again.
+
+  **Action:** a module that extends one of them and adds listeners to a page's views each time the page is shown should remove them first (`removeListener()`, then `on()`), or add them once; otherwise they fire once more after every visit.
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).

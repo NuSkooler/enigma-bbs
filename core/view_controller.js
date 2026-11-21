@@ -83,6 +83,9 @@ function activateForm(vc) {
         uncoverForm(vc);
     }
 
+    //  active again here, not only in attachClientEvents(): a subclass may
+    //  replace that method without calling it
+    FormState.setFormInactive(vc, false);
     vc.attachClientEvents();
     vc.setViewFocusWithEvents(vc.focusedView, true);
 
@@ -202,6 +205,16 @@ class ViewController extends events.EventEmitter {
             //  a help page, or a mod's captureInput()): the form under it
             //  gets nothing.
             if (isKeyPressCaptured(this.client)) {
+                return;
+            }
+
+            //  Deactivated, covered or destroyed: no keys. This matters for
+            //  a key still being delivered when that happened (another
+            //  listener's action for it covered this form): Node hands a key
+            //  to the listeners as they were when it was sent. Forms torn
+            //  down with setFocus(false) are not marked inactive, and behave
+            //  as before.
+            if (FormState.isFormInactive(this) || FormState.isFormDestroyed(this)) {
                 return;
             }
 
@@ -1324,5 +1337,15 @@ exports.FormLifecycle = Object.freeze({
     cover: coverForm,
     uncover: uncoverForm,
     destroy: destroyForm,
+    //  cover() a ViewController; anything else a module keeps in
+    //  viewControllers gets setFocus(false), as before form states
+    coverAny: vc => {
+        if (vc instanceof ViewController) {
+            return coverForm(vc);
+        }
+        if (vc) {
+            vc.setFocus(false);
+        }
+    },
 });
 exports.MCI_REGEXP = MCI_REGEXP;

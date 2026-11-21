@@ -62,6 +62,10 @@ exports.getModule = class UserStatusConfigModule extends MenuModule {
                         callback
                     ),
                 callback => {
+                    //  the screen is another menu's now
+                    if (this.hasLeftMenu()) {
+                        return callback(null);
+                    }
                     //  TL views don't accept focus, so the VC never gets a focused
                     //  view and its key handler is never attached — force it here.
                     this.viewControllers.menu.setFocus(true);

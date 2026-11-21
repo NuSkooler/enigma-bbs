@@ -342,6 +342,44 @@ describe('Form states (ViewController)', () => {
             assert.equal(View.isBackgroundDrawSuspended(client), false);
         });
 
+        it('a form covered or deactivated while a key is delivered does not get that key', () => {
+            ['cover', 'deactivate'].forEach(how => {
+                const client = makeClient();
+                const a = buildForm(client, { row: 2 });
+                //  another listener's action covers form B mid-key
+                let b;
+                client.on('key press', ch => {
+                    if ('z' === ch) {
+                        b.vc[how]();
+                    }
+                });
+                b = buildForm(client, { row: 4 });
+                assert.equal(b.vc.attached, true);
+                type(client, 'z');
+                assert.equal(b.field.getData(), '', `${how}: B did not take the key`);
+                assert.equal(a.field.getData(), 'z', `${how}: A did`);
+            });
+        });
+
+        it('a form destroyed while a key is delivered does not get it; setFocus(false) mid-key is as before', () => {
+            const client = makeClient();
+            buildForm(client, { row: 2 });
+            let b;
+            let c;
+            client.on('key press', ch => {
+                if ('z' === ch) {
+                    b.vc.destroy();
+                    c.vc.setFocus(false);
+                }
+            });
+            b = buildForm(client, { row: 4 });
+            c = buildForm(client, { row: 6 });
+            type(client, 'z');
+            assert.equal(b.field.getData(), '', 'destroyed: no key');
+            //  master: a form torn down mid-key still got that key
+            assert.equal(c.field.getData(), 'z', 'setFocus(false): as before');
+        });
+
         it('a covered form under a screen cover is redrawn only when both are gone', () => {
             const client = makeClient();
             const { vc } = buildForm(client);
