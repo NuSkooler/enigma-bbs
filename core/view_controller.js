@@ -19,17 +19,16 @@ const paths = require('path');
 const MCI_REGEXP = /([A-Z]{2})([0-9]{1,2})/;
 
 //
-//  Tear down every view of |vc| not torn down already: it takes no more
-//  input, its listeners are removed and it is destroyed (its timers
-//  stopped). A view that was the input focus is released first: nothing
-//  should put the cursor back into it.
+//  Tear down every view of |vc|: it takes no more input, its listeners are
+//  removed and it is destroyed (its timers stopped). A view that was the
+//  input focus is released first: nothing should put the cursor back into
+//  it. Views torn down before are torn down again, as always: a module may
+//  have added listeners to them since (a page shown again after
+//  setFocus(false) / setFocus(true)), and those go too.
 //
 function tearDownViews(vc) {
     for (const id in vc.views) {
         const view = vc.views[id];
-        if (View.isDestroyed(view)) {
-            continue;
-        }
         View.releaseInputFocus(view);
         view.removeAllListeners();
         if (typeof view.destroy === 'function') {

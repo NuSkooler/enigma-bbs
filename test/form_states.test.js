@@ -252,6 +252,19 @@ describe('Form states (ViewController)', () => {
             assert.equal(field.getData(), 'x');
         });
 
+        it('setFocus(false) again removes listeners added since the last one (a page shown again)', () => {
+            const client = makeClient();
+            const { vc, field } = buildForm(client);
+            const counts = [];
+            for (let i = 0; i < 4; ++i) {
+                field.on('custom', () => {}); //  bound each time it is shown
+                vc.setFocus(false);
+                counts.push(field.listenerCount('custom'));
+                vc.setFocus(true);
+            }
+            assert.deepEqual(counts, [0, 0, 0, 0]);
+        });
+
         it('detachClientEvents() on a deactivated form still tears it down', () => {
             const client = makeClient();
             const { vc, ticker } = buildForm(client);
