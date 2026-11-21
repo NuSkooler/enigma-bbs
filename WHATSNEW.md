@@ -33,6 +33,13 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * **A multi-line editor no longer moves the cursor back into itself after losing the keys.** A code just typed (`|12`) collapses 300 ms later; if Escape or another focus change came first, the line was redrawn and the cursor left in it while another field had the keys. It now collapses as the focus leaves.
   * **For mods:** `promptForInput({ prevFormName })` covers the previous form instead of tearing it down: its views and timers are kept, and its view listeners are removed, as before. Mods that extend the full screen editor: see UPGRADE.md.
 
+* **Tickers and status bars keep running on screens that switch pages.** On onelinerz, rumorz and the BBS list (the list and the add page), the file list (browse and details) and the ActivityPub search, actor search and user configuration screens, a `%TK` ticker or a `%SB` status bar with `refreshInterval` stopped for good the first time the screen switched to its other page. The page not shown now only pauses them, and they pick up again when it is shown.
+
+  * **Onelinerz and rumorz: the entry preview no longer draws over the list.** Typing a line and then pressing Escape within half a second drew the preview and the entry field over the list, and left the cursor in the hidden field. It also fired after leaving the menu. A pending preview is now dropped when the add page goes away.
+  * **Leaving one of these screens while a page is still loading** (its art being drawn, a remote look-up) no longer draws the rest of that page over the next menu.
+  * **The file list's "general" details section** no longer stays attached under the browse page after leaving details.
+  * **For mods:** these modules cover the hidden page (`cover()`) instead of tearing it down with `setFocus(false)`. See UPGRADE.md if you extend one of them.
+
 ## 0.6.1-beta
 
 * **Ticker text styles that change the text's length keep each character's colour** ([#1063](https://github.com/NuSkooler/enigma-bbs/issues/1063)). A `%TK` ticker with pipe colours in its `text` and a text-style `effect` coloured the wrong characters after any character the style turns into more than one: `upper` turns `ß` into `SS`, `lower` turns `İ` into two characters, and `mixed` does either at random. With `effect: upper`, `|14ßa|07b` drew `A` in the wrong colour and `B` in the view's colour instead of `|07`. Each character's colour now goes with everything it becomes. Setting `effect` on a ticker that already has text now restyles its text and colours together; before, the colours were left as they were, and switching from a text style to a dynamic effect such as `rainbow` left the text styled.
