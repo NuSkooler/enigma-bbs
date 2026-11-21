@@ -40,6 +40,13 @@ const suspendedBackgroundDraw = new WeakMap();
 //  drawn inside the cover (a ticker in an interrupt's pause prompt).
 const backgroundSeqs = new WeakMap();
 
+//  view -> the seq it took when created. Kept here, not on the view, so no
+//  property name is taken from a mod's View subclass (nor below).
+const viewBackgroundSeqs = new WeakMap();
+
+//  views that have been destroyed: no background redraw is owed to them
+const destroyedViews = new WeakSet();
+
 //  client -> the seq of the latest suspend taken: see View.coverMark()
 const lastCoverMarks = new WeakMap();
 
@@ -73,7 +80,7 @@ class View extends events.EventEmitter {
 
         this.client = options.client;
         //  see suspendBackgroundDraw(): which covers this view is under
-        this.backgroundSeq = nextBackgroundSeq(this.client);
+        viewBackgroundSeqs.set(this, nextBackgroundSeq(this.client));
         this.cursor = options.cursor || 'show';
         this.cursorStyle = options.cursorStyle || 'default';
 
@@ -402,7 +409,7 @@ class View extends events.EventEmitter {
     //  subclass whose destroy() does not call super is still marked.
     //
     static markDestroyed(view) {
-        view.destroyed = true;
+        destroyedViews.add(view);
         const suspended = suspendedBackgroundDraw.get(view.client);
         if (suspended) {
             suspended.missed.delete(view);
@@ -534,7 +541,7 @@ class View extends events.EventEmitter {
             return false;
         }
         const top = suspended.tokens[suspended.tokens.length - 1];
-        return (this.backgroundSeq || 0) < top.seq;
+        return (viewBackgroundSeqs.get(this) || 0) < top.seq;
     }
 
     //
@@ -561,7 +568,7 @@ class View extends events.EventEmitter {
 
         const uncovered = [];
         for (const view of suspended.missed) {
-            if (view.destroyed) {
+            if (destroyedViews.has(view)) {
                 suspended.missed.delete(view);
             } else if (!view.isBackgroundDrawSuspended()) {
                 suspended.missed.delete(view);
@@ -651,7 +658,7 @@ class View extends events.EventEmitter {
         //  The screen is covered (suspendBackgroundDraw()): draw nothing now,
         //  and get a full redraw when it is uncovered.
         if (this.isBackgroundDrawSuspended()) {
-            if (!this.destroyed) {
+            if (!destroyedViews.has(this)) {
                 suspendedBackgroundDraw.get(this.client).missed.add(this);
             }
             //  drawFn() still runs, its output thrown away, for a caller

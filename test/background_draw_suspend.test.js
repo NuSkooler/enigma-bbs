@@ -227,10 +227,32 @@ describe('Background draw suspend / resume', () => {
         timers.fireAll();
 
         ticker.destroy();
-        assert.equal(ticker.destroyed, true);
         const before = client.term.flushes.length;
         View.resumeBackgroundDraw(client, token);
         assert.equal(client.term.flushes.length, before, 'nothing drawn');
+    });
+
+    //  A mod's View subclass may already use these names for its own state
+    it('takes no property names from a view: a subclass’s destroyed / backgroundSeq are its own', () => {
+        const client = makeClient();
+        class ModView extends View {
+            constructor(options) {
+                super(options);
+                this.destroyed = true; //  the mod's own meaning
+                this.backgroundSeq = 1e9;
+            }
+        }
+        const view = new ModView({ client, id: 8, position: { row: 3, col: 1 } });
+        view.redraws = 0;
+        view.redraw = () => ++view.redraws;
+
+        const token = View.suspendBackgroundDraw(client);
+        assert.equal(view.isBackgroundDrawSuspended(), true, 'covered as usual');
+        view.drawInBackground(() => {});
+        View.resumeBackgroundDraw(client, token);
+        assert.equal(view.redraws, 1, 'the draw it missed is owed and given');
+        assert.equal(view.destroyed, true);
+        assert.equal(view.backgroundSeq, 1e9);
     });
 
     it('does not note a view that is already destroyed', () => {
@@ -662,8 +684,14 @@ describe('Background draw suspend / resume', () => {
             View.resumeBackgroundDraw(client, token);
             assert.ok(client.term.since(before).includes(`n=${n}`), 'latest value drawn');
 
+            //  destroy() reaches View.destroy(): a draw it would miss now is
+            //  not noted, so no redraw is owed to it
             bar.destroy();
-            assert.equal(bar.destroyed, true, 'destroy() reaches View.destroy()');
+            const again = View.suspendBackgroundDraw(client);
+            bar.drawInBackground(() => {});
+            const afterDestroy = client.term.flushes.length;
+            View.resumeBackgroundDraw(client, again);
+            assert.equal(client.term.flushes.length, afterDestroy, 'nothing redrawn');
         });
     });
 });
