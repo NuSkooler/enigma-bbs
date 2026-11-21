@@ -1186,17 +1186,25 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //  missed a background draw is redrawn once) and gets the keys back.
         //
         //  Its view listeners are removed, as setFocus(false) always did
-        //  here: modules bind them again in the prompt's actions (msg_list),
-        //  and would otherwise bind them twice.
+        //  here (for an attached form; it left a detached one alone):
+        //  modules bind them again in the prompt's actions (msg_list), and
+        //  would otherwise bind them twice. Something in viewControllers
+        //  that is not a ViewController gets setFocus(false / true), as
+        //  before.
         //
         let prevVc;
         if (prevFormName) {
             prevVc = this.viewControllers[prevFormName];
-            if (prevVc) {
+            if (prevVc instanceof ViewController) {
+                const wasAttached = prevVc.attached;
                 FormLifecycle.cover(prevVc);
-                Object.values(prevVc.views || {}).forEach(view =>
-                    view.removeAllListeners()
-                );
+                if (wasAttached) {
+                    Object.values(prevVc.views || {}).forEach(view =>
+                        view.removeAllListeners()
+                    );
+                }
+            } else if (prevVc) {
+                prevVc.setFocus(false);
             }
         }
 
@@ -1207,8 +1215,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 originalSubmitNotify();
             }
 
-            if (prevVc) {
+            if (prevVc instanceof ViewController) {
                 FormLifecycle.activate(prevVc);
+            } else if (prevVc) {
+                prevVc.setFocus(true);
             }
             this.removeViewController(formName);
             if (options.clearAtSubmit) {

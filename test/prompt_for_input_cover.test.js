@@ -288,6 +288,38 @@ describe('promptForInput() covers the previous form (F3b)', () => {
         assert.equal(timers.live(), 1, 'one ticker timer');
     });
 
+    it('a previous form that is not attached keeps its view listeners, as before', () => {
+        const client = makeClient();
+        const { mod, vc, list } = makeMenu(client);
+        vc.setFocus(false); //  torn down, as master; listeners gone
+        const onIndex = () => {};
+        list.on('index update', onIndex);
+        const prompt = ask(mod);
+        assert.equal(list.listenerCount('index update'), 1, 'not stripped');
+        prompt.vc.submitForm();
+        assert.equal(list.listenerCount('index update'), 1);
+    });
+
+    it('a previous form that is not a ViewController gets setFocus(false / true), as before', () => {
+        const client = makeClient();
+        const { mod } = makeMenu(client);
+        const calls = [];
+        mod.viewControllers.duck = { setFocus: f => calls.push(f) };
+        mod.promptForInput(
+            {
+                formName: 'duckPrompt',
+                formId: 1,
+                promptName: 'deleteMessageFromListPrompt',
+                prevFormName: 'duck',
+                position: { row: 20, col: 1 },
+            },
+            {},
+            err => assert.ifError(err)
+        );
+        prompts[prompts.length - 1].vc.submitForm();
+        assert.deepEqual(calls, [false, true]);
+    });
+
     it('a menu left while the prompt is up: submit leaves the form destroyed', () => {
         const client = makeClient();
         const { mod, vc } = makeMenu(client);

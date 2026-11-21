@@ -445,6 +445,40 @@ describe('FSE form states (F3b)', () => {
     });
 
     describe('Escape menu (switchFooter)', () => {
+        it('Escape back: the menu is blurred before the editor footer art, which paints over it', () => {
+            const { client, inst } = toBody(startCompose(editor()));
+            const prep = inst.prepViewControllerWithArt;
+            inst.prepViewControllerWithArt = (name, formId, opts, cb) => {
+                client.term.rawWrite(`<<ART ${name}>>`);
+                return prep(name, formId, opts, cb);
+            };
+            key(client, undefined, ESC); //  the menu
+            const n = client.term.out.length;
+            key(client, undefined, ESC); //  back to the editor
+            const sent = client.term.since(n);
+            const art = sent.indexOf('<<ART footerEditor>>');
+            assert.ok(art >= 0, 'footer art drawn');
+            assert.equal(
+                sent.slice(art).includes(' upload '),
+                false,
+                'no menu item drawn after the footer art'
+            );
+        });
+
+        it('a footer whose art fails: the footer that had the keys gets them back', () => {
+            const { client, inst, v, vcs } = toBody(startCompose(editor()));
+            key(client, undefined, ESC); //  the menu
+            const prep = inst.prepViewControllerWithArt;
+            inst.prepViewControllerWithArt = (name, formId, opts, cb) =>
+                cb(new Error('no art'));
+            inst.footerMode = 'editor';
+            inst.switchFooter(() => {});
+            assert.equal(vcs.footerEditorMenu.attached, true);
+            assert.equal(FormState.getFormCoverToken(vcs.footerEditorMenu), null);
+            assert.equal(View.getInputFocusView(client), v.menu);
+            inst.prepViewControllerWithArt = prep;
+        });
+
         it('Escape: the menu takes the keys; the editor footer is covered, the body inactive', () => {
             const { client, v, vcs } = toBody(startCompose(editor()));
             type(client, 'msg');

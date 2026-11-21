@@ -458,13 +458,18 @@ exports.FullScreenEditorModule =
         //  path in _pendingTempUploadDir for getSaveState(), then transitions to
         //  the transfer module with returnToCaller so we come back here on exit.
         _startBodyUpload(cb) {
-            this.viewControllers.footerEditorMenu.setFocus(false);
+            const menu = this.viewControllers.footerEditorMenu;
+            FormLifecycle.cover(menu);
             temptmp.mkdir({ prefix: 'enigfseul-' }, (err, tempDir) => {
                 if (err) {
                     this.client.log.warn(
                         { err },
                         'FSE: failed to create upload temp dir'
                     );
+                    //  still on the menu: give it the keys back
+                    if (!this.hasLeftMenu()) {
+                        FormLifecycle.activate(menu);
+                    }
                     return cb(err);
                 }
                 //  Store dir so getSaveState() can include it for cleanup on re-entry.
@@ -1097,6 +1102,12 @@ exports.FullScreenEditorModule =
             //  flash between clearing the old footer and drawing the new one.
             const endBatch = this._beginArtBatch();
             try {
+                //  Cover the outgoing footer first: blurring its focused view
+                //  may draw it (a menu redraws its items), which the erase
+                //  and the new art then paint over, not the other way round.
+                const covered = this.hasLeftMenu()
+                    ? []
+                    : this._coverOtherFooters(footerName);
                 this.client.term.rawWrite(ansi.goto(startRow, 1) + ansi.eraseLine(2));
                 this.prepViewControllerWithArt(
                     footerName,
@@ -1106,10 +1117,13 @@ exports.FullScreenEditorModule =
                         try {
                             //  (a left menu's form is torn down: not drawn)
                             if (!err && !this.hasLeftMenu()) {
-                                this._coverOtherFooters(footerName);
                                 if (!created) {
                                     vc.redrawAll();
                                 }
+                            } else if (err && !this.hasLeftMenu()) {
+                                //  no new footer: give the keys back to the
+                                //  one that had them, as before
+                                covered.forEach(f => FormLifecycle.activate(f));
                             }
                         } finally {
                             endBatch();
@@ -1128,15 +1142,20 @@ exports.FullScreenEditorModule =
         //  is shown: every other footer form is covered (no keys, no
         //  background drawing) until it is shown again. They are kept, not
         //  torn down, as each is shown again later (prepViewController()
-        //  activates an existing form).
+        //  activates an existing form). Returns the footers that had the keys.
         //
         _coverOtherFooters(footerName) {
+            const hadKeys = [];
             for (const name of FooterFormNames) {
                 const vc = this.viewControllers[name];
                 if (name !== footerName && vc instanceof ViewController) {
+                    if (vc.attached) {
+                        hadKeys.push(vc);
+                    }
                     FormLifecycle.cover(vc);
                 }
             }
+            return hadKeys;
         }
 
         initSequence() {
