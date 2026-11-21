@@ -6,7 +6,7 @@ const MenuModule = require('./menu_module.js').MenuModule;
 
 const { getModDatabasePath, openDatabase } = require('./database.js');
 
-const ViewController = require('./view_controller.js').ViewController;
+const { ViewController, FormLifecycle } = require('./view_controller.js');
 const ansi = require('./ansi_term.js');
 const theme = require('./theme.js');
 const User = require('./user.js');
@@ -53,6 +53,28 @@ const FormIds = {
     View: 0,
     Add: 1,
 };
+
+//  Ends a screen's steps early: the menu was left (see hasLeftMenu())
+const MenuLeft = Symbol('menuLeft');
+
+//  module -> its list's 'index update' listener (see displayBBSList()).
+//  Kept here, not on the module, so no name is taken from a subclass.
+const indexUpdateListeners = new WeakMap();
+
+//
+//  The list and add screens take turns: the one not shown is covered (no
+//  keys, no background drawing), not torn down, as it is shown again. It
+//  is covered before the other screen's art is drawn, as blurring its
+//  focused view draws that view.
+//
+function coverForm(menu, name) {
+    const vc = menu.viewControllers[name];
+    if (vc instanceof ViewController) {
+        FormLifecycle.cover(vc);
+    } else if (vc) {
+        vc.setFocus(false);
+    }
+}
 
 const SELECTED_MCI_NAME_TO_ENTRY = {
     SelectedBBSName: 'bbsName',
@@ -242,9 +264,7 @@ exports.getModule = class BBSListModule extends MenuModule {
         async.waterfall(
             [
                 function clearAndDisplayArt(callback) {
-                    if (self.viewControllers.add) {
-                        self.viewControllers.add.setFocus(false);
-                    }
+                    coverForm(self, 'add');
                     if (clearScreen) {
                         self.client.term.rawWrite(ansi.resetScreen());
                     }
@@ -258,6 +278,10 @@ exports.getModule = class BBSListModule extends MenuModule {
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
+                    //  the screen is another menu's now
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
                             'view',
@@ -341,19 +365,32 @@ exports.getModule = class BBSListModule extends MenuModule {
                     );
                 },
                 function populateEntries(entriesView, callback) {
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
+
                     self.setEntries(entriesView);
 
-                    entriesView.on('index update', idx => {
-                        const entry = self.entries[idx];
+                    //  Removed, then added: the list keeps its listeners
+                    //  while the add screen covers it, so adding again on
+                    //  each show would fire it once more per visit
+                    let onIndexUpdate = indexUpdateListeners.get(self);
+                    if (!onIndexUpdate) {
+                        onIndexUpdate = idx => {
+                            const entry = self.entries[idx];
 
-                        self.drawSelectedEntry(entry);
+                            self.drawSelectedEntry(entry);
 
-                        if (!entry) {
-                            self.selectedBBS = -1;
-                        } else {
-                            self.selectedBBS = idx;
-                        }
-                    });
+                            if (!entry) {
+                                self.selectedBBS = -1;
+                            } else {
+                                self.selectedBBS = idx;
+                            }
+                        };
+                        indexUpdateListeners.set(self, onIndexUpdate);
+                    }
+                    entriesView.removeListener('index update', onIndexUpdate);
+                    entriesView.on('index update', onIndexUpdate);
 
                     if (self.selectedBBS >= 0) {
                         entriesView.setFocusItemIndex(self.selectedBBS);
@@ -371,7 +408,7 @@ exports.getModule = class BBSListModule extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(err);
+                    return cb(MenuLeft === err ? null : err);
                 }
             }
         );
@@ -383,7 +420,7 @@ exports.getModule = class BBSListModule extends MenuModule {
         async.waterfall(
             [
                 function clearAndDisplayArt(callback) {
-                    self.viewControllers.view.setFocus(false);
+                    coverForm(self, 'view');
                     self.client.term.rawWrite(ansi.resetScreen());
 
                     theme.displayThemedAsset(
@@ -396,6 +433,10 @@ exports.getModule = class BBSListModule extends MenuModule {
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
+                    //  the screen is another menu's now
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
                             'add',
@@ -435,7 +476,7 @@ exports.getModule = class BBSListModule extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(err);
+                    return cb(MenuLeft === err ? null : err);
                 }
             }
         );
