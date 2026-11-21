@@ -9,6 +9,8 @@ const { EventEmitter } = require('events');
 //  *   leave() marks it (hasLeftMenu()); initSequence() stops after any
 //      async step that finishes later -- no forms, no ticker timers, no
 //      pause, no autoNext for a menu that is gone.
+//  *   setMenuTimeout() timers (autoNext's nextTimeout, prevMenuOnTimeout())
+//      are cleared by leave().
 //  *   prepViewController() and friends stop quietly once it is left.
 //
 //  Real MenuStack, MenuModule and menu_util.loadMenu (the harness of
@@ -414,6 +416,131 @@ describe('MenuModule left state', function () {
                     });
                 });
             });
+        });
+    });
+
+    describe('setMenuTimeout()', () => {
+        it("autoNext's nextTimeout does not fire once the menu has been left", done => {
+            timers = captureTimers();
+            const counters = makeCounters();
+            fakeModules.wait = defineMenu(counters, 'wait');
+            fakeModules.later = defineMenu(counters, 'later');
+            fakeModules.elsewhere = defineMenu(counters, 'elsewhere');
+            const client = makeClient({
+                wait: menuConfig('wait', {
+                    next: 'later',
+                    runtime: { autoNext: true },
+                    config: { nextTimeout: 1500 },
+                }),
+                later: menuConfig('later'),
+                elsewhere: menuConfig('elsewhere'),
+            });
+
+            client.menuStack.goto('wait', err => {
+                assert.ifError(err);
+                settle(() => {
+                    assert.equal(timers.timeouts.size, 1, 'nextTimeout pending');
+                    assert.equal([...timers.timeouts.keys()][0].ms, 1500);
+
+                    client.menuStack.goto('elsewhere', err => {
+                        assert.ifError(err);
+                        assert.equal(timers.timeouts.size, 0, 'cleared by leave()');
+                        timers.fireTimeouts();
+                        settle(() => {
+                            assert.equal(counters.created.later, undefined);
+                            assert.equal(client.currentMenuModule.menuName, 'elsewhere');
+                            return done();
+                        });
+                    });
+                });
+            });
+        });
+
+        it("autoNext's nextTimeout still moves on when the menu is not left", done => {
+            timers = captureTimers();
+            const counters = makeCounters();
+            fakeModules.wait = defineMenu(counters, 'wait');
+            fakeModules.later = defineMenu(counters, 'later');
+            const client = makeClient({
+                wait: menuConfig('wait', {
+                    next: 'later',
+                    runtime: { autoNext: true },
+                    config: { nextTimeout: 1500 },
+                }),
+                later: menuConfig('later'),
+            });
+
+            client.menuStack.goto('wait', err => {
+                assert.ifError(err);
+                settle(() => {
+                    timers.fireTimeouts();
+                    settle(() => {
+                        assert.equal(client.currentMenuModule.menuName, 'later');
+                        return done();
+                    });
+                });
+            });
+        });
+
+        it('prevMenuOnTimeout() does nothing once the menu has been left', done => {
+            timers = captureTimers();
+            const counters = makeCounters();
+            fakeModules.home = defineMenu(counters, 'home');
+            fakeModules.list = defineMenu(counters, 'list');
+            fakeModules.other = defineMenu(counters, 'other');
+            const client = makeClient({
+                home: menuConfig('home'),
+                list: menuConfig('list'),
+                other: menuConfig('other'),
+            });
+
+            client.menuStack.goto('home', () => {
+                client.menuStack.goto('list', () => {
+                    settle(() => {
+                        const list = client.currentMenuModule;
+                        let called = 0;
+                        list.prevMenuOnTimeout(1000, () => ++called);
+                        assert.equal(timers.timeouts.size, 1);
+
+                        client.menuStack.goto('other', () => {
+                            timers.fireTimeouts();
+                            settle(() => {
+                                assert.equal(called, 0);
+                                assert.equal(client.currentMenuModule.menuName, 'other');
+                                assert.equal(
+                                    counters.created.home,
+                                    1,
+                                    'home not re-entered'
+                                );
+                                return done();
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
+        it('clearMenuTimeout() cancels one; a timeout that fires is forgotten', () => {
+            timers = captureTimers();
+            const counters = makeCounters();
+            const Menu = defineMenu(counters, 'm');
+            const client = makeClient({ m: menuConfig('m') });
+            const menu = new Menu({
+                menuName: 'm',
+                menuConfig: { config: {} },
+                client,
+            });
+            let a = 0;
+            let b = 0;
+            const ha = menu.setMenuTimeout(() => ++a, 10);
+            menu.setMenuTimeout(() => ++b, 20);
+            menu.clearMenuTimeout(ha);
+            assert.equal(timers.timeouts.size, 1);
+            timers.fireTimeouts();
+            assert.equal(a, 0);
+            assert.equal(b, 1);
+            menu.leave(); //  nothing left to clear; does not throw
+            assert.equal(menu.hasLeftMenu(), true);
         });
     });
 

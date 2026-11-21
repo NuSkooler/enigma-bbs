@@ -47,6 +47,9 @@ exports.MenuFlags = MenuFlags;
 //
 const leftMenus = new WeakSet();
 
+//  menu -> Set of timeout handles from setMenuTimeout(), cleared by leave()
+const menuTimeouts = new WeakMap();
+
 //  passed down initSequence()'s waterfall to stop it once the menu is left
 const MenuLeftStop = Symbol('menuLeft');
 
@@ -163,10 +166,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
     //
     //  The caller is leaving this menu (or it is being reloaded). A module
     //  that overrides this must call super.leave(): that marks the menu
-    //  left (hasLeftMenu()) and tears down its forms.
+    //  left (hasLeftMenu()), clears its setMenuTimeout() timers and tears
+    //  down its forms.
     //
     leave() {
         leftMenus.add(this);
+        this.clearMenuTimeouts();
         this.detachViewControllers();
     }
 
@@ -178,6 +183,44 @@ exports.MenuModule = class MenuModule extends PluginModule {
     //
     hasLeftMenu() {
         return leftMenus.has(this);
+    }
+
+    //
+    //  setTimeout() for this menu: |fn| runs after |ms| unless the menu has
+    //  been left first; leave() clears every one still pending. Returns a
+    //  handle for clearMenuTimeout().
+    //
+    setMenuTimeout(fn, ms) {
+        let timeouts = menuTimeouts.get(this);
+        if (!timeouts) {
+            timeouts = new Set();
+            menuTimeouts.set(this, timeouts);
+        }
+
+        const handle = setTimeout(() => {
+            timeouts.delete(handle);
+            if (this.hasLeftMenu()) {
+                return;
+            }
+            return fn();
+        }, ms);
+        timeouts.add(handle);
+        return handle;
+    }
+
+    clearMenuTimeout(handle) {
+        const timeouts = menuTimeouts.get(this);
+        if (timeouts && timeouts.delete(handle)) {
+            clearTimeout(handle);
+        }
+    }
+
+    clearMenuTimeouts() {
+        const timeouts = menuTimeouts.get(this);
+        if (timeouts) {
+            timeouts.forEach(handle => clearTimeout(handle));
+            timeouts.clear();
+        }
     }
 
     //  Forms that may have been built after leave() tore down the others
@@ -554,8 +597,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
         );
     }
 
+    //  not if the menu has been left by then (see setMenuTimeout())
     prevMenuOnTimeout(timeout, cb) {
-        setTimeout(() => {
+        return this.setMenuTimeout(() => {
             return this.prevMenu(cb);
         }, timeout);
     }
@@ -835,7 +879,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
             true === this.menuConfig.runtime.autoNext
         ) {
             if (this.hasNextTimeout()) {
-                setTimeout(() => {
+                //  not if the caller has moved on by then
+                this.setMenuTimeout(() => {
                     return gotoNextMenu();
                 }, this.menuConfig.config.nextTimeout);
             } else {
