@@ -36,6 +36,8 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
   * If your module overrides `leave()`, make sure it calls `super.leave()` (it already had to, to tear down its forms).
   * `displayArtAndPrepViewController()` now calls back `(err, artInfo, created)` instead of `(err)`. Passed straight to `async.series()`, or with a callback that takes only `err`, nothing changes. **Passed straight as a step of `async.waterfall()`, the next step now receives `artInfo` and `created` before its callback:** wrap it, `callback => this.displayArtAndPrepViewController(name, formId, options, err => callback(err))`. No core module or known mod does this.
 
+* **Mod authors: output written while art drips at a baud rate waits for it.** A `term.write()`, `rawWrite()` or committed `beginWrite()` batch made while `dripWrite()` (baud emulated art) is still sending is held and sent, in order, when the art is done, before the drip's callback; its write callback is called then too. A drip started during another starts when it is done. **Action:** none, unless a mod relied on its output landing in the middle of a drip.
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).
