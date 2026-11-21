@@ -496,28 +496,43 @@ describe('WFC task screen', () => {
             list.setFocusItemIndex = i => (list.focus = i);
             instance.getView = (form, id) => ('tasks' === form && 1 === id ? list : null);
             instance._tasksMode = 'art';
-            //  like the real ViewController: losing focus drops every view listener
-            instance.viewControllers.tasks = {
-                setFocus: focused => {
-                    if (!focused) {
-                        list.removeAllListeners();
-                    }
-                },
-                detachClientEvents: () => {},
-                getView: () => null,
-            };
+            //  a real form: the prompt covers it, and closing gives it back
+            const { ViewController } = require('../core/view_controller.js');
+            const FormState = require('../core/form_state.js');
+            list.id = 1;
+            const tasks = new ViewController({ client, formId: 5, detached: true });
+            tasks.addView(list);
+            tasks.attachClientEvents();
+            instance.viewControllers.tasks = tasks;
+            const selected = [];
             try {
                 instance._bindTaskListIndex();
                 instance._refreshTasks();
 
-                //  form 5's R key; 'a' asks first
-                instance._requestTaskAction('run', () => {});
-                assert.equal(instance._taskPromptActive, true);
-                client.emit('key press', 'n', { name: 'n' });
-                assert.equal(instance._taskPromptActive, false);
+                for (let i = 0; i < 3; ++i) {
+                    //  form 5's R key; 'a' asks first
+                    instance._requestTaskAction('run', () => {});
+                    assert.equal(instance._taskPromptActive, true);
+                    assert.ok(
+                        FormState.getFormCoverToken(tasks),
+                        'covered by the prompt'
+                    );
+                    assert.equal(tasks.attached, false, 'no keys under the prompt');
+                    client.emit('key press', 'n', { name: 'n' });
+                    assert.equal(instance._taskPromptActive, false);
+                    assert.equal(FormState.getFormCoverToken(tasks), null);
+                    assert.equal(tasks.attached, true);
+                }
 
+                //  the selection listener is bound once, however many prompts
+                assert.equal(list.listenerCount('index update'), 1);
+                const paint = instance._paintTaskDetail;
+                instance._paintTaskDetail = () =>
+                    selected.push(instance._selectedTaskName);
                 list.emit('index update', 1);
+                instance._paintTaskDetail = paint;
                 assert.equal(instance._selectedTaskName, 'b');
+                assert.deepEqual(selected, ['b'], 'handled once');
             } finally {
                 instance._teardownTasks();
             }
