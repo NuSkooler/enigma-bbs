@@ -1208,7 +1208,11 @@ describe('Page swaps cover the hidden page (F3c)', () => {
                 menu.leave();
                 const n = client.term.out.length;
                 finishLoad();
-                assert.equal(client.term.since(n), '', `${found.length} found: nothing drawn`);
+                assert.equal(
+                    client.term.since(n),
+                    '',
+                    `${found.length} found: nothing drawn`
+                );
                 assert.deepEqual(gotos, [], `${found.length} found: no menu change`);
                 art.restore();
                 timers.restore();
