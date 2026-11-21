@@ -1,5 +1,5 @@
-const { MenuModule } = require('../menu_module');
-const { ViewController, FormLifecycle } = require('../view_controller');
+const { MenuModule, MenuLeftStop } = require('../menu_module');
+const { FormLifecycle } = require('../view_controller');
 const ActivityPubSettings = require('./settings');
 const { Errors } = require('../enig_error');
 const { getServer } = require('../listening_server');
@@ -41,7 +41,6 @@ const MciViewIds = {
 };
 
 //  Ends a page's steps early: the menu was left (see hasLeftMenu())
-const MenuLeft = Symbol('menuLeft');
 
 //
 //  The pages take turns: the one not shown is covered (no keys, no
@@ -50,12 +49,7 @@ const MenuLeft = Symbol('menuLeft');
 //  drawn, as blurring its focused view draws that view.
 //
 function coverForm(menu, name) {
-    const vc = menu.viewControllers[name];
-    if (vc instanceof ViewController) {
-        FormLifecycle.cover(vc);
-    } else if (vc) {
-        vc.setFocus(false);
-    }
+    FormLifecycle.coverAny(menu.viewControllers[name]);
 }
 
 //  module -> its enabled toggle's 'index update' listener (see
@@ -204,7 +198,7 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                 callback => {
                     //  the screen is another menu's now
                     if (this.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     return this.validateMCIByViewIds(
                         'main',
@@ -263,7 +257,7 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                 },
             ],
             err => {
-                return cb(MenuLeft === err ? null : err);
+                return cb(MenuLeftStop === err ? null : err);
             }
         );
     }
@@ -282,7 +276,7 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                 callback => {
                     //  the screen is another menu's now
                     if (this.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     return this.validateMCIByViewIds(
                         'images',
@@ -306,7 +300,7 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                 },
             ],
             err => {
-                return cb(MenuLeft === err ? null : err);
+                return cb(MenuLeftStop === err ? null : err);
             }
         );
     }

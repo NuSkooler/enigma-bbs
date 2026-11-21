@@ -1,5 +1,5 @@
-const { MenuModule } = require('../menu_module');
-const { ViewController, FormLifecycle } = require('../view_controller');
+const { MenuModule, MenuLeftStop } = require('../menu_module');
+const { FormLifecycle } = require('../view_controller');
 const { Errors } = require('../enig_error');
 const Actor = require('../activitypub/actor');
 const moment = require('moment');
@@ -44,7 +44,6 @@ const MciViewIds = {
 };
 
 //  Ends a page's steps early: the menu was left (see hasLeftMenu())
-const MenuLeft = Symbol('menuLeft');
 
 //
 //  The pages take turns: the one not shown is covered (no keys, no
@@ -53,12 +52,7 @@ const MenuLeft = Symbol('menuLeft');
 //  drawn, as blurring its focused view draws that view.
 //
 function coverForm(menu, name) {
-    const vc = menu.viewControllers[name];
-    if (vc instanceof ViewController) {
-        FormLifecycle.cover(vc);
-    } else if (vc) {
-        vc.setFocus(false);
-    }
+    FormLifecycle.coverAny(menu.viewControllers[name]);
 }
 
 exports.getModule = class ActivityPubActorSearch extends MenuModule {
@@ -174,7 +168,7 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                     //  the counts are fetched remotely: the screen may be
                     //  another menu's by now
                     if (this.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
 
                     const v = id => this.getView('view', id);
@@ -224,7 +218,7 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                 },
             ],
             err => {
-                return cb(MenuLeft === err ? null : err);
+                return cb(MenuLeftStop === err ? null : err);
             }
         );
     }

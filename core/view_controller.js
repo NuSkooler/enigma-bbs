@@ -1324,5 +1324,15 @@ exports.FormLifecycle = Object.freeze({
     cover: coverForm,
     uncover: uncoverForm,
     destroy: destroyForm,
+    //  cover() a ViewController; anything else a module keeps in
+    //  viewControllers gets setFocus(false), as before form states
+    coverAny: vc => {
+        if (vc instanceof ViewController) {
+            return coverForm(vc);
+        }
+        if (vc) {
+            vc.setFocus(false);
+        }
+    },
 });
 exports.MCI_REGEXP = MCI_REGEXP;

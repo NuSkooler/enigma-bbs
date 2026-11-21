@@ -2,8 +2,8 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule, MenuFlags } = require('./menu_module.js');
-const { ViewController, FormLifecycle } = require('./view_controller.js');
+const { MenuModule, MenuLeftStop, MenuFlags } = require('./menu_module.js');
+const { FormLifecycle } = require('./view_controller.js');
 const ansi = require('./ansi_term.js');
 const FileEntry = require('./file_entry.js');
 const stringFormat = require('./string_format.js');
@@ -75,7 +75,6 @@ const MciViewIds = {
 };
 
 //  Ends a page's steps early: the menu was left (see hasLeftMenu())
-const MenuLeft = Symbol('menuLeft');
 
 //  module -> its details nav menu's 'index update' listener (see
 //  displayDetailsPage()). Kept here, not on the module, so no name is
@@ -90,11 +89,7 @@ const detailsNavListeners = new WeakMap();
 //  view draws that view.
 //
 function coverForm(vc) {
-    if (vc instanceof ViewController) {
-        FormLifecycle.cover(vc);
-    } else if (vc) {
-        vc.setFocus(false);
-    }
+    FormLifecycle.coverAny(vc);
 }
 
 exports.getModule = class FileAreaList extends MenuModule {
@@ -449,7 +444,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 function validateMci(callback) {
                     //  the screen is another menu's now
                     if (self.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     return self.validateMCIByViewIds(
                         'browse',
@@ -467,7 +462,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                                 return callback(err);
                             }
                             if (self.hasLeftMenu()) {
-                                return callback(MenuLeft);
+                                return callback(MenuLeftStop);
                             }
 
                             return self.populateCurrentEntryInfo(callback);
@@ -528,7 +523,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 },
                 function populateAdditionalViews(callback) {
                     if (self.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     self.updateQueueIndicator();
                     self.populateCustomLabels(
@@ -540,7 +535,7 @@ exports.getModule = class FileAreaList extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(MenuLeft === err ? null : err);
+                    return cb(MenuLeftStop === err ? null : err);
                 }
             }
         );
@@ -565,7 +560,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 function validateMci(callback) {
                     //  the screen is another menu's now
                     if (self.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     return self.validateMCIByViewIds(
                         'details',
@@ -614,7 +609,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 },
             ],
             err => {
-                return cb(MenuLeft === err ? null : err);
+                return cb(MenuLeftStop === err ? null : err);
             }
         );
     }
@@ -873,7 +868,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                     self.lastDetailsViewController = self.viewControllers[name];
                     //  the screen is another menu's now
                     if (self.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
 
                     switch (sectionName) {
@@ -921,7 +916,7 @@ exports.getModule = class FileAreaList extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(MenuLeft === err ? null : err);
+                    return cb(MenuLeftStop === err ? null : err);
                 }
             }
         );

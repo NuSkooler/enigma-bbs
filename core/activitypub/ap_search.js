@@ -14,8 +14,8 @@
 //  directly to Actor.fromId (remote fetch + cache), matching current behaviour.
 //
 
-const { MenuModule } = require('../menu_module');
-const { ViewController, FormLifecycle } = require('../view_controller');
+const { MenuModule, MenuLeftStop } = require('../menu_module');
+const { FormLifecycle } = require('../view_controller');
 const { Errors } = require('../enig_error');
 const Actor = require('./actor');
 const Collection = require('./collection');
@@ -65,7 +65,6 @@ const MciViewIds = {
 };
 
 //  Ends a page's steps early: the menu was left (see hasLeftMenu())
-const MenuLeft = Symbol('menuLeft');
 
 //
 //  The pages take turns: the one not shown is covered (no keys, no
@@ -74,12 +73,7 @@ const MenuLeft = Symbol('menuLeft');
 //  drawn, as blurring its focused view draws that view.
 //
 function coverForm(menu, name) {
-    const vc = menu.viewControllers[name];
-    if (vc instanceof ViewController) {
-        FormLifecycle.cover(vc);
-    } else if (vc) {
-        vc.setFocus(false);
-    }
+    FormLifecycle.coverAny(menu.viewControllers[name]);
 }
 
 const Tabs = { People: 0, Posts: 1, Hashtags: 2 };
@@ -232,7 +226,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
                 callback => {
                     //  the screen is another menu's now
                     if (this.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     return this.validateMCIByViewIds(
                         'main',
@@ -249,7 +243,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     return callback(null);
                 },
             ],
-            err => cb(MenuLeft === err ? null : err)
+            err => cb(MenuLeftStop === err ? null : err)
         );
     }
 
@@ -489,7 +483,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
                 callback => {
                     //  the screen is another menu's now
                     if (this.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     this.viewControllers.actorView.setFocus(true);
                     return callback(null);
@@ -503,12 +497,12 @@ exports.getModule = class ApSearchModule extends MenuModule {
                 callback => {
                     //  the counts are fetched remotely
                     if (this.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     return this._updateActorView(callback);
                 },
             ],
-            err => cb(MenuLeft === err ? null : err)
+            err => cb(MenuLeftStop === err ? null : err)
         );
     }
 

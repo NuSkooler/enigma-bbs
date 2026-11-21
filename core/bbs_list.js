@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule = require('./menu_module.js').MenuModule;
+const { MenuModule, MenuLeftStop } = require('./menu_module.js');
 
 const { getModDatabasePath, openDatabase } = require('./database.js');
 
@@ -55,7 +55,6 @@ const FormIds = {
 };
 
 //  Ends a screen's steps early: the menu was left (see hasLeftMenu())
-const MenuLeft = Symbol('menuLeft');
 
 //  module -> its list's 'index update' listener (see displayBBSList()).
 //  Kept here, not on the module, so no name is taken from a subclass.
@@ -68,12 +67,7 @@ const indexUpdateListeners = new WeakMap();
 //  focused view draws that view.
 //
 function coverForm(menu, name) {
-    const vc = menu.viewControllers[name];
-    if (vc instanceof ViewController) {
-        FormLifecycle.cover(vc);
-    } else if (vc) {
-        vc.setFocus(false);
-    }
+    FormLifecycle.coverAny(menu.viewControllers[name]);
 }
 
 const SELECTED_MCI_NAME_TO_ENTRY = {
@@ -280,7 +274,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                 function initOrRedrawViewController(artData, callback) {
                     //  the screen is another menu's now
                     if (self.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
@@ -366,7 +360,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                 },
                 function populateEntries(entriesView, callback) {
                     if (self.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
 
                     self.setEntries(entriesView);
@@ -408,7 +402,7 @@ exports.getModule = class BBSListModule extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(MenuLeft === err ? null : err);
+                    return cb(MenuLeftStop === err ? null : err);
                 }
             }
         );
@@ -435,7 +429,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                 function initOrRedrawViewController(artData, callback) {
                     //  the screen is another menu's now
                     if (self.hasLeftMenu()) {
-                        return callback(MenuLeft);
+                        return callback(MenuLeftStop);
                     }
                     if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
@@ -476,7 +470,7 @@ exports.getModule = class BBSListModule extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(MenuLeft === err ? null : err);
+                    return cb(MenuLeftStop === err ? null : err);
                 }
             }
         );

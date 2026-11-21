@@ -2,8 +2,8 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule = require('./menu_module.js').MenuModule;
-const { ViewController, FormLifecycle } = require('./view_controller.js');
+const { MenuModule, MenuLeftStop } = require('./menu_module.js');
+const { FormLifecycle } = require('./view_controller.js');
 
 const { getModDatabasePath, openDatabase } = require('./database.js');
 
@@ -42,7 +42,6 @@ const FormIds = {
 };
 
 //  Ends a screen's steps early: the menu was left (see hasLeftMenu())
-const MenuLeft = Symbol('menuLeft');
 
 //  module -> its add form's preview updates (see bindPreviewUpdates()).
 //  Kept here, not on the module, so no name is taken from a subclass.
@@ -64,12 +63,7 @@ function coverForm(menu, name) {
         }
     }
 
-    const vc = menu.viewControllers[name];
-    if (vc instanceof ViewController) {
-        FormLifecycle.cover(vc);
-    } else if (vc) {
-        vc.setFocus(false);
-    }
+    FormLifecycle.coverAny(menu.viewControllers[name]);
 }
 
 //
@@ -190,7 +184,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                             }
                             //  the screen is another menu's now
                             if (self.hasLeftMenu()) {
-                                return callback(MenuLeft);
+                                return callback(MenuLeftStop);
                             }
                             if (!wasCreated) {
                                 self.viewControllers.view.setFocus(true);
@@ -268,7 +262,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(MenuLeft === err ? null : err);
+                    return cb(MenuLeftStop === err ? null : err);
                 }
             }
         );
@@ -295,7 +289,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                             }
                             //  the screen is another menu's now
                             if (self.hasLeftMenu()) {
-                                return callback(MenuLeft);
+                                return callback(MenuLeftStop);
                             }
                             if (!wasCreated) {
                                 self.viewControllers.add.setFocus(true);
@@ -328,7 +322,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(MenuLeft === err ? null : err);
+                    return cb(MenuLeftStop === err ? null : err);
                 }
             }
         );

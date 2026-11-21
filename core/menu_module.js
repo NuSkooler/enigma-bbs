@@ -50,8 +50,10 @@ const leftMenus = new WeakSet();
 //  menu -> Set of timeout handles from setMenuTimeout(), cleared by leave()
 const menuTimeouts = new WeakMap();
 
-//  passed down initSequence()'s waterfall to stop it once the menu is left
+//  passed down a waterfall (initSequence(), a module's page steps) to stop
+//  it once the menu is left; the final callback maps it back to no error
 const MenuLeftStop = Symbol('menuLeft');
+exports.MenuLeftStop = MenuLeftStop;
 
 //
 //  Tear down |vc| for good: its menu was left. An attached form is detached
