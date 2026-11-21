@@ -236,7 +236,9 @@ exports.getModule = class FileAreaList extends MenuModule {
                 },
                 function display(callback) {
                     return self.displayBrowsePage(false, err => {
-                        if (err) {
+                        //  no results, or the load failed: unless the
+                        //  caller has gone elsewhere meanwhile
+                        if (err && !self.hasLeftMenu()) {
                             //  Remove fileBaseListEntries from history so that
                             //  dismissing the no-results screen returns to the
                             //  file menu, not back into this (empty) list.
@@ -431,6 +433,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                     return callback(null);
                 },
                 function prepArtAndViewController(callback) {
+                    //  left while the file list was loading
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeftStop);
+                    }
                     return self.displayArtAndPrepViewController(
                         'browse',
                         FormIds.browse,
@@ -579,6 +585,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                     return self.displayDetailsSection('general', false, callback);
                 },
                 function listenNavChanges(callback) {
+                    //  left while the general section was loading
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeftStop);
+                    }
                     const navMenu = self.viewControllers.details.getView(
                         MciViewIds.details.navMenu
                     );

@@ -36,7 +36,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * **Tickers and status bars keep running on screens that switch pages.** On onelinerz, rumorz and the BBS list (the list and the add page), the file list (browse and details) and the ActivityPub search, actor search and user configuration screens, a `%TK` ticker or a `%SB` status bar with `refreshInterval` stopped for good the first time the screen switched to its other page. The page not shown now only pauses them, and they pick up again when it is shown.
 
   * **Onelinerz and rumorz: the entry preview no longer draws over the list.** Typing a line and then pressing Escape within half a second drew the preview and the entry field over the list, and left the cursor in the hidden field. It also fired after leaving the menu. A pending preview is now dropped when the add page goes away.
-  * **Leaving one of these screens while a page is still loading** (its art being drawn, a remote look-up) no longer draws the rest of that page over the next menu.
+  * **Leaving one of these screens while a page is still loading** (its art being drawn, a remote look-up) no longer draws the rest of a page shown before over the next menu, and the file list no longer jumps to its "no results" menu after the caller has gone elsewhere. A page shown for the first time can still draw its views once its art finishes, as before.
   * **The file list's "general" details section** no longer stays attached under the browse page after leaving details.
   * **For mods:** these modules cover the hidden page (`cover()`) instead of tearing it down with `setFocus(false)`. See UPGRADE.md if you extend one of them.
 

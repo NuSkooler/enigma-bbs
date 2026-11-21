@@ -54,8 +54,6 @@ const FormIds = {
     Add: 1,
 };
 
-//  Ends a screen's steps early: the menu was left (see hasLeftMenu())
-
 //  module -> its list's 'index update' listener (see displayBBSList()).
 //  Kept here, not on the module, so no name is taken from a subclass.
 const indexUpdateListeners = new WeakMap();

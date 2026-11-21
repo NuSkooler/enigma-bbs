@@ -175,7 +175,7 @@ function stubArt(theme, artMaps) {
             mciMap: JSON.parse(JSON.stringify(artMaps[name] || {})),
             height: 20,
         };
-        if (state.hold) {
+        if (state.hold || (state.holdNames && state.holdNames.includes(name))) {
             state.pending.push(() => cb(null, artData));
             return;
         }
@@ -1154,6 +1154,62 @@ describe('Page swaps cover the hidden page (F3c)', () => {
                 assert.deepEqual(calls, [[null]], `${method}: called back (null)`);
                 assert.deepEqual(attached(menu), [], `${method}: no form takes keys`);
                 assert.equal(timers.liveIntervals(), 0, `${method}: tickers stopped`);
+                art.restore();
+                timers.restore();
+            });
+            art = null;
+            timers = null;
+        });
+        it('leaving while the general section loads (details shown again): the nav is not set up afterwards', () => {
+            const env = showBrowse(fileListEnv());
+            const { client, menu } = env;
+            fileToBrowse(fileToDetails(env));
+            const nav = menu.viewControllers.details.getView(1);
+            let navSetups = 0;
+            const origSet = nav.setFocusItemIndex;
+            nav.setFocusItemIndex = function (...args) {
+                ++navSetups;
+                return origSet.apply(this, args);
+            };
+            art.holdNames = ['FDETGEN'];
+            const calls = [];
+            menu.menuMethods.viewDetails({}, {}, (...args) => calls.push(args));
+            menu.leave();
+            navSetups = 0;
+            const n = client.term.out.length;
+            art.finish();
+            assert.equal(navSetups, 0, 'nav not set up after leave');
+            assert.equal(client.term.since(n), '', 'nothing drawn after leave');
+            assert.deepEqual(calls, [[null]]);
+            art.restore();
+            timers.restore();
+            art = null;
+            timers = null;
+        });
+
+        it('leaving while the file list loads: no browse art, and no jump to the no-results menu', () => {
+            [[], [1, 2]].forEach(found => {
+                const env = fileListEnv();
+                const { client, menu } = env;
+                menu.fileList = [];
+                let finishLoad;
+                menu.loadFileIds = (force, cb) => {
+                    finishLoad = () => {
+                        menu.fileList = found;
+                        return cb(null);
+                    };
+                };
+                const gotos = [];
+                menu.gotoMenu = name => gotos.push(name);
+                menu.updateFileEntryWithMenuResult = cb => cb(null);
+                menu.beforeArt = cb => cb(null);
+                menu.finishedLoading = () => {};
+                menu.initSequence();
+                menu.leave();
+                const n = client.term.out.length;
+                finishLoad();
+                assert.equal(client.term.since(n), '', `${found.length} found: nothing drawn`);
+                assert.deepEqual(gotos, [], `${found.length} found: no menu change`);
                 art.restore();
                 timers.restore();
             });

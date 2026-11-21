@@ -38,8 +38,6 @@ const MciCodeIds = {
     },
 };
 
-//  Ends a screen's steps early: the menu was left (see hasLeftMenu())
-
 //  module -> its add form's preview updates (see bindPreviewUpdates()).
 //  Kept here, not on the module, so no name is taken from a subclass.
 const previewUpdates = new WeakMap();
