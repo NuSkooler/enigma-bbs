@@ -211,17 +211,43 @@ describe('PreAuthFeedbackFSEModule._initHeaderFields', () => {
 // ─── switchToHeader ───────────────────────────────────────────────────────────
 
 describe('PreAuthFeedbackFSEModule.switchToHeader', () => {
+    const { EventEmitter } = require('events');
+    const { ViewController } = require('../core/view_controller.js');
+    const FormState = require('../core/form_state.js');
+
+    //  the body form: a real ViewController with a focused, attached field
+    function makeBody() {
+        const client = new EventEmitter();
+        client.term = {
+            write: () => {},
+            rawWrite: () => {},
+            beginWrite: () => {},
+            commitWrite: () => {},
+        };
+        const body = new ViewController({ client, formId: 1, detached: true });
+        const field = new EventEmitter();
+        field.id = 1;
+        field.acceptsFocus = true;
+        field.acceptsInput = true;
+        field.keys = [];
+        field.setFocus = focused => {
+            field.hasFocus = focused;
+        };
+        field.onKeyPress = ch => field.keys.push(ch);
+        body.addView(field);
+        body.focusedView = field;
+        body.attachClientEvents();
+        field.setFocus(true);
+        return { client, body, field };
+    }
+
     it('focuses From (id=1) not To (id=2), so the locked To field does not eat focus', () => {
         const inst = makeInstance();
-        let bodyFocused = true;
+        const { client, body, field } = makeBody();
         let switchedTo = null;
 
         inst.viewControllers = {
-            body: {
-                setFocus: v => {
-                    bodyFocused = v;
-                },
-            },
+            body,
             header: {
                 switchFocus: id => {
                     switchedTo = id;
@@ -231,7 +257,14 @@ describe('PreAuthFeedbackFSEModule.switchToHeader', () => {
 
         inst.switchToHeader();
 
-        assert.equal(bodyFocused, false);
+        //  the body is deactivated (it stays on screen), not torn down
+        assert.equal(field.hasFocus, false);
+        assert.equal(body.attached, false);
+        assert.ok(FormState.isFormInactive(body));
+        assert.ok(!FormState.isFormDestroyed(body));
+        assert.equal(field.listenerCount('action'), 1, 'listener kept');
+        client.emit('key press', 'x', undefined);
+        assert.deepEqual(field.keys, [], 'no key reaches the body');
         assert.equal(
             switchedTo,
             1,

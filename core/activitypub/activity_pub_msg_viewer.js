@@ -1,6 +1,7 @@
 'use strict';
 
 const { MenuModule } = require('../menu_module');
+const { FormLifecycle } = require('../view_controller');
 const { ErrorCodes } = require('../enig_error');
 const Collection = require('./collection');
 const { Collections } = require('./const');
@@ -299,7 +300,8 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                 cb => this._displayNote(cb),
                 cb => {
                     //  Match FSE view mode: body is display-only, footer is always focused.
-                    this.viewControllers.body.setFocus(false);
+                    //  The body stays on screen: deactivated, not torn down.
+                    FormLifecycle.deactivate(this.viewControllers.body);
                     this.viewControllers.footer.switchFocus(MciViewIds.footer.menu);
                     return cb(null);
                 },
