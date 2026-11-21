@@ -15,6 +15,7 @@
 //
 
 const { MenuModule } = require('../menu_module');
+const { ViewController, FormLifecycle } = require('../view_controller');
 const { Errors } = require('../enig_error');
 const Actor = require('./actor');
 const Collection = require('./collection');
@@ -62,6 +63,24 @@ const MciViewIds = {
         customRangeStart: 10, // TL10+ — all actor fields (operator-configured)
     },
 };
+
+//  Ends a page's steps early: the menu was left (see hasLeftMenu())
+const MenuLeft = Symbol('menuLeft');
+
+//
+//  The pages take turns: the one not shown is covered (no keys, no
+//  background drawing), not torn down, as it is shown again (the prep
+//  helper activates it). It is covered before the other page's art is
+//  drawn, as blurring its focused view draws that view.
+//
+function coverForm(menu, name) {
+    const vc = menu.viewControllers[name];
+    if (vc instanceof ViewController) {
+        FormLifecycle.cover(vc);
+    } else if (vc) {
+        vc.setFocus(false);
+    }
+}
 
 const Tabs = { People: 0, Posts: 1, Hashtags: 2 };
 
@@ -202,9 +221,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
         async.series(
             [
                 callback => {
-                    if (this.viewControllers.actorView) {
-                        this.viewControllers.actorView.setFocus(false);
-                    }
+                    coverForm(this, 'actorView');
                     return this.displayArtAndPrepViewController(
                         'main',
                         FormIds.main,
@@ -213,6 +230,10 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     );
                 },
                 callback => {
+                    //  the screen is another menu's now
+                    if (this.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     return this.validateMCIByViewIds(
                         'main',
                         [
@@ -228,7 +249,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     return callback(null);
                 },
             ],
-            err => cb(err)
+            err => cb(MenuLeft === err ? null : err)
         );
     }
 
@@ -457,9 +478,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
         async.series(
             [
                 callback => {
-                    if (this.viewControllers.main) {
-                        this.viewControllers.main.setFocus(false);
-                    }
+                    coverForm(this, 'main');
                     return this.displayArtAndPrepViewController(
                         'actorView',
                         FormIds.actorView,
@@ -468,6 +487,10 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     );
                 },
                 callback => {
+                    //  the screen is another menu's now
+                    if (this.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     this.viewControllers.actorView.setFocus(true);
                     return callback(null);
                 },
@@ -478,10 +501,14 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     return this._fetchActorCounts(callback);
                 },
                 callback => {
+                    //  the counts are fetched remotely
+                    if (this.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     return this._updateActorView(callback);
                 },
             ],
-            err => cb(err)
+            err => cb(MenuLeft === err ? null : err)
         );
     }
 
