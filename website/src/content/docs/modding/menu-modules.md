@@ -144,26 +144,31 @@ The default `initSequence()`, which most modules keep:
 
 ```mermaid
 flowchart TD
-    before["beforeArt()"] --> art["menu art (if any)"]
+    before["beforeArt()"] --> mode{"pause: pageBreak?"}
+    mode -- no --> art["menu art (if any)"]
+    mode -- yes --> paged["menu art (if any), paged: a page-break prompt between screens, an end pause after the last"]
     art --> prompt["prompt art (if the menu has a prompt)"]
+    paged --> prompt
     prompt --> mci["mciReady(mciData)"]
-    mci --> pause{"pause configured?"}
+    mci --> pause{"pause set, and not pageBreak?"}
     pause -- yes --> pp["pausePrompt()"]
     pause -- no --> fin
-    pp --> fin["finishedLoading(); realtime interrupts allowed"]
-    fin --> next["autoNextMenu()"]
+    pp --> fin["finishedLoading()"]
+    fin --> allow["realtime interrupts allowed"]
+    allow --> next["autoNextMenu()"]
 ```
 
 * `beforeArt(callback)` is called before any art is displayed. The default implementation clears the screen if requested by the menu's `config` block (`cls: true`). Baud rate emulation, if configured, is applied during the art display itself rather than here.
 * `mciReady(mciData, callback)` is called when art is loaded and MCI codes are initialized. The default implementation of a custom `MenuModule` simply continues. See also [standardMCIReadyHandler](#standardmcireadyhandlermcidata-callback).
-* `finishedLoading()` does nothing in the base class. After it, a menu with `interrupt: realtime` can be interrupted.
+* With `pause: pageBreak`, the menu art is shown a screen at a time, with a page-break prompt between screens and an end-of-art pause after the last one (skipped if the caller quits); art that fits on one screen, or positions itself (native or RIP art), is shown without either. The pause step after `mciReady()` is then skipped. Any other `pause` value (`true`, `end`, a prompt name) gets one `pausePrompt()` below the art in that step.
+* `finishedLoading()` does nothing in the base class. Right after it returns, the default `initSequence()` marks a menu with `interrupt: realtime` as interruptible. Calling `finishedLoading()` does not do that itself.
 * `autoNextMenu()` moves on by itself only when the menu has `runtime.autoNext` (after `nextTimeout`, if set).
 * If a step fails, `initSequenceFailed(err)` goes back to the previous menu. Menu art that cannot be shown is not a failure; prompt art that cannot be shown is.
 
-A module that overrides `initSequence()` (see [Creating a New Module](#creating-a-new-module)) runs only what it calls.
+A module that overrides `initSequence()` (see [Creating a New Module](#creating-a-new-module)) runs only what it calls. It is not made interruptible by calling `finishedLoading()`, so on such a menu realtime interrupts stay queued.
 
 ### Realtime interrupts
-On a menu with `interrupt: realtime`, an interrupt that arrives (a node message, a page, an achievement) after `finishedLoading()` is shown at once. Before then, or on a menu set to `queued`, it is queued for the next menu's `enter()`.
+On a menu with `interrupt: realtime`, an interrupt that arrives (a node message, a page, an achievement) once the default `initSequence()` has finished loading (after `finishedLoading()`) is shown at once. Before then, on a menu that overrides `initSequence()`, or on a menu set to `queued`, it is queued for the next menu's `enter()`.
 
 ```mermaid
 sequenceDiagram
