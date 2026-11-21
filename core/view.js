@@ -50,6 +50,9 @@ const destroyedViews = new WeakSet();
 //  client -> the seq of the latest suspend taken: see View.coverMark()
 const lastCoverMarks = new WeakMap();
 
+//  view -> Set of interval handles from setBackgroundInterval()
+const backgroundIntervals = new WeakMap();
+
 function nextBackgroundSeq(client) {
     const seq = (backgroundSeqs.get(client) || 0) + 1;
     backgroundSeqs.set(client, seq);
@@ -400,7 +403,51 @@ class View extends events.EventEmitter {
     //  and call super.destroy().
     //
     destroy() {
+        this.clearBackgroundIntervals();
         View.markDestroyed(this);
+    }
+
+    //
+    //  setBackgroundInterval(fn, ms) -- a timer for a view that draws on its
+    //  own (a ticker, a clock). Every |ms|, fn() is called; it updates the
+    //  view's state and returns a function that draws the change, or
+    //  nothing when there is nothing to draw. That function is run through
+    //  drawInBackground(), so the cursor goes back to the field being typed
+    //  into and nothing is drawn while the screen is covered. destroy()
+    //  clears the timer; so does clearBackgroundInterval(handle). Returns
+    //  the handle (the setInterval() timer).
+    //
+    setBackgroundInterval(fn, ms) {
+        let intervals = backgroundIntervals.get(this);
+        if (!intervals) {
+            intervals = new Set();
+            backgroundIntervals.set(this, intervals);
+        }
+
+        const handle = setInterval(() => {
+            const drawFn = fn();
+            if (_.isFunction(drawFn)) {
+                this.drawInBackground(drawFn);
+            }
+        }, ms);
+        intervals.add(handle);
+        return handle;
+    }
+
+    clearBackgroundInterval(handle) {
+        const intervals = backgroundIntervals.get(this);
+        if (intervals) {
+            intervals.delete(handle);
+        }
+        clearInterval(handle);
+    }
+
+    clearBackgroundIntervals() {
+        const intervals = backgroundIntervals.get(this);
+        if (intervals) {
+            intervals.forEach(handle => clearInterval(handle));
+            intervals.clear();
+        }
     }
 
     //

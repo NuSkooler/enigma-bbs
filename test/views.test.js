@@ -402,6 +402,97 @@ describe('StatusBarView', () => {
     });
 });
 
+// ─── View.setBackgroundInterval ──────────────────────────────────────────────
+
+describe('View.setBackgroundInterval()', () => {
+    const { View } = require('../core/view.js');
+    let ft;
+    before(() => {
+        ft = makeFakeTimers();
+    });
+    after(() => {
+        ft.restore();
+    });
+
+    function makeView() {
+        const view = new View({ client: makeClient(), id: 1 });
+        view.drawn = [];
+        view.drawInBackground = drawFn => view.drawn.push(drawFn);
+        return view;
+    }
+
+    it('draws what the callback returns through drawInBackground()', () => {
+        const view = makeView();
+        const draw = () => {};
+        let ticks = 0;
+        const handle = view.setBackgroundInterval(() => {
+            ++ticks;
+            return 2 === ticks ? draw : undefined;
+        }, 100);
+
+        ft.fire(handle);
+        assert.equal(view.drawn.length, 0, 'nothing returned, nothing drawn');
+        ft.fire(handle);
+        assert.deepEqual(view.drawn, [draw]);
+        view.destroy();
+    });
+
+    it('destroy() clears every one; clearBackgroundInterval() clears one', () => {
+        const view = makeView();
+        const a = view.setBackgroundInterval(() => {}, 100);
+        const b = view.setBackgroundInterval(() => {}, 200);
+        const c = view.setBackgroundInterval(() => {}, 300);
+        view.clearBackgroundInterval(b);
+        assert.ok(ft.has(a) && !ft.has(b) && ft.has(c));
+        view.destroy();
+        assert.ok(!ft.has(a) && !ft.has(c));
+        assert.doesNotThrow(() => view.destroy());
+    });
+
+    it("TickerView and StatusBarView timers are background intervals: View's destroy() clears them", () => {
+        const client = makeClient();
+        const ticker = new TickerView({
+            client,
+            id: 1,
+            position: { row: 1, col: 1 },
+            dimens: { width: 10, height: 1 },
+            text: 'hello',
+        });
+        const sb = new StatusBarView({
+            client,
+            id: 2,
+            position: { row: 2, col: 1 },
+            dimens: { width: 20, height: 1 },
+            panels: [{ text: 'a', refreshInterval: 100 }],
+        });
+        const tickerTimer = ticker._timer;
+        const panelTimer = sb._panels[0]._timer;
+        assert.ok(ft.has(tickerTimer) && ft.has(panelTimer));
+        View.prototype.destroy.call(ticker);
+        View.prototype.destroy.call(sb);
+        assert.ok(!ft.has(tickerTimer) && !ft.has(panelTimer));
+    });
+
+    it('a ticker tick that draws goes through drawInBackground(); an unchanged one does not', () => {
+        const client = makeClient();
+        const ticker = new TickerView({
+            client,
+            id: 1,
+            position: { row: 1, col: 1 },
+            dimens: { width: 10, height: 1 },
+            text: 'hi', //  fits: bounce holds still
+            motion: 'bounce',
+        });
+        const draws = [];
+        ticker.drawInBackground = drawFn => draws.push(drawFn);
+        ft.fire(ticker._timer);
+        assert.equal(draws.length, 1, 'first frame draws');
+        ft.fire(ticker._timer);
+        assert.equal(draws.length, 1, 'the same frame is not drawn again');
+        ticker.destroy();
+    });
+});
+
 // ─── MaskEditTextView ─────────────────────────────────────────────────────────
 
 describe('MaskEditTextView', () => {

@@ -99,12 +99,13 @@ class StatusBarView extends TextView {
                 panel.value = this._evalPanelText(panel.text);
             }
             if (panel.text && panel.refreshInterval > 0) {
-                panel._timer = setInterval(() => {
+                //  drawn through drawInBackground(): the user may be typing
+                //  elsewhere on the screen
+                panel._timer = this.setBackgroundInterval(() => {
                     const val = this._evalPanelText(panel.text);
                     if (val !== panel.value) {
                         panel.value = val;
-                        //  the user may be typing elsewhere on the screen
-                        this.drawInBackground(() => this.redraw());
+                        return () => this.redraw();
                     }
                 }, panel.refreshInterval);
             }
@@ -272,16 +273,35 @@ class StatusBarView extends TextView {
     //  ── Single-mode auto-refresh (no panels) ─────────────────────────────────
 
     _startRefresh() {
-        this._timer = setInterval(() => {
+        //  drawn through drawInBackground(): the user may be typing
+        //  elsewhere on the screen
+        this._timer = this.setBackgroundInterval(() => {
             //  Process the format template without triggering a redraw yet,
             //  so we can compare the result against the last rendered value.
             this.setText(this._format, false);
             if (this.text !== this._lastRendered) {
                 this._lastRendered = this.text;
-                //  the user may be typing elsewhere on the screen
-                this.drawInBackground(() => this.redraw());
+                return () => this.redraw();
             }
         }, this.refreshInterval);
+    }
+
+    _stopRefresh() {
+        if (this._timer) {
+            this.clearBackgroundInterval(this._timer);
+            this._timer = null;
+        }
+    }
+
+    _stopPanelTimers() {
+        if (this._panels) {
+            this._panels.forEach(p => {
+                if (p._timer) {
+                    this.clearBackgroundInterval(p._timer);
+                    p._timer = null;
+                }
+            });
+        }
     }
 
     //  ── Property system ──────────────────────────────────────────────────────
@@ -291,23 +311,14 @@ class StatusBarView extends TextView {
             //  Keep _format in sync with text for single-mode auto-refresh.
             this._format = value || '';
         } else if ('refreshInterval' === propName) {
-            if (this._timer) {
-                clearInterval(this._timer);
-                this._timer = null;
-            }
+            this._stopRefresh();
             this.refreshInterval = parseInt(value, 10) || 0;
             if (!this._panels && this.refreshInterval > 0) {
                 this._startRefresh();
             }
         } else if ('panels' === propName && Array.isArray(value)) {
             //  Full panel replacement (e.g. from theme.hjson override).
-            if (this._panels) {
-                this._panels.forEach(p => {
-                    if (p._timer) {
-                        clearInterval(p._timer);
-                    }
-                });
-            }
+            this._stopPanelTimers();
             this._initPanels(value);
         } else if ('anchor' === propName) {
             this._anchor = value;
@@ -321,19 +332,9 @@ class StatusBarView extends TextView {
     //  ── Lifecycle ────────────────────────────────────────────────────────────
 
     destroy() {
-        if (this._timer) {
-            clearInterval(this._timer);
-            this._timer = null;
-        }
-        if (this._panels) {
-            this._panels.forEach(p => {
-                if (p._timer) {
-                    clearInterval(p._timer);
-                    p._timer = null;
-                }
-            });
-        }
-        super.destroy();
+        this._stopRefresh();
+        this._stopPanelTimers();
+        super.destroy(); //  clears any background interval left
     }
 }
 
