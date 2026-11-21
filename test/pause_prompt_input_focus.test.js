@@ -355,6 +355,61 @@ describe('pause prompts set the input focus aside', function () {
         assert.equal(View.getInputFocusView(client), field);
     });
 
+    describe('the menu ticker under a pause', function () {
+        function addMenuTicker(client, vc) {
+            const { TickerView } = require('../core/ticker_view.js');
+            vc.addView(
+                new TickerView({
+                    client,
+                    id: 9,
+                    position: { row: 3, col: 40 },
+                    dimens: { width: 20, height: 1 },
+                    text: 'Welcome to the board -- news, files and doors',
+                    motion: 'left',
+                })
+            );
+            const n = timers.length;
+            fireAll();
+            return n;
+        }
+
+        it('a clear-screen pause suspends it; the pause ticker animates; redrawn after', async function () {
+            const client = makeClient();
+            const { vc } = makeMenuForm(client);
+            const menuTimers = addMenuTicker(client, vc);
+
+            const state = pause(client, { clearScreen: true });
+            await waitFor(() => timers.length > menuTimers, 'the pause ticker');
+            const n = client.track.all.length;
+            fireAll();
+            fireAll();
+            const whileUp = client.track.since(n);
+            assert.ok(!whileUp.includes('\x1b[3;40H'), 'no menu ticker bytes');
+            assert.ok(whileUp.includes('\x1b[1;'), 'the pause ticker draws');
+
+            const m = client.track.all.length;
+            client.emit('key press', ' ', { name: 'space' });
+            await waitFor(() => state.done, 'the pause to finish');
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            assert.ok(client.track.since(m).includes('\x1b[3;40H'), 'redrawn after');
+        });
+
+        it('a pause on the same screen does not suspend it', async function () {
+            const client = makeClient();
+            const { vc } = makeMenuForm(client);
+            const menuTimers = addMenuTicker(client, vc);
+
+            const state = pause(client, { position: { row: 24, col: 1 } });
+            await waitFor(() => timers.length > menuTimers, 'the pause ticker');
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            const n = client.track.all.length;
+            fireAll();
+            assert.ok(client.track.since(n).includes('\x1b[3;40H'), 'still ticking');
+            client.emit('key press', ' ', { name: 'space' });
+            await waitFor(() => state.done, 'the pause to finish');
+        });
+    });
+
     describe('with the real waitForKeyPress() (an input capture)', function () {
         let Client;
         before(function () {

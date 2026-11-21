@@ -1091,6 +1091,13 @@ function displayThemedPrompt(name, client, options, cb) {
     //  error path as well.
     const inputFocus = options.pause ? View.suspendInputFocus(client) : null;
 
+    //  A prompt that clears the screen is drawn over whatever was there,
+    //  whose forms may still be attached: their tickers and status bars do
+    //  not draw over it while it is up (a view that missed a draw gets one
+    //  after). The prompt's own views were made after this, and draw as
+    //  usual. A prompt on the same screen suspends nothing.
+    const drawSuspend = options.clearScreen ? View.suspendBackgroundDraw(client) : null;
+
     async.waterfall(
         [
             function display(callback) {
@@ -1218,6 +1225,7 @@ function displayThemedPrompt(name, client, options, cb) {
             }
 
             View.resumeInputFocus(client, inputFocus);
+            View.resumeBackgroundDraw(client, drawSuspend);
 
             return cb(null, artInfo, pressedKey);
         }
