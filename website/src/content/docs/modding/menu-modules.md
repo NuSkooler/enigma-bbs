@@ -202,6 +202,7 @@ sequenceDiagram
 ```
 
 * `hasLeftMenu()` is true once `leave()` has run. Check it after your own async steps before drawing, building forms or navigating.
+* `leave()` **destroys** the menu's forms (see [Form states](../art/views/views.md#form-states)): a destroyed form cannot be attached again, so a late `setFocus(true)`, `activate()` or `switchFocus()` on one does nothing, and keys stay with the menu now on screen. `removeViewController(name)` destroys the form it removes too. A reload, or coming back to the menu, makes a new instance with new forms.
 * The default `initSequence()` checks it after each async step, as above. A form built by an `mciReady()` that finishes after `leave()` is torn down.
 * `prepViewController()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` call back as they always have, with the same arguments, so your callback's cleanup still runs. But a form they build for a menu that has been left is torn down before they call back (its keys detached, its views destroyed, their timers stopped), and one that already existed is not refocused. Check `hasLeftMenu()` in the callback before drawing, refocusing a form or navigating.
 * `setMenuTimeout(fn, ms)` is a `setTimeout()` that belongs to the menu: `leave()` clears it, so `fn` never runs for a menu the caller has left. It returns a handle for `clearMenuTimeout(handle)`. `autoNextMenu()` (`nextTimeout`) and `prevMenuOnTimeout(ms, cb)` use it. Prefer it to a bare `setTimeout()` for anything that draws or moves the caller on.
@@ -231,7 +232,7 @@ While the interrupt is up, the menu's forms stay attached but get no keys, and i
 ### Covers and input capture
 Sometimes a module shows something over its own screen and then gives the screen back: a help page, a message, a confirmation. Its forms are still attached underneath. Pick by what the screen does:
 
-* **Over the whole screen, then back** (a help page): use `this.coverScreen(options, fn, cb)`. While `fn(done)` runs, the forms get no keys, including the key that ends the cover, and their tickers and status bars do not draw. A `client.waitForKeyPress()` inside it still gets its key: a wait is a plain listener, not a capture. Call `done(err)` when finished; `options.restore(cb)` then repaints your screen, before input and drawing are given back. Views that missed a draw get one redraw unless `redrawMissed: false`.
+* **Over the whole screen, then back** (a help page): use `this.coverScreen(options, fn, cb)`. While `fn(done)` runs, the forms get no keys, including the key that ends the cover, and their tickers and status bars do not draw. That includes a form the menu builds while the cover is up: the cover goes by the menu's forms, not only by what was on screen when it began. A `client.waitForKeyPress()` inside it still gets its key: a wait is a plain listener, not a capture. Call `done(err)` when finished; `options.restore(cb)` then repaints your screen, before input and drawing are given back. Views that missed a draw get one redraw unless `redrawMissed: false`.
 
   ```javascript
   displayHelp(cb) {
@@ -249,6 +250,7 @@ Sometimes a module shows something over its own screen and then gives the screen
 
   The same helper is `coverScreen(client, options, fn, cb)` in `core/screen_cover.js`, for code that is not a menu module.
 
+* **Over one form** (a prompt or another form drawn over part of it): `vc.cover()`, then `vc.uncover()` and `vc.activate()`. See [Form states](../art/views/views.md#form-states).
 * **Your own key handling for a while,** with nothing covered (a "press Y or N" read by code, a key-driven mini screen): use `client.captureInput(handler, options)` and `client.releaseInput(token)`. The forms get no keys while you hold it. See [Input capture](../art/views/views.md#input-capture).
 * **A pause on the same screen,** drawn under the menu's art: `pausePrompt()` (or `client.waitForKeyPress()`) on its own. The tickers and status bars on screen keep animating, and the key that ends it also reaches the forms, as it always has (so does the key for a menu's own `pause: true`). If it must not, show the pause inside `coverScreen()`.
 
