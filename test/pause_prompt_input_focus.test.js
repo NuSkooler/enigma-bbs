@@ -394,6 +394,44 @@ describe('pause prompts set the input focus aside', function () {
             assert.ok(client.track.since(m).includes('\x1b[3;40H'), 'redrawn after');
         });
 
+        //  ET-style prompts (clearScreen, no pause): the module owns the
+        //  screen once the prompt is drawn, as before. Suspending while the
+        //  art drew and resuming right after would only redraw a frame of
+        //  the old screen's ticker over the new prompt.
+        it('a clear-screen prompt without pause suspends nothing, as before', async function () {
+            const client = makeClient();
+            const { vc } = makeMenuForm(client);
+            addMenuTicker(client, vc);
+
+            const origRaw = client.term.rawWrite.bind(client.term);
+            let suspendedAtClear = null;
+            client.term.rawWrite = function (s, cb) {
+                if (null === suspendedAtClear && String(s).includes('\x1b[2J')) {
+                    suspendedAtClear = View.isBackgroundDrawSuspended(client);
+                }
+                return origRaw(s, cb);
+            };
+
+            let done = false;
+            let k;
+            theme.displayThemedPrompt(
+                'pauseTk',
+                client,
+                { clearScreen: true, pause: false },
+                () => {
+                    k = client.track.all.length;
+                    done = true;
+                }
+            );
+            await waitFor(() => done, 'the prompt to be drawn');
+            assert.equal(suspendedAtClear, false, 'not suspended while drawing');
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            assert.ok(
+                !client.track.since(k).includes('\x1b[3;40H'),
+                'no old-screen ticker frame is redrawn over the prompt'
+            );
+        });
+
         it('a pause on the same screen does not suspend it', async function () {
             const client = makeClient();
             const { vc } = makeMenuForm(client);
