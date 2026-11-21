@@ -491,6 +491,45 @@ describe('View.setBackgroundInterval()', () => {
         assert.equal(draws.length, 1, 'the same frame is not drawn again');
         ticker.destroy();
     });
+
+    it('on a destroyed view: returns null and starts no timer', () => {
+        const view = makeView();
+        view.destroy();
+        let ran = 0;
+        const before = ft.count();
+        assert.equal(
+            view.setBackgroundInterval(() => ++ran, 100),
+            null
+        );
+        assert.equal(ft.count(), before, 'no timer');
+        assert.equal(ran, 0);
+    });
+
+    it("TickerView._tick() still draws, so a subclass's super._tick() does", () => {
+        const client = makeClient();
+        let overridden = 0;
+        class MyTicker extends TickerView {
+            _tick() {
+                ++overridden;
+                return super._tick();
+            }
+        }
+        const ticker = new MyTicker({
+            client,
+            id: 1,
+            position: { row: 1, col: 1 },
+            dimens: { width: 10, height: 1 },
+            text: 'hi',
+            motion: 'bounce',
+        });
+        const draws = [];
+        ticker.drawInBackground = drawFn => draws.push(drawFn);
+        ft.fire(ticker._timer);
+        assert.equal(overridden, 1, 'the timer calls the override');
+        assert.equal(draws.length, 1, 'super._tick() drew');
+        assert.equal(ticker._tick(), undefined, 'and returns nothing, as before');
+        ticker.destroy();
+    });
 });
 
 // ─── MaskEditTextView ─────────────────────────────────────────────────────────

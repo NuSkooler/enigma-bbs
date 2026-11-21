@@ -664,9 +664,11 @@ class TickerView extends View {
         if (this._timer) {
             return;
         }
+        //  _tick() draws (through drawInBackground()), as it always has, so
+        //  a subclass that overrides it still runs each tick
         this._timer = this.setBackgroundInterval(() => {
             this._advanceMotion();
-            return this._tick();
+            this._tick();
         }, this.tickInterval);
     }
 
@@ -678,11 +680,19 @@ class TickerView extends View {
     }
 
     //  A tick draws while the user may be typing into a field elsewhere on
-    //  the screen: setBackgroundInterval() draws what this returns through
-    //  drawInBackground(), which puts the cursor and SGR back there.
-    //  While covered (a background draw suspend) nothing a tick draws
-    //  reaches the screen, so it does not count as drawn: see _nextFrame().
+    //  the screen: drawInBackground() puts the cursor and SGR back there.
     _tick() {
+        const drawFn = this._tickDraw();
+        if (drawFn) {
+            this.drawInBackground(drawFn);
+        }
+    }
+
+    //  The next frame, and a function that draws it (null if nothing
+    //  changed). While covered (a background draw suspend) nothing a tick
+    //  draws reaches the screen, so it does not count as drawn: see
+    //  _nextFrame().
+    _tickDraw() {
         const rendered = this._nextFrame({ drawn: !this.isBackgroundDrawSuspended() });
         if (null !== rendered) {
             return () => this._drawFrame(rendered);

@@ -442,9 +442,14 @@ class View extends events.EventEmitter {
     //  drawInBackground(), so the cursor goes back to the field being typed
     //  into and nothing is drawn while the screen is covered. destroy()
     //  clears the timer; so does clearBackgroundInterval(handle). Returns
-    //  the handle (the setInterval() timer).
+    //  the handle (the setInterval() timer), or null for a view that has
+    //  been destroyed: no timer is started for it.
     //
     setBackgroundInterval(fn, ms) {
+        if (destroyedViews.has(this)) {
+            return null;
+        }
+
         let intervals = backgroundIntervals.get(this);
         if (!intervals) {
             intervals = new Set();
