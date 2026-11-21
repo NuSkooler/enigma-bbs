@@ -552,6 +552,77 @@ describe('Background draw suspend / resume', () => {
             View.resumeBackgroundDraw(client, token);
         });
 
+        describe('ClientTerminal.discardOutput()', () => {
+            it('sends nothing of what fn writes, and returns what fn returns', () => {
+                const { term, sent } = makeRealTermClient();
+                const r = term.discardOutput(() => {
+                    term.write('A');
+                    term.rawWrite('B');
+                    return 42;
+                });
+                assert.equal(r, 42);
+                assert.equal(sent.join(''), '');
+                assert.equal(term._writeBuf, null, 'no batch left open');
+                term.write('next');
+                assert.equal(sent.join(''), 'next', 'later output goes out');
+            });
+
+            it('inside an outer batch: earlier chunks (pass-through too) kept, its own trimmed', () => {
+                const { term, sent } = makeRealTermClient();
+                term.beginWrite();
+                term.write('keep1');
+                term.write('PT', false);
+                term.rawWrite('x');
+                term.discardOutput(() => {
+                    term.write('drop1');
+                    term.rawWrite('drop2');
+                });
+                term.write('keep2');
+                term.commitWrite();
+                assert.equal(sent.join(''), 'keep1PTxkeep2');
+                assert.equal(sent.length, 1, 'still one write for the batch');
+            });
+
+            it('a balanced batch inside fn is discarded with the rest', () => {
+                const { term, sent } = makeRealTermClient();
+                term.discardOutput(() => {
+                    term.beginWrite();
+                    term.write('d');
+                    term.commitWrite();
+                    term.write('e');
+                });
+                assert.equal(sent.join(''), '');
+                assert.equal(term._writeBuf, null);
+                assert.equal(term._writeBufDepth, 0);
+            });
+
+            it('fn throwing inside a batch it began: the error goes on, the batch is closed', () => {
+                const { term, sent } = makeRealTermClient();
+                assert.throws(
+                    () =>
+                        term.discardOutput(() => {
+                            term.beginWrite();
+                            term.write('d');
+                            throw new Error('draw failed');
+                        }),
+                    /draw failed/
+                );
+                assert.equal(term._writeBuf, null, 'not left batching');
+                term.write('after');
+                assert.equal(sent.join(''), 'after');
+            });
+
+            it('write callbacks inside fn still fire', () => {
+                const { term } = makeRealTermClient();
+                let called = 0;
+                term.discardOutput(() => {
+                    term.write('z', true, () => ++called);
+                    term.rawWrite('y', () => ++called);
+                });
+                assert.equal(called, 2);
+            });
+        });
+
         it('a covered ticker sends no tick bytes', () => {
             const { client, sent } = makeRealTermClient();
             const ticker = makeTicker(client);

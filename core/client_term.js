@@ -525,15 +525,18 @@ ClientTerminal.prototype.commitWrite = function (cb) {
 //  rawWrite() and the like thrown away rather than sent: a background draw
 //  while the screen is covered (View.drawInBackground()). Writes already
 //  held by an enclosing batch are kept. A drip started inside fn() is not
-//  held by a batch, and still goes out.
+//  held by a batch, and still goes out. A batch fn() began and did not
+//  commit (it threw) is closed too, so later output is not held forever.
 //
 ClientTerminal.prototype.discardOutput = function (fn) {
     this.beginWrite();
     const mark = this._writeBuf.length;
+    const depth = this._writeBufDepth;
     try {
         return fn();
     } finally {
         if (this._writeBuf) {
+            this._writeBufDepth = depth;
             const keep = Math.min(mark, this._writeBuf.length);
             this._writeBuf.length = keep;
             if (this._writeBufPassThrough) {
