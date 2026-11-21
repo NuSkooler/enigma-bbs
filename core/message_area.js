@@ -497,9 +497,18 @@ function changeMessageArea(client, areaTag, cb) {
     changeMessageAreaWithOptions(client, areaTag, { persist: true }, cb);
 }
 
+//
+//  |areaOrTag| is an area object or an area tag. No area at all (undefined
+//  or null: a user with no current message area, or a lookup that found
+//  nothing) is no access (#1139). A tag that is no longer configured is
+//  checked as an empty area, as it always has been.
+//
 function hasMessageConfAndAreaRead(client, areaOrTag) {
     if (_.isString(areaOrTag)) {
         areaOrTag = getMessageAreaByTag(areaOrTag) || {};
+    }
+    if (!_.isObject(areaOrTag)) {
+        return false;
     }
     const conf = getMessageConferenceByTag(areaOrTag.confTag);
     return (
@@ -507,9 +516,13 @@ function hasMessageConfAndAreaRead(client, areaOrTag) {
     );
 }
 
+//  see hasMessageConfAndAreaRead()
 function hasMessageConfAndAreaWrite(client, areaOrTag) {
     if (_.isString(areaOrTag)) {
         areaOrTag = getMessageAreaByTag(areaOrTag) || {};
+    }
+    if (!_.isObject(areaOrTag)) {
+        return false;
     }
     const conf = getMessageConferenceByTag(areaOrTag.confTag);
     return (
