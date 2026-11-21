@@ -36,6 +36,7 @@ add on top of these.
 | `fillChar` | Character used to fill space the content does not occupy. Defaults to a space |
 | `textStyle` | Standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
 | `focusTextStyle` | Text style when the view has focus. See **Text Styles** in [MCI](../mci.md) |
+| `pauseWhenInactive` | If set to `true`, a view that draws on a timer (a `%TK` ticker, a `%SB` status bar with `refreshInterval`) skips its ticks while its form is inactive or covered, and is drawn again when the form is active. It only takes effect where a module deactivates or covers the form; the stock modules do not do that yet. By default such a view keeps drawing while its form is visible. See [Form states](#form-states) |
 
 ## Common Menu View Properties
 
@@ -174,7 +175,7 @@ classDiagram
         +forceNextRedraw()
         +destroy()
         +isDestroyed(view)$
-        +suspendBackgroundDraw(client)$
+        +suspendBackgroundDraw(client, scope)$
         +resumeBackgroundDraw(client, token, options)$
         +restoreFocusPosition()
         +restoreFocusCursor()
@@ -340,7 +341,25 @@ classDiagram
         +focusPrevious()
     }
 
+    class ViewController {
+        +views
+        +formId
+        +focusedView
+        +activate()
+        +deactivate()
+        +cover()
+        +uncover(options)
+        +destroy()
+        +setFocus(focused)
+        +switchFocus(id)
+        +attachClientEvents()
+        +detachClientEvents()
+        +redrawAll()
+    }
+
     EventEmitter <|-- View
+    EventEmitter <|-- ViewController
+    ViewController o-- View : views (a form)
     View <|-- TextView
     View <|-- TickerView
     View <|-- MenuView
@@ -405,12 +424,20 @@ While art is drawn with baud emulation (a drip: `dripWrite()` and the like), bac
 A realtime interrupt, a help page (the full screen editor's Ctrl-O help, the file list's and the WFC's) and a pause prompt that clears the screen are drawn over a menu whose forms are still attached. While one is up (for a clear-screen pause, while it waits for its key):
 
 * **Background drawing is paused** for the views that existed when the cover began, so a ticker or status bar under it does not draw over it. A view that would have drawn meanwhile gets one full redraw when the cover ends (unless the menu is about to repaint anyway, as a reload after an interrupt does). Before that redraw, `forceNextRedraw()` is called on the view: override it in a view that skips output it believes is already on screen. `TickerView` does, so an unchanged frame is drawn again after a cover.
-* **Views created inside the cover keep drawing.** A ticker in a pause prompt shown over an interrupt (the stock `pausePage` has one) animates while the menu's ticker under it waits.
+* **Views created inside the cover keep drawing.** A ticker in a pause prompt shown over an interrupt (the stock `pausePage` has one) animates while the menu's ticker under it waits, and so does a form a module builds inside its own `coverScreen()`. The exception is an interrupt: it covers the interrupted menu's forms by ownership (scope `{ menu }`, below), so a form that menu builds while the interrupt is up (its art finished loading) does not draw over it either. `coverScreen()` does the same when given `scope: { menu: this }`.
 * **Keys go to the cover,** not to the forms under it, for an interrupt or a help page: the key that dismisses it is not typed into a field or run as an action underneath. See [Input capture](#input-capture). A pause prompt (one that clears the screen, or one on the same screen) is a plain `client.waitForKeyPress()` and takes no keys from the forms: its key reaches them too, as it always has.
 
 A clear-screen prompt that does not pause (one that takes input, such as an `ET` field) suspends nothing: once it is drawn, the module showing it owns the screen, as before.
 
-For views of your own, `View.suspendBackgroundDraw(client)` returns a token and `View.resumeBackgroundDraw(client, token, { redrawMissed })` gives it back. Suspends nest. `redrawMissed: false` skips the redraw when you replace the screen next. Most code wants `coverScreen()` instead, which does both this and input capture (see [Covers and input capture](../../modding/menu-modules.md#covers-and-input-capture)).
+For views of your own, `View.suspendBackgroundDraw(client, scope)` returns a token and `View.resumeBackgroundDraw(client, token, { redrawMissed })` gives it back. Suspends nest. `redrawMissed: false` skips the redraw when you replace the screen next. Most code wants `coverScreen()` instead, which does both this and input capture (see [Covers and input capture](../../modding/menu-modules.md#covers-and-input-capture)).
+
+`scope` says which views a suspend covers:
+
+| `scope` | Covers |
+|---------|--------|
+| none (the default) | Every view that exists when the suspend is taken. A view created later (a ticker in the cover's own pause prompt, a form built inside the cover) draws. With suspends nested, the most recent one decides. Drips and `coverScreen()` (unless given a `scope`) use this. |
+| `{ menu }` | The same, plus every view on a form of `menu` (a form in its `viewControllers` when the view would draw, whether it got there through `addViewController()` or was assigned directly), whenever it was created. Views on no menu's form (a theme's temporary prompt form, a mod's bare view) follow the default rule. Interrupts use this, and `coverScreen({ scope: { menu: this } }, ...)`. |
+| `{ forms: [ vc, ... ] }` | Only the views of those forms. Nothing else on the screen is affected. `vc.cover()` uses this. |
 
 A view whose state changes outside a timer, such as a chat log filled by lines arriving from a server, adds the text without drawing and draws from `drawInBackground()`. `MultiLineEditTextView` has a pair for this:
 
@@ -435,3 +462,47 @@ While something owns the screen, it can own the keys too. `client.captureInput(h
 `client.waitForKeyPress(cb)` is not a capture. It is a plain `once('key press')`, as it always was: `cb(ch, key)` gets the next key, in the order the listeners were added, and that key also reaches every other listener, including a form still attached under whatever is waiting. Several waits pending at once all get the same key. To keep the key from the forms, wait inside a cover (`coverScreen()`, see [Covers and input capture](../../modding/menu-modules.md#covers-and-input-capture)), whose capture silences them for every key until it ends, including the one that ends it; or take a capture of your own.
 
 A capture taken while a key is being delivered (a form's action opens a help page) is for the next key; the listeners after it still see the current one.
+
+### Form states
+
+A form (a `ViewController` and its views) is in one of four states:
+
+| State | Call | Keys | Views and their listeners | Background drawing |
+|-------|------|------|---------------------------|--------------------|
+| Active | `vc.activate()` | yes | live | runs |
+| Inactive | `vc.deactivate()` | no | live, listeners kept | runs, except views with `pauseWhenInactive` |
+| Covered | `vc.cover()` / `vc.uncover({ redraw })` | no | live | paused; missed draws are made up on `uncover()` |
+| Destroyed | `vc.destroy()` | no | listeners removed, views destroyed | stopped, for good |
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: new ViewController
+    Active --> Inactive: deactivate()
+    Inactive --> Active: activate()
+    Active --> Covered: cover()
+    Inactive --> Covered: cover()
+    Covered --> Inactive: uncover()
+    Covered --> Active: activate()
+    Active --> Destroyed: destroy()
+    Inactive --> Destroyed: destroy()
+    Covered --> Destroyed: destroy()
+    Destroyed --> [*]
+    note right of Destroyed
+        leave() destroys a menu's forms.
+        activate(), setFocus(true),
+        attachClientEvents() and
+        switchFocus() do nothing here.
+    end note
+```
+
+When to use which:
+
+* **`deactivate()` / `activate()`**: another form on the same screen takes the keys for a while, and this one stays visible as it is (the editor's header while the body is being typed into). A ticker on it keeps running: on screen means animating. Nothing is torn down, so listeners you added to its views are still there afterwards; do not add them again on `activate()`.
+* **`cover()` / `uncover()`**: something is drawn over this form (a prompt drawn over part of it, another form's art) and then removed. Its views stop drawing in the background so they do not draw over what covers them; `uncover()` draws each view that missed a draw once, or every view with `{ redraw: true }` when what covered the form overlapped all of it. On a form that is not covered, `uncover()` does nothing, `{ redraw: true }` included. `uncover()` leaves the form inactive; `activate()` uncovers and gives it the keys. Other forms on the screen keep drawing (a timer-drawn view on them may draw its whole frame once instead of only what changed): for the whole screen, use a cover (`coverScreen()`, above). The form holds its suspend until `uncover()`, `activate()`, `attachClientEvents()`, `destroy()` or a teardown (`setFocus(false)`, `detachClientEvents()`). A covered form that is simply dropped keeps it until the next menu change, which drops every suspend; it only ever pauses that form's views.
+* **`destroy()`**: the form is finished with. This is terminal: a destroyed form cannot be attached again. `MenuModule.leave()` destroys every form still in the menu's `viewControllers`, so a callback that finishes after the caller has left the menu (art that finished loading, a database read, a line from a chat server) and calls `setFocus(true)` or `switchFocus()` on one of its forms does nothing (a debug log line says so). The keys stay with the menu now on screen. A new instance of the menu (a reload, coming back to it) has new forms and is not affected.
+
+`setFocus(true)` is `activate()`. **`setFocus(false)` is unchanged**: it detaches the form and tears it down (`detachClientEvents()`: listeners removed, views destroyed, their timers stopped), though the form is not marked destroyed and `setFocus(true)` attaches it again, as before. `detachClientEvents()` keeps that meaning too, and is deprecated in favour of `destroy()`, or `deactivate()` / `cover()` for a form that will be shown again. **`removeViewController(name)` is unchanged** too: it detaches the form (`detachClientEvents()`, which leaves a form that never attached as it is) and forgets it, without destroying it, so a module that kept the form can add it back and attach it again.
+
+"Inactive" means `deactivate()` or `cover()` was called on the form. A form built `detached` and never attached is not inactive. `attachClientEvents()` on an inactive or covered form (also through `switchFocus()`) makes it active again: it uncovers the form and gives it the keys. Unlike `activate()`, it does not focus the focused view again or redraw paused views; `switchFocus()` focuses its target, so prefer `activate()` or `switchFocus()`.
+
+A view with `pauseWhenInactive: true` that draws on a timer (`setBackgroundInterval()`: `%TK`, `%SB` with `refreshInterval`) skips its ticks while its form is inactive or covered: its timer callback is not called, so a ticker does not move on unseen. A redraw owed to it still draws it (the end of a cover, `uncover()`, `uncover({ redraw: true })`), and `activate()` draws it once more if it skipped a tick. It only takes effect where a module calls `deactivate()` or `cover()`; the stock modules do not do that yet, so on stock screens the property changes nothing for now.

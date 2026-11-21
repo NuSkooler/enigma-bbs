@@ -10,7 +10,7 @@ const art = require('./art.js');
 const ansi = require('./ansi_term.js');
 const Log = require('./logger.js').log;
 const asset = require('./asset.js');
-const { ViewController, MCI_REGEXP } = require('./view_controller.js');
+const { ViewController, MCI_REGEXP, FormLifecycle } = require('./view_controller.js');
 const { View } = require('./view');
 const { DeepMergeProperties: TableViewDeepMergeProperties } = require('./table_view.js');
 const Errors = require('./enig_error.js').Errors;
@@ -1224,8 +1224,9 @@ function displayThemedPrompt(name, client, options, cb) {
                 );
             }
 
+            //  the temporary form is finished with for good
             if (assocViewController && usingTempViewController) {
-                assocViewController.detachClientEvents();
+                FormLifecycle.destroy(assocViewController);
             }
 
             View.resumeInputFocus(client, inputFocus);

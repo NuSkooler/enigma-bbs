@@ -123,9 +123,12 @@ class UserInterruptQueue {
     //  either -- that would only flash before the repaint.
     //
     displayWithItem(interruptItem, cb) {
+        //  by ownership: also a form the interrupted menu builds while this
+        //  is up (its art finished loading) does not draw over it
+        const menu = this.client.currentMenuModule;
         coverScreen(
             this.client,
-            { redrawMissed: false },
+            { redrawMissed: false, scope: menu ? { menu } : undefined },
             done => {
                 if (interruptItem.cls) {
                     this.client.term.rawWrite(ANSI.resetScreen());
