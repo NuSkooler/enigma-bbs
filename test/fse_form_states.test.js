@@ -737,7 +737,7 @@ describe('FSE form states (F3b)', () => {
     });
 
     describe('MultiLineEditTextView blur', () => {
-        it('a pending pipe code collapse does not draw after the body loses the keys', () => {
+        it('a pending pipe code collapse is drawn at blur, not after the menu has the keys', () => {
             const { client, v } = toBody(startCompose(editor()));
             const saved = {
                 setTimeout: global.setTimeout,
@@ -753,8 +753,14 @@ describe('FSE form states (F3b)', () => {
             try {
                 type(client, '|12x'); //  a code, then a key past it
                 assert.equal(pending.size, 1, 'collapse scheduled');
+                const n = client.term.out.length;
                 key(client, undefined, ESC); //  the menu
-                assert.equal(pending.size, 0, 'dropped on blur');
+                assert.equal(pending.size, 0, 'nothing left to fire later');
+                assert.ok(
+                    client.term.out.length > n,
+                    'the row was collapsed (drawn) at blur'
+                );
+                assert.equal(v.message._pipeCodeExpanded, false);
             } finally {
                 Object.assign(global, saved);
             }

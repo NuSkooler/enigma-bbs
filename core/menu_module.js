@@ -1181,15 +1181,22 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //
         //  The prompt is drawn over (or beside) the previous form, which is
         //  covered meanwhile: it takes no keys and its views do not draw in
-        //  the background (a ticker under the prompt), but they and their
-        //  listeners are kept. On submit it is uncovered (a view that
+        //  the background (a ticker under the prompt), but the views and
+        //  their timers are kept. On submit it is uncovered (a view that
         //  missed a background draw is redrawn once) and gets the keys back.
+        //
+        //  Its view listeners are removed, as setFocus(false) always did
+        //  here: modules bind them again in the prompt's actions (msg_list),
+        //  and would otherwise bind them twice.
         //
         let prevVc;
         if (prevFormName) {
             prevVc = this.viewControllers[prevFormName];
             if (prevVc) {
                 FormLifecycle.cover(prevVc);
+                Object.values(prevVc.views || {}).forEach(view =>
+                    view.removeAllListeners()
+                );
             }
         }
 

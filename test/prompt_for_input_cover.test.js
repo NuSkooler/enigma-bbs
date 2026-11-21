@@ -16,12 +16,12 @@ const FormState = require('../core/form_state.js');
 //
 //  promptForInput({ prevFormName }) covers the previous form while its
 //  prompt is up (F3b, C15): no key reaches it and its views do not draw in
-//  the background, but they and their listeners are kept. On submit it is
+//  the background, but they are kept, with their timers. On submit it is
 //  uncovered and gets the keys back, its focused field focused again,
 //  without a full redraw. Before, the previous form was torn down
-//  (setFocus(false)): a ticker in it stopped for good, and its view
-//  listeners were dropped, so modules bound them again after every prompt
-//  (msg_list), which would now bind them twice.
+//  (setFocus(false)): a ticker in it stopped for good. Its view listeners
+//  are still removed, as before, since modules bind them again after every
+//  prompt (msg_list).
 //
 
 const MENU_CONFIG = {
@@ -258,15 +258,26 @@ describe('promptForInput() covers the previous form (F3b)', () => {
         assert.notEqual(list.getData(), before, 'the list takes keys again');
     });
 
-    it('prompt cycles: one key listener; the list listener kept and fired once', () => {
+    it('prompt cycles: one key listener; view listeners removed as before, a rebind fires once', () => {
         const client = makeClient();
         const { mod, list, indexUpdates } = makeMenu(client);
         const base = client.listeners('key press').length;
 
+        const prompt0 = ask(mod);
+        assert.equal(
+            list.listenerCount('index update'),
+            0,
+            'removed at the prompt, as setFocus(false) did'
+        );
+        prompt0.vc.submitForm();
+
+        //  a module that binds its listener again after each prompt
+        const onIndex = idx => indexUpdates.push(idx);
         for (let i = 0; i < 3; ++i) {
             const prompt = ask(mod);
             prompt.vc.submitForm();
             assert.equal(client.listeners('key press').length, base);
+            list.on('index update', onIndex);
         }
 
         assert.equal(list.listenerCount('index update'), 1);

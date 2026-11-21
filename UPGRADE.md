@@ -40,11 +40,11 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none for most mods. Only a module that attaches one of its forms after its menu was left notices, and that was already a bug. See [Form states](website/src/content/docs/art/views/views.md#form-states).
 
-* **Mod authors: `promptForInput({ prevFormName })` keeps the previous form's listeners.** Nothing in your configuration, menus, art or themes needs to change.
+* **Mod authors: the full screen editor keeps its forms' view listeners.** Nothing in your configuration, menus, art or themes needs to change, and nothing changes for a mod that does not extend the full screen editor (`core/fse.js`).
 
-  **What changes by itself:** the form named `prevFormName` is covered while the prompt is up and activated when it is submitted, where before it was torn down with `setFocus(false)` (its views' listeners removed, their timers stopped) and attached again with `setFocus(true)`. Its tickers and status bars pause under the prompt instead of stopping, and listeners you added to its views are still there afterwards. The full screen editor's forms are deactivated or covered in the same way, rather than torn down, when they lose the keys.
+  **What changes by itself:** when one of the editor's forms loses the keys (the header while the body is typed into, the body under the Escape menu, a footer under another footer), it is deactivated or covered instead of torn down with `setFocus(false)`. Its tickers and status bars keep running, and listeners added to its views are still there when it gets the keys back.
 
-  **Action:** if your module adds a listener to the previous form's views again after the prompt (in the prompt's Yes / No actions, say), remove it first (`removeListener()`, then `on()`), or add it only once; otherwise it fires once more after every prompt. The stock message list did this and is fixed. The same applies to a module that extends the full screen editor and adds listeners to its views each time a form gets the keys back.
+  **Action:** a module that extends the full screen editor and adds listeners to its views each time a form gets the keys back should remove them first (`removeListener()`, then `on()`), or add them once; otherwise they fire once more after every focus change. `promptForInput({ prevFormName })` still removes the previous form's view listeners, as before.
 
 ## 0.6.0-beta to 0.6.1-beta
 

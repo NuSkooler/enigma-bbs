@@ -30,8 +30,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * **Tickers and status bars keep running in the full screen editor and under prompts.** A `%TK` ticker or a `%SB` status bar with `refreshInterval` in the editor's header, body or footer art stopped for good the first time the focus moved away from its form (from the header to the body, from the body to the Escape menu or find), and one in a form under a prompt (the message list's delete confirmation, the WFC kick confirmation and task prompt) stopped at the prompt. They now keep running while their form is on screen. A form that something is drawn over (a prompt, the quote builder, another footer in the editor's footer rows) pauses them, and draws them again when it is shown.
 
   * **The editor footer no longer stays attached under the Escape menu or find.** Keys bound on it in a theme (form 2) reached it while another footer was shown.
-  * **The editor body no longer redraws a pipe code it collapses after losing the keys.** A code just typed (`|12`) collapses 300 ms later; if Escape or another focus change came first, the body's line was redrawn and the cursor left in it while the menu had the keys.
-  * **For mods:** `promptForInput({ prevFormName })` covers the previous form instead of tearing it down: its view listeners are kept. See UPGRADE.md.
+  * **A multi-line editor no longer moves the cursor back into itself after losing the keys.** A code just typed (`|12`) collapses 300 ms later; if Escape or another focus change came first, the line was redrawn and the cursor left in it while another field had the keys. It now collapses as the focus leaves.
+  * **For mods:** `promptForInput({ prevFormName })` covers the previous form instead of tearing it down: its views and timers are kept, and its view listeners are removed, as before. Mods that extend the full screen editor: see UPGRADE.md.
 
 ## 0.6.1-beta
 
