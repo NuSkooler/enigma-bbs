@@ -36,7 +36,7 @@ add on top of these.
 | `fillChar` | Character used to fill space the content does not occupy. Defaults to a space |
 | `textStyle` | Standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
 | `focusTextStyle` | Text style when the view has focus. See **Text Styles** in [MCI](../mci.md) |
-| `pauseWhenInactive` | If set to `true`, a view that draws on a timer (a `%TK` ticker, a `%SB` status bar with `refreshInterval`) skips its ticks while its form is inactive or covered, and is drawn again when the form is active. It only takes effect where a module deactivates or covers the form (the full screen editor's header, body and footers, a form under a `promptForInput()` prompt; see [Form states](#form-states)). By default such a view keeps drawing while its form is visible |
+| `pauseWhenInactive` | If set to `true`, a view that draws on a timer (a `%TK` ticker, a `%SB` status bar with `refreshInterval`) skips its ticks while its form is inactive or covered, and is drawn again when the form is active. It only takes effect where a module deactivates or covers the form (the full screen editor's header, body and footers, a form under a `promptForInput()` prompt; see [Form states](#form-states)). In the editor's view mode the header and body are inactive for the whole time, so a view there with `pauseWhenInactive` does not animate at all. By default such a view keeps drawing while its form is visible |
 
 ## Common Menu View Properties
 
