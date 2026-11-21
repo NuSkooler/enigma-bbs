@@ -18,6 +18,7 @@ const Events = require('./events.js');
 const AnsiPrep = require('./ansi_prep.js');
 const UserProps = require('./user_property.js');
 const { emulationOf, DEFAULT_EMULATION } = require('./term');
+const { getArtOrigin, setArtOrigin } = require('./mci_map_origin.js');
 
 const ConfigLoader = require('./config_loader');
 const { getConfigPath } = require('./config_util');
@@ -1176,6 +1177,17 @@ function displayThemedPrompt(name, client, options, cb) {
                             mci.position[0] = options.position.row;
                             mci.position[1] += options.position.col || 0;
                         }
+                    });
+
+                    //  and where the art is, for views placed by config
+                    //  `position`: its first row lands where the markers
+                    //  above do, and it moves right as they do
+                    const origin = getArtOrigin(artInfo.mciMap);
+                    setArtOrigin(artInfo.mciMap, {
+                        row: _.isNumber(options.position.row)
+                            ? options.position.row
+                            : origin.row,
+                        col: origin.col + (options.position.col || 0),
                     });
                 }
 
