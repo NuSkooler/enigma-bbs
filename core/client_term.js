@@ -521,6 +521,22 @@ ClientTerminal.prototype.commitWrite = function (cb) {
 };
 
 //
+//  flushOpenWrite() -- send what an open beginWrite() batch holds and close
+//  it, however deeply nested. For when the code that opened it will not get
+//  to commit it: a menu left while it waited on async work (see
+//  MenuStack._settleCovers()). A commitWrite() that comes later finds no
+//  batch and does nothing. Returns true if a batch was open.
+//
+ClientTerminal.prototype.flushOpenWrite = function () {
+    if (!this._writeBuf) {
+        return false;
+    }
+    this._writeBufDepth = 1;
+    this.commitWrite();
+    return true;
+};
+
+//
 //  discardOutput(fn) -- run fn() with what it writes through write(),
 //  rawWrite() and the like thrown away rather than sent: a background draw
 //  while the screen is covered (View.drawInBackground()). Writes already

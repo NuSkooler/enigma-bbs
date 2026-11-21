@@ -253,19 +253,28 @@ module.exports = class MenuStack {
     //    left held hears keys without taking them from the new menu (see
     //    InputCapture.menuChanged()). A pending waitForKeyPress() is a
     //    plain listener and gets the next key, as it always has.
+    //  - a write batch left open is sent and closed: the menu that opened
+    //    it may never commit it (it was left while it waited on art, and
+    //    a left menu's prep helpers do not call back), and it would hold
+    //    every later menu's output. Sent early, at worst it loses being
+    //    one write.
     //  A cover that ends normally has ended before any menu change it
     //  leads to (reload() after an interrupt), so this finds nothing.
     //
     _settleCovers(name) {
         const { dropped, passThrough } = InputCapture.menuChanged(this.client);
         const suspends = View.dropBackgroundDrawSuspends(this.client);
-        if (dropped || passThrough || suspends) {
+        const term = this.client.term;
+        const openBatch =
+            term && _.isFunction(term.flushOpenWrite) && term.flushOpenWrite();
+        if (dropped || passThrough || suspends || openBatch) {
             this.client.log.debug(
                 {
                     menuName: name,
                     droppedCaptures: dropped,
                     passThroughCaptures: passThrough,
                     droppedSuspends: suspends,
+                    openWriteBatch: openBatch,
                 },
                 'Menu changed while the screen was covered'
             );
