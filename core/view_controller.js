@@ -6,7 +6,7 @@ const { View } = require('./view');
 const menuUtil = require('./menu_util.js');
 const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
-const { isKeyPressCaptured } = require('./input_capture.js');
+const { isKeyPressCaptured, ensureKeyDispatch } = require('./input_capture.js');
 
 //  deps
 const events = require('events');
@@ -436,6 +436,9 @@ class ViewController extends events.EventEmitter {
             return;
         }
 
+        //  the capture dispatcher must run first; put it back if a mod
+        //  removed every 'key press' listener (see input_capture.js)
+        ensureKeyDispatch(this.client);
         this.client.on('key press', this.clientKeyPressHandler);
 
         Object.keys(this.views).forEach(i => {

@@ -223,6 +223,61 @@ describe('Input capture stack', () => {
             assert.equal(client.hasInputCapture(), false);
         });
 
+        it('a capture opened while a key is delivered does not hide that key from later listeners', () => {
+            //  Before captures, every 'key press' listener saw every key. A
+            //  form whose action opens a pause takes the pause for the next
+            //  key; a form attached after it still sees this one.
+            const client = makeClient();
+            client.releaseInput(client.captureInput(() => {})); //  dispatcher in
+            const got = [];
+            client.on('key press', ch => {
+                if (InputCapture.isKeyPressCaptured(client)) {
+                    return got.push('vc1 ignored');
+                }
+                got.push(`vc1 ${ch}`);
+                client.waitForKeyPress(() => got.push('pause'));
+            });
+            client.on('key press', ch => {
+                got.push(
+                    InputCapture.isKeyPressCaptured(client) ? 'vc2 ignored' : `vc2 ${ch}`
+                );
+            });
+
+            client.emit('key press', 'x', {});
+            assert.deepEqual(got, ['vc1 x', 'vc2 x']);
+            client.emit('key press', 'y', {});
+            assert.deepEqual(
+                got,
+                ['vc1 x', 'vc2 x', 'pause', 'vc1 ignored', 'vc2 ignored'],
+                'the next key is the pause’s, and no form’s'
+            );
+        });
+
+        it('a form whose action opens a pause: a later form still gets that key, the pause the next', () => {
+            const client = makeClient();
+            client.releaseInput(client.captureInput(() => {}));
+            const first = makeForm(client);
+            const second = makeForm(client); //  attached after the first
+            let paused = 0;
+            first.vc.mapActionKeys([{ keys: ['x'], viewId: 1 }], 'form');
+            first.vc.on('submit', () => client.waitForKeyPress(() => ++paused));
+
+            type(client, 'x');
+            assert.equal(second.field.getData(), 'x', 'the later form saw it, as before');
+            assert.equal(paused, 0);
+            type(client, 'z');
+            assert.equal(paused, 1, 'the pause got the next key');
+            assert.equal(first.field.getData(), '');
+            assert.equal(second.field.getData(), 'x', 'and no form did');
+        });
+
+        it('a mock client with no dispatcher: every capture held counts', () => {
+            const client = new events.EventEmitter();
+            client.prependListener = undefined; //  a stand-in that cannot
+            InputCapture.captureInput(client, () => {});
+            assert.equal(InputCapture.isKeyPressCaptured(client), true);
+        });
+
         it('lets the forms have keys when nothing was ever captured', () => {
             const client = makeClient();
             const { field } = makeForm(client);
@@ -342,6 +397,52 @@ describe('Input capture stack', () => {
             assert.deepEqual(got, ['x'], 'the wait gets its key: no hang');
             assert.equal(form.field.getData(), '');
             assert.equal(field.getData(), '');
+        });
+
+        it('is put back, and its claim reset, when a form attaches', () => {
+            const client = makeClient();
+            const got = [];
+            client.waitForKeyPress(ch => got.push(ch)); //  installs it
+            type(client, 'a'); //  claimed by the wait
+            client.removeAllListeners('key press'); //  a mod tidying up
+
+            const { field } = makeForm(client); //  attaches: dispatcher back
+            assert.equal(client.listeners('key press')[0].name, 'dispatcher');
+            type(client, 'b');
+            assert.equal(field.getData(), 'b', 'not left silent by a stale claim');
+            client.waitForKeyPress(ch => got.push(ch));
+            type(client, 'c');
+            assert.deepEqual(got, ['a', 'c'], 'a later wait still hears its key');
+            assert.equal(field.getData(), 'b');
+        });
+
+        it('is put back when a capture is released', () => {
+            const client = makeClient();
+            const token = client.captureInput(() => {});
+            const held = client.captureInput(() => {});
+            client.removeAllListeners('key press');
+            client.releaseInput(token);
+            assert.equal(client.listeners('key press')[0].name, 'dispatcher');
+            const got = [];
+            client.releaseInput(held);
+            client.waitForKeyPress(ch => got.push(ch));
+            type(client, 'k');
+            assert.deepEqual(got, ['k']);
+        });
+
+        it('a leftover handler that releases another leftover stops its delivery', () => {
+            const client = makeClient();
+            const got = [];
+            let second = null;
+            client.captureInput(ch => {
+                got.push(`first:${ch}`);
+                client.releaseInput(second);
+            });
+            second = client.captureInput(ch => got.push(`second:${ch}`));
+            InputCapture.menuChanged(client); //  both are leftovers now
+
+            type(client, 'a');
+            assert.deepEqual(got, ['first:a'], 'the released one hears nothing');
         });
 
         it('is not installed twice', () => {

@@ -15,16 +15,29 @@
 //  Dispatch is one 'key press' listener per client, prepended so that it
 //  runs before any ViewController's. It decides once per key whether the key
 //  is captured; ViewController handlers ask isKeyPressCaptured(). Deciding
-//  once matters: a capture whose handler releases itself (waitForKeyPress())
-//  has gone before the forms' handlers run for that same key, and they must
-//  still leave it alone.
+//  once matters both ways:
+//  - a capture whose handler releases itself (waitForKeyPress()) has gone
+//    before the forms' handlers run for that same key, and they must still
+//    leave it alone;
+//  - a capture opened while the key is being delivered (a form's action
+//    starts a pause) is for the next key: every later listener still sees
+//    this one, as all 'key press' listeners did before captures existed.
 //
 //  Kept in a WeakMap, like View's input focus, so a client (or a test's
 //  mock client) that goes away takes its state with it. No other
 //  requires: client.js loads this early.
 //
 
-//  client -> { stack: [ token ], claimed: bool, dispatcher: fn }
+//
+//  client -> {
+//      stack       [ token ], newest last
+//      claimed     the key being delivered went to a capture
+//      keySeq      counts the keys dispatched; a token records the value
+//                  when it was taken, so a capture taken while key N is
+//                  being delivered (token.keySeq === N) is not counted for N
+//      dispatcher  the 'key press' listener
+//  }
+//
 const captureStates = new WeakMap();
 
 function getState(client) {
@@ -33,23 +46,28 @@ function getState(client) {
         return state;
     }
 
-    state = { stack: [], claimed: false };
+    state = { stack: [], claimed: false, keySeq: 0 };
     captureStates.set(client, state);
 
     //  Installed once and kept, so it is still first for every key after
     //  the stack empties: it resets |claimed| for keys nobody captures.
     const dispatcher = (ch, key) => {
+        ++state.keySeq;
         //  Captures left over from a menu that has gone hear the next key
         //  without taking it, as a plain once('key press') did: see
         //  menuChanged()
         const stale = state.stack.filter(t => t.passThrough);
         const receivers = keyReceivers(state);
         state.claimed = receivers.length > 0;
+        //  A handler may release (or drop) another token, or the menu may
+        //  change, while the key is delivered: only tokens still held get it
         for (const token of stale) {
-            token.handler(ch, key);
+            if (state.stack.includes(token)) {
+                token.handler(ch, key);
+            }
         }
         for (const token of receivers) {
-            if (token.passThrough || state.stack.includes(token)) {
+            if (state.stack.includes(token)) {
                 token.handler(ch, key);
             }
         }
@@ -113,7 +131,30 @@ function ensureDispatcher(client, state) {
         return;
     }
     if (!client.listeners('key press').includes(state.dispatcher)) {
+        //  whatever it decided last is about a key long gone
+        state.claimed = false;
         client.prependListener('key press', state.dispatcher);
+    }
+}
+
+//  True when |client|'s dispatcher is listening (a mock client may have
+//  none: then every capture held counts for every key)
+function isDispatcherInstalled(client, state) {
+    return (
+        typeof client.listeners === 'function' &&
+        client.listeners('key press').includes(state.dispatcher)
+    );
+}
+
+//
+//  A ViewController is attaching its 'key press' handler: make sure the
+//  dispatcher is still there, first, for a client that has used captures
+//  (see ensureDispatcher()).
+//
+function ensureKeyDispatch(client) {
+    const state = captureStates.get(client);
+    if (state) {
+        ensureDispatcher(client, state);
     }
 }
 
@@ -136,14 +177,14 @@ function captureInput(client, handler, options) {
     if (typeof handler !== 'function') {
         throw new TypeError('captureInput() requires a handler function');
     }
-    const token = { handler };
+    const state = getState(client);
+    const token = { handler, keySeq: state.keySeq };
     if (options && typeof options.onDrop === 'function') {
         token.onDrop = options.onDrop;
     }
     if (options && 'drop' === options.onMenuChange) {
         token.dropOnMenuChange = true;
     }
-    const state = getState(client);
     ensureDispatcher(client, state);
     state.stack.push(token);
     return token;
@@ -164,15 +205,8 @@ function releaseInput(client, token) {
         return false;
     }
     state.stack.splice(i, 1);
+    ensureDispatcher(client, state);
     return true;
-}
-
-//  Drop every capture: the client has ended, and no handler will be called
-function releaseAllInput(client) {
-    const state = captureStates.get(client);
-    if (state) {
-        state.stack.length = 0;
-    }
 }
 
 //
@@ -241,20 +275,32 @@ function hasInputCapture(client) {
 
 //
 //  For a ViewController's 'key press' handler: true when the key being
-//  delivered went to a capture, or a capture is active now. Read during
-//  'key press' delivery; |claimed| describes the key in flight.
+//  delivered went to a capture, or a capture taken before this key's
+//  delivery began is still held. A capture taken during the delivery (a
+//  form's action opened a pause) is for the next key. Read only during
+//  'key press' delivery: |claimed| and |keySeq| describe the key in flight.
+//  Without a dispatcher listening (a mock client), every capture held
+//  counts.
 //
 function isKeyPressCaptured(client) {
     const state = captureStates.get(client);
-    return !!state && (state.claimed || !!topCapture(state));
+    if (!state) {
+        return false;
+    }
+    if (!isDispatcherInstalled(client, state)) {
+        return !!topCapture(state);
+    }
+    return (
+        state.claimed || state.stack.some(t => !t.passThrough && t.keySeq < state.keySeq)
+    );
 }
 
 module.exports = {
     captureInput,
     releaseInput,
-    releaseAllInput,
     dropAllInput,
     menuChanged,
     hasInputCapture,
     isKeyPressCaptured,
+    ensureKeyDispatch,
 };
