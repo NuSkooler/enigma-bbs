@@ -935,38 +935,32 @@ describe('RIPscrip output filter (#989)', () => {
             });
         });
 
-        it('dripWrite: a write made during the drip meets the filter after it, in wire order', () => {
+        it('dripWrite: a write between two pieces meets the filter in wire order', () => {
             const timers = fakeTimers();
             try {
-                //  rawWrite (filtered) during the drip is held until the drip
-                //  is done: the drip's ESC [ sequence goes out whole
+                //  rawWrite (filtered) lands after ESC [ went out: one stream
                 const a = ripSession();
                 let doneA = false;
                 a.term.rawWrite(bytes('hello'));
                 //  62.5 bytes a second: one byte every 16 ms tick
                 a.term.dripWrite(bytes('\x1b[1zzzz'), 62.5, err => {
                     doneA = !err;
-                    //  sent before the drip's callback
-                    assert.equal(a.sent(), 'hello\x1b[1zzzz!');
                 });
                 timers.tick();
                 a.term.rawWrite(bytes('!'));
-                //  (the filter holds the start of the sequence until it sees
-                //  how it ends); the '!' is held by the terminal
-                assert.equal(a.sent(), 'hello');
                 timers.runAll();
                 assert.ok(doneA);
-                assert.equal(a.sent(), 'hello\x1b[1zzzz!');
+                assert.equal(a.sent(), 'hello1zzzz');
 
-                //  an unfiltered write is held too, and the filter sees it
-                //  after the drip
+                //  an unfiltered write lands there: the held ESC [ is dropped
                 const b = ripSession();
                 b.term.rawWrite(bytes('hello'));
                 b.term.dripWrite(bytes('\x1b[1zzzz'), 62.5, () => {});
                 timers.tick();
                 b.term.passThroughWrite(bytes('!|1K'));
                 timers.runAll();
-                assert.equal(b.sent(), 'hello\x1b[1zzzz!|1K');
+                //  (and the RIP command the door left open is ended first)
+                assert.equal(b.sent(), 'hello!|1K\r\n1zzzz');
 
                 //  a filtered ! the drip ends with, then an unfiltered |
                 const c = ripSession();
@@ -998,10 +992,9 @@ describe('RIPscrip output filter (#989)', () => {
                 }
                 assert.equal(called, 1);
                 //  250 bytes a second: 4 bytes a tick
-                //  the write made during the drip waits for it (C11)
                 assert.deepEqual(
                     calls.map(c => latin1(c)),
-                    ['\x1b[1z', 'zz!|', '1K', '!']
+                    ['\x1b[1z', '!', 'zz!|', '1K']
                 );
                 assert.ok(calls.every(c => Buffer.isBuffer(c)));
                 assert.deepEqual(delays, [16, 16]);
@@ -1280,51 +1273,20 @@ describe('RIPscrip output filter (#989)', () => {
                     const seen = instrument(term);
                     const segments = [];
 
-                    //  While a drip is under way, other output is held and
-                    //  sent, in call order, when it is done; a drip started
-                    //  meanwhile waits its turn (ClientTerminal._holdOutput())
-                    let active = null; //  the drip under way
-                    const held = []; //  what waits for it
-                    const sentNow = seg =>
-                        active ? held.push({ seg }) : segments.push(seg);
-                    const filtered = b => sentNow({ bytes: [...b], filtered: true });
-                    const unfiltered = b => sentNow({ bytes: [...b], filtered: false });
+                    const filtered = b =>
+                        segments.push({ bytes: [...b], filtered: true });
+                    const unfiltered = b =>
+                        segments.push({ bytes: [...b], filtered: false });
 
-                    //  a drip's first piece goes at once; true if it is done
-                    const startDrip = drip => {
-                        segments.push({
-                            bytes: [...drip.bytes.slice(0, drip.size)],
-                            filtered: true,
-                        });
-                        drip.offset = drip.size;
-                        if (drip.offset < drip.bytes.length) {
-                            active = drip;
-                            return false;
-                        }
-                        return true;
-                    };
-                    const sendHeld = () => {
-                        while (!active && held.length > 0) {
-                            const item = held.shift();
-                            if (item.seg) {
-                                segments.push(item.seg);
-                            } else {
-                                startDrip(item.drip);
-                            }
-                        }
-                    };
+                    //  slow drips under way, in the order their next piece is
+                    //  due (the timer queue's order)
+                    const drips = [];
                     const tick = () => {
-                        const drip = active;
-                        segments.push({
-                            bytes: [
-                                ...drip.bytes.slice(drip.offset, drip.offset + drip.size),
-                            ],
-                            filtered: true,
-                        });
+                        const drip = drips.shift();
+                        filtered(drip.bytes.slice(drip.offset, drip.offset + drip.size));
                         drip.offset += drip.size;
-                        if (drip.offset >= drip.bytes.length) {
-                            active = null;
-                            sendHeld();
+                        if (drip.offset < drip.bytes.length) {
+                            drips.push(drip);
                         }
                         timers.tick();
                     };
@@ -1366,11 +1328,9 @@ describe('RIPscrip output filter (#989)', () => {
                                 if (0 === b.length) {
                                     return;
                                 }
-                                const drip = { bytes: b, offset: 0, size };
-                                if (active) {
-                                    held.push({ drip });
-                                } else {
-                                    startDrip(drip);
+                                filtered(b.slice(0, size));
+                                if (size < b.length) {
+                                    drips.push({ bytes: b, offset: size, size });
                                 }
                                 return;
                             }
@@ -1402,14 +1362,13 @@ describe('RIPscrip output filter (#989)', () => {
                         } else {
                             one(false);
                         }
-                        while (active && rand() < 0.5) {
+                        while (drips.length > 0 && rand() < 0.5) {
                             tick();
                         }
                     }
-                    while (active) {
+                    while (drips.length > 0) {
                         tick();
                     }
-                    assert.equal(held.length, 0);
                     assert.equal(timers.queue.length, 0);
 
                     const actual = sent();

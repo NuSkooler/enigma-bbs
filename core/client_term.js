@@ -299,11 +299,6 @@ ClientTerminal.prototype.ripDripWrite = function (buf, bytesPerSec, cb, markScre
     if (!buf || buf.length === 0) {
         return cb(null);
     }
-    if (this._dripping) {
-        return this._holdOutput({
-            drip: () => this.ripDripWrite(buf, bytesPerSec, cb, markScreen),
-        });
-    }
 
     this._flushBatchBeforeDrip();
     return this._drip(
@@ -477,15 +472,6 @@ ClientTerminal.prototype._write = function (s, how, cb) {
         }
         return;
     }
-    if (this._dripping) {
-        //  held, untranslated, until the drip is done: see _holdOutput()
-        return this._holdOutput({ write: [s, how, cb] });
-    }
-    return this._writeNow(s, how, cb);
-};
-
-//  _write() past batching and drips: translate (and filter) |s|, send it
-ClientTerminal.prototype._writeNow = function (s, how, cb) {
     if (this.output && this.output.writable) {
         s = how ? this._unfilteredOutput(s, how) : this.translateOutput(s);
         this.output.write(s, err => {
@@ -497,46 +483,6 @@ ClientTerminal.prototype._writeNow = function (s, how, cb) {
                 Log.warn({ error: err.message }, 'Failed writing to socket');
             }
         });
-    }
-};
-
-//
-//  Output while a drip (baud emulated art: dripWrite(), nativeDripWrite(),
-//  ripDripWrite()) is in flight is held, in call order, and sent when the
-//  drip is done, before the drip's callback runs. Sent at once, it would
-//  land between two pieces of the art: the art would carry on from where
-//  that write left the cursor (a ticker tick's goto), and a translator that
-//  follows the cursor (PETSCII, ATASCII), which translated the whole art up
-//  front, would have translated the write against where the art ends.
-//  Held writes and batches are translated when they are sent, so they meet
-//  the translator and the output filter in wire order. A drip started
-//  while another is in flight is held too, and starts when it is done.
-//
-ClientTerminal.prototype._holdOutput = function (item) {
-    if (!this._heldOutput) {
-        this._heldOutput = [];
-    }
-    this._heldOutput.push(item);
-};
-
-//  The drip is done: send what was held, in order, until it is all sent or
-//  a held drip starts (whatever is left waits for that one)
-ClientTerminal.prototype._sendHeldOutput = function () {
-    const held = this._heldOutput;
-    while (held && held.length > 0 && !this._dripping) {
-        const item = held.shift();
-        try {
-            if (item.write) {
-                this._writeNow(...item.write);
-            } else if (item.batch) {
-                this._sendBatch(...item.batch);
-            } else if (item.drip) {
-                item.drip();
-            }
-        } catch (e) {
-            //  one bad write must not keep the rest held for good
-            Log.warn({ error: e.message }, 'Failed sending output held during a drip');
-        }
     }
 };
 
@@ -572,22 +518,6 @@ ClientTerminal.prototype.commitWrite = function (cb) {
     this._writeBufPassThrough = null;
     this._writeBufDepth = 0;
     return this._sendBatch(chunks, passThroughChunks, cb);
-};
-
-//
-//  flushOpenWrite() -- send what an open beginWrite() batch holds and close
-//  it, however deeply nested. For when the code that opened it will not get
-//  to commit it: a menu left while it waited on async work (see
-//  MenuStack._settleCovers()). A commitWrite() that comes later finds no
-//  batch and does nothing. Returns true if a batch was open.
-//
-ClientTerminal.prototype.flushOpenWrite = function () {
-    if (!this._writeBuf) {
-        return false;
-    }
-    this._writeBufDepth = 1;
-    this.commitWrite();
-    return true;
 };
 
 //
@@ -628,10 +558,6 @@ ClientTerminal.prototype._sendBatch = function (chunks, passThroughChunks, cb) {
             cb(null);
         }
         return;
-    }
-    if (this._dripping) {
-        //  held, untranslated, until the drip is done: see _holdOutput()
-        return this._holdOutput({ batch: [chunks, passThroughChunks, cb] });
     }
     if (!this.output || !this.output.writable) {
         return;
@@ -722,11 +648,6 @@ ClientTerminal.prototype.dripWrite = function (buf, bytesPerSec, cb) {
     if (!buf || buf.length === 0) {
         return cb(null);
     }
-    if (this._dripping) {
-        return this._holdOutput({
-            drip: () => this.dripWrite(buf, bytesPerSec, cb),
-        });
-    }
 
     this._flushBatchBeforeDrip();
     return this._drip(
@@ -747,11 +668,6 @@ ClientTerminal.prototype.nativeDripWrite = function (buf, options, bytesPerSec, 
     if (!buf || buf.length === 0) {
         return cb(null);
     }
-    if (this._dripping) {
-        return this._holdOutput({
-            drip: () => this.nativeDripWrite(buf, options, bytesPerSec, cb),
-        });
-    }
 
     this._flushBatchBeforeDrip();
     return this._drip(
@@ -766,23 +682,10 @@ ClientTerminal.prototype.nativeDripWrite = function (buf, options, bytesPerSec, 
 //  |onChunk| (the output filter's part) just before it is written; a piece
 //  the filter leaves empty is not written, and the drip goes on as if it had
 //  been. Without an output filter |onChunk| hands every piece back as it is.
-ClientTerminal.prototype._drip = function (buf, bytesPerSec, dripCb, onChunk) {
+ClientTerminal.prototype._drip = function (buf, bytesPerSec, cb, onChunk) {
     if (!buf || buf.length === 0) {
-        return dripCb(null);
+        return cb(null);
     }
-
-    //  output meanwhile is held (see _holdOutput()), and sent before |dripCb|
-    this._dripping = true;
-    let finished = false;
-    const cb = err => {
-        if (finished) {
-            return;
-        }
-        finished = true;
-        this._dripping = false;
-        this._sendHeldOutput();
-        return dripCb(err);
-    };
 
     const INTERVAL_MS = 16; //  ~60fps
     const bytesPerInterval = Math.max(1, Math.round((bytesPerSec * INTERVAL_MS) / 1000));

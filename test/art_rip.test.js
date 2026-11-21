@@ -918,7 +918,7 @@ describe('RIPscrip art (.rip, #989)', function () {
                 assert.deepEqual(mciMap.TL2.position, [2, 15]);
             });
 
-            it('a write made during the drip waits for it, then is filtered, in wire order', async function () {
+            it('a write landing between two pieces is filtered, in wire order', async function () {
                 const { s, info } = await ripArtInfo('!|1U00\\\r\nAAAA\r\n');
                 const done = show(s.client, info.data, { rip: info.rip, baudRate: 300 });
                 //  30 bytes a second: one byte every 16ms tick; '\r!' sent
@@ -926,12 +926,9 @@ describe('RIPscrip art (.rip, #989)', function () {
                 timers.tick();
                 assert.equal(s.sent(), '\r!');
                 s.term.write('|x');
-                assert.equal(s.sent(), '\r!', 'held while the art drips');
                 timers.runAll();
                 await done;
-                //  the art's command is not broken into; the write goes
-                //  after it, through the filter
-                assert.equal(s.sent(), '\r!|1U00\\\r\nAAAA\r\n|x');
+                assert.equal(s.sent(), '\r!\x00|x|1U00\\\r\nAAAA\r\n');
             });
 
             it('ripDripWrite without the layer is dripWrite', function () {
