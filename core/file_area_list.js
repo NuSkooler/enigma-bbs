@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const { MenuModule, MenuFlags } = require('./menu_module.js');
+const { ViewController, FormLifecycle } = require('./view_controller.js');
 const ansi = require('./ansi_term.js');
 const FileEntry = require('./file_entry.js');
 const stringFormat = require('./string_format.js');
@@ -73,6 +74,29 @@ const MciViewIds = {
     },
 };
 
+//  Ends a page's steps early: the menu was left (see hasLeftMenu())
+const MenuLeft = Symbol('menuLeft');
+
+//  module -> its details nav menu's 'index update' listener (see
+//  displayDetailsPage()). Kept here, not on the module, so no name is
+//  taken from a subclass.
+const detailsNavListeners = new WeakMap();
+
+//
+//  The browse page, the details page and the details sections take turns
+//  on screen. A form not shown is covered (no keys, no background drawing),
+//  not torn down, as each is shown again (the prep helper activates it).
+//  It is covered before what replaces it is drawn, as blurring its focused
+//  view draws that view.
+//
+function coverForm(vc) {
+    if (vc instanceof ViewController) {
+        FormLifecycle.cover(vc);
+    } else if (vc) {
+        vc.setFocus(false);
+    }
+}
+
 exports.getModule = class FileAreaList extends MenuModule {
     constructor(options) {
         super(options);
@@ -126,16 +150,14 @@ exports.getModule = class FileAreaList extends MenuModule {
                 return cb(null);
             },
             viewDetails: (formData, extraArgs, cb) => {
-                this.viewControllers.browse.setFocus(false);
+                coverForm(this.viewControllers.browse);
                 return this.displayDetailsPage(cb);
             },
             detailsQuit: (formData, extraArgs, cb) => {
-                ['detailsNfo', 'detailsFileList', 'details'].forEach(n => {
-                    const vc = this.viewControllers[n];
-                    if (vc) {
-                        vc.detachClientEvents();
-                    }
-                });
+                //  the details page and every section under it
+                ['detailsGeneral', 'detailsNfo', 'detailsFileList', 'details'].forEach(
+                    n => coverForm(this.viewControllers[n])
+                );
 
                 return this.displayBrowsePage(true, cb); //  true=clearScreen
             },
@@ -425,6 +447,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                     );
                 },
                 function validateMci(callback) {
+                    //  the screen is another menu's now
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     return self.validateMCIByViewIds(
                         'browse',
                         [MciViewIds.browse.navMenu],
@@ -439,6 +465,9 @@ exports.getModule = class FileAreaList extends MenuModule {
                         err => {
                             if (err) {
                                 return callback(err);
+                            }
+                            if (self.hasLeftMenu()) {
+                                return callback(MenuLeft);
                             }
 
                             return self.populateCurrentEntryInfo(callback);
@@ -498,6 +527,9 @@ exports.getModule = class FileAreaList extends MenuModule {
                     }
                 },
                 function populateAdditionalViews(callback) {
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     self.updateQueueIndicator();
                     self.populateCustomLabels(
                         'browse',
@@ -508,7 +540,7 @@ exports.getModule = class FileAreaList extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(err);
+                    return cb(MenuLeft === err ? null : err);
                 }
             }
         );
@@ -531,6 +563,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                     );
                 },
                 function validateMci(callback) {
+                    //  the screen is another menu's now
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
                     return self.validateMCIByViewIds(
                         'details',
                         [MciViewIds.details.navMenu],
@@ -553,23 +589,32 @@ exports.getModule = class FileAreaList extends MenuModule {
                     );
                     navMenu.setFocusItemIndex(0);
 
-                    navMenu.on('index update', index => {
-                        const sectionName = {
-                            0: 'general',
-                            1: 'nfo',
-                            2: 'fileList',
-                        }[index];
+                    //  Removed, then added: the nav menu keeps its listeners
+                    //  while the browse page covers it, so adding again on
+                    //  each show would draw each section once more per visit
+                    let onNavUpdate = detailsNavListeners.get(self);
+                    if (!onNavUpdate) {
+                        onNavUpdate = index => {
+                            const sectionName = {
+                                0: 'general',
+                                1: 'nfo',
+                                2: 'fileList',
+                            }[index];
 
-                        if (sectionName) {
-                            self.displayDetailsSection(sectionName, true);
-                        }
-                    });
+                            if (sectionName) {
+                                self.displayDetailsSection(sectionName, true);
+                            }
+                        };
+                        detailsNavListeners.set(self, onNavUpdate);
+                    }
+                    navMenu.removeListener('index update', onNavUpdate);
+                    navMenu.on('index update', onNavUpdate);
 
                     return callback(null);
                 },
             ],
             err => {
-                return cb(err);
+                return cb(MenuLeft === err ? null : err);
             }
         );
     }
@@ -782,10 +827,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 
         async.series(
             [
-                function detachPrevious(callback) {
-                    if (self.lastDetailsViewController) {
-                        self.lastDetailsViewController.detachClientEvents();
-                    }
+                function coverPrevious(callback) {
+                    //  the section shown before; it is shown again later
+                    coverForm(self.lastDetailsViewController);
                     return callback(null);
                 },
                 function prepArtAndViewController(callback) {
@@ -827,6 +871,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                 },
                 function populateViews(callback) {
                     self.lastDetailsViewController = self.viewControllers[name];
+                    //  the screen is another menu's now
+                    if (self.hasLeftMenu()) {
+                        return callback(MenuLeft);
+                    }
 
                     switch (sectionName) {
                         case 'nfo':
@@ -873,7 +921,7 @@ exports.getModule = class FileAreaList extends MenuModule {
             ],
             err => {
                 if (cb) {
-                    return cb(err);
+                    return cb(MenuLeft === err ? null : err);
                 }
             }
         );
