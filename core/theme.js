@@ -1224,8 +1224,9 @@ function displayThemedPrompt(name, client, options, cb) {
                 );
             }
 
+            //  the temporary form is finished with for good
             if (assocViewController && usingTempViewController) {
-                assocViewController.detachClientEvents();
+                assocViewController.destroy();
             }
 
             View.resumeInputFocus(client, inputFocus);
