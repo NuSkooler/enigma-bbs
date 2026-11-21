@@ -117,16 +117,98 @@ exports.getModule = class MyFancyModule extends MenuModule {
 ```
 
 ## MenuModule Lifecycle
-Below is a very high level diagram showing the basic lifecycle of a MenuModule.
+Methods shown with `()` in their name such as `enter()` are overridable when inheriting from `MenuModule`.
 
-![Basic Menu Lifecycle](../assets/images/basic_menu_lifecycle.png)
+### Going to a menu
+Every move between menus (`gotoMenu()`, `prevMenu()`, `nextMenu()`, a `@menu:` action, a reload) goes through the client's menu stack:
 
-Methods indicated above with `()` in their name such as `enter()` are overridable when inheriting form `MenuModule`.
+```mermaid
+flowchart TD
+    goto["menuStack.goto(name)"] --> load["load the menu and create its module"]
+    load --> acs{"caller has access?"}
+    acs -- no --> denied["callback with an error; the current menu stays"]
+    acs -- yes --> save["previous menu: getSaveState(), then leave()"]
+    save --> push["push the new menu; restoreSavedState() if state was saved"]
+    push --> settle["settle anything left covering the old menu"]
+    settle --> enter["enter()"]
+    enter --> drain["displayQueuedInterruptions()"]
+    drain --> init["initSequence()"]
+```
 
-* `enter()` is the first to be called. There is no callback. The default implementation is to simply call `this.initSequence()`.
-* `displayQueuedInterruptions(callback)` is called, and if interruptions are allowed for this menu, any that may be queued will be displayed first.
+* `leave()` of the menu being left runs before the new menu's `enter()`. The default detaches and destroys the menu's forms (`detachViewControllers()`). It also runs when the caller disconnects, so it is a module's one chance to clean up (timers, temp files, node counts).
+* `enter()` is called with no callback. The default shows any queued interruptions (`displayQueuedInterruptions(callback)`, skipped with `interrupt: never`), then calls `initSequence()`. If you override `enter()`, call `super.enter()`.
+* If the caller was moved on while something covered the old menu (a sysop break-in or a time-up during a pause or an interrupt), what that cover held is settled first: its paused background drawing is dropped, and a pending `waitForKeyPress()` gets the next key without keeping it from the new menu, as it always did.
+
+### initSequence()
+The default `initSequence()`, which most modules keep:
+
+```mermaid
+flowchart TD
+    before["beforeArt()"] --> art["menu art (if any)"]
+    art --> prompt["prompt art (if the menu has a prompt)"]
+    prompt --> mci["mciReady(mciData)"]
+    mci --> pause{"pause configured?"}
+    pause -- yes --> pp["pausePrompt()"]
+    pause -- no --> fin
+    pp --> fin["finishedLoading(); realtime interrupts allowed"]
+    fin --> next["autoNextMenu()"]
+```
+
 * `beforeArt(callback)` is called before any art is displayed. The default implementation clears the screen if requested by the menu's `config` block (`cls: true`). Baud rate emulation, if configured, is applied during the art display itself rather than here.
 * `mciReady(mciData, callback)` is called when art is loaded and MCI codes are initialized. The default implementation of a custom `MenuModule` simply continues. See also [standardMCIReadyHandler](#standardmcireadyhandlermcidata-callback).
+* `finishedLoading()` does nothing in the base class. After it, a menu with `interrupt: realtime` can be interrupted.
+* `autoNextMenu()` moves on by itself only when the menu has `runtime.autoNext` (after `nextTimeout`, if set).
+* If a step fails, `initSequenceFailed(err)` goes back to the previous menu. Menu art that cannot be shown is not a failure; prompt art that cannot be shown is.
+
+A module that overrides `initSequence()` (see [Creating a New Module](#creating-a-new-module)) runs only what it calls.
+
+### Realtime interrupts
+On a menu with `interrupt: realtime`, an interrupt that arrives (a node message, a page, an achievement) after `finishedLoading()` is shown at once. Before then, or on a menu set to `queued`, it is queued for the next menu's `enter()`.
+
+```mermaid
+sequenceDiagram
+    participant Q as interrupt queue
+    participant M as current menu
+    participant C as cover
+    Q->>M: attemptInterruptNow(item)
+    alt not allowed now
+        M-->>Q: queue it for the next menu
+    else realtime and allowed
+        M->>C: begin: input captured, background drawing paused
+        C->>C: clear screen, interrupt art or text, pausePrompt()
+        C->>M: key pressed: end of cover
+        M->>M: reload(): leave(), then menuStack.goto(same menu)
+        M->>M: enter() -> initSequence()
+    end
+```
+
+While the interrupt is up, the menu's forms stay attached but get no keys, and its tickers and status bars do not draw over it. A ticker in the pause prompt still animates. The key that dismisses the interrupt does not reach the menu. A module can override `attemptInterruptNow(interruptItem, cb)` to hold interrupts back, calling `cb(null, false)` to leave the item queued.
+
+### Covers and input capture
+Sometimes a module shows something over its own screen and then gives the screen back: a help page, a message, a confirmation. Its forms are still attached underneath. Pick by what the screen does:
+
+* **Over the whole screen, then back** (a help page): use `this.coverScreen(options, fn, cb)`. While `fn(done)` runs, keys go only to the cover (a `client.waitForKeyPress()` inside it gets its key) and the forms' tickers and status bars do not draw. Call `done(err)` when finished; `options.restore(cb)` then repaints your screen, before input and drawing are given back. Views that missed a draw get one redraw unless `redrawMissed: false`.
+
+  ```javascript
+  displayHelp(cb) {
+      this.coverScreen(
+          { restore: done => this.redrawMyScreen(done) },
+          done => {
+              this.displayAsset(this.menuConfig.config.art.help, { clearScreen: true }, () => {
+                  this.client.waitForKeyPress(() => done(null));
+              });
+          },
+          cb
+      );
+  }
+  ```
+
+  The same helper is `coverScreen(client, options, fn, cb)` in `core/screen_cover.js`, for code that is not a menu module.
+
+* **Your own key handling for a while,** with nothing covered (a "press Y or N" read by code, a key-driven mini screen): use `client.captureInput(handler, options)` and `client.releaseInput(token)`. The forms get no keys while you hold it. See [Input capture](../art/views/views.md#input-capture).
+* **A pause on the same screen,** drawn under the menu's art: `pausePrompt()` (or `client.waitForKeyPress()`) on its own. The key that ends it is not passed to the forms, and the tickers and status bars on screen keep animating.
+
+A prompt shown with `clearScreen` (`promptForInput()`, `displayThemedPrompt()`) also pauses the background drawing of the screen under it while it is up.
 
 ## MenuModule Helper Methods
 Many helper methods exist and are available to code inheriting from `MenuModule`. Below are some examples. Poke around at [menu_module.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/menu_module.js) to discover more!
