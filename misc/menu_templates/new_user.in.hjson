@@ -41,7 +41,7 @@
                             maxLength: @config:users.realNameMax
                             validate: @systemMethod:validateNonEmpty
                         }
-                        MET3: {
+                        ME3: {
                             argName: birthdate
                             maskPattern: "####/##/##"
                             validate: @systemMethod:validateBirthdate
@@ -144,7 +144,7 @@
                             maxLength: @config:users.realNameMax
                             validate: @systemMethod:validateNonEmpty
                         }
-                        MET3: {
+                        ME3: {
                             argName: birthdate
                             maskPattern: "####/##/##"
                             validate: @systemMethod:validateBirthdate

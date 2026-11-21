@@ -53,7 +53,7 @@ With mode preview, scrolling the contents is allowed, but is not with read-only.
 <summary>Configuration fragment (expand to view)</summary>
 
 ```hjson
-ML1: {
+MT1: {
   width: 79
   argName: message
   mode: edit

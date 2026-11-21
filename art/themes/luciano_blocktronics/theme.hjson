@@ -142,10 +142,10 @@
 				mci: {
 					UN1: { width: 15 }
 					UR2: { width: 15 }
-					LO3: { width: 15 }
+					MS3: { width: 15 }
 					UF4: { width: 15 }
 					UG5: { width: 15 }
-					UT6: { width: 15 }
+					ND6: { width: 15 }
 					UC7: { width: 15 }
 					ST8: { width: 15 }
 				}
@@ -569,7 +569,7 @@
 						TL1: { width: 19, textOverflow: "..." }
 						ET2: { width: 19, textOverflow: "..." }
 						ET3: { width: 19, textOverflow: "..." }
-						ET4: { width: 21, textOverflow: "..." }
+						TL4: { width: 21, textOverflow: "..." }
 					}
 				}
 				1: {
@@ -667,7 +667,7 @@
 						ET5: { width: 32 }
 						ET6: { width: 32 }
 						ET7: { width: 32 }
-						ET8: { width: 32 }
+						TL8: { width: 32 }
 
 						TM17: {
 							focusTextStyle: first lower
@@ -940,7 +940,7 @@
 						TL1: { width: 19, textOverflow: "..." }
 						ET2: { width: 19, textOverflow: "..." }
 						ET3: { width: 19, textOverflow: "..." }
-						ET4: { width: 21, textOverflow: "..." }
+						TL4: { width: 21, textOverflow: "..." }
 						//TL4: { width: 25 }
 					}
 				}
@@ -1001,10 +1001,10 @@
 				mci: {
 					UN1: { width: 15 }
 					UR2: { width: 15 }
-					LO3: { width: 15 }
+					MS3: { width: 15 }
 					UF4: { width: 15 }
 					UG5: { width: 15 }
-					UT6: { width: 15 }
+					ND6: { width: 15 }
 					UC7: { width: 15 }
 					ST8: { width: 15 }
 				}
@@ -1019,8 +1019,8 @@
 					ET5: { width: 27 }
 					ET6: { width: 27 }
 					ET7: { width: 27 }
-					ET8: { width: 27 }
-					ET9: { width: 27 }
+					ME8: { width: 27 }
+					SM9: { width: 27 }
 					ET10: { width: 18 }
 					ET11: { width: 18 }
 					TL20: { width: 71 }
@@ -1573,11 +1573,11 @@
 				}
 				1: {
 					mci: {
-						ML1: {
+						MT1: {
 							height: 4
 							width: 70
 						}
-						ML2: {
+						MT2: {
 							height: 4
 							width: 70
 						}
@@ -1795,7 +1795,7 @@
 							TL1: { width: 19, textOverflow: "..." }
 							ET2: { width: 19, textOverflow: "..." }
 							ET3: { width: 19, textOverflow: "..." }
-							ET4: { width: 21, textOverflow: "..." }
+							TL4: { width: 21, textOverflow: "..." }
 						}
 					}
 					1: {
@@ -1821,16 +1821,16 @@
 							width: 78
 							height: 17
 						}
-						ET10: {
+						TL10: {
 							width: 20
 						}
-						ET11: {
+						TL11: {
 							width: 40
 						}
-						ET12: {
+						TL12: {
 							width: 40
 						}
-						ET13: {
+						TL13: {
 							width: 13
 						}
 					}
