@@ -5,7 +5,7 @@ const PluginModule = require('./plugin_module.js').PluginModule;
 const theme = require('./theme.js');
 const artUtil = require('./art.js');
 const ansi = require('./ansi_term.js');
-const ViewController = require('./view_controller.js').ViewController;
+const { ViewController, FormLifecycle } = require('./view_controller.js');
 const menuUtil = require('./menu_util.js');
 const Config = require('./config.js').get;
 const stringFormat = require('../core/string_format.js');
@@ -55,16 +55,20 @@ const menuTimeouts = new WeakMap();
 const MenuLeftStop = Symbol('menuLeft');
 
 //
-//  Tear down |vc| for good: its menu was left, or it was removed. A
-//  ViewController's destroy() detaches it, tears down its views (also for a
-//  form that never attached, or was blurred: its views are still there, and
-//  a ticker among them its timer) and marks it destroyed, so nothing can
-//  attach it again (a late setFocus(true) from a callback that finished
-//  after the menu was left).
+//  Tear down |vc| for good: its menu was left. An attached form is detached
+//  as before (detachClientEvents()); then a ViewController is destroyed
+//  (FormLifecycle, not a method a mod's subclass may have replaced): its
+//  views are torn down (also for a form that never attached, or was
+//  blurred: its views are still there, and a ticker among them its timer)
+//  and it is marked destroyed, so nothing can attach it again (a late
+//  setFocus(true) from a callback that finished after the menu was left).
 //
 function destroyForm(vc) {
-    if (_.isFunction(vc.destroy)) {
-        return vc.destroy();
+    if (vc instanceof ViewController) {
+        if (vc.attached) {
+            vc.detachClientEvents();
+        }
+        return FormLifecycle.destroy(vc);
     }
 
     //  not a ViewController: tear down what it has, as before
@@ -82,6 +86,16 @@ function destroyForm(vc) {
             view.destroy();
         }
         View.markDestroyed(view);
+    });
+}
+
+//  Every form |menu| still has, for good (see destroyForm())
+function destroyMenuForms(menu) {
+    Object.keys(menu.viewControllers).forEach(name => {
+        const vc = menu.viewControllers[name];
+        if (vc) {
+            destroyForm(vc);
+        }
     });
 }
 
@@ -184,7 +198,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         leftMenus.add(this);
         this.clearMenuTimeouts();
         this.detachViewControllers();
-        this._destroyForms();
+        destroyMenuForms(this);
     }
 
     //
@@ -235,18 +249,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
     }
 
-    _destroyForms() {
-        Object.keys(this.viewControllers).forEach(name => {
-            const vc = this.viewControllers[name];
-            if (vc) {
-                destroyForm(vc);
-            }
-        });
-    }
-
     //  Forms that may have been built after leave() tore down the others
     _destroyFormsAfterLeave() {
-        this._destroyForms();
+        destroyMenuForms(this);
     }
 
     //
@@ -585,18 +590,15 @@ exports.MenuModule = class MenuModule extends PluginModule {
     //  bars do not draw over it. See core/screen_cover.js for |options|
     //  (restore(cb) repaints the menu afterwards).
     //
-    //
-    //  The cover pauses background drawing for this menu's forms by
-    //  ownership: also a form the menu builds while the cover is up (art
-    //  that finished loading meanwhile) does not draw over it.
+    //  Background drawing is suspended for the views that exist when the
+    //  cover starts; views created inside the cover (a form built in fn, a
+    //  ticker in its pause prompt) draw as usual. options.scope changes
+    //  that (see View.suspendBackgroundDraw()): { scope: { menu: this } }
+    //  also suspends every form of this menu, whenever it is built, so a
+    //  form whose art finishes loading under the cover does not draw over
+    //  it (core's interrupt cover does this).
     //
     coverScreen(options, fn, cb) {
-        if (_.isFunction(options)) {
-            cb = fn;
-            fn = options;
-            options = {};
-        }
-        options = Object.assign({ scope: { menu: this } }, options);
         return ScreenCover.coverScreen(this.client, options, fn, cb);
     }
 
@@ -661,17 +663,27 @@ exports.MenuModule = class MenuModule extends PluginModule {
         );
 
         this.viewControllers[name] = vc;
-        //  see suspendBackgroundDraw(): covers of this menu cover its forms
-        FormState.setFormMenu(vc, this);
         return vc;
     }
 
-    //  The form is torn down for good (destroyed: see leave()) and removed
+    //
+    //  Detach the form (detachClientEvents(), as always) and forget it. It
+    //  is not destroyed: a module that kept it can add it again and
+    //  setFocus(true) it. A form that never attached has its views torn
+    //  down too (detachClientEvents() leaves those alone), so a ticker on
+    //  it does not keep running.
+    //
     removeViewController(name) {
-        if (this.viewControllers[name]) {
-            const vc = this.viewControllers[name];
+        const vc = this.viewControllers[name];
+        if (vc) {
+            const neverAttached =
+                vc instanceof ViewController &&
+                !vc.attached &&
+                !FormState.isFormInactive(vc);
             vc.detachClientEvents();
-            destroyForm(vc);
+            if (neverAttached) {
+                FormLifecycle.tearDownViews(vc);
+            }
             delete this.viewControllers[name];
         }
     }

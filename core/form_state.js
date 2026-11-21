@@ -4,8 +4,10 @@
 //  Who owns a view, and what state its form is in.
 //
 //  - view -> its form (ViewController.addView())
-//  - form -> its menu (MenuModule.addViewController(), which the prep*()
-//    helpers, standardMCIReadyHandler() and promptForInput() all use)
+//  - form -> its menu: resolved when asked (isFormOfMenu()), as one of the
+//    menu's viewControllers. Modules put forms there through
+//    addViewController() (the prep*() helpers, standardMCIReadyHandler(),
+//    promptForInput()) and also by assigning them directly.
 //  - per form: inactive (deactivate(), or cover()), covered (cover(), with
 //    its background draw suspend token) and destroyed (destroy(): terminal)
 //
@@ -14,12 +16,11 @@
 //  subclass, and so view.js can read it without requiring
 //  view_controller.js (which requires view.js).
 //
-//  A view with no form, or a form with no menu (a theme's temporary prompt
+//  A view with no form, or a form no menu holds (a theme's temporary prompt
 //  form, a mod's bare view), is owner-less: see View.suspendBackgroundDraw().
 //
 
 const viewForms = new WeakMap();
-const formMenus = new WeakMap();
 const inactiveForms = new WeakSet();
 const coverTokens = new WeakMap();
 const destroyedForms = new WeakSet();
@@ -34,14 +35,18 @@ function getViewForm(view) {
     return viewForms.get(view) || null;
 }
 
-function setFormMenu(form, menu) {
-    if (form && menu) {
-        formMenus.set(form, menu);
+//  True if |form| is one of |menu|'s forms (its viewControllers), now
+function isFormOfMenu(form, menu) {
+    if (!form || !menu || !menu.viewControllers) {
+        return false;
     }
-}
-
-function getFormMenu(form) {
-    return (form && formMenus.get(form)) || null;
+    const forms = menu.viewControllers;
+    for (const name in forms) {
+        if (forms[name] === form) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function setFormInactive(form, inactive) {
@@ -64,8 +69,23 @@ function setFormCoverToken(form, token) {
     }
 }
 
+//
+//  The suspend token |form|'s cover() holds, or null. A token that is no
+//  longer held -- dropped with every other suspend at a menu change
+//  (View.dropBackgroundDrawSuspends()), or resumed -- does not count: the
+//  form is no longer covered (it stays inactive), and a later cover()
+//  takes a new one.
+//
 function getFormCoverToken(form) {
-    return coverTokens.get(form) || null;
+    const token = coverTokens.get(form);
+    if (!token) {
+        return null;
+    }
+    if (token.ended) {
+        coverTokens.delete(form);
+        return null;
+    }
+    return token;
 }
 
 function markFormDestroyed(form) {
@@ -78,14 +98,13 @@ function isFormDestroyed(form) {
 
 //  True while |form| takes no keys on purpose: deactivated, or covered
 function isFormPaused(form) {
-    return !!form && (inactiveForms.has(form) || coverTokens.has(form));
+    return !!form && (inactiveForms.has(form) || null !== getFormCoverToken(form));
 }
 
 module.exports = {
     setViewForm,
     getViewForm,
-    setFormMenu,
-    getFormMenu,
+    isFormOfMenu,
     setFormInactive,
     isFormInactive,
     setFormCoverToken,

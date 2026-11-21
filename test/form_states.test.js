@@ -15,8 +15,9 @@ const FormState = require('../core/form_state.js');
 //
 //  ViewController form states (F3a): activate / deactivate / cover /
 //  uncover / destroy; a menu's forms are destroyed (terminally) when it is
-//  left (option B); background draw suspends scoped by ownership; the
-//  pauseWhenInactive mci property.
+//  left (option B); removeViewController() as before (not terminal);
+//  background draw suspends scoped by ownership; the pauseWhenInactive mci
+//  property.
 //
 
 const MENU_CONFIG = {
@@ -464,18 +465,70 @@ describe('Form states (ViewController)', () => {
             assert.equal(field.getData(), 'yes');
         });
 
-        it('removeViewController() destroys the form for good', () => {
+        it('removeViewController() is not terminal: a kept form is added again and takes keys', () => {
+            const client = makeClient();
+            const menu = makeModule(client);
+            const { vc, field } = buildForm(client, {
+                vc: menu.addViewController('popup', new ViewController({ client })),
+            });
+            const base = keyListeners(client);
+            menu.removeViewController('popup');
+            assert.equal(menu.viewControllers.popup, undefined);
+            assert.equal(FormState.isFormDestroyed(vc), false);
+            assert.equal(vc.attached, false);
+            assert.equal(keyListeners(client), base - 1);
+
+            menu.addViewController('popup', vc);
+            vc.setFocus(true);
+            assert.equal(vc.attached, true);
+            assert.equal(keyListeners(client), base);
+            type(client, 'hi');
+            assert.equal(field.getData(), 'hi');
+        });
+
+        it('removeViewController() then setFocus(true) on a held reference attaches (as on master)', () => {
+            const client = makeClient();
+            const menu = makeModule(client);
+            const { vc, field } = buildForm(client, {
+                vc: menu.addViewController('a', new ViewController({ client })),
+            });
+            vc.setFocus(false);
+            menu.removeViewController('a');
+            vc.setFocus(true);
+            type(client, 'x');
+            assert.equal(vc.attached, true);
+            assert.equal(field.getData(), 'x');
+        });
+
+        it('removeViewController() on a form that never attached stops its views', () => {
+            const client = makeClient();
+            const menu = makeModule(client);
+            const vc = menu.addViewController(
+                'pending',
+                new ViewController({ client, detached: true })
+            );
+            const ticker = makeTicker(client);
+            vc.addView(ticker);
+            assert.equal(timers.live(), 1);
+            menu.removeViewController('pending');
+            assert.equal(timers.live(), 0, 'ticker timer stopped');
+            assert.equal(View.isDestroyed(ticker), true);
+            assert.equal(FormState.isFormDestroyed(vc), false, 'not terminal');
+            menu.addViewController('pending', vc);
+            vc.setFocus(true);
+            assert.equal(vc.attached, true);
+        });
+
+        it('leave() still destroys a form removed and added back', () => {
             const client = makeClient();
             const menu = makeModule(client);
             const { vc } = buildForm(client, {
-                vc: menu.addViewController('prompt', new ViewController({ client })),
+                vc: menu.addViewController('popup', new ViewController({ client })),
             });
-            menu.removeViewController('prompt');
+            menu.removeViewController('popup');
+            menu.addViewController('popup', vc);
+            menu.leave();
             assert.equal(FormState.isFormDestroyed(vc), true);
-            assert.equal(menu.viewControllers.prompt, undefined);
-            const base = keyListeners(client);
-            vc.setFocus(true);
-            assert.equal(keyListeners(client), base);
         });
 
         it('prepViewController() after leave(): built, torn down, still calls back', done => {
@@ -498,11 +551,41 @@ describe('Form states (ViewController)', () => {
     });
 
     describe('suspends scoped by ownership', () => {
-        it('a menu cover suspends a form the menu builds during the cover', done => {
+        it('coverScreen() by default lets a form the menu builds inside it draw (F1 rule)', done => {
+            const client = makeClient();
+            const menu = makeModule(client);
+            const { ticker } = buildForm(client, {
+                vc: menu.addViewController('menu', new ViewController({ client })),
+            });
+            menu.coverScreen(
+                finish => {
+                    //  e.g. a help form the menu shows inside its own cover
+                    const help = menu.addViewController(
+                        'help',
+                        new ViewController({ client })
+                    );
+                    help.addView(makeTicker(client, 6));
+                    const n = client.term.out.length;
+                    timers.fireAll();
+                    const out = client.term.since(n);
+                    assert.ok(out.includes('\x1b[6;10H'), 'the help form animates');
+                    assert.ok(!out.includes(TICKER_GOTO), 'the covered form does not');
+                    assert.equal(ticker.isBackgroundDrawSuspended(), true);
+                    finish(null);
+                },
+                err => {
+                    assert.ifError(err);
+                    return done();
+                }
+            );
+        });
+
+        it('coverScreen({ scope: { menu } }) suspends a form the menu builds during the cover', done => {
             const client = makeClient();
             const menu = makeModule(client);
             let late;
             menu.coverScreen(
+                { scope: { menu } },
                 finish => {
                     //  art that finished loading under the cover
                     late = menu.addViewController('late', new ViewController({ client }));
@@ -522,6 +605,23 @@ describe('Form states (ViewController)', () => {
             );
         });
 
+        it('a { menu } suspend covers a form assigned to viewControllers directly', () => {
+            const client = makeClient();
+            const menu = makeModule(client);
+            const token = View.suspendBackgroundDraw(client, { menu });
+            //  as msg_list, new_scan, user_config and file_transfer_protocol_select do
+            menu.viewControllers.allViews = new ViewController({ client });
+            const { ticker } = buildForm(client, { vc: menu.viewControllers.allViews });
+            assert.equal(ticker.isBackgroundDrawSuspended(), true);
+            const n = client.term.out.length;
+            timers.fireAll();
+            assert.ok(!client.term.since(n).includes(TICKER_GOTO));
+            //  and is no longer the menu's once it is gone from there
+            delete menu.viewControllers.allViews;
+            assert.equal(ticker.isBackgroundDrawSuspended(), false);
+            View.resumeBackgroundDraw(client, token);
+        });
+
         it('an owner-less view created inside the menu cover still animates (pause prompt)', done => {
             const client = makeClient();
             const menu = makeModule(client);
@@ -529,6 +629,7 @@ describe('Form states (ViewController)', () => {
                 vc: menu.addViewController('menu', new ViewController({ client })),
             });
             menu.coverScreen(
+                { scope: { menu } },
                 finish => {
                     //  a theme's temporary prompt form: not added to the menu
                     const promptVc = new ViewController({ client });
@@ -672,17 +773,102 @@ describe('Form states (ViewController)', () => {
             assert.ok(client.term.since(n).includes(TICKER_GOTO), 'running again');
         });
 
-        it('paused while covered, and after uncover until activate()', () => {
+        it('paused while covered; uncover() redraws it once; paused until activate()', () => {
             const client = makeClient();
             const { vc } = pausedForm(client);
             vc.cover();
             timers.fireAll();
             let n = client.term.out.length;
             vc.uncover();
+            assert.equal(
+                client.term.since(n).split(TICKER_GOTO).length - 1,
+                1,
+                'the make-up redraw draws'
+            );
+            n = client.term.out.length;
             timers.fireAll();
-            assert.ok(!client.term.since(n).includes(TICKER_GOTO), 'still inactive');
+            assert.ok(
+                !client.term.since(n).includes(TICKER_GOTO),
+                'ticks paused: inactive'
+            );
             n = client.term.out.length;
             vc.activate();
+            assert.ok(client.term.since(n).includes(TICKER_GOTO));
+        });
+
+        it('a paused ticker does not move on unseen: its ticks are skipped', () => {
+            const client = makeClient();
+            const { vc, ticker } = pausedForm(client);
+            const moves = { n: 0 };
+            const advance = ticker._advanceMotion.bind(ticker);
+            ticker._advanceMotion = () => {
+                ++moves.n;
+                return advance();
+            };
+            timers.fireAll();
+            assert.equal(moves.n, 1);
+            vc.deactivate();
+            timers.fireAll();
+            timers.fireAll();
+            assert.equal(moves.n, 1, 'no motion while paused');
+            vc.activate();
+            timers.fireAll();
+            assert.equal(moves.n, 2);
+        });
+
+        it("a screen cover's make-up redraw draws a paused view", () => {
+            const client = makeClient();
+            const menu = makeModule(client);
+            const a = buildForm(client, {
+                vc: menu.addViewController('a', new ViewController({ client })),
+            });
+            const b = buildForm(client, {
+                vc: menu.addViewController('b', new ViewController({ client })),
+                row: 4,
+            });
+            a.ticker.setPropertyValue('pauseWhenInactive', true);
+            a.vc.deactivate();
+            b.vc.activate();
+            let n;
+            menu.coverScreen(
+                finish => {
+                    timers.fireAll();
+                    timers.fireAll();
+                    n = client.term.out.length;
+                    finish(null);
+                },
+                () => {}
+            );
+            const out = client.term.since(n);
+            assert.ok(out.includes(OTHER_TICKER_GOTO), 'running ticker redrawn');
+            assert.ok(out.includes(TICKER_GOTO), 'paused ticker redrawn too');
+            n = client.term.out.length;
+            timers.fireAll();
+            assert.ok(!client.term.since(n).includes(TICKER_GOTO), 'still paused');
+        });
+
+        it('uncover({ redraw: true }) draws a paused view', () => {
+            const client = makeClient();
+            const { vc } = pausedForm(client);
+            vc.cover();
+            timers.fireAll();
+            const n = client.term.out.length;
+            vc.uncover({ redraw: true });
+            const out = client.term.since(n);
+            assert.ok(out.includes(TICKER_GOTO));
+            assert.ok(out.includes('\x1b[20;5H'), 'field redrawn');
+        });
+
+        it('a form built detached and never deactivated is not inactive: it ticks', () => {
+            const client = makeClient();
+            const vc = new ViewController({ client, detached: true });
+            const ticker = makeTicker(client);
+            ticker.setPropertyValue('pauseWhenInactive', true);
+            vc.addView(ticker);
+            vc.redrawAll();
+            assert.ok(!vc.attached);
+            const n = client.term.out.length;
+            timers.fireAll();
             assert.ok(client.term.since(n).includes(TICKER_GOTO));
         });
 
@@ -708,6 +894,165 @@ describe('Form states (ViewController)', () => {
             vc.setViewPropertiesFromMCIConf(menuView, { pauseWhenInactive: true });
             const { isPauseWhenInactive } = require('../core/view.js');
             assert.equal(isPauseWhenInactive(menuView), true);
+        });
+    });
+
+    describe('re-attaching goes through the form states', () => {
+        it('switchFocus() on a covered form uncovers and activates it', () => {
+            const client = makeClient();
+            const { vc, field } = buildForm(client);
+            vc.cover();
+            vc.switchFocus(1);
+            assert.equal(FormState.getFormCoverToken(vc), null, 'cover given back');
+            assert.equal(FormState.isFormInactive(vc), false);
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            type(client, 'k');
+            assert.equal(field.getData(), 'k');
+            const n = client.term.out.length;
+            timers.fireAll();
+            assert.ok(client.term.since(n).includes(TICKER_GOTO), 'ticker draws again');
+        });
+
+        it('attachClientEvents() on a covered form uncovers it, redrawing what it missed', () => {
+            const client = makeClient();
+            const { vc } = buildForm(client);
+            vc.cover();
+            timers.fireAll();
+            const n = client.term.out.length;
+            vc.attachClientEvents();
+            assert.ok(client.term.since(n).includes(TICKER_GOTO), 'missed draw made up');
+            assert.equal(FormState.isFormPaused(vc), false);
+            assert.equal(vc.attached, true);
+        });
+
+        it('on a form never deactivated or covered, attachClientEvents() is unchanged', () => {
+            const client = makeClient();
+            const vc = new ViewController({ client, detached: true });
+            vc.addView(makeTicker(client));
+            const base = keyListeners(client);
+            const n = client.term.out.length;
+            vc.attachClientEvents();
+            vc.attachClientEvents();
+            assert.equal(keyListeners(client), base + 1);
+            assert.equal(client.term.since(n), '', 'nothing drawn');
+        });
+    });
+
+    describe('core does not dispatch through the new public methods', () => {
+        class ModForm extends ViewController {
+            activate() {
+                this.modActivate = (this.modActivate || 0) + 1;
+            }
+            deactivate() {
+                this.modDeactivate = (this.modDeactivate || 0) + 1;
+            }
+            cover() {
+                this.modCover = true;
+            }
+            uncover() {
+                this.modUncover = true;
+            }
+            destroy() {
+                this.modDestroy = true;
+            }
+        }
+
+        it('setFocus(true) attaches a subclass that defines its own activate()', () => {
+            const client = makeClient();
+            const vc = new ModForm({ client, detached: true });
+            const field = new EditTextView({
+                client,
+                id: 1,
+                position: { row: 20, col: 5 },
+                dimens: { width: 30 },
+                maxLength: 30,
+            });
+            vc.addView(field);
+            vc.setViewOrder();
+            vc.focusedView = field;
+            const base = keyListeners(client);
+            vc.setFocus(true);
+            assert.equal(vc.modActivate, undefined);
+            assert.equal(vc.attached, true);
+            assert.ok(keyListeners(client) > base, 'key handler attached');
+            assert.equal(field.hasFocus, true);
+            type(client, 'ok');
+            assert.equal(field.getData(), 'ok');
+        });
+
+        it('leave() destroys a subclass form without calling its destroy()', () => {
+            const client = makeClient();
+            const menu = makeModule(client);
+            const { vc, ticker } = buildForm(client, {
+                vc: menu.addViewController('mod', new ModForm({ client })),
+            });
+            menu.leave();
+            assert.equal(vc.modDestroy, undefined);
+            assert.equal(FormState.isFormDestroyed(vc), true);
+            assert.equal(View.isDestroyed(ticker), true);
+        });
+    });
+
+    describe('cover token hygiene', () => {
+        it('cover() after a menu change dropped its suspend takes a new one', () => {
+            const client = makeClient();
+            const { vc } = buildForm(client);
+            vc.cover();
+            View.dropBackgroundDrawSuspends(client);
+            assert.equal(FormState.getFormCoverToken(vc), null, 'no longer covered');
+            assert.equal(FormState.isFormInactive(vc), true, 'still inactive');
+            let n = client.term.out.length;
+            timers.fireAll();
+            assert.ok(
+                client.term.since(n).includes(TICKER_GOTO),
+                'inactive forms animate'
+            );
+
+            vc.cover();
+            assert.notEqual(FormState.getFormCoverToken(vc), null);
+            n = client.term.out.length;
+            timers.fireAll();
+            assert.ok(!client.term.since(n).includes(TICKER_GOTO), 'covered again');
+            vc.uncover();
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+        });
+
+        it('uncover() on a form whose suspend was dropped, and uncover(null), do not throw', () => {
+            const client = makeClient();
+            const { vc } = buildForm(client);
+            vc.uncover(null);
+            vc.cover();
+            View.dropBackgroundDrawSuspends(client);
+            vc.uncover(null);
+            vc.uncover({ redraw: true });
+            vc.activate();
+            assert.equal(vc.attached, true);
+        });
+
+        it("a menu change releases a dropped owner-less form's cover", () => {
+            const client = makeClient();
+            for (let i = 0; i < 5; ++i) {
+                buildForm(client).vc.cover(); //  never uncovered or destroyed
+            }
+            assert.equal(View.isBackgroundDrawSuspended(client), true);
+            View.dropBackgroundDrawSuspends(client); //  MenuStack._settleCovers()
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+        });
+
+        it('setFocus(false) then destroy() on a covered form', () => {
+            const client = makeClient();
+            const { vc, ticker } = buildForm(client);
+            vc.cover();
+            vc.setFocus(false);
+            assert.equal(
+                View.isBackgroundDrawSuspended(client),
+                false,
+                'teardown released it'
+            );
+            assert.equal(View.isDestroyed(ticker), true);
+            vc.destroy();
+            assert.equal(FormState.isFormDestroyed(vc), true);
+            assert.equal(timers.live(), 0);
         });
     });
 });

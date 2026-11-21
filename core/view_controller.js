@@ -59,10 +59,125 @@ function refuseDestroyed(vc, what) {
     if (log && _.isFunction(log.debug)) {
         log.debug(
             { formId: vc.formId, call: what },
-            'Form was destroyed (its menu was left or it was removed); ignoring'
+            'Form was destroyed (its menu was left); ignoring'
         );
     }
     return true;
+}
+
+//
+//  The form state machine (see "Form states" below). Core calls these
+//  module-private functions, never the public methods, so a mod's
+//  ViewController subclass that defines its own activate(), deactivate(),
+//  cover(), uncover() or destroy() does not change what core does (as
+//  setFocus(true), or a menu being left). The calls core made before these
+//  states existed (attachClientEvents(), setViewFocusWithEvents(),
+//  detachClientEvents()) still go through the methods, as they always did.
+//
+
+function activateForm(vc) {
+    if (refuseDestroyed(vc, 'activate')) {
+        return;
+    }
+
+    if (FormState.getFormCoverToken(vc)) {
+        uncoverForm(vc);
+    }
+
+    vc.attachClientEvents();
+    vc.setViewFocusWithEvents(vc.focusedView, true);
+
+    for (const id in vc.views) {
+        redrawPausedView(vc.views[id]);
+    }
+}
+
+function deactivateForm(vc) {
+    if (refuseDestroyed(vc, 'deactivate')) {
+        return;
+    }
+
+    FormState.setFormInactive(vc, true);
+    if (vc.attached) {
+        vc.client.removeListener('key press', vc.clientKeyPressHandler);
+        vc.attached = false;
+    }
+
+    const focused = vc.focusedView;
+    if (focused) {
+        View.releaseInputFocus(focused);
+        if (focused.hasFocus) {
+            vc.setViewFocusWithEvents(focused, false);
+        }
+    }
+}
+
+function coverForm(vc) {
+    if (refuseDestroyed(vc, 'cover')) {
+        return;
+    }
+
+    deactivateForm(vc);
+    //  a token dropped at a menu change is not held any more: take a new one
+    if (!FormState.getFormCoverToken(vc)) {
+        FormState.setFormCoverToken(
+            vc,
+            View.suspendBackgroundDraw(vc.client, { forms: [vc] })
+        );
+    }
+}
+
+function uncoverForm(vc, options) {
+    const redraw = !!(options && options.redraw);
+    const token = FormState.getFormCoverToken(vc);
+    if (!token) {
+        return;
+    }
+    FormState.setFormCoverToken(vc, null);
+
+    if (!redraw || FormState.isFormDestroyed(vc)) {
+        return View.resumeBackgroundDraw(vc.client, token);
+    }
+
+    View.resumeBackgroundDraw(vc.client, token, { redrawMissed: false });
+
+    //  through drawInBackground(): a view still under another cover is
+    //  noted and drawn when that cover goes, and the cursor goes back
+    //  to the field being typed into
+    const term = vc.client.term;
+    const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+    if (batch) {
+        term.beginWrite();
+    }
+    try {
+        for (const id in vc.views) {
+            const view = vc.views[id];
+            if (View.isDestroyed(view)) {
+                continue;
+            }
+            view.forceNextRedraw();
+            view.drawInBackground(() => view.redraw());
+        }
+    } finally {
+        if (batch) {
+            term.commitWrite();
+        }
+    }
+}
+
+function destroyForm(vc) {
+    if (FormState.isFormDestroyed(vc)) {
+        return;
+    }
+    FormState.markFormDestroyed(vc);
+    releaseCover(vc);
+
+    if (vc.attached) {
+        vc.client.removeListener('key press', vc.clientKeyPressHandler);
+    }
+    tearDownViews(vc);
+    FormState.setFormInactive(vc, false);
+    vc.attached = false;
 }
 
 class ViewController extends events.EventEmitter {
@@ -487,7 +602,11 @@ class ViewController extends events.EventEmitter {
             return;
         }
 
-        //  taking keys again: no longer inactive (see deactivate())
+        //  taking keys again: no longer covered or inactive (as activate();
+        //  a no-op for a form never deactivated or covered)
+        if (FormState.getFormCoverToken(this)) {
+            uncoverForm(this);
+        }
         FormState.setFormInactive(this, false);
 
         if (this.attached) {
@@ -536,9 +655,13 @@ class ViewController extends events.EventEmitter {
     //  covered     cover(): inactive, and its views do not draw in the
     //              background; uncover() gives them back
     //  destroyed   destroy(): terminal. Its menu was left (MenuModule
-    //              leave()) or the form was removed (removeViewController()).
-    //              activate(), setFocus(true), attachClientEvents() and
-    //              switchFocus() do nothing on it any more.
+    //              leave()). activate(), setFocus(true), attachClientEvents()
+    //              and switchFocus() do nothing on it any more.
+    //
+    //  "Inactive" means deactivate() or cover() was called: a form built and
+    //  never attached is not inactive. attachClientEvents() (also through
+    //  switchFocus()) on an inactive or covered form makes it active again,
+    //  as activate() does.
     //
     //  setFocus(false) is unchanged: it detaches and tears down
     //  (detachClientEvents()). setFocus(true) is activate().
@@ -546,23 +669,10 @@ class ViewController extends events.EventEmitter {
 
     //
     //  Take keys again: uncover if covered, attach, focus the focused view,
-    //  and redraw once any pauseWhenInactive view that skipped a draw.
+    //  and redraw once any pauseWhenInactive view that skipped a tick.
     //
     activate() {
-        if (refuseDestroyed(this, 'activate')) {
-            return;
-        }
-
-        if (FormState.getFormCoverToken(this)) {
-            this.uncover();
-        }
-
-        this.attachClientEvents();
-        this.setViewFocusWithEvents(this.focusedView, true);
-
-        for (const id in this.views) {
-            redrawPausedView(this.views[id]);
-        }
+        return activateForm(this);
     }
 
     //
@@ -573,42 +683,19 @@ class ViewController extends events.EventEmitter {
     //  visible but another form has the keys.
     //
     deactivate() {
-        if (refuseDestroyed(this, 'deactivate')) {
-            return;
-        }
-
-        FormState.setFormInactive(this, true);
-        if (this.attached) {
-            this.client.removeListener('key press', this.clientKeyPressHandler);
-            this.attached = false;
-        }
-
-        const focused = this.focusedView;
-        if (focused) {
-            View.releaseInputFocus(focused);
-            if (focused.hasFocus) {
-                this.setViewFocusWithEvents(focused, false);
-            }
-        }
+        return deactivateForm(this);
     }
 
     //
     //  Something is drawn over this form (a prompt, another form): it is
     //  deactivated, and its views stop drawing in the background until
-    //  uncover(). Other forms on the screen are not affected.
+    //  uncover(). Other forms on the screen are not affected. The suspend
+    //  is held until uncover(), activate(), attachClientEvents(),
+    //  destroy() or a teardown (setFocus(false), detachClientEvents()), or
+    //  the next menu change, which drops every suspend.
     //
     cover() {
-        if (refuseDestroyed(this, 'cover')) {
-            return;
-        }
-
-        this.deactivate();
-        if (!FormState.getFormCoverToken(this)) {
-            FormState.setFormCoverToken(
-                this,
-                View.suspendBackgroundDraw(this.client, { forms: [this] })
-            );
-        }
+        return coverForm(this);
     }
 
     //
@@ -617,41 +704,8 @@ class ViewController extends events.EventEmitter {
     //  redrawn instead (what covered it overlapped all of it). Still
     //  inactive: activate() gives it the keys.
     //
-    uncover({ redraw = false } = {}) {
-        const token = FormState.getFormCoverToken(this);
-        if (!token) {
-            return;
-        }
-        FormState.setFormCoverToken(this, null);
-
-        if (!redraw || FormState.isFormDestroyed(this)) {
-            return View.resumeBackgroundDraw(this.client, token);
-        }
-
-        View.resumeBackgroundDraw(this.client, token, { redrawMissed: false });
-
-        //  through drawInBackground(): a view still under another cover is
-        //  noted and drawn when that cover goes, and the cursor goes back
-        //  to the field being typed into
-        const term = this.client.term;
-        const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
-        if (batch) {
-            term.beginWrite();
-        }
-        try {
-            for (const id in this.views) {
-                const view = this.views[id];
-                if (View.isDestroyed(view)) {
-                    continue;
-                }
-                view.forceNextRedraw();
-                view.drawInBackground(() => view.redraw());
-            }
-        } finally {
-            if (batch) {
-                term.commitWrite();
-            }
-        }
+    uncover(options) {
+        return uncoverForm(this, options);
     }
 
     //
@@ -660,18 +714,7 @@ class ViewController extends events.EventEmitter {
     //  attachClientEvents()). Idempotent.
     //
     destroy() {
-        if (FormState.isFormDestroyed(this)) {
-            return;
-        }
-        FormState.markFormDestroyed(this);
-        releaseCover(this);
-
-        if (this.attached) {
-            this.client.removeListener('key press', this.clientKeyPressHandler);
-        }
-        tearDownViews(this);
-        FormState.setFormInactive(this, false);
-        this.attached = false;
+        return destroyForm(this);
     }
 
     viewExists(id) {
@@ -719,7 +762,7 @@ class ViewController extends events.EventEmitter {
     //
     setFocus(focused) {
         if (focused) {
-            return this.activate();
+            return activateForm(this);
         }
 
         this.detachClientEvents();
@@ -1271,4 +1314,15 @@ class ViewController extends events.EventEmitter {
 }
 
 exports.ViewController = ViewController;
+
+//  For core (MenuModule, theme): the form states without going through
+//  methods a subclass may have replaced. Not for mods: use the methods.
+exports.FormLifecycle = Object.freeze({
+    activate: activateForm,
+    deactivate: deactivateForm,
+    cover: coverForm,
+    uncover: uncoverForm,
+    destroy: destroyForm,
+    tearDownViews,
+});
 exports.MCI_REGEXP = MCI_REGEXP;
