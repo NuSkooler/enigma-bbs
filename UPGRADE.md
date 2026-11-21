@@ -28,6 +28,14 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none for most mods. A `drawInBackground()` draw function should only draw: while the screen is covered it still runs, but its output is thrown away, and the view gets a full `redraw()` afterwards. If a view of yours changes state inside its draw function, move that change before the call. See [When something covers the screen](website/src/content/docs/art/views/views.md#when-something-covers-the-screen).
 
+* **Mod authors: a menu that has been left stops** (new `hasLeftMenu()`). Nothing in your configuration, menus, art or themes needs to change.
+
+  **What changes by itself:** once `leave()` has run, the default `initSequence()` stops at its next step, and `prepViewController()`, `prepViewControllerWithArt()` and `displayArtAndPrepViewController()` no longer call back. `nextTimeout` and `prevMenuOnTimeout()` do nothing after `leave()`. A module that overrides `initSequence()` is unaffected, and can check `this.hasLeftMenu()` after its own async steps.
+
+  **Action:**
+  * If your module overrides `leave()`, make sure it calls `super.leave()` (it already had to, to tear down its forms).
+  * `displayArtAndPrepViewController()` now calls back `(err, artInfo, created)` instead of `(err)`. Passed straight to `async.series()`, or with a callback that takes only `err`, nothing changes. **Passed straight as a step of `async.waterfall()`, the next step now receives `artInfo` and `created` before its callback:** wrap it, `callback => this.displayArtAndPrepViewController(name, formId, options, err => callback(err))`. No core module or known mod does this.
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).
