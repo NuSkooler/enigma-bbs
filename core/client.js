@@ -46,6 +46,7 @@ const { emulationOf } = require('./term');
 const { attachRipLayer } = require('./term/select.js');
 const DeviceAttributes = require('./term/ansi/device_attributes.js');
 const AnsiInput = require('./term/ansi/input_decoder.js');
+const InputCapture = require('./input_capture.js');
 
 //  deps
 const stream = require('stream');
@@ -427,6 +428,10 @@ Client.prototype.end = function () {
             this.themeChangedListener
         );
 
+        //  No key will come for a capture now (a cover, a mod's own
+        //  captureInput()): drop them, giving each its onDrop() cleanup
+        InputCapture.dropAllInput(this);
+
         //  Run the current module's leave(): it is a module's one chance
         //  to clean up on disconnect (a door's node count, an upload's temp
         //  files, ...). Mark the top entry |left| first, so nothing can
@@ -486,6 +491,28 @@ Client.prototype.destroySoon = function () {
     return this.output.destroySoon.apply(this.output, arguments);
 };
 
+//
+//  Input capture: while a capture is active only the top capture's handler
+//  gets a key, and the forms under it get none. See core/input_capture.js.
+//
+Client.prototype.captureInput = function (handler, options) {
+    return InputCapture.captureInput(this, handler, options);
+};
+
+Client.prototype.releaseInput = function (token) {
+    return InputCapture.releaseInput(this, token);
+};
+
+Client.prototype.hasInputCapture = function () {
+    return InputCapture.hasInputCapture(this);
+};
+
+//
+//  Call |cb(ch, key)| with the next key, once: a plain once('key press').
+//  The key also reaches every other 'key press' listener (a form still
+//  attached, unless a cover holds the input), and several waits pending at
+//  once all get the same key. Not a capture: see captureInput().
+//
 Client.prototype.waitForKeyPress = function (cb) {
     this.once('key press', function kp(ch, key) {
         cb(ch, key);

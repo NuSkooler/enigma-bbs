@@ -6,6 +6,7 @@ const { View } = require('./view');
 const menuUtil = require('./menu_util.js');
 const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
+const { isKeyPressCaptured, ensureKeyDispatch } = require('./input_capture.js');
 
 //  deps
 const events = require('events');
@@ -35,6 +36,13 @@ class ViewController extends events.EventEmitter {
         //  It needs a stable reference for attach/detachClientEvents.
         //
         this.clientKeyPressHandler = (ch, key) => {
+            //  Something covering the screen owns the input (an interrupt or
+            //  a help page, or a mod's captureInput()): the form under it
+            //  gets nothing.
+            if (isKeyPressCaptured(this.client)) {
+                return;
+            }
+
             //
             //  Process key presses treating form submit mapped keys special.
             //  Everything else is forwarded on to the focused View, if any.
@@ -429,6 +437,9 @@ class ViewController extends events.EventEmitter {
             return;
         }
 
+        //  the capture dispatcher must run first; put it back if a mod
+        //  removed every 'key press' listener (see input_capture.js)
+        ensureKeyDispatch(this.client);
         this.client.on('key press', this.clientKeyPressHandler);
 
         Object.keys(this.views).forEach(i => {
@@ -456,6 +467,9 @@ class ViewController extends events.EventEmitter {
             if (typeof view.destroy === 'function') {
                 view.destroy();
             }
+            //  also for a destroy() that does not call super: no background
+            //  redraw is owed to a view that is gone
+            View.markDestroyed(view);
         }
 
         this.attached = false;

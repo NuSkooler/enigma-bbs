@@ -354,4 +354,251 @@ describe('pause prompts set the input focus aside', function () {
         await waitFor(() => finished, 'the interrupt to finish');
         assert.equal(View.getInputFocusView(client), field);
     });
+
+    describe('the menu ticker under a pause', function () {
+        function addMenuTicker(client, vc) {
+            const { TickerView } = require('../core/ticker_view.js');
+            vc.addView(
+                new TickerView({
+                    client,
+                    id: 9,
+                    position: { row: 3, col: 40 },
+                    dimens: { width: 20, height: 1 },
+                    text: 'Welcome to the board -- news, files and doors',
+                    motion: 'left',
+                })
+            );
+            const n = timers.length;
+            fireAll();
+            return n;
+        }
+
+        it('a clear-screen pause suspends it; the pause ticker animates; redrawn after', async function () {
+            const client = makeClient();
+            const { vc } = makeMenuForm(client);
+            const menuTimers = addMenuTicker(client, vc);
+
+            const state = pause(client, { clearScreen: true });
+            await waitFor(() => timers.length > menuTimers, 'the pause ticker');
+            const n = client.track.all.length;
+            fireAll();
+            fireAll();
+            const whileUp = client.track.since(n);
+            assert.ok(!whileUp.includes('\x1b[3;40H'), 'no menu ticker bytes');
+            assert.ok(whileUp.includes('\x1b[1;'), 'the pause ticker draws');
+
+            const m = client.track.all.length;
+            client.emit('key press', ' ', { name: 'space' });
+            await waitFor(() => state.done, 'the pause to finish');
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            assert.ok(client.track.since(m).includes('\x1b[3;40H'), 'redrawn after');
+        });
+
+        //  ET-style prompts (clearScreen, no pause): the module owns the
+        //  screen once the prompt is drawn, as before. Suspending while the
+        //  art drew and resuming right after would only redraw a frame of
+        //  the old screen's ticker over the new prompt.
+        it('a clear-screen prompt without pause suspends nothing, as before', async function () {
+            const client = makeClient();
+            const { vc } = makeMenuForm(client);
+            addMenuTicker(client, vc);
+
+            const origRaw = client.term.rawWrite.bind(client.term);
+            let suspendedAtClear = null;
+            client.term.rawWrite = function (s, cb) {
+                if (null === suspendedAtClear && String(s).includes('\x1b[2J')) {
+                    suspendedAtClear = View.isBackgroundDrawSuspended(client);
+                }
+                return origRaw(s, cb);
+            };
+
+            let done = false;
+            let k;
+            theme.displayThemedPrompt(
+                'pauseTk',
+                client,
+                { clearScreen: true, pause: false },
+                () => {
+                    k = client.track.all.length;
+                    done = true;
+                }
+            );
+            await waitFor(() => done, 'the prompt to be drawn');
+            assert.equal(suspendedAtClear, false, 'not suspended while drawing');
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            assert.ok(
+                !client.track.since(k).includes('\x1b[3;40H'),
+                'no old-screen ticker frame is redrawn over the prompt'
+            );
+        });
+
+        it('a pause on the same screen does not suspend it', async function () {
+            const client = makeClient();
+            const { vc } = makeMenuForm(client);
+            const menuTimers = addMenuTicker(client, vc);
+
+            const state = pause(client, { position: { row: 24, col: 1 } });
+            await waitFor(() => timers.length > menuTimers, 'the pause ticker');
+            assert.equal(View.isBackgroundDrawSuspended(client), false);
+            const n = client.track.all.length;
+            fireAll();
+            assert.ok(client.track.since(n).includes('\x1b[3;40H'), 'still ticking');
+            client.emit('key press', ' ', { name: 'space' });
+            await waitFor(() => state.done, 'the pause to finish');
+        });
+    });
+
+    describe('with the real waitForKeyPress() and input capture', function () {
+        let Client;
+        before(function () {
+            ({ Client } = require('../core/client.js'));
+        });
+
+        function makeCapturingClient() {
+            const client = makeClient();
+            client.captureInput = Client.prototype.captureInput;
+            client.releaseInput = Client.prototype.releaseInput;
+            client.waitForKeyPress = Client.prototype.waitForKeyPress;
+            return client;
+        }
+
+        it('the key that ends a realtime interrupt is not typed into the menu field (#1136)', async function () {
+            const client = makeCapturingClient();
+            const { field } = makeMenuForm(client);
+            client.emit('key press', 'a');
+            assert.equal(field.getData(), 'a', 'precondition: the field takes keys');
+
+            const mod = Object.create(MenuModule.prototype);
+            mod.client = client;
+            mod.menuConfig = { config: { pausePrompt: 'pauseTk' } };
+            client.currentMenuModule = mod;
+
+            let finished = false;
+            UserInterruptQueue.prototype.displayWithItem.call(
+                { client },
+                { cls: true, text: 'A message from the sysop', pause: true },
+                err => {
+                    assert.ifError(err);
+                    finished = true;
+                }
+            );
+            await waitFor(tickerUp, 'the pause ticker');
+
+            client.emit('key press', 'x');
+            await waitFor(() => finished, 'the interrupt to finish');
+            assert.equal(
+                field.getData(),
+                'a',
+                'the dismissing key went to the pause only'
+            );
+
+            client.emit('key press', 'b');
+            assert.equal(field.getData(), 'ab', 'the field has the keys again');
+        });
+
+        //  #1136, the drawing half: the menu's own ticker stays off the
+        //  interrupt screen, the interrupt's pause ticker animates, and the
+        //  cover has ended before the menu reloads
+        it('a realtime interrupt over a menu with a ticker: end to end (#1136)', async function () {
+            const { TickerView } = require('../core/ticker_view.js');
+            const client = makeCapturingClient();
+            const { vc, field } = makeMenuForm(client);
+            vc.addView(
+                new TickerView({
+                    client,
+                    id: 9,
+                    position: { row: 3, col: 40 },
+                    dimens: { width: 20, height: 1 },
+                    text: 'Welcome to the board -- news, files and doors',
+                    motion: 'left',
+                })
+            );
+            const menuTickerTimers = timers.length;
+            fireAll();
+            assert.ok(client.track.since(0).includes('\x1b[3;40H'), 'precondition');
+
+            const mod = Object.create(MenuModule.prototype);
+            mod.client = client;
+            mod.menuConfig = { config: { pausePrompt: 'pauseTk' } };
+            mod.interrupt = MenuModule.InterruptTypes.Realtime;
+            mod.realTimeInterrupt = 'allowed';
+            let atReload = null;
+            mod.reload = cb => {
+                atReload = {
+                    suspended: View.isBackgroundDrawSuspended(client),
+                    captured: client.hasInputCapture
+                        ? client.hasInputCapture()
+                        : require('../core/input_capture.js').hasInputCapture(client),
+                };
+                return cb(null);
+            };
+            client.currentMenuModule = mod;
+            client.interruptQueue = new UserInterruptQueue(client);
+
+            let result = null;
+            mod.attemptInterruptNow(
+                { text: 'A message from the sysop', pause: true },
+                (err, ateIt) => {
+                    assert.ifError(err);
+                    result = ateIt;
+                }
+            );
+            await waitFor(() => timers.length > menuTickerTimers, 'the pause ticker');
+
+            const n = client.track.all.length;
+            fireAll();
+            fireAll();
+            const whileUp = client.track.since(n);
+            assert.ok(!whileUp.includes('\x1b[3;40H'), 'no menu ticker bytes');
+            assert.ok(
+                whileUp.includes(`\x1b[${client.term.termHeight};`),
+                'pause ticker'
+            );
+
+            client.emit('key press', 'x');
+            await waitFor(() => null !== result, 'the interrupt to finish');
+            assert.equal(result, true, 'eaten');
+            assert.deepEqual(atReload, { suspended: false, captured: false });
+            assert.equal(field.getData(), '', 'the key went to the pause only');
+        });
+
+        it('a pause on the same screen passes its key to the form, as it always did', async function () {
+            const client = makeCapturingClient();
+            const { vc } = makeMenuForm(client);
+            let submits = 0;
+            vc.on('submit', () => ++submits);
+            vc.mapActionKeys([{ keys: ['escape'], viewId: 1 }], 'form');
+
+            const state = pause(client);
+            await waitFor(tickerUp, 'the pause ticker');
+            client.emit('key press', '\x1b', { name: 'escape' });
+            await waitFor(() => state.done, 'the pause to finish');
+            assert.equal(submits, 1);
+        });
+
+        it('a pause inside a cover (a help page): the form action does not fire', async function () {
+            const { coverScreen } = require('../core/screen_cover.js');
+            const client = makeCapturingClient();
+            const { vc } = makeMenuForm(client);
+            let submits = 0;
+            vc.on('submit', () => ++submits);
+            vc.mapActionKeys([{ keys: ['escape'], viewId: 1 }], 'form');
+
+            let covered = true;
+            coverScreen(
+                client,
+                done =>
+                    theme.displayThemedPause(
+                        client,
+                        { promptName: 'pauseTk', clearPrompt: false },
+                        () => done(null)
+                    ),
+                () => (covered = false)
+            );
+            await waitFor(tickerUp, 'the pause ticker');
+            client.emit('key press', '\x1b', { name: 'escape' });
+            await waitFor(() => !covered, 'the cover to end');
+            assert.equal(submits, 0);
+        });
+    });
 });

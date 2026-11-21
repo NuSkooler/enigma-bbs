@@ -13,6 +13,7 @@ const MultiLineEditTextView =
     require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 const { TextView } = require('../core/text_view.js');
 const { View } = require('./view');
+const ScreenCover = require('./screen_cover.js');
 const { Errors, ErrorReasons } = require('../core/enig_error.js');
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
@@ -399,6 +400,17 @@ exports.MenuModule = class MenuModule extends PluginModule {
         });
     }
 
+    //
+    //  coverScreen([options,] fn, cb) -- show something over this menu's
+    //  screen (a help page, a message) while its forms stay attached: keys
+    //  go to the cover, not the forms, and the forms' tickers and status
+    //  bars do not draw over it. See core/screen_cover.js for |options|
+    //  (restore(cb) repaints the menu afterwards).
+    //
+    coverScreen(options, fn, cb) {
+        return ScreenCover.coverScreen(this.client, options, fn, cb);
+    }
+
     gotoMenuOrShowMessage(name, message, options, cb) {
         if (!cb && _.isFunction(options)) {
             cb = options;
@@ -409,14 +421,23 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         this.gotoMenu(name, options, err => {
             if (err) {
-                if (options.clearScreen) {
-                    this.client.term.rawWrite(ansi.resetScreen());
-                }
+                //  The message is shown over this menu, which is still
+                //  attached: its forms get no key and its tickers do not
+                //  draw while the pause waits. prevMenu() repaints, after.
+                return this.coverScreen(
+                    { redrawMissed: false },
+                    done => {
+                        if (options.clearScreen) {
+                            this.client.term.rawWrite(ansi.resetScreen());
+                        }
 
-                this.client.term.write(`${message}\n`);
-                return this.pausePrompt(() => {
-                    return this.prevMenu(cb);
-                });
+                        this.client.term.write(`${message}\n`);
+                        return this.pausePrompt(() => done());
+                    },
+                    () => {
+                        return this.prevMenu(cb);
+                    }
+                );
             }
 
             if (cb) {

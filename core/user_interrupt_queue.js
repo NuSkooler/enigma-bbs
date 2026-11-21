@@ -6,6 +6,7 @@ const Art = require('./art.js');
 const { getActiveConnections } = require('./client_connections.js');
 const ANSI = require('./ansi_term.js');
 const { pipeToAnsi } = require('./color_codes.js');
+const { coverScreen } = require('./screen_cover.js');
 
 //  deps
 const _ = require('lodash');
@@ -110,41 +111,59 @@ class UserInterruptQueue {
         return interruptItem ? this.displayWithItem(interruptItem, cb) : cb(null);
     }
 
+    //
+    //  An interrupt is shown over whatever is on screen, and the menu under
+    //  it may still have its forms attached (a realtime interrupt): it is a
+    //  cover (core/screen_cover.js). Keys go to the interrupt's pause, not
+    //  the forms, and the menu's tickers and status bars do not draw over
+    //  it; a ticker in the pause prompt itself does. Nothing is restored
+    //  here: the caller repaints next (MenuModule.attemptInterruptNow()
+    //  reloads the menu, a queued drain is followed by the menu's own
+    //  draw), so the background views are not redrawn on the way out
+    //  either -- that would only flash before the repaint.
+    //
     displayWithItem(interruptItem, cb) {
-        if (interruptItem.cls) {
-            this.client.term.rawWrite(ANSI.resetScreen());
-        } else {
-            this.client.term.rawWrite('\r\n\r\n');
-        }
-
-        const maybePauseAndFinish = () => {
-            if (interruptItem.pause) {
-                this.client.currentMenuModule.pausePrompt(
-                    { row: this.client.term.termHeight },
-                    () => cb(null)
-                );
-            } else {
-                return cb(null);
-            }
-        };
-
-        if (interruptItem.contents) {
-            Art.display(this.client, interruptItem.contents, err => {
-                if (err) {
-                    return cb(err);
+        coverScreen(
+            this.client,
+            { redrawMissed: false },
+            done => {
+                if (interruptItem.cls) {
+                    this.client.term.rawWrite(ANSI.resetScreen());
+                } else {
+                    this.client.term.rawWrite('\r\n\r\n');
                 }
-                //this.client.term.rawWrite('\r\n\r\n');  //  :TODO: Prob optional based on contents vs text
-                maybePauseAndFinish();
-            });
-        } else {
-            this.client.term.write(
-                pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client),
-                true,
-                () => {
-                    maybePauseAndFinish();
+
+                const maybePauseAndFinish = () => {
+                    if (interruptItem.pause) {
+                        this.client.currentMenuModule.pausePrompt(
+                            { row: this.client.term.termHeight },
+                            () => done(null)
+                        );
+                    } else {
+                        return done(null);
+                    }
+                };
+
+                if (interruptItem.contents) {
+                    Art.display(this.client, interruptItem.contents, err => {
+                        if (err) {
+                            return done(err);
+                        }
+                        //this.client.term.rawWrite('\r\n\r\n');  //  :TODO: Prob optional based on contents vs text
+                        maybePauseAndFinish();
+                    });
+                } else {
+                    this.client.term.write(
+                        pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client),
+                        true,
+                        () => {
+                            maybePauseAndFinish();
+                        }
+                    );
                 }
-            );
-        }
+            },
+            err => cb(err)
+        );
     }
 }
 

@@ -20,6 +20,14 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.6.1-beta to 0.6.2-beta
+
+* **Mod authors: covers pause background drawing** ([#1136](https://github.com/NuSkooler/enigma-bbs/issues/1136), [#1137](https://github.com/NuSkooler/enigma-bbs/issues/1137)). Nothing in your configuration, menus, art or themes needs to change, and `client.waitForKeyPress()` works as before.
+
+  **What changes by itself:** interrupts, help pages and pauses that clear the screen pause the background drawing (`drawInBackground()`) of the views under them while they wait, and redraw them once afterwards. Interrupts and the stock help pages also keep every key, including the one that dismisses them, from the forms underneath.
+
+  **Action:** none for most mods. A `drawInBackground()` draw function should only draw: while the screen is covered it still runs, but its output is thrown away, and the view gets a full `redraw()` afterwards. If a view of yours changes state inside its draw function, move that change before the call. See [When something covers the screen](website/src/content/docs/art/views/views.md#when-something-covers-the-screen).
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).

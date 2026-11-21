@@ -341,6 +341,165 @@ describe('MenuStack navigation guards', function () {
         });
     });
 
+    describe('a menu left while the screen was covered', () => {
+        let counters;
+        let client;
+        const InputCapture = require('../core/input_capture.js');
+        const { View } = require('../core/view.js');
+        const { coverScreen } = require('../core/screen_cover.js');
+
+        beforeEach(done => {
+            counters = makeCounters();
+            fakeModules.home = defineMenu(counters, 'home');
+            fakeModules.away = defineMenu(counters, 'away');
+            client = makeClient({
+                home: menuConfig('home'),
+                away: menuConfig('away'),
+            });
+            client.menuStack.goto('home', err => {
+                assert.ifError(err);
+                settle(done);
+            });
+        });
+
+        //  the capture methods a real client has, and what a form needs
+        function giveRealInput() {
+            const { Client } = require('../core/client.js');
+            client.captureInput = Client.prototype.captureInput;
+            client.releaseInput = Client.prototype.releaseInput;
+            client.waitForKeyPress = Client.prototype.waitForKeyPress;
+            Object.assign(client.term, {
+                termWidth: 80,
+                termHeight: 25,
+                beginWrite() {},
+                commitWrite() {},
+            });
+        }
+
+        //  the next menu's form: one focused field
+        function attachForm() {
+            const { ViewController } = require('../core/view_controller.js');
+            const { EditTextView } = require('../core/edit_text_view.js');
+            const vc = new ViewController({ client });
+            const field = new EditTextView({
+                client,
+                id: 1,
+                position: { row: 20, col: 5 },
+                dimens: { width: 30 },
+                maxLength: 30,
+            });
+            vc.addView(field);
+            vc.setViewOrder();
+            vc.switchFocus(1);
+            return field;
+        }
+
+        it('drops the cover (capture and suspend); its pause hears the next key only, and nothing continues', done => {
+            giveRealInput();
+            const home = client.currentMenuModule;
+            const events = [];
+            //  a help page over |home| (as FSE / file list / WFC help): the
+            //  pause in it is a real waitForKeyPress(); afterwards the menu
+            //  repaints and carries on with prevMenu()
+            home.coverScreen(
+                { restore: cb => (events.push('restore'), cb()) },
+                finish =>
+                    client.waitForKeyPress(ch => {
+                        events.push(`pause:${ch}`);
+                        finish();
+                    }),
+                () => {
+                    events.push('cb');
+                    home.prevMenu();
+                }
+            );
+            assert.equal(View.isBackgroundDrawSuspended(client), true);
+
+            //  a sysop break-in moves the caller on
+            client.menuStack.goto('away', err => {
+                assert.ifError(err);
+                assert.equal(View.isBackgroundDrawSuspended(client), false);
+                assert.equal(InputCapture.hasInputCapture(client), false);
+                const logged = client.log
+                    .at('debug')
+                    .find(e => e.msg === 'Menu changed while the screen was covered');
+                assert.ok(logged, 'logged at debug');
+                assert.equal(logged.obj.droppedCaptures, 1);
+                assert.equal(
+                    logged.obj.passThroughCaptures,
+                    0,
+                    'the pause is no capture'
+                );
+                assert.equal(logged.obj.droppedSuspends, 1);
+
+                const field = attachForm();
+                client.emit('key press', 'a');
+                assert.deepEqual(
+                    events,
+                    ['pause:a'],
+                    'the stale pause fires, as once() did; no restore, no cb'
+                );
+                assert.equal(field.getData(), 'a', 'the new menu’s form gets the key');
+                assert.deepEqual(
+                    client.menuStack.stack.map(e => e.name),
+                    ['home', 'away'],
+                    'the gone menu did not pop the new one'
+                );
+                assert.ok(
+                    client.log
+                        .at('debug')
+                        .some(e => /cut short/.test(e.msg) && e.obj.restoreSkipped),
+                    'the skip is logged at debug'
+                );
+                assert.equal(View.isBackgroundDrawSuspended(client), false);
+                assert.equal(InputCapture.hasInputCapture(client), false);
+                return done();
+            });
+        });
+
+        it('a cover whose fn never calls done is let go by a menu change', done => {
+            giveRealInput();
+            const home = client.currentMenuModule;
+            let called = 0;
+            home.coverScreen(
+                () => {}, //  never finishes
+                () => ++called
+            );
+            client.menuStack.goto('away', err => {
+                assert.ifError(err);
+                assert.equal(InputCapture.hasInputCapture(client), false);
+                assert.equal(View.isBackgroundDrawSuspended(client), false);
+                const field = attachForm();
+                client.emit('key press', 'k');
+                assert.equal(field.getData(), 'k', 'nothing holds the keys');
+                assert.equal(called, 0);
+                return done();
+            });
+        });
+
+        it('finds nothing, and logs nothing, after a cover that ended first', done => {
+            coverScreen(
+                client,
+                finish => finish(),
+                () => {
+                    client.menuStack.goto('away', err => {
+                        assert.ifError(err);
+                        assert.ok(
+                            !client.log
+                                .at('debug')
+                                .some(
+                                    e =>
+                                        e.msg ===
+                                        'Menu changed while the screen was covered'
+                                )
+                        );
+                        return done();
+                    });
+                }
+            );
+        });
+    });
+
     describe('a failing menu cannot bounce forever', () => {
         //
         //  The reported loop: |before| shows its art, its pause prompt cannot

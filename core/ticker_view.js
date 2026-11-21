@@ -99,6 +99,8 @@ class TickerView extends View {
         this._finalPos = []; //  fall: target x-position of each character
         this._timer = null;
         this._lastRendered = null; //  redraw cache: skip write when output is unchanged
+        //  covers seen (View.coverMark()): the frame on screen may be gone
+        this._coverMark = View.coverMark(this.client);
 
         this.setText(options.text || '');
         this._startTicker();
@@ -667,8 +669,10 @@ class TickerView extends View {
 
     //  A tick draws while the user may be typing into a field elsewhere on
     //  the screen: drawInBackground() puts the cursor and SGR back there.
+    //  While covered (a background draw suspend) nothing a tick draws
+    //  reaches the screen, so it does not count as drawn: see _nextFrame().
     _tick() {
-        const rendered = this._nextFrame();
+        const rendered = this._nextFrame({ drawn: !this.isBackgroundDrawSuspended() });
         if (null !== rendered) {
             this.drawInBackground(() => this._drawFrame(rendered));
         }
@@ -682,21 +686,34 @@ class TickerView extends View {
     }
 
     //  What this tick draws, or null when it is what the last one drew.
+    //  |drawn| false: the frame will not reach the screen (a tick under a
+    //  cover), so it is not recorded as the last one drawn, and the cover
+    //  mark is left for the first real draw after the cover.
     //
     //  Skipping the write (and cursor movement from super.redraw) when the
     //  terminal output hasn't changed since the last tick matters for bounce
     //  when text fits the window, reveal/typewriter hold phases, and any other
-    //  static period — it prevents the cursor from bouncing around. Dynamic
+    //  static period — it prevents the cursor from bouncing around (but not
+    //  after a cover: see View.coverMark()). Dynamic
     //  effects (rainbow, scramble, glitch) produce different output every tick
     //  so they are unaffected.
-    _nextFrame() {
+    _nextFrame({ drawn = true } = {}) {
         const { plain, offset, colorIndices } = this._getVisiblePlain();
         const rendered = this._applyEffect(plain, offset, colorIndices);
 
-        if (rendered === this._lastRendered) {
+        //  Something has covered the screen since the last frame (an
+        //  interrupt, a help page): that frame may have been drawn over, so
+        //  this one is drawn even if it is the same
+        const coverMark = View.coverMark(this.client);
+        const covered = coverMark !== this._coverMark;
+
+        if (rendered === this._lastRendered && !covered) {
             return null;
         }
-        this._lastRendered = rendered;
+        if (drawn) {
+            this._coverMark = coverMark;
+            this._lastRendered = rendered;
+        }
         return rendered;
     }
 
@@ -716,11 +733,18 @@ class TickerView extends View {
         );
     }
 
+    //  The frame on screen may have been drawn over (a background draw
+    //  suspend): draw the next one even if it equals the last
+    forceNextRedraw() {
+        this._lastRendered = null;
+    }
+
     destroy() {
         if (this._timer) {
             clearInterval(this._timer);
             this._timer = null;
         }
+        super.destroy();
     }
 
     //  ── Properties ───────────────────────────────────────────────────────────

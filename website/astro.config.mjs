@@ -2,6 +2,7 @@
 import { defineConfig } from 'astro/config';
 import { unified } from '@astrojs/markdown-remark';
 import starlight from '@astrojs/starlight';
+import mermaid from 'astro-mermaid';
 import { remarkDocLinks } from './plugins/remark-doc-links.mjs';
 import { hjsonFragment } from './src/lib/hjson-grammar.mjs';
 
@@ -74,6 +75,16 @@ export default defineConfig({
         }),
     },
     integrations: [
+        //  ```mermaid blocks become <pre class="mermaid">, drawn in the browser.
+        //  It must come before starlight: its remark step has to claim those
+        //  blocks before expressive-code turns them into code frames. The
+        //  mermaid runtime is fetched only on a page that has a diagram, and
+        //  autoTheme redraws on Starlight's light/dark switch (data-theme).
+        mermaid({
+            theme: 'default',
+            autoTheme: true,
+            enableLog: false,
+        }),
         starlight({
             title: 'ENiGMA½ BBS',
             expressiveCode: {

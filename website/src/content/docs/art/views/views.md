@@ -169,6 +169,10 @@ classDiagram
         +setFocus(focused)
         +redraw()
         +drawInBackground(drawFn)
+        +forceNextRedraw()
+        +destroy()
+        +suspendBackgroundDraw(client)$
+        +resumeBackgroundDraw(client, token, options)$
         +restoreFocusPosition()
         +restoreFocusCursor()
         +onKeyPress(ch, key)
@@ -196,6 +200,7 @@ classDiagram
         +scrollDir string
         +fillChar char
         +setText(text)
+        +forceNextRedraw()
         +destroy()
     }
 
@@ -235,6 +240,8 @@ classDiagram
         +lineCount
         +onKeyPress(ch, key)
         +getData()
+        +addText(text, options)
+        +redrawChanged()
     }
 
     class KeyEntryView {
@@ -376,3 +383,41 @@ this._timer = setInterval(() => {
 ```
 
 `drawInBackground(drawFn)` hides the cursor, runs `drawFn`, then calls `restoreFocusCursor()` on the view that has input focus (the view last given focus, on any of the screen's forms), and sends it all in one write; if `drawFn` throws, the cursor is still put back before the error goes on to the caller. `restoreFocusCursor()` calls `restoreFocusPosition()`, which puts the cursor and color back where that view echoes its next key, then shows or hides the cursor as the view's `cursor` property says. `EditTextView` returns to its edit position, `MultiLineEditTextView` (the full screen editor) to its edit row and column, `TextView` and its subclasses to where `setFocus(true)` leaves the cursor; the base `View` does not move it. Override `restoreFocusPosition()` in a focusable view that knows where its cursor belongs. A menu module's `updateCustomViewTextsWithFilter()` uses the same `restoreFocusPosition()` after redrawing custom views. When no view has focus the cursor is left where `drawFn` leaves it. A pause prompt waiting for its key counts as that: it sets the input focus aside while it waits (`View.suspendInputFocus(client)`, given back with `View.resumeInputFocus(client, token)`), so a ticker in the pause art leaves the cursor alone even when a menu form under the pause still has a focused field. Use the same pair around anything else that takes the screen without taking typing.
+
+`drawFn` should only draw. Change the view's state (add a line, advance a frame) before calling `drawInBackground()`, not inside `drawFn`: while the screen is covered (below), `drawFn` still runs but its output is thrown away, and a terminal that cannot discard output skips it.
+
+### When something covers the screen
+
+A realtime interrupt, a help page (the full screen editor's Ctrl-O help, the file list's and the WFC's) and a pause prompt that clears the screen are drawn over a menu whose forms are still attached. While one is up (for a clear-screen pause, while it waits for its key):
+
+* **Background drawing is paused** for the views that existed when the cover began, so a ticker or status bar under it does not draw over it. A view that would have drawn meanwhile gets one full redraw when the cover ends (unless the menu is about to repaint anyway, as a reload after an interrupt does). Before that redraw, `forceNextRedraw()` is called on the view: override it in a view that skips output it believes is already on screen. `TickerView` does, so an unchanged frame is drawn again after a cover.
+* **Views created inside the cover keep drawing.** A ticker in a pause prompt shown over an interrupt (the stock `pausePage` has one) animates while the menu's ticker under it waits.
+* **Keys go to the cover,** not to the forms under it, for an interrupt or a help page: the key that dismisses it is not typed into a field or run as an action underneath. See [Input capture](#input-capture). A pause prompt (one that clears the screen, or one on the same screen) is a plain `client.waitForKeyPress()` and takes no keys from the forms: its key reaches them too, as it always has.
+
+A clear-screen prompt that does not pause (one that takes input, such as an `ET` field) suspends nothing: once it is drawn, the module showing it owns the screen, as before.
+
+For views of your own, `View.suspendBackgroundDraw(client)` returns a token and `View.resumeBackgroundDraw(client, token, { redrawMissed })` gives it back. Suspends nest. `redrawMissed: false` skips the redraw when you replace the screen next. Most code wants `coverScreen()` instead, which does both this and input capture (see [Covers and input capture](../../modding/menu-modules.md#covers-and-input-capture)).
+
+A view whose state changes outside a timer, such as a chat log filled by lines arriving from a server, adds the text without drawing and draws from `drawInBackground()`. `MultiLineEditTextView` has a pair for this:
+
+```js
+chatLogView.addText(line, { scrollMode: 'end', redraw: false });
+chatLogView.drawInBackground(() => chatLogView.redrawChanged());
+```
+
+`addText(text, { redraw: false })` changes the text only; `redrawChanged()` draws the rows that changed since the view was last drawn (all of it if it scrolled). Lines that arrive while the screen is covered are kept, and drawn when it is uncovered.
+
+### Input capture
+
+While something owns the screen, it can own the keys too. `client.captureInput(handler, options)` makes `handler(ch, key)` the receiver of every key and returns a token; `client.releaseInput(token)` gives the keys back. While any capture is held, only the newest one gets keys, and no form's key handler runs: the forms stay attached, they just see nothing. `client.hasInputCapture()` says whether a capture is held. Direct `key press` listeners on the client (a door's own key handling) still see every key, as before.
+
+`options`:
+
+| Option | Description |
+|--------|-------------|
+| `onMenuChange` | What happens to the capture if the caller is moved to another menu while it is held (a sysop break-in, a time-up). `'passThrough'` (the default): the handler keeps getting every key, alongside the new menu, until you release it. `'drop'`: the capture is dropped and the handler never called (what a cover's own capture does). |
+| `onDrop` | Called if the capture is dropped rather than released (the caller hung up, or `'drop'` above). The handler will never be called; clean up here. |
+
+`client.waitForKeyPress(cb)` is not a capture. It is a plain `once('key press')`, as it always was: `cb(ch, key)` gets the next key, in the order the listeners were added, and that key also reaches every other listener, including a form still attached under whatever is waiting. Several waits pending at once all get the same key. To keep the key from the forms, wait inside a cover (`coverScreen()`, see [Covers and input capture](../../modding/menu-modules.md#covers-and-input-capture)), whose capture silences them for every key until it ends, including the one that ends it; or take a capture of your own.
+
+A capture taken while a key is being delivered (a form's action opens a help page) is for the next key; the listeners after it still see the current one.

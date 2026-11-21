@@ -65,6 +65,8 @@ A few conventions specific to this site:
 * Use Starlight's admonitions (`:::note`, `:::tip`, `:::caution`) rather than raw
   HTML, and plain fenced code blocks rather than `<details markdown="1">`, which
   is a Jekyll idiom that does not render here.
+* Draw diagrams as ` ```mermaid ` fenced blocks rather than images; the site
+  renders them, and GitHub shows them too.
 
 ## Getting in Touch
 

@@ -333,6 +333,7 @@ class StatusBarView extends TextView {
                 }
             });
         }
+        super.destroy();
     }
 }
 

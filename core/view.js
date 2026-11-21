@@ -30,6 +30,32 @@ const inputFocusViews = new WeakMap();
 //  view is cleared if that view is released while it is set aside
 const suspendedInputFocus = new WeakMap();
 
+//  client -> { tokens: [ token ], missed: Set<View> } while something covers
+//  the screen: see suspendBackgroundDraw()
+const suspendedBackgroundDraw = new WeakMap();
+
+//  client -> the last number handed out by nextBackgroundSeq(). Each view
+//  takes one when it is created and each suspend token when it is taken,
+//  so a suspend can tell the views it covers (created before it) from those
+//  drawn inside the cover (a ticker in an interrupt's pause prompt).
+const backgroundSeqs = new WeakMap();
+
+//  view -> the seq it took when created. Kept here, not on the view, so no
+//  property name is taken from a mod's View subclass (nor below).
+const viewBackgroundSeqs = new WeakMap();
+
+//  views that have been destroyed: no background redraw is owed to them
+const destroyedViews = new WeakSet();
+
+//  client -> the seq of the latest suspend taken: see View.coverMark()
+const lastCoverMarks = new WeakMap();
+
+function nextBackgroundSeq(client) {
+    const seq = (backgroundSeqs.get(client) || 0) + 1;
+    backgroundSeqs.set(client, seq);
+    return seq;
+}
+
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
     accept: ['return'],
     exit: ['esc'],
@@ -53,6 +79,8 @@ class View extends events.EventEmitter {
         enigAssert(_.isObject(options.client));
 
         this.client = options.client;
+        //  see suspendBackgroundDraw(): which covers this view is under
+        viewBackgroundSeqs.set(this, nextBackgroundSeq(this.client));
         this.cursor = options.cursor || 'show';
         this.cursorStyle = options.cursorStyle || 'default';
 
@@ -368,9 +396,34 @@ class View extends events.EventEmitter {
 
     //
     //  destroy() — called by ViewController when a view is being removed.
-    //  Subclasses should override to clear timers, remove listeners, etc.
+    //  Subclasses should override to clear timers, remove listeners, etc.,
+    //  and call super.destroy().
     //
-    destroy() {}
+    destroy() {
+        View.markDestroyed(this);
+    }
+
+    //
+    //  |view| is gone: no background redraw is owed to it. Called by
+    //  destroy(), and by ViewController after it destroys a view, so a
+    //  subclass whose destroy() does not call super is still marked.
+    //
+    static markDestroyed(view) {
+        destroyedViews.add(view);
+        const suspended = suspendedBackgroundDraw.get(view.client);
+        if (suspended) {
+            suspended.missed.delete(view);
+        }
+    }
+
+    //
+    //  forceNextRedraw() -- the next redraw() must draw in full, even where
+    //  the view would skip output it believes is already on screen (a
+    //  TickerView frame equal to the last one). Called before the redraw
+    //  owed after a background draw suspend, when the screen under the view
+    //  has been drawn over. The base view caches nothing.
+    //
+    forceNextRedraw() {}
 
     //  ── Input focus & background redraws ─────────────────────────────────────
 
@@ -440,6 +493,124 @@ class View extends events.EventEmitter {
     }
 
     //
+    //  Stop background drawing (drawInBackground()) for |client| while
+    //  something covers the screen: an interrupt, a help page. Only views
+    //  that already exist are covered: a view created after the most recent
+    //  suspend still held (a ticker in the cover's own pause prompt) draws
+    //  as usual. A covered view that would have drawn meanwhile is noted,
+    //  and once no suspend covers it any more (resumeBackgroundDraw()) it
+    //  gets one full redraw, if it is still alive. Suspends nest; returns a
+    //  token.
+    //
+    static suspendBackgroundDraw(client) {
+        const token = { seq: nextBackgroundSeq(client) };
+        lastCoverMarks.set(client, token.seq);
+        let suspended = suspendedBackgroundDraw.get(client);
+        if (!suspended) {
+            suspended = { tokens: [], missed: new Set() };
+            suspendedBackgroundDraw.set(client, suspended);
+        }
+        suspended.tokens.push(token);
+        return token;
+    }
+
+    //
+    //  A value that changes each time something starts covering |client|'s
+    //  screen. A view that skips output it believes is already on screen
+    //  (a TickerView frame equal to the last) compares it with the value at
+    //  its last draw: after a cover, what it drew may have been drawn over,
+    //  so its next draw is a full one even if nothing changed.
+    //
+    static coverMark(client) {
+        return lastCoverMarks.get(client) || 0;
+    }
+
+    static isBackgroundDrawSuspended(client) {
+        return suspendedBackgroundDraw.has(client);
+    }
+
+    //
+    //  True while a suspend covers this view: the most recent suspend still
+    //  held was taken after the view was created. Nested covers: a view
+    //  created under cover A but before cover B is covered while B is held,
+    //  and draws again once only A is.
+    //
+    isBackgroundDrawSuspended() {
+        const suspended = suspendedBackgroundDraw.get(this.client);
+        if (!suspended) {
+            return false;
+        }
+        const top = suspended.tokens[suspended.tokens.length - 1];
+        return (viewBackgroundSeqs.get(this) || 0) < top.seq;
+    }
+
+    //
+    //  Give back a suspendBackgroundDraw() token; a token not held (or
+    //  given back already) is ignored. Each view that missed a draw and is
+    //  no longer covered is redrawn, through drawInBackground() so the
+    //  cursor goes back to the field being typed into -- unless
+    //  |options.redrawMissed| is false: the caller replaces the screen next
+    //  (a reload after an interrupt) and a redraw would only flash.
+    //
+    static resumeBackgroundDraw(client, token, options) {
+        const suspended = suspendedBackgroundDraw.get(client);
+        if (!suspended || !token) {
+            return;
+        }
+        const i = suspended.tokens.indexOf(token);
+        if (i < 0) {
+            return;
+        }
+        suspended.tokens.splice(i, 1);
+        if (0 === suspended.tokens.length) {
+            suspendedBackgroundDraw.delete(client);
+        }
+
+        const uncovered = [];
+        for (const view of suspended.missed) {
+            if (destroyedViews.has(view)) {
+                suspended.missed.delete(view);
+            } else if (!view.isBackgroundDrawSuspended()) {
+                suspended.missed.delete(view);
+                uncovered.push(view);
+            }
+        }
+
+        if (client.clientEnded || false === _.get(options, 'redrawMissed')) {
+            return; //  nobody to draw for, or the screen is being replaced
+        }
+
+        for (const view of uncovered) {
+            try {
+                view.forceNextRedraw();
+                view.drawInBackground(() => view.redraw());
+            } catch (e) {
+                //  one view's failure must not cost the others their redraw
+                if (client.log) {
+                    client.log.warn(
+                        { error: e.message, viewId: view.id },
+                        'Background redraw after suspend failed'
+                    );
+                }
+            }
+        }
+    }
+
+    //
+    //  Drop every suspend held for |client|, redrawing nothing: the menu
+    //  that was covered has gone (see MenuStack). Returns how many were
+    //  held.
+    //
+    static dropBackgroundDrawSuspends(client) {
+        const suspended = suspendedBackgroundDraw.get(client);
+        if (!suspended) {
+            return 0;
+        }
+        suspendedBackgroundDraw.delete(client);
+        return suspended.tokens.length;
+    }
+
+    //
     //  restoreFocusPosition() -- put the terminal cursor back where this view,
     //  holding focus, echoes the next key, in the SGR it echoes it with. The
     //  base view knows nothing about where its cursor goes, so it does
@@ -478,7 +649,28 @@ class View extends events.EventEmitter {
     //  used: CSI s does not save attributes, and support for either varies
     //  between the terminals BBS callers use.
     //
+    //  While background drawing is suspended (suspendBackgroundDraw())
+    //  drawFn() runs with its output discarded, and the view gets a full
+    //  redraw() later. Keep state changes out of drawFn() all the same: a
+    //  terminal that cannot discard output skips drawFn() instead.
+    //
     drawInBackground(drawFn) {
+        //  The screen is covered (suspendBackgroundDraw()): draw nothing now,
+        //  and get a full redraw when it is uncovered.
+        if (this.isBackgroundDrawSuspended()) {
+            if (!destroyedViews.has(this)) {
+                suspendedBackgroundDraw.get(this.client).missed.add(this);
+            }
+            //  drawFn() still runs, its output thrown away, for a caller
+            //  that changes state in it; a terminal that cannot discard
+            //  output (a test's mock) skips it
+            const term = this.client.term;
+            if (term && _.isFunction(term.discardOutput)) {
+                term.discardOutput(drawFn);
+            }
+            return;
+        }
+
         const term = this.client.term;
         const focusView = View.getInputFocusView(this.client);
         const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
