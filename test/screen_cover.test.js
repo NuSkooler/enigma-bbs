@@ -269,6 +269,27 @@ describe('coverScreen()', () => {
         assert.equal(got, 'repaint failed');
     });
 
+    it('a restore that throws: still uncovered, and the error reaches cb', () => {
+        const client = makeClient();
+        const { field } = makeForm(client);
+        let got = null;
+        coverScreen(
+            client,
+            {
+                restore: () => {
+                    throw new Error('repaint threw');
+                },
+            },
+            done => done(null),
+            err => (got = err)
+        );
+        assert.ok(got instanceof Error);
+        assert.equal(got.message, 'repaint threw');
+        assert.deepEqual(isCovered(client), { input: false, background: false });
+        client.emit('key press', 'r');
+        assert.equal(field.getData(), 'r', 'the form has keys again');
+    });
+
     it('uncovers once when fn throws, or calls done twice', () => {
         const client = makeClient();
         let calls = 0;

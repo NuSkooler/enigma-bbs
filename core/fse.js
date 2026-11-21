@@ -1558,6 +1558,26 @@ exports.FullScreenEditorModule =
             );
         }
 
+        //  "Added to your download queue", shown over the attached message
+        //  view: a cover, as help is
+        displayExportedToDownloadQueue(cb) {
+            const artSpec =
+                this.menuConfig.config.art.expToDlQueue ||
+                Buffer.from('Exported message has been added to your download queue!');
+            this.coverScreen(
+                { restore: done => this.redrawScreen(() => done(null)) },
+                done => {
+                    this.displayAsset(artSpec, { clearScreen: true }, () => {
+                        this.client.waitForKeyPress(() => done(null));
+                    });
+                },
+                () => {
+                    this.viewControllers[this.getFooterName()].setFocus(true);
+                    return cb(null);
+                }
+            );
+        }
+
         addToDownloadQueue(cb) {
             const sysTempDownloadArea = FileArea.getFileAreaByTag(
                 FileArea.WellKnownAreaTags.TempDownloads
@@ -1638,24 +1658,7 @@ exports.FullScreenEditorModule =
                         });
                     },
                     callback => {
-                        const artSpec =
-                            this.menuConfig.config.art.expToDlQueue ||
-                            Buffer.from(
-                                'Exported message has been added to your download queue!'
-                            );
-                        //  over the attached message view: a cover, as help is
-                        this.coverScreen(
-                            { restore: done => this.redrawScreen(() => done(null)) },
-                            done => {
-                                this.displayAsset(artSpec, { clearScreen: true }, () => {
-                                    this.client.waitForKeyPress(() => done(null));
-                                });
-                            },
-                            () => {
-                                this.viewControllers[this.getFooterName()].setFocus(true);
-                                return callback(null);
-                            }
-                        );
+                        return this.displayExportedToDownloadQueue(callback);
                     },
                 ],
                 err => {

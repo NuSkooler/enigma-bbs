@@ -282,6 +282,34 @@ describe('Screens shown over a menu are covers', () => {
             assert.equal(footer.focused, 1, 'footer focus back');
         });
 
+        it('the download queue message is a cover; redrawScreen() repaints, still covered', () => {
+            const client = makeClient();
+            const menu = attachMenuForm(client);
+            const restored = [];
+            const finished = [];
+            const { mod, footer } = fseModule(client, menu, restored);
+            let art = null;
+            mod.displayAsset = (spec, options, cb) => {
+                art = { spec: String(spec), options };
+                client.term.write('<queued art>');
+                return cb(null);
+            };
+            checkHelpCover({
+                client,
+                menu,
+                restored,
+                finished,
+                start: () =>
+                    mod.displayExportedToDownloadQueue(err => finished.push(err)),
+            });
+            assert.equal(
+                art.spec,
+                'Exported message has been added to your download queue!'
+            );
+            assert.equal(art.options.clearScreen, true);
+            assert.equal(footer.focused, 1, 'footer focus back');
+        });
+
         it('a static ticker in the editor is repainted after help', () => {
             const client = makeClient();
             const menu = attachMenuForm(client);
