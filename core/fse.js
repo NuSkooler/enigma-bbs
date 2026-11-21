@@ -4,6 +4,7 @@
 //  ENiGMA½
 const { MenuModule } = require('./menu_module.js');
 const { ViewController } = require('./view_controller.js');
+const { View } = require('./view.js');
 const ansi = require('./ansi_term.js');
 const theme = require('./theme.js');
 const Message = require('./message.js');
@@ -46,6 +47,11 @@ const { ErrorReasons } = require('./enig_error.js');
 const { pathWithTerminatingSeparator } = require('./file_util.js');
 const temptmp = require('temptmp').createTrackedSession('fse');
 const iconv = require('iconv-lite');
+
+//  editor -> Set of end() functions of art batches still open: see
+//  _beginArtBatch(). Kept here, not on the module, so no name is taken
+//  from a subclass.
+const openArtBatches = new WeakMap();
 
 exports.moduleInfo = {
     name: 'Full Screen Editor (FSE)',
@@ -1029,6 +1035,50 @@ exports.FullScreenEditorModule =
             );
         }
 
+        //
+        //  Begin a write batch for an erase + art + form sequence that waits
+        //  on the art (read from disk), so the caller sees it in one socket
+        //  write, with background drawing (a ticker or status bar in the
+        //  header) suspended for its span. A tick inside the open batch used
+        //  to be held in it and sent between the erase and the art, which
+        //  then drew from wherever the tick left the cursor. Returns end(),
+        //  which commits the batch and resumes background drawing (a view
+        //  that missed a tick is redrawn once); only the first call does
+        //  anything. leave() ends any batch still open.
+        //
+        _beginArtBatch() {
+            const client = this.client;
+            let batches = openArtBatches.get(this);
+            if (!batches) {
+                batches = new Set();
+                openArtBatches.set(this, batches);
+            }
+
+            const token = View.suspendBackgroundDraw(client);
+            client.term.beginWrite();
+
+            const end = ({ redrawMissed = true } = {}) => {
+                if (!batches.delete(end)) {
+                    return;
+                }
+                try {
+                    client.term.commitWrite();
+                } finally {
+                    View.resumeBackgroundDraw(client, token, { redrawMissed });
+                }
+            };
+            batches.add(end);
+            return end;
+        }
+
+        //  the menu is gone: send what they hold, redraw nothing
+        _endArtBatches() {
+            const batches = openArtBatches.get(this);
+            if (batches) {
+                [...batches].forEach(end => end({ redrawMissed: false }));
+            }
+        }
+
         switchFooter(cb) {
             const footerName = this.getFooterName();
             const formId = FormIds[footerName];
@@ -1037,20 +1087,28 @@ exports.FullScreenEditorModule =
             //  Buffer the entire erase → art display → view redraw sequence so the
             //  client receives it as one atomic socket write — no visible blank-row
             //  flash between clearing the old footer and drawing the new one.
-            this.client.term.beginWrite();
-            this.client.term.rawWrite(ansi.goto(startRow, 1) + ansi.eraseLine(2));
-            this.prepViewControllerWithArt(
-                footerName,
-                formId,
-                { startRow },
-                (err, vc, created) => {
-                    if (!created) {
-                        vc.redrawAll();
+            const endBatch = this._beginArtBatch();
+            try {
+                this.client.term.rawWrite(ansi.goto(startRow, 1) + ansi.eraseLine(2));
+                this.prepViewControllerWithArt(
+                    footerName,
+                    formId,
+                    { startRow },
+                    (err, vc, created) => {
+                        try {
+                            if (!err && !created) {
+                                vc.redrawAll();
+                            }
+                        } finally {
+                            endBatch();
+                        }
+                        return cb(err);
                     }
-                    this.client.term.commitWrite();
-                    return cb(err);
-                }
-            );
+                );
+            } catch (e) {
+                endBatch();
+                throw e;
+            }
         }
 
         initSequence() {
@@ -1688,21 +1746,27 @@ exports.FullScreenEditorModule =
                         //  eraseData(0) = erase from cursor to end of display; works on all
                         //  major BBS terminals (unlike deleteLine which scrolls content up and
                         //  is unsupported on NetRunner).
-                        self.client.term.beginWrite();
-                        self.client.term.rawWrite(
-                            ansi.goto(self.header.height + 1, 1) + ansi.eraseData(0)
-                        );
+                        //  Background drawing waits too: see _beginArtBatch().
+                        const endBatch = self._beginArtBatch();
+                        try {
+                            self.client.term.rawWrite(
+                                ansi.goto(self.header.height + 1, 1) + ansi.eraseData(0)
+                            );
 
-                        theme.displayThemeArt(
-                            {
-                                name: self.menuConfig.config.art.quote,
-                                client: self.client,
-                            },
-                            function displayed(err, artData) {
-                                self.client.term.commitWrite();
-                                callback(err, artData);
-                            }
-                        );
+                            theme.displayThemeArt(
+                                {
+                                    name: self.menuConfig.config.art.quote,
+                                    client: self.client,
+                                },
+                                function displayed(err, artData) {
+                                    endBatch();
+                                    callback(err, artData);
+                                }
+                            );
+                        } catch (e) {
+                            endBatch();
+                            throw e;
+                        }
                     },
                     function createViewsIfNecessary(artData, callback) {
                         const formId = FormIds.quoteBuilder;
@@ -1958,6 +2022,7 @@ exports.FullScreenEditorModule =
         leave() {
             this.tempMessageConfAndAreaRestore();
             super.leave();
+            this._endArtBatches();
         }
 
         mciReady(mciData, cb) {
