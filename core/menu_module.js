@@ -14,6 +14,7 @@ const MultiLineEditTextView =
 const { TextView } = require('../core/text_view.js');
 const { View } = require('./view');
 const ScreenCover = require('./screen_cover.js');
+const FormState = require('./form_state.js');
 const { Errors, ErrorReasons } = require('../core/enig_error.js');
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
@@ -54,11 +55,19 @@ const menuTimeouts = new WeakMap();
 const MenuLeftStop = Symbol('menuLeft');
 
 //
-//  Tear down |vc| for a menu that has been left. detachClientEvents() does
-//  it for an attached form; a form that never attached (or was blurred)
-//  still has its views, and a ticker among them its timer.
+//  Tear down |vc| for good: its menu was left, or it was removed. A
+//  ViewController's destroy() detaches it, tears down its views (also for a
+//  form that never attached, or was blurred: its views are still there, and
+//  a ticker among them its timer) and marks it destroyed, so nothing can
+//  attach it again (a late setFocus(true) from a callback that finished
+//  after the menu was left).
 //
 function destroyForm(vc) {
+    if (_.isFunction(vc.destroy)) {
+        return vc.destroy();
+    }
+
+    //  not a ViewController: tear down what it has, as before
     if (vc.attached) {
         return vc.detachClientEvents();
     }
@@ -166,13 +175,16 @@ exports.MenuModule = class MenuModule extends PluginModule {
     //
     //  The caller is leaving this menu (or it is being reloaded). A module
     //  that overrides this must call super.leave(): that marks the menu
-    //  left (hasLeftMenu()), clears its setMenuTimeout() timers and tears
-    //  down its forms.
+    //  left (hasLeftMenu()), clears its setMenuTimeout() timers and
+    //  destroys its forms. Destroyed is terminal: a callback that finishes
+    //  later and calls setFocus(true) or switchFocus() on one of them
+    //  does nothing (the keys stay with the menu now on screen).
     //
     leave() {
         leftMenus.add(this);
         this.clearMenuTimeouts();
         this.detachViewControllers();
+        this._destroyForms();
     }
 
     //
@@ -223,11 +235,18 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
     }
 
+    _destroyForms() {
+        Object.keys(this.viewControllers).forEach(name => {
+            const vc = this.viewControllers[name];
+            if (vc) {
+                destroyForm(vc);
+            }
+        });
+    }
+
     //  Forms that may have been built after leave() tore down the others
     _destroyFormsAfterLeave() {
-        Object.keys(this.viewControllers).forEach(name => {
-            destroyForm(this.viewControllers[name]);
-        });
+        this._destroyForms();
     }
 
     //
@@ -566,7 +585,18 @@ exports.MenuModule = class MenuModule extends PluginModule {
     //  bars do not draw over it. See core/screen_cover.js for |options|
     //  (restore(cb) repaints the menu afterwards).
     //
+    //
+    //  The cover pauses background drawing for this menu's forms by
+    //  ownership: also a form the menu builds while the cover is up (art
+    //  that finished loading meanwhile) does not draw over it.
+    //
     coverScreen(options, fn, cb) {
+        if (_.isFunction(options)) {
+            cb = fn;
+            fn = options;
+            options = {};
+        }
+        options = Object.assign({ scope: { menu: this } }, options);
         return ScreenCover.coverScreen(this.client, options, fn, cb);
     }
 
@@ -631,12 +661,17 @@ exports.MenuModule = class MenuModule extends PluginModule {
         );
 
         this.viewControllers[name] = vc;
+        //  see suspendBackgroundDraw(): covers of this menu cover its forms
+        FormState.setFormMenu(vc, this);
         return vc;
     }
 
+    //  The form is torn down for good (destroyed: see leave()) and removed
     removeViewController(name) {
         if (this.viewControllers[name]) {
-            this.viewControllers[name].detachClientEvents();
+            const vc = this.viewControllers[name];
+            vc.detachClientEvents();
+            destroyForm(vc);
             delete this.viewControllers[name];
         }
     }

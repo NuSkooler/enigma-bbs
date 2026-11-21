@@ -5,6 +5,7 @@ const events = require('events');
 const ansi = require('./ansi_term.js');
 const colorCodes = require('./color_codes.js');
 const enigAssert = require('./enigma_assert.js');
+const { getViewForm, getFormMenu, isFormPaused } = require('./form_state.js');
 const {
     renderFirstChar,
     renderStringLength,
@@ -52,6 +53,14 @@ const lastCoverMarks = new WeakMap();
 
 //  view -> Set of interval handles from setBackgroundInterval()
 const backgroundIntervals = new WeakMap();
+
+//  views with the `pauseWhenInactive` mci property: no background draws
+//  while their form is inactive or covered (see drawInBackground())
+const pauseWhenInactiveViews = new WeakSet();
+
+//  pauseWhenInactive views that skipped a draw: redrawn once when their
+//  form is activated (redrawPausedView())
+const pausedMissedViews = new WeakSet();
 
 function nextBackgroundSeq(client) {
     const seq = (backgroundSeqs.get(client) || 0) + 1;
@@ -368,6 +377,15 @@ class View extends events.EventEmitter {
                     this.validate = value;
                 }
                 break;
+
+            case 'pauseWhenInactive':
+                if (true === value) {
+                    pauseWhenInactiveViews.add(this);
+                } else if (false === value) {
+                    pauseWhenInactiveViews.delete(this);
+                    pausedMissedViews.delete(this);
+                }
+                break;
         }
 
         if (/styleSGR[0-9]{1,2}/.test(propName)) {
@@ -578,16 +596,33 @@ class View extends events.EventEmitter {
 
     //
     //  Stop background drawing (drawInBackground()) for |client| while
-    //  something covers the screen: an interrupt, a help page. Only views
-    //  that already exist are covered: a view created after the most recent
-    //  suspend still held (a ticker in the cover's own pause prompt) draws
-    //  as usual. A covered view that would have drawn meanwhile is noted,
-    //  and once no suspend covers it any more (resumeBackgroundDraw()) it
-    //  gets one full redraw, if it is still alive. Suspends nest; returns a
-    //  token.
+    //  something covers the screen: an interrupt, a help page. A covered
+    //  view that would have drawn meanwhile is noted, and once no suspend
+    //  covers it any more (resumeBackgroundDraw()) it gets one full redraw,
+    //  if it is still alive. Suspends nest; returns a token.
     //
-    static suspendBackgroundDraw(client) {
+    //  Which views a suspend covers depends on its |scope|:
+    //
+    //  - none (the default; drips, and covers with no owner): the views
+    //    that already exist. A view created after the most recent such
+    //    suspend still held (a ticker in the cover's own pause prompt)
+    //    draws as usual.
+    //  - { menu }: the same, and also every view on a form of |menu|
+    //    (MenuModule.addViewController()), whenever it was created: a form
+    //    the covered menu builds while the cover is up (art that finished
+    //    loading under an interrupt) does not draw over it. Views with no
+    //    menu (a theme's temporary prompt, a mod's bare view) follow the
+    //    default rule, so a pause prompt inside the cover still animates.
+    //  - { forms: [ vc, ... ] }: only the views of those forms
+    //    (ViewController.cover()); nothing else on the screen is affected.
+    //
+    static suspendBackgroundDraw(client, scope) {
         const token = { seq: nextBackgroundSeq(client) };
+        if (scope && Array.isArray(scope.forms)) {
+            token.forms = new Set(scope.forms.filter(Boolean));
+        } else if (scope && scope.menu) {
+            token.menu = scope.menu;
+        }
         lastCoverMarks.set(client, token.seq);
         let suspended = suspendedBackgroundDraw.get(client);
         if (!suspended) {
@@ -614,18 +649,38 @@ class View extends events.EventEmitter {
     }
 
     //
-    //  True while a suspend covers this view: the most recent suspend still
-    //  held was taken after the view was created. Nested covers: a view
-    //  created under cover A but before cover B is covered while B is held,
-    //  and draws again once only A is.
+    //  True while a suspend covers this view (see suspendBackgroundDraw()):
+    //  a { forms } suspend naming its form, a { menu } suspend for the menu
+    //  its form belongs to, or -- by creation order -- the most recent of
+    //  the other suspends still held was taken after the view was created.
+    //  Nested covers: a view created under cover A but before cover B is
+    //  covered while B is held, and draws again once only A is.
     //
     isBackgroundDrawSuspended() {
         const suspended = suspendedBackgroundDraw.get(this.client);
         if (!suspended) {
             return false;
         }
-        const top = suspended.tokens[suspended.tokens.length - 1];
-        return (viewBackgroundSeqs.get(this) || 0) < top.seq;
+
+        const form = getViewForm(this);
+        const menu = getFormMenu(form);
+        let top = null; //  most recent suspend that goes by creation order
+        for (let i = suspended.tokens.length - 1; i >= 0; --i) {
+            const token = suspended.tokens[i];
+            if (token.forms) {
+                if (form && token.forms.has(form)) {
+                    return true;
+                }
+                continue; //  covers nothing else
+            }
+            if (token.menu && menu && token.menu === menu) {
+                return true;
+            }
+            if (!top) {
+                top = token;
+            }
+        }
+        return top ? (viewBackgroundSeqs.get(this) || 0) < top.seq : false;
     }
 
     //
@@ -755,6 +810,20 @@ class View extends events.EventEmitter {
             return;
         }
 
+        //  pauseWhenInactive: nothing while the form is inactive or
+        //  covered; one redraw when it is activated (redrawPausedView())
+        if (pauseWhenInactiveViews.has(this) && isFormPaused(getViewForm(this))) {
+            if (!destroyedViews.has(this)) {
+                pausedMissedViews.add(this);
+            }
+            const term = this.client.term;
+            if (term && _.isFunction(term.discardOutput)) {
+                term.discardOutput(drawFn);
+            }
+            return;
+        }
+        pausedMissedViews.delete(this);
+
         const term = this.client.term;
         const focusView = View.getInputFocusView(this.client);
         const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
@@ -789,5 +858,29 @@ class View extends events.EventEmitter {
     }
 }
 
+//
+//  For ViewController.activate(): a pauseWhenInactive |view| that skipped a
+//  background draw while its form was inactive or covered gets one full
+//  redraw. Returns true if it was owed one.
+//
+function redrawPausedView(view) {
+    if (!pausedMissedViews.has(view)) {
+        return false;
+    }
+    pausedMissedViews.delete(view);
+    if (destroyedViews.has(view)) {
+        return false;
+    }
+    view.forceNextRedraw();
+    view.drawInBackground(() => view.redraw());
+    return true;
+}
+
+function isPauseWhenInactive(view) {
+    return pauseWhenInactiveViews.has(view);
+}
+
 exports.View = View;
+exports.redrawPausedView = redrawPausedView;
+exports.isPauseWhenInactive = isPauseWhenInactive;
 exports.VIEW_SPECIAL_KEY_MAP_DEFAULT = VIEW_SPECIAL_KEY_MAP_DEFAULT;

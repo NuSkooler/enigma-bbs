@@ -2,7 +2,8 @@
 
 //  ENiGMA½
 const { MCIViewFactory } = require('./mci_view_factory.js');
-const { View } = require('./view');
+const { View, redrawPausedView } = require('./view');
+const FormState = require('./form_state.js');
 const menuUtil = require('./menu_util.js');
 const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
@@ -16,6 +17,53 @@ const _ = require('lodash');
 const paths = require('path');
 
 const MCI_REGEXP = /([A-Z]{2})([0-9]{1,2})/;
+
+//
+//  Tear down every view of |vc| not torn down already: it takes no more
+//  input, its listeners are removed and it is destroyed (its timers
+//  stopped). A view that was the input focus is released first: nothing
+//  should put the cursor back into it.
+//
+function tearDownViews(vc) {
+    for (const id in vc.views) {
+        const view = vc.views[id];
+        if (View.isDestroyed(view)) {
+            continue;
+        }
+        View.releaseInputFocus(view);
+        view.removeAllListeners();
+        if (typeof view.destroy === 'function') {
+            view.destroy();
+        }
+        //  also for a destroy() that does not call super: no background
+        //  redraw is owed to a view that is gone
+        View.markDestroyed(view);
+    }
+}
+
+//  Give back |vc|'s cover() suspend, if it holds one, redrawing nothing
+function releaseCover(vc) {
+    const token = FormState.getFormCoverToken(vc);
+    if (token) {
+        FormState.setFormCoverToken(vc, null);
+        View.resumeBackgroundDraw(vc.client, token, { redrawMissed: false });
+    }
+}
+
+//  For a call on a form that destroy() has ended: say so, do nothing
+function refuseDestroyed(vc, what) {
+    if (!FormState.isFormDestroyed(vc)) {
+        return false;
+    }
+    const log = vc.client && vc.client.log;
+    if (log && _.isFunction(log.debug)) {
+        log.debug(
+            { formId: vc.formId, call: what },
+            'Form was destroyed (its menu was left or it was removed); ignoring'
+        );
+    }
+    return true;
+}
 
 class ViewController extends events.EventEmitter {
     constructor(options) {
@@ -434,6 +482,14 @@ class ViewController extends events.EventEmitter {
     }
 
     attachClientEvents() {
+        //  a destroyed form (its menu was left) never takes keys again
+        if (refuseDestroyed(this, 'attachClientEvents')) {
+            return;
+        }
+
+        //  taking keys again: no longer inactive (see deactivate())
+        FormState.setFormInactive(this, false);
+
         if (this.attached) {
             return;
         }
@@ -452,27 +508,169 @@ class ViewController extends events.EventEmitter {
         this.attached = true;
     }
 
+    //
+    //  Detach from the client's keys and tear the form's views down
+    //  (listeners removed, views destroyed, their timers stopped). Kept as
+    //  it always was for mods; deprecated in favour of destroy(), or
+    //  deactivate() / cover() for a form that will be used again. A form
+    //  that is not attached is left alone, as before -- unless deactivate()
+    //  detached it, as its views are still live then.
+    //
     detachClientEvents() {
-        if (!this.attached) {
+        if (!this.attached && !FormState.isFormInactive(this)) {
             return;
         }
 
         this.client.removeListener('key press', this.clientKeyPressHandler);
+        tearDownViews(this);
+        releaseCover(this);
+        FormState.setFormInactive(this, false);
+        this.attached = false;
+    }
 
-        for (const id in this.views) {
-            const view = this.views[id];
-            //  A torn-down form takes no more input, though its focused view
-            //  keeps hasFocus; nothing should put the cursor back into it
-            View.releaseInputFocus(view);
-            view.removeAllListeners();
-            if (typeof view.destroy === 'function') {
-                view.destroy();
-            }
-            //  also for a destroy() that does not call super: no background
-            //  redraw is owed to a view that is gone
-            View.markDestroyed(view);
+    //  ── Form states ──────────────────────────────────────────────────────────
+    //
+    //  active      takes keys; views live; background drawing runs
+    //  inactive    deactivate(): no keys; views and their listeners kept;
+    //              background drawing runs (except pauseWhenInactive views)
+    //  covered     cover(): inactive, and its views do not draw in the
+    //              background; uncover() gives them back
+    //  destroyed   destroy(): terminal. Its menu was left (MenuModule
+    //              leave()) or the form was removed (removeViewController()).
+    //              activate(), setFocus(true), attachClientEvents() and
+    //              switchFocus() do nothing on it any more.
+    //
+    //  setFocus(false) is unchanged: it detaches and tears down
+    //  (detachClientEvents()). setFocus(true) is activate().
+    //
+
+    //
+    //  Take keys again: uncover if covered, attach, focus the focused view,
+    //  and redraw once any pauseWhenInactive view that skipped a draw.
+    //
+    activate() {
+        if (refuseDestroyed(this, 'activate')) {
+            return;
         }
 
+        if (FormState.getFormCoverToken(this)) {
+            this.uncover();
+        }
+
+        this.attachClientEvents();
+        this.setViewFocusWithEvents(this.focusedView, true);
+
+        for (const id in this.views) {
+            redrawPausedView(this.views[id]);
+        }
+    }
+
+    //
+    //  Stop taking keys, but keep everything: the key handler is removed,
+    //  input focus released and the focused view blurred (it stays the
+    //  form's focused view, for activate()). Views, their listeners and
+    //  timers are untouched, so a ticker keeps running while the form is
+    //  visible but another form has the keys.
+    //
+    deactivate() {
+        if (refuseDestroyed(this, 'deactivate')) {
+            return;
+        }
+
+        FormState.setFormInactive(this, true);
+        if (this.attached) {
+            this.client.removeListener('key press', this.clientKeyPressHandler);
+            this.attached = false;
+        }
+
+        const focused = this.focusedView;
+        if (focused) {
+            View.releaseInputFocus(focused);
+            if (focused.hasFocus) {
+                this.setViewFocusWithEvents(focused, false);
+            }
+        }
+    }
+
+    //
+    //  Something is drawn over this form (a prompt, another form): it is
+    //  deactivated, and its views stop drawing in the background until
+    //  uncover(). Other forms on the screen are not affected.
+    //
+    cover() {
+        if (refuseDestroyed(this, 'cover')) {
+            return;
+        }
+
+        this.deactivate();
+        if (!FormState.getFormCoverToken(this)) {
+            FormState.setFormCoverToken(
+                this,
+                View.suspendBackgroundDraw(this.client, { forms: [this] })
+            );
+        }
+    }
+
+    //
+    //  The form is visible again. Views that missed a background draw get
+    //  one full redraw; with { redraw: true } every view of the form is
+    //  redrawn instead (what covered it overlapped all of it). Still
+    //  inactive: activate() gives it the keys.
+    //
+    uncover({ redraw = false } = {}) {
+        const token = FormState.getFormCoverToken(this);
+        if (!token) {
+            return;
+        }
+        FormState.setFormCoverToken(this, null);
+
+        if (!redraw || FormState.isFormDestroyed(this)) {
+            return View.resumeBackgroundDraw(this.client, token);
+        }
+
+        View.resumeBackgroundDraw(this.client, token, { redrawMissed: false });
+
+        //  through drawInBackground(): a view still under another cover is
+        //  noted and drawn when that cover goes, and the cursor goes back
+        //  to the field being typed into
+        const term = this.client.term;
+        const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+        if (batch) {
+            term.beginWrite();
+        }
+        try {
+            for (const id in this.views) {
+                const view = this.views[id];
+                if (View.isDestroyed(view)) {
+                    continue;
+                }
+                view.forceNextRedraw();
+                view.drawInBackground(() => view.redraw());
+            }
+        } finally {
+            if (batch) {
+                term.commitWrite();
+            }
+        }
+    }
+
+    //
+    //  The form is finished with, for good: detached, its views torn down,
+    //  any cover given back. Terminal: nothing can attach it again (see
+    //  attachClientEvents()). Idempotent.
+    //
+    destroy() {
+        if (FormState.isFormDestroyed(this)) {
+            return;
+        }
+        FormState.markFormDestroyed(this);
+        releaseCover(this);
+
+        if (this.attached) {
+            this.client.removeListener('key press', this.clientKeyPressHandler);
+        }
+        tearDownViews(this);
+        FormState.setFormInactive(this, false);
         this.attached = false;
     }
 
@@ -484,6 +682,7 @@ class ViewController extends events.EventEmitter {
         assert(!this.viewExists(view.id), 'View with ID ' + view.id + ' already exists');
 
         this.views[view.id] = view;
+        FormState.setViewForm(view, this);
     }
 
     getView(id) {
@@ -512,13 +711,18 @@ class ViewController extends events.EventEmitter {
         return this.focusedView;
     }
 
+    //
+    //  setFocus(true) is activate(). setFocus(false) is as it always was:
+    //  detach and tear down (detachClientEvents()), then blur the focused
+    //  view. For a form that will be shown again use deactivate() or
+    //  cover() instead.
+    //
     setFocus(focused) {
         if (focused) {
-            this.attachClientEvents();
-        } else {
-            this.detachClientEvents();
+            return this.activate();
         }
 
+        this.detachClientEvents();
         this.setViewFocusWithEvents(this.focusedView, focused);
     }
 
@@ -545,12 +749,21 @@ class ViewController extends events.EventEmitter {
     }
 
     switchFocus(id) {
+        //  a destroyed form (its menu was left) takes no focus or keys
+        if (refuseDestroyed(this, 'switchFocus')) {
+            return;
+        }
+
         //
         //  Perform focus switching validation now
         //
         const focusedView = this.focusedView;
 
         this.validateView(focusedView, (err, newFocusedViewId) => {
+            //  validation can be asynchronous
+            if (refuseDestroyed(this, 'switchFocus')) {
+                return;
+            }
             this.client.term.beginWrite();
             if (err) {
                 const newFocusedView = this.getView(newFocusedViewId) || focusedView;

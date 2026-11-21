@@ -34,9 +34,15 @@ const _ = require('lodash');
 //    redrawMissed      (default true)  redraw the background views that
 //                                      missed a draw; false when the caller
 //                                      replaces the screen next (a reload)
+//    scope                             which views are suspended; see
+//                                      View.suspendBackgroundDraw().
+//                                      MenuModule.coverScreen() passes
+//                                      { menu }
 //
-//  Only views that exist when the cover starts are suspended: views the
-//  cover itself creates (a ticker in its pause prompt) draw as usual.
+//  By default only views that exist when the cover starts are suspended:
+//  views the cover itself creates (a ticker in its pause prompt) draw as
+//  usual. With { menu }, views on that menu's forms are suspended whenever
+//  they were created.
 //
 //  A cover cut short: if the caller is moved to another menu while the
 //  cover is up (a sysop break-in, a time-up) or the client ends, the cover
@@ -71,7 +77,9 @@ function coverScreen(client, options, fn, cb) {
               })
             : null;
     const drawToken =
-        false !== options.suspendBackground ? View.suspendBackgroundDraw(client) : null;
+        false !== options.suspendBackground
+            ? View.suspendBackgroundDraw(client, options.scope)
+            : null;
 
     let finished = false;
     const finish = (err, ...results) => {
