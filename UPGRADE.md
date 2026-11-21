@@ -36,9 +36,9 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 * **Mod authors: a left menu's forms are destroyed for good.** Nothing in your configuration, menus, art or themes needs to change.
 
-  **What changes by itself:** `leave()` now destroys every form of the menu, and `removeViewController(name)` the form it removes. A destroyed form cannot be attached again: `setFocus(true)`, `activate()`, `attachClientEvents()` and `switchFocus()` on it do nothing (a debug log line says so). Before, a callback that finished after the caller had left the menu could re-attach one of its forms, and keys typed on the next menu reached it too. A reload, or coming back to the menu, creates a new instance with new forms, which is unaffected. `setFocus(false)` and `detachClientEvents()` keep their meaning: they tear the form down, and `setFocus(true)` attaches it again, as before.
+  **What changes by itself:** `leave()` now destroys every form still in the menu's `viewControllers`. A destroyed form cannot be attached again: `setFocus(true)`, `activate()`, `attachClientEvents()` and `switchFocus()` on it do nothing (a debug log line says so). Before, a callback that finished after the caller had left the menu could re-attach one of its forms, and keys typed on the next menu reached it too. A reload, or coming back to the menu, creates a new instance with new forms, which is unaffected. `removeViewController()`, `setFocus(false)` and `detachClientEvents()` keep their meaning: they detach the form (and tear it down), and `setFocus(true)` attaches it again, as before.
 
-  **Action:** none for most mods. If your module keeps a form after `removeViewController()` and attaches it again later, build a new one instead (or keep it in `viewControllers` and use `deactivate()` / `activate()`). See [Form states](website/src/content/docs/art/views/views.md#form-states).
+  **Action:** none for most mods. Only a module that attaches one of its forms after its menu was left notices, and that was already a bug. See [Form states](website/src/content/docs/art/views/views.md#form-states).
 
 ## 0.6.0-beta to 0.6.1-beta
 
