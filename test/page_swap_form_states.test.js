@@ -1558,4 +1558,53 @@ describe('Page swaps cover the hidden page (F3c)', () => {
             }
         });
     });
+
+    //  ── user_status_config: one page; refocused after its art ────────────
+
+    describe('user_status_config', () => {
+        it('leaving while its art loads: not refocused or drawn, called back (null)', () => {
+            timers = captureTimers();
+            const client = makeClient();
+            client.user.isAvailable = () => true;
+            client.user.isVisible = () => true;
+            art = stubArt(theme, {
+                USRSTAT: {
+                    TL10: mci('TL', 10, 5, 2, ['', '30']),
+                    TK19: mci('TK', 19, 2, 60),
+                },
+            });
+            const { getModule } = require('../core/user_status_config.js');
+            const menu = new getModule({
+                menuName: 'userStatusTest',
+                menuConfig: {
+                    config: {
+                        art: { menu: 'USRSTAT' },
+                        menuInfoFormat10: 'available: {availableIndicator}',
+                    },
+                    form: { 0: { mci: { TL10: {}, TK19: { text: 'NEWS', width: 8 } } } },
+                },
+                client,
+            });
+            client.currentMenuModule = menu;
+
+            //  shown once: refocused (attached) and its labels drawn
+            let calls = [];
+            menu._displayPage((...args) => calls.push(args));
+            assert.deepEqual(calls, [[null]]);
+            assert.deepEqual(attached(menu), ['menu']);
+            assert.ok(client.term.out.join('').includes('available: '), 'labels drawn');
+
+            //  shown again with the art held, then left
+            art.hold = true;
+            calls = [];
+            menu._displayPage((...args) => calls.push(args));
+            menu.leave();
+            const n = client.term.out.length;
+            art.finish();
+            assert.equal(client.term.since(n), '', 'nothing drawn after leave');
+            assert.deepEqual(calls, [[null]], 'called back (null), as before');
+            assert.deepEqual(attached(menu), [], 'no form takes keys');
+            assert.equal(timers.liveIntervals(), 0, 'ticker stopped');
+        });
+    });
 });
