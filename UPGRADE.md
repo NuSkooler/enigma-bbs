@@ -52,6 +52,17 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** a module that extends one of them and adds listeners to a page's views each time the page is shown should remove them first (`removeListener()`, then `on()`), or add them once; otherwise they fire once more after every visit.
 
+* **Sysops and theme authors: new warnings about `mci` keys.** Nothing needs to change: every key applies exactly as it did before.
+
+  **What you may see in the log:** warnings naming the menu (`menuName`), form (`formId`, or `promptName` for a prompt) and key (`mci`):
+  * `MCI key "ET8" configures view 8, which is a %ME; applying it anyway`: the key's code is not the code in the art. Views are matched by ID, so it still applies. Rename the key to the art's code (`ME8`).
+  * `MCI key "MET3" is not a code and view ID alone; read as "ET3"`: rename the key to what the art has (`ME3`). Copies of the stock `new_user` menus made from earlier templates have `MET3`.
+  * `Duplicate MCI view ID — skipping`, now also for a placed view whose ID the art already uses for another code.
+
+  The stock templates and the luciano_blocktronics theme have been fixed (`MET3` to `ME3`, and a few theme keys such as `ET8`/`ET9` to `ME8`/`SM9` on the user config screen). Your own copies of menus made from older templates are not changed; fix them when convenient.
+
+  **New, opt-in:** `position` in an `mci` block places a view (see [Placing Views from Configuration](website/src/content/docs/art/mci.md#placing-views-from-configuration)). It does nothing unless you add it.
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).
