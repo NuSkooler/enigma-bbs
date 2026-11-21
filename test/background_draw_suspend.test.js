@@ -389,6 +389,29 @@ describe('Background draw suspend / resume', () => {
             assert.equal(term.flushes.length, before + 1, 'then skips as before');
         });
 
+        //  A cover that hands the screen back without redrawing the views it
+        //  covered (redrawMissed: false) and with no reload after it: a tick
+        //  while covered drew nothing, so it must not count as the frame
+        //  being on screen again
+        it('a static ticker that ticked while covered draws on its first tick after a cover with redrawMissed: false', () => {
+            const { client, ticker, term } = makeScreen();
+            ticker.setPropertyValue('motion', 'bounce');
+            ticker.setText('short');
+            timers.fireAll();
+            const token = View.suspendBackgroundDraw(client);
+            timers.fireAll(); //  ticks under the cover: nothing drawn
+            timers.fireAll();
+            const before = term.flushes.length;
+            View.resumeBackgroundDraw(client, token, { redrawMissed: false });
+            assert.equal(term.flushes.length, before, 'no redraw on resume');
+
+            timers.fireAll();
+            assert.equal(term.flushes.length, before + 1, 'repainted on the first tick');
+            assert.ok(term.since(before).includes('short'));
+            timers.fireAll();
+            assert.equal(term.flushes.length, before + 1, 'then skips as before');
+        });
+
         it("a cover's restore that calls redrawAll() repaints a static ticker", () => {
             const { client, vc, ticker, term } = makeScreen();
             ticker.setPropertyValue('motion', 'bounce');
