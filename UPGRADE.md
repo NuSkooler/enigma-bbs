@@ -40,6 +40,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none for most mods. Only a module that attaches one of its forms after its menu was left notices, and that was already a bug. See [Form states](website/src/content/docs/art/views/views.md#form-states).
 
+* **Mod authors: `promptForInput({ prevFormName })` keeps the previous form's listeners.** Nothing in your configuration, menus, art or themes needs to change.
+
+  **What changes by itself:** the form named `prevFormName` is covered while the prompt is up and activated when it is submitted, where before it was torn down with `setFocus(false)` (its views' listeners removed, their timers stopped) and attached again with `setFocus(true)`. Its tickers and status bars pause under the prompt instead of stopping, and listeners you added to its views are still there afterwards. The full screen editor's forms are deactivated or covered in the same way, rather than torn down, when they lose the keys.
+
+  **Action:** if your module adds a listener to the previous form's views again after the prompt (in the prompt's Yes / No actions, say), remove it first (`removeListener()`, then `on()`), or add it only once; otherwise it fires once more after every prompt. The stock message list did this and is fixed. The same applies to a module that extends the full screen editor and adds listeners to its views each time a form gets the keys back.
+
 ## 0.6.0-beta to 0.6.1-beta
 
 * **MRC over TLS needs a valid certificate.** This applies only if you have MRC enabled with `chatServers.mrc.useSsl` on (the config template's setting).
