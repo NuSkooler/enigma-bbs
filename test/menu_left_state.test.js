@@ -583,4 +583,56 @@ describe('MenuModule left state', function () {
             });
         });
     });
+    describe('displayArtAndPrepViewController() calls back like prepViewController()', () => {
+        it('(err, artInfo, wasCreated): true when it built the form, false when it refocused it', done => {
+            const counters = makeCounters();
+            const Menu = defineMenu(counters, 'm');
+            const client = makeClient({ m: menuConfig('m') });
+            giveTerm(client);
+            const menu = new Menu({
+                menuName: 'm',
+                menuConfig: { config: { art: { main: 'MAIN' } } },
+                client,
+            });
+            const artInfo = { mciMap: {}, height: 3 };
+            const theme = require('../core/theme.js');
+            const { ViewController } = require('../core/view_controller.js');
+            const savedDisplay = theme.displayThemedAsset;
+            const savedLoad = ViewController.prototype.loadFromMenuConfig;
+            theme.displayThemedAsset = (art, c, options, cb) => cb(null, artInfo);
+            ViewController.prototype.loadFromMenuConfig = (opts, cb) => cb(null);
+            const restore = () => {
+                theme.displayThemedAsset = savedDisplay;
+                ViewController.prototype.loadFromMenuConfig = savedLoad;
+            };
+
+            menu.displayArtAndPrepViewController(
+                'main',
+                0,
+                {},
+                (err, info, wasCreated) => {
+                    try {
+                        assert.ifError(err);
+                        assert.equal(info, artInfo);
+                        assert.equal(wasCreated, true);
+                    } catch (e) {
+                        restore();
+                        return done(e);
+                    }
+                    menu.displayArtAndPrepViewController(
+                        'main',
+                        0,
+                        {},
+                        (err, info, wasCreated) => {
+                            restore();
+                            assert.ifError(err);
+                            assert.equal(info, artInfo);
+                            assert.equal(wasCreated, false);
+                            return done();
+                        }
+                    );
+                }
+            );
+        });
+    });
 });

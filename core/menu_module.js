@@ -1179,7 +1179,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
     //
     //  Show art |name| (menu config `art.<name>`) and load form |formId|
     //  over it into view controller |name|, or refocus that controller if
-    //  it already exists. Nothing at all once the menu has been left.
+    //  it already exists. Calls back (err, artInfo, wasCreated) like
+    //  prepViewController(); nothing at all once the menu has been left.
     //
     displayArtAndPrepViewController(name, formId, options, cb) {
         const config = this.menuConfig.config;
@@ -1260,16 +1261,16 @@ exports.MenuModule = class MenuModule extends PluginModule {
                             ) {
                                 return destroyForm(vc);
                             }
-                            return callback(err);
+                            return callback(err, artData, true);
                         });
                     }
 
                     this.viewControllers[name].setFocus(true);
-                    return callback(null);
+                    return callback(null, artData, false);
                 },
             ],
-            err => {
-                return cb(err);
+            (err, artData, wasCreated) => {
+                return cb(err, artData, wasCreated);
             }
         );
     }
