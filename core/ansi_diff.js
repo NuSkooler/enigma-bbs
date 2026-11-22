@@ -278,20 +278,28 @@ function write(term, t, options) {
 //  Transitions between the frames of a static list (canvases of one
 //  size). Each step forward (i -> i + 1) and the wrap (last -> 0) is worked
 //  out when this is built, so a tick in loop order costs a lookup; any
-//  other pair (pingpong, random) is worked out on first use and kept.
+//  other pair (pingpong, random) is worked out on first use and kept, up
+//  to |options.maxOtherSteps| of them (the least recently used dropped
+//  first), so a large frame set played at random does not keep n * n.
 //  full(i) draws frame i whole (the first draw, a redraw).
 //
+const MAX_OTHER_STEPS = 256;
+
 class FrameTransitions {
     constructor(frames, options = {}) {
         this.frames = frames;
         this.mask = options.mask || null;
         this._full = new Map();
         this._steps = new Map();
+        this._maxOther =
+            options.maxOtherSteps > 0 ? options.maxOtherSteps : MAX_OTHER_STEPS;
+        this._other = null; //  keys of the other steps kept, oldest use first
         if (frames.length > 1) {
             for (let i = 0; i < frames.length; ++i) {
                 this.get(i, (i + 1) % frames.length);
             }
         }
+        this._other = new Set();
     }
 
     get size() {
@@ -314,9 +322,22 @@ class FrameTransitions {
         }
         const key = from * this.frames.length + to;
         let t = this._steps.get(key);
-        if (!t) {
-            t = transition(this.frames[from], this.frames[to], { mask: this.mask });
-            this._steps.set(key, t);
+        if (t) {
+            if (this._other && this._other.delete(key)) {
+                this._other.add(key); //  most recently used
+            }
+            return t;
+        }
+        t = transition(this.frames[from], this.frames[to], { mask: this.mask });
+        this._steps.set(key, t);
+        //  null while the constructor works out the steps forward: kept always
+        if (this._other) {
+            this._other.add(key);
+            if (this._other.size > this._maxOther) {
+                const oldest = this._other.values().next().value;
+                this._other.delete(oldest);
+                this._steps.delete(oldest);
+            }
         }
         return t;
     }

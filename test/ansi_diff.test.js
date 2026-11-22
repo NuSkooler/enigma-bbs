@@ -296,6 +296,37 @@ describe('AnsiDiff', function () {
             assert.equal(AnsiDiff.render(back), `${goto(1, 1)}${RED}b`);
         });
 
+        it('other orders kept are capped, least recently used dropped; steps forward never', function () {
+            const many = Array.from({ length: 6 }, (_, i) =>
+                row(`|04${String.fromCharCode(97 + i)}`, 1)
+            );
+            const ft = new AnsiDiff.FrameTransitions(many, { maxOtherSteps: 2 });
+            assert.equal(ft._steps.size, 6);
+            const a = ft.get(3, 1);
+            ft.get(4, 1);
+            ft.get(3, 1); //  used again: now the most recent
+            ft.get(5, 1); //  drops 4 -> 1
+            assert.equal(ft._steps.size, 8);
+            assert.equal(ft.get(3, 1), a, 'kept');
+            assert.equal(ft._steps.has(4 * 6 + 1), false, 'dropped');
+            //  every step forward and the wrap are still there
+            for (let i = 0; i < 6; ++i) {
+                assert.ok(ft._steps.has(i * 6 + ((i + 1) % 6)));
+            }
+            //  a dropped step is worked out again when asked for
+            assert.equal(AnsiDiff.render(ft.get(4, 1)), `${goto(1, 1)}${RED}b`);
+            assert.equal(ft._steps.size, 8);
+            //  the default cap: a random walk over a large set stays bounded
+            const big = Array.from({ length: 40 }, (_, i) => row(`|04${i % 10}`, 1));
+            const bt = new AnsiDiff.FrameTransitions(big);
+            for (let f = 0; f < 40; ++f) {
+                for (let t = 0; t < 40; ++t) {
+                    bt.get(f, t);
+                }
+            }
+            assert.ok(bt._steps.size <= 40 + 256, `${bt._steps.size}`);
+        });
+
         it('full(i), or nothing known on screen, draws frame i whole', function () {
             const ft = new AnsiDiff.FrameTransitions(frames);
             assert.equal(ft.get(null, 2), ft.full(2));
