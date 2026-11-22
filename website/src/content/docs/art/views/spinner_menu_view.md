@@ -22,6 +22,12 @@ apply here.
 Only the focused item is visible at any time, so `width` should be wide
 enough for the longest item in the list (default 15).
 
+In addition to the common menu view properties, a spinner menu view accepts:
+
+| Property | Description |
+|----------|-------------|
+| `focusItemFrames` | Formats played in turn on the item shown, while the view has focus, with `focusItemFrameInterval`, `focusItemFrameDurations` and `focusItemFrameMode`. Up and down draw the next item's frame 0 at once. A frame wider than `width` is cut at the view's edge. Without focus the item is drawn as it would be without frames. See [Animated Focused Item](views.md#animated-focused-item) |
+
 ## Example
 
 ![Example](../../assets/images/spinner_menu_view_example1.gif "Spinner menu")

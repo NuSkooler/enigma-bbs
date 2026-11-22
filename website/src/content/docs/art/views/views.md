@@ -53,6 +53,7 @@ everything above **plus** the following. The Table View does not support
 | `focusItems` | An alternate list used when an item is focused, parallel to `items` |
 | `itemFormat` | Format applied to a list entry. See **Entry Formatting** in [MCI](../mci.md) |
 | `focusItemFormat` | Format applied to the focused list entry |
+| `focusItemFrames` | Formats played in turn on the focused entry, with `focusItemFrameInterval`, `focusItemFrameDurations` and `focusItemFrameMode`. Vertical, Horizontal, Full and Spinner only. See **Animated Focused Item** below |
 | `focusItemIndex` | Index of the item focused when the view is first drawn |
 | `hotKeys` | Map of characters to item indexes. See **Hot Keys** below |
 | `hotKeySubmit` | If `true`, selecting via a hot key also submits the form |
@@ -103,6 +104,105 @@ element can be omitted and the items given as a plain list:
 ```hjson
 items: [ "First item", "Second item", "Third Item" ]
 ```
+
+### Animated Focused Item
+
+The [Vertical](vertical_menu_view.md), [Horizontal](horizontal_menu_view.md),
+[Full](full_menu_view.md) and [Spinner](spinner_menu_view.md) menu views can
+animate the focused item: an arrow that pulses beside the selection, brackets
+that bounce around it, a highlight that glints every few seconds. You give a
+list of formats, the frames, and the focused item is drawn with each in turn.
+Only the focused item moves; the rest of the list is drawn as usual. For an
+animation in a box of its own, see the [Animation View](animation_view.md).
+
+| Property | Description |
+|----------|-------------|
+| `focusItemFrames` | A list of formats, one per frame. Each is used exactly as `focusItemFormat` is: the item's members as tokens (`{text}`, also for a plain list of strings) and [pipe colour codes](../colour-codes.md). A single string is one frame: it is drawn while the item is focused, and nothing moves. |
+| `focusItemFrameInterval` | Milliseconds each frame shows. Default: `100`. |
+| `focusItemFrameDurations` | A list of milliseconds, one per frame, for frames that should show longer or shorter than `focusItemFrameInterval`. An entry that is missing, `null` or not a number of milliseconds uses `focusItemFrameInterval`. |
+| `focusItemFrameMode` | The order frames play in. `loop` (default): 0, 1, ... last, 0, 1, ... `pingpong`: 0, 1, ... last, then back down to 0, and up again. |
+
+```hjson
+VM1: {
+    itemFormat: "|03  {text}"
+    //  the look when it is not animated (see below)
+    focusItemFormat: "|11> |15{text}"
+    focusItemFrames: [
+        "|08> |15{text}"
+        "|03> |15{text}"
+        "|11> |15{text}"
+        "|15> |15{text}"
+    ]
+    focusItemFrameMode: pingpong
+    focusItemFrameInterval: 120
+}
+```
+
+:::tip
+Quote every format, as above. Unquoted, a format that starts with a token
+(`{text}`) does not parse, and one followed by a comment on the same line takes
+the comment in as part of the format.
+:::
+
+How it plays:
+
+* The frames start at frame 0 when the view gets focus, and again each time the
+  focused item changes. Moving the selection draws the new item's frame 0 at
+  once: keys never wait for the next frame.
+* Each frame draws only the focused item, and only while it is on screen (in a
+  vertical menu's visible window, on a full menu's current page). The other
+  items, the rest of the screen and the cursor are left alone.
+* When the view loses focus (Tab to another view, a submit) the frames stop.
+  So does leaving the menu.
+* When a module changes the list (a refresh, a sort, an item removed), the
+  frames start again at frame 0.
+* A value that is not valid (a `focusItemFrameMode` that does not exist, a
+  `focusItemFrameInterval` of `"fast"`) is logged as a warning and the default
+  is used.
+
+**When it is not animated**, the focused item shows one look: `focusItemFormat`
+if it is set, otherwise frame 0. This is the case while the view does not have
+focus, when animations are turned off, and on sessions that are not plain ANSI
+(PETSCII, ATASCII, RIP). Nothing ticks. Animations are turned off by the same
+switches as animation views: `menus.animations.enabled: false` in `config.hjson`
+for every menu, and `animations: false` in a menu's `config` block for that
+menu. No frame is drawn sooner than `menus.animations.minFrameIntervalMs`
+(default 50 ms) after the one before it. See [Turning Animations
+Off](animation_view.md#turning-animations-off).
+
+Writing frames:
+
+* **Set the colours at the start of each frame.** A frame is drawn from the
+  view's normal colour, not its focus colour, and not the colour the previous
+  frame ended on.
+* **Room for every frame.** A horizontal menu makes each item's slot as wide as
+  the widest of its frames (and `focusItemFormat`), and a full menu makes each
+  column as wide as its widest item, frames included, so no frame runs into the
+  next item and a narrow frame covers a wide one. Frames of different widths
+  can therefore move a horizontal menu's items further apart than they would be
+  without frames.
+* **The edge.** A frame wider than a vertical, full or spinner menu's `width` is
+  cut at the view's right edge. A horizontal menu lays its items out without
+  regard to its width, so its frames are cut at the terminal's right edge.
+* **One line of text and colour.** A frame cannot move the cursor or start a
+  new line.
+* **`focusItems` wins.** With per-item `focusItems` set as well, `focusItems` are
+  drawn and the frames are ignored (with a warning).
+* The [Toggle Menu View](toggle_menu_view.md) and [Table View](table_view.md) do
+  not support `focusItemFrames`: it is ignored, with a warning.
+
+An animated item follows the same rules as tickers and animation views: while
+something covers the screen it draws nothing, and with `pauseWhenInactive: true`
+it stops while its form is inactive. See [When something covers the
+screen](#when-something-covers-the-screen) and [Form states](#form-states).
+
+Each frame sends one item: a cursor move, the colours and the item's text.
+Measured on telnet: a pulsing arrow on a 44-column vertical menu item at 130 ms
+comes to about 730 bytes a second, a bouncing arrow on a full menu item at
+120 ms to about 620, and a horizontal menu item that rests for 1.4 seconds and
+then glints to about 100. That is fine over telnet, SSH and WebSocket. For
+callers on slow links, keep `focusItemFrameInterval` at 80 ms or more, and use
+`focusItemFrameDurations` to rest on one frame.
 
 ---
 
@@ -279,6 +379,9 @@ classDiagram
         +hotKeys
         +itemFormat string
         +focusItemFormat string
+        +focusItemFrames
+        +focusItemFrameInterval int
+        +focusItemFrameMode string
         +complexItems bool
         +renderCache
         +setItems(items)

@@ -23,6 +23,12 @@ A horizontal menu lays its items out along one row, so `width` sets the
 total width available to the whole list (default 15) and `itemSpacing`
 separates items horizontally rather than vertically.
 
+In addition to the common menu view properties, a horizontal menu view accepts:
+
+| Property | Description |
+|----------|-------------|
+| `focusItemFrames` | Formats played in turn on the focused item, with `focusItemFrameInterval`, `focusItemFrameDurations` and `focusItemFrameMode`. Each item's slot is as wide as the widest of its frames, and a frame is centred in it; frames are cut at the terminal's right edge. See [Animated Focused Item](views.md#animated-focused-item) |
+
 ## Example
 
 ![Example](../../assets/images/horizontal_menu_view_example1.gif "Horizontal menu")

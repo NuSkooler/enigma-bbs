@@ -25,6 +25,7 @@ class SpinnerMenuView extends MenuView {
     updateSelection() {
         assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= this.items.length);
 
+        this._focusFrameItemsDrawn = true;
         this.drawItem(this.focusedItemIndex);
         this.emit('index update', this.focusedItemIndex);
     }
@@ -44,7 +45,16 @@ class SpinnerMenuView extends MenuView {
 
         let text;
         let sgr;
-        if (this.complexItems) {
+        if (this.hasFocus && this.hasFocusItemFrames()) {
+            //  from the normal SGR: a tick draws after whatever was last
+            //  written (another animation), a frame never inherits it;
+            //  it stops at the view's right edge
+            text = this.clipFocusItemFrame(
+                this.renderFocusItemFrame(item),
+                this.dimens.width
+            );
+            sgr = this.getSGR();
+        } else if (this.complexItems) {
             text = pipeToAnsi(
                 formatString(
                     this.hasFocus && this.focusItemFormat
@@ -83,7 +93,28 @@ class SpinnerMenuView extends MenuView {
 
     redraw() {
         super.redraw();
+        this._focusFrameItemsDrawn = true;
         this.drawItem(this.focusedItemIndex);
+    }
+
+    focusItemFramesSupported() {
+        return true;
+    }
+
+    //  The one item shown, while the view has focus, once drawn since the
+    //  items last changed (as VM, HM and FM wait for the redraw)
+    isFocusItemFrameVisible(index) {
+        return (
+            !!this.hasFocus &&
+            false !== this._focusFrameItemsDrawn &&
+            index === this.focusedItemIndex &&
+            !!this.items[index]
+        );
+    }
+
+    _focusFrameItemsChanged() {
+        super._focusFrameItemsChanged();
+        this._focusFrameItemsDrawn = false;
     }
 
     setFocus(focused) {

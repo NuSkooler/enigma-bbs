@@ -52,6 +52,15 @@ class HorizontalMenuView extends MenuView {
                     itemWidth = strUtil.renderStringLength(this.items[i].text, ANSI_ONLY);
                 }
 
+                //  with focusItemFrames: room for the widest look of the item
+                //  (see drawFocusItemFrame())
+                if (this.hasFocusItemFrames()) {
+                    itemWidth = this.items[i].frameSlotWidth = Math.max(
+                        itemWidth,
+                        this.focusItemFrameWidth(this.items[i])
+                    );
+                }
+
                 col += spacer.length + itemWidth + spacer.length;
             }
         }
@@ -65,6 +74,10 @@ class HorizontalMenuView extends MenuView {
         const item = this.items[index];
         if (!item) {
             return;
+        }
+
+        if (item.focused && this.hasFocusItemFrames()) {
+            return this.drawFocusItemFrame(index, item);
         }
 
         let text;
@@ -96,7 +109,13 @@ class HorizontalMenuView extends MenuView {
         }
 
         const textWidth = strUtil.renderStringLength(text, ANSI_ONLY);
-        const drawWidth = textWidth + this.getSpacer().length * 2;
+        //  with focusItemFrames, every item fills its slot, so it covers the
+        //  wider frame drawn there while it was focused
+        const drawWidth =
+            (this.hasFocusItemFrames() && item.frameSlotWidth > textWidth
+                ? item.frameSlotWidth
+                : textWidth) +
+            this.getSpacer().length * 2;
 
         this.client.term.write(
             `${goto(this.position.row, item.col)}${sgr}${strUtil.pad(
@@ -109,6 +128,73 @@ class HorizontalMenuView extends MenuView {
                 textWidth
             )}`
         );
+    }
+
+    //
+    //  The focused item from focusItemFrames, centred in its slot, which is
+    //  as wide as the widest look of the item (cachePositions()), so no
+    //  frame overlaps the next item and a narrow frame covers a wide one.
+    //  The rendered frame is cached per frame. Drawn from the normal SGR,
+    //  so a tick never inherits another animation's. HM lays its items out
+    //  without regard to its width, so the edge a frame is cut at is the
+    //  terminal's; an item starting past it draws nothing (its cycle still
+    //  starts again, as for any draw of the focused item).
+    //
+    drawFocusItemFrame(index, item) {
+        let cached = this.getRenderCacheItem(index, true);
+        if (item.col > this.client.term.termWidth) {
+            return;
+        }
+        if (!cached) {
+            const text = this.renderFocusItemFrame(item);
+            cached = { text, textWidth: strUtil.renderStringLength(text, ANSI_ONLY) };
+            this.setRenderCacheItem(index, cached, true);
+        }
+        const slotWidth = Math.max(item.frameSlotWidth || 0, cached.textWidth);
+        //  the padding after the frame in the normal SGR, as before it
+        const text = strUtil.pad(
+            `${cached.text}${this.getSGR()}`,
+            slotWidth + this.getSpacer().length * 2,
+            this.fillChar,
+            'center',
+            '',
+            '',
+            cached.textWidth
+        );
+        this.client.term.write(
+            `${goto(this.position.row, item.col)}${this.getSGR()}${this.clipToTerminalWidth(
+                text,
+                item.col
+            )}`
+        );
+    }
+
+    focusItemFramesSupported() {
+        return true;
+    }
+
+    //  Laid out, on the terminal, and drawn as the focused item
+    isFocusItemFrameVisible(index) {
+        const item = this.items[index];
+        return (
+            !!item &&
+            !!item.focused &&
+            !this.positionCacheExpired &&
+            null != item.col &&
+            item.col <= this.client.term.termWidth
+        );
+    }
+
+    setPropertyValue(propName, value) {
+        super.setPropertyValue(propName, value);
+
+        //  the slots are as wide as the frames (cachePositions())
+        if (
+            'focusItemFrames' === propName ||
+            ('focusItemFormat' === propName && this.hasFocusItemFrames())
+        ) {
+            this.positionCacheExpired = true;
+        }
     }
 
     setHeight(height) {

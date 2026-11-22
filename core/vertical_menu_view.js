@@ -86,7 +86,14 @@ class VerticalMenuView extends MenuView {
 
         let text;
         let sgr;
-        if (item.focused && this.hasFocusItems()) {
+        let frame = false;
+        if (item.focused && this.hasFocusItemFrames()) {
+            //  from the normal SGR: a tick draws after whatever was last
+            //  written (another animation), a frame never inherits it
+            text = this.renderFocusItemFrame(item);
+            sgr = this.getSGR();
+            frame = true;
+        } else if (item.focused && this.hasFocusItems()) {
             const focusItem = this.focusItems[index];
             text = focusItem ? focusItem.text : item.text;
             sgr = '';
@@ -120,6 +127,11 @@ class VerticalMenuView extends MenuView {
             });
         }
 
+        //  a frame stops at the view's right edge
+        if (frame) {
+            text = this.clipFocusItemFrame(text, this.dimens.width);
+        }
+
         text = this.clipToTerminalWidth(
             `${sgr}${strUtil.pad(
                 `${text}${this.styleSGR1}`,
@@ -134,6 +146,24 @@ class VerticalMenuView extends MenuView {
 
         this.client.term.write(`${ansi.goto(item.row, this.position.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);
+    }
+
+    focusItemFramesSupported() {
+        return true;
+    }
+
+    //  In the window, laid out, and drawn as the focused item
+    isFocusItemFrameVisible(index) {
+        const item = this.items[index];
+        return (
+            !!item &&
+            !!item.focused &&
+            null != item.row &&
+            !this.positionCacheExpired &&
+            !!this.viewWindow &&
+            index >= this.viewWindow.top &&
+            index <= this.viewWindow.bottom
+        );
     }
 
     drawRemovedItem(index) {
