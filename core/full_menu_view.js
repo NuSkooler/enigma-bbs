@@ -222,7 +222,12 @@ class FullMenuView extends MenuView {
 
         let text;
         let sgr;
-        if (item.focused && this.hasFocusItems()) {
+        if (item.focused && this.hasFocusItemFrames()) {
+            //  from the normal SGR: a tick draws after whatever was last
+            //  written (another animation), a frame never inherits it
+            text = this.renderFocusItemFrame(item);
+            sgr = this.getSGR();
+        } else if (item.focused && this.hasFocusItems()) {
             const focusItem = this.focusItems[index];
             text = focusItem ? focusItem.text : item.text;
             sgr = '';
@@ -285,6 +290,24 @@ class FullMenuView extends MenuView {
         )}${this.getSGR()}`;
         this.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);
+    }
+
+    focusItemFramesSupported() {
+        return true;
+    }
+
+    //  On the current page, laid out, and drawn as the focused item
+    isFocusItemFrameVisible(index) {
+        const item = this.items[index];
+        const page = this.pages[this.currentPage];
+        return (
+            !!item &&
+            !!item.focused &&
+            !this.positionCacheExpired &&
+            _.isObject(page) &&
+            index >= page.start &&
+            index <= page.end
+        );
     }
 
     redraw() {

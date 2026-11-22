@@ -52,6 +52,15 @@ class HorizontalMenuView extends MenuView {
                     itemWidth = strUtil.renderStringLength(this.items[i].text, ANSI_ONLY);
                 }
 
+                //  with focusItemFrames: room for the widest look of the item
+                //  (see drawFocusItemFrame())
+                if (this.hasFocusItemFrames()) {
+                    itemWidth = this.items[i].frameSlotWidth = Math.max(
+                        itemWidth,
+                        this.focusItemFrameWidth(this.items[i])
+                    );
+                }
+
                 col += spacer.length + itemWidth + spacer.length;
             }
         }
@@ -65,6 +74,10 @@ class HorizontalMenuView extends MenuView {
         const item = this.items[index];
         if (!item) {
             return;
+        }
+
+        if (item.focused && this.hasFocusItemFrames()) {
+            return this.drawFocusItemFrame(index, item);
         }
 
         let text;
@@ -96,7 +109,13 @@ class HorizontalMenuView extends MenuView {
         }
 
         const textWidth = strUtil.renderStringLength(text, ANSI_ONLY);
-        const drawWidth = textWidth + this.getSpacer().length * 2;
+        //  with focusItemFrames, every item fills its slot, so it covers the
+        //  wider frame drawn there while it was focused
+        const drawWidth =
+            (this.hasFocusItemFrames() && item.frameSlotWidth > textWidth
+                ? item.frameSlotWidth
+                : textWidth) +
+            this.getSpacer().length * 2;
 
         this.client.term.write(
             `${goto(this.position.row, item.col)}${sgr}${strUtil.pad(
@@ -109,6 +128,71 @@ class HorizontalMenuView extends MenuView {
                 textWidth
             )}`
         );
+    }
+
+    //  The widest of every format |item| may show while focused
+    focusItemFrameWidth(item) {
+        return this.focusItemFrameFormats().reduce(
+            (w, format) =>
+                Math.max(
+                    w,
+                    strUtil.renderStringLength(
+                        this.renderFocusItemFrame(item, format),
+                        ANSI_ONLY
+                    )
+                ),
+            0
+        );
+    }
+
+    //
+    //  The focused item from focusItemFrames, centred in its slot, which is
+    //  as wide as the widest look of the item (cachePositions()), so no
+    //  frame overlaps the next item and a narrow frame covers a wide one.
+    //  The rendered frame is cached per frame. Drawn from the normal SGR,
+    //  so a tick never inherits another animation's.
+    //
+    drawFocusItemFrame(index, item) {
+        let cached = this.getRenderCacheItem(index, true);
+        if (!cached) {
+            const text = this.renderFocusItemFrame(item);
+            cached = { text, textWidth: strUtil.renderStringLength(text, ANSI_ONLY) };
+            this.setRenderCacheItem(index, cached, true);
+        }
+        const slotWidth = Math.max(item.frameSlotWidth || 0, cached.textWidth);
+        this.client.term.write(
+            `${goto(this.position.row, item.col)}${this.getSGR()}${strUtil.pad(
+                cached.text,
+                slotWidth + this.getSpacer().length * 2,
+                this.fillChar,
+                'center',
+                '',
+                '',
+                cached.textWidth
+            )}`
+        );
+    }
+
+    focusItemFramesSupported() {
+        return true;
+    }
+
+    //  Laid out, and drawn as the focused item
+    isFocusItemFrameVisible(index) {
+        const item = this.items[index];
+        return !!item && !!item.focused && !this.positionCacheExpired && null != item.col;
+    }
+
+    setPropertyValue(propName, value) {
+        super.setPropertyValue(propName, value);
+
+        //  the slots are as wide as the frames (cachePositions())
+        if (
+            'focusItemFrames' === propName ||
+            ('focusItemFormat' === propName && this.hasFocusItemFrames())
+        ) {
+            this.positionCacheExpired = true;
+        }
     }
 
     setHeight(height) {
