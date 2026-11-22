@@ -48,6 +48,9 @@ const viewBackgroundSeqs = new WeakMap();
 //  views that have been destroyed: no background redraw is owed to them
 const destroyedViews = new WeakSet();
 
+//  view -> Set of functions run once when it is destroyed: see onDestroyed()
+const destroyHooks = new WeakMap();
+
 //  client -> the seq of the latest suspend taken: see View.coverMark()
 const lastCoverMarks = new WeakMap();
 
@@ -521,6 +524,47 @@ class View extends events.EventEmitter {
         if (suspended) {
             suspended.missed.delete(view);
         }
+
+        const hooks = destroyHooks.get(view);
+        if (hooks) {
+            destroyHooks.delete(view);
+            hooks.forEach(fn => {
+                try {
+                    fn(view);
+                } catch (e) {
+                    const log = view.client && view.client.log;
+                    if (log && _.isFunction(log.warn)) {
+                        log.warn(
+                            { error: e.message, viewId: view.id },
+                            'View destroy hook failed'
+                        );
+                    }
+                }
+            });
+        }
+    }
+
+    //
+    //  Run fn(view) once when |view| is destroyed (markDestroyed(): its
+    //  destroy(), or its form's teardown, whichever comes first). For
+    //  something kept outside the view that must not outlive it, such as
+    //  the frame clock's registration (core/frame_clock.js). Returns a
+    //  function that removes the hook, or null if |view| is destroyed
+    //  already (fn is not called).
+    //
+    static onDestroyed(view, fn) {
+        if (destroyedViews.has(view)) {
+            return null;
+        }
+        let hooks = destroyHooks.get(view);
+        if (!hooks) {
+            hooks = new Set();
+            destroyHooks.set(view, hooks);
+        }
+        hooks.add(fn);
+        return () => {
+            hooks.delete(fn);
+        };
     }
 
     //  True once |view| has been destroyed (destroy(), or torn down by its form)
@@ -810,57 +854,121 @@ class View extends events.EventEmitter {
     //  terminal that cannot discard output skips drawFn() instead.
     //
     drawInBackground(drawFn) {
-        //  The screen is covered (suspendBackgroundDraw()): draw nothing now,
-        //  and get a full redraw when it is uncovered.
-        if (this.isBackgroundDrawSuspended()) {
-            if (!destroyedViews.has(this)) {
-                suspendedBackgroundDraw.get(this.client).missed.add(this);
-            }
-            //  drawFn() still runs, its output thrown away, for a caller
-            //  that changes state in it; a terminal that cannot discard
-            //  output (a test's mock) skips it
-            const term = this.client.term;
-            if (term && _.isFunction(term.discardOutput)) {
-                term.discardOutput(drawFn);
-            }
-            return;
+        drawBackground(this.client, [{ view: this, draw: drawFn }], true);
+    }
+
+    //
+    //  drawInBackground() for several views at once, in one batch: what
+    //  core/frame_clock.js uses to draw every animation due on a tick.
+    //  |items| is [ { view, draw } ], drawn in that order. Each view gets
+    //  exactly what drawInBackground() gives it -- a view under a cover
+    //  (suspendBackgroundDraw()) draws nothing now and is redrawn in full
+    //  when uncovered -- but the cursor is hidden once before the first
+    //  draw and the input focus view puts it back once after the last, and
+    //  it all goes out in one socket write.
+    //
+    //  A draw that throws costs only its own view: the others still draw
+    //  and the cursor is still put back. Returns { drawn, covered, failed }:
+    //  the views drawn, those covered, and [ { view, error } ].
+    //
+    static drawInBackgroundBatch(client, items) {
+        return drawBackground(client, items, false);
+    }
+}
+
+//
+//  drawInBackground() and drawInBackgroundBatch(). With |rethrow|, the
+//  first draw that throws ends the batch, and its error is thrown once the
+//  cursor has been put back and the batch written (drawInBackground(), as
+//  it always has); without, each failure is noted and the rest still draw.
+//
+function drawBackground(client, items, rethrow) {
+    const result = { drawn: [], covered: [], failed: [] };
+
+    //  The screen is covered for these (suspendBackgroundDraw()): draw
+    //  nothing now, and get a full redraw when uncovered.
+    const live = [];
+    for (const item of items) {
+        const view = item.view;
+        if (!view.isBackgroundDrawSuspended()) {
+            live.push(item);
+            continue;
         }
+        if (!destroyedViews.has(view)) {
+            suspendedBackgroundDraw.get(view.client).missed.add(view);
+        }
+        //  draw() still runs, its output thrown away, for a caller that
+        //  changes state in it; a terminal that cannot discard output (a
+        //  test's mock) skips it
+        const term = view.client.term;
+        if (term && _.isFunction(term.discardOutput)) {
+            try {
+                term.discardOutput(item.draw);
+            } catch (e) {
+                if (rethrow) {
+                    throw e;
+                }
+                result.failed.push({ view, error: e });
+                continue;
+            }
+        }
+        result.covered.push(view);
+    }
 
-        //  drawn now: a pauseWhenInactive view owes no redraw any more
-        pausedMissedViews.delete(this);
+    if (0 === live.length) {
+        return result;
+    }
 
-        const term = this.client.term;
-        const focusView = View.getInputFocusView(this.client);
-        const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+    //  drawn now: a pauseWhenInactive view owes no redraw any more
+    live.forEach(item => pausedMissedViews.delete(item.view));
 
-        if (batch) {
-            term.beginWrite();
+    const term = client.term;
+    const focusView = View.getInputFocusView(client);
+    const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
+    let thrown = null;
+
+    if (batch) {
+        term.beginWrite();
+    }
+
+    try {
+        if (focusView) {
+            term.rawWrite(ansi.hideCursor());
         }
 
         try {
-            if (focusView) {
-                term.rawWrite(ansi.hideCursor());
-            }
-
-            try {
-                drawFn();
-            } finally {
-                //  Also when drawFn() threw (the error still goes to the
-                //  caller): the cursor is never left hidden. Asked again, as
-                //  drawFn() may have moved focus (a module's draw).
-                const focusAfter = View.getInputFocusView(this.client);
-                if (focusAfter) {
-                    focusAfter.restoreFocusCursor();
-                } else if (focusView) {
-                    focusView.restoreCursor(); //  undo the hide, at least
+            for (const item of live) {
+                try {
+                    item.draw();
+                    result.drawn.push(item.view);
+                } catch (e) {
+                    result.failed.push({ view: item.view, error: e });
+                    if (rethrow) {
+                        thrown = e;
+                        break;
+                    }
                 }
             }
         } finally {
-            if (batch) {
-                term.commitWrite();
+            //  Also when a draw threw: the cursor is never left hidden.
+            //  Asked again, as a draw may have moved focus (a module's draw).
+            const focusAfter = View.getInputFocusView(client);
+            if (focusAfter) {
+                focusAfter.restoreFocusCursor();
+            } else if (focusView) {
+                focusView.restoreCursor(); //  undo the hide, at least
             }
         }
+    } finally {
+        if (batch) {
+            term.commitWrite();
+        }
     }
+
+    if (thrown) {
+        throw thrown;
+    }
+    return result;
 }
 
 //
@@ -908,5 +1016,6 @@ function isPauseWhenInactive(view) {
 
 exports.View = View;
 exports.redrawPausedView = redrawPausedView;
+exports.skipPausedTick = skipPausedTick;
 exports.isPauseWhenInactive = isPauseWhenInactive;
 exports.VIEW_SPECIAL_KEY_MAP_DEFAULT = VIEW_SPECIAL_KEY_MAP_DEFAULT;
