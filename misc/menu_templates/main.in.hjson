@@ -1762,6 +1762,29 @@
                 //      width: 79
                 //      text: "Type a command, or ? for help"
                 //  }
+
+                //
+                //  An animation (%AV) is placed the same way. This one is a
+                //  3x1 pulse from inline, pipe coded frames; frames can also
+                //  come from art (a frame sheet, or one file per frame). It
+                //  never takes focus or keys. See "Animation View" in the
+                //  docs.
+                //
+                //  AV51: {
+                //      position: {
+                //          row: 1
+                //          col: 76
+                //      }
+                //      width: 3
+                //      height: 1
+                //      mode: pingpong
+                //      frameInterval: 150
+                //      frames: [
+                //          "|15■|08■■"
+                //          "|08■|15■|08■"
+                //          "|08■■|15■"
+                //      ]
+                //  }
             }
         }
 

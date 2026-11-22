@@ -58,7 +58,8 @@ The `config` block for a menu entry can contain common members as well as a per-
 
 | Item | Description |
 |------|-------------|
-| `cls` | If `true` the screen will be cleared before showing this menu. |
+| `cls` | If `true` the screen will be cleared before showing this menu. Defaults to `menus.cls` in `config.hjson` (see **Menu Defaults** below). |
+| `animations` | `false` turns off this menu's [animation views](../art/views/animation_view.md) (`%AV`): each draws its first frame once and nothing moves. It cannot turn them on where `menus.animations.enabled` in `config.hjson` has turned them off. |
 | `pause` | Controls post-display pause. `true` or `'end'`: pause once at the end; `'pageBreak'`: paginate art screen-by-screen with a prompt between pages; `'<promptId>'`: end pause using the named prompt (shorthand for `pause: true` + `pausePrompt: <promptId>`). See [Pause Prompts](../art/pause-prompts.md). |
 | `pausePrompt` | Override the prompt name(s) used for pauses. A string uses that prompt for both end-of-art and page-break pauses; an object `{ end, page }` controls each independently. Takes precedence over the `pause: '<promptId>'` shorthand. See [Pause Prompts](../art/pause-prompts.md). |
 | `pausePosition` | Force the pause prompt to a specific screen position: `{ row, col }` (1-based). |
@@ -66,6 +67,25 @@ The `config` block for a menu entry can contain common members as well as a per-
 | `baudRate` | Throttle art display to simulate a modem at the given speed. Works with all terminal clients. See [Baud Rates](../art/general.md#baud-rates). |
 | `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](../art/general.md). |
 | `menuFlags` | An array of menu flag(s) controlling menu behavior. See **Menu Flags** below.
+
+#### Menu Defaults
+A few settings for every menu live under `menus` in `config.hjson` (not in the menu files):
+
+| Item | Description |
+|------|-------------|
+| `cls` | Clear the screen before each menu that does not set `cls` itself. Default: `true`. |
+| `animations.enabled` | `false` turns off [animation views](../art/views/animation_view.md) (`%AV`) on every menu: each draws its first frame once and nothing moves. A menu's `config.animations` cannot turn them back on. Default: `true`. |
+| `animations.minFrameIntervalMs` | No animation frame is drawn sooner than this many milliseconds after the one before it, whatever a view's `frameInterval` or `frameDurations` ask for. Default: `50`. |
+
+For example, to slow every animation on the board down to at most five frames a second, in `config.hjson`:
+
+```hjson
+menus: {
+    animations: {
+        minFrameIntervalMs: 200
+    }
+}
+```
 
 #### Menu Flags
 The `menuFlags` field of a `config` block can change default behavior of a particular menu:
