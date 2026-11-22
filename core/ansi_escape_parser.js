@@ -83,6 +83,29 @@ function ANSIEscapeParser(options) {
     }
     this.trailingLF = miscUtil.valueWithDefault(options.trailingLF, 'default');
 
+    //
+    //  |deferredWrap|: a character drawn in the last column leaves the
+    //  cursor there, with a wrap pending, as a VT terminal's autowrap does;
+    //  the wrap happens when the next character is drawn, and a CR, LF or
+    //  cursor movement before that cancels it. So an exactly-full line
+    //  ended with CRLF takes one row, not two. Off by default: art.display()
+    //  keeps wrapping at once, as it always has. Used to draw art into a
+    //  cell grid off screen (core/ansi_canvas.js).
+    //
+    this.deferredWrap = true === options.deferredWrap;
+    this.wrapPending = false;
+
+    //
+    //  |extendedSgr|: SGR 38, 48 and 58 take their sub-parameters with them
+    //  (5;n or 2;r;g;b), rather than those being read as attributes of their
+    //  own (38;5;n as blink, and n as whatever it happens to be), and an
+    //  'sgr unsupported' event (args) is emitted for them and for the
+    //  aixterm bright colours 90-97 and 100-107 (90 is still taken as the
+    //  foreground, as always). Off by default: art.display() reads SGR as it
+    //  always has. Used by core/ansi_canvas.js.
+    //
+    this.extendedSgr = true === options.extendedSgr;
+
     this.row = Math.min(options?.startRow ?? 1, this.termHeight);
 
     self.moveCursor = function (cols, rows) {
@@ -120,6 +143,7 @@ function ANSIEscapeParser(options) {
     };
 
     self.positionUpdated = function () {
+        self.wrapPending = false;
         if (self.row > self.termHeight) {
             if (this.savedPosition) {
                 this.savedPosition.row -= self.row - self.termHeight;
@@ -144,7 +168,11 @@ function ANSIEscapeParser(options) {
         let lastCharCode;
 
         while (pos < len) {
-            charCode = text.charCodeAt(pos) & 0xff; //  8bit clean
+            //  The whole code unit, not its low byte: decoded art (UTF-8)
+            //  has characters such as U+010D or U+250A whose low byte is a
+            //  CR or LF, and they are characters, not line breaks. CP437
+            //  decoded art has none (no CP437 byte decodes to one).
+            charCode = text.charCodeAt(pos);
 
             switch (charCode) {
                 case CR:
@@ -172,7 +200,26 @@ function ANSIEscapeParser(options) {
                     break;
 
                 default:
-                    if (self.column === self.breakWidth) {
+                    if (self.wrapPending) {
+                        //  deferredWrap: the line was full; this character
+                        //  starts the next one
+                        if (pos > start) {
+                            self.emit('literal', text.slice(start, pos));
+                        }
+                        start = pos;
+                        if (self.breakWidth < self.termWidth) {
+                            self.emit('literal', '\r\n');
+                        }
+                        self.column = 1;
+                        self.row += 1;
+                        self.positionUpdated();
+                    }
+
+                    if (self.column === self.breakWidth && self.deferredWrap) {
+                        self.emit('literal', text.slice(start, pos + 1));
+                        start = pos + 1;
+                        self.wrapPending = true;
+                    } else if (self.column === self.breakWidth) {
                         self.emit('literal', text.slice(start, pos + 1));
                         start = pos + 1;
 
@@ -280,6 +327,7 @@ function ANSIEscapeParser(options) {
     }
 
     self.reset = function (input) {
+        self.wrapPending = false;
         self.column = 1;
         self.row = Math.min(options?.startRow ?? 1, self.termHeight);
 
@@ -478,11 +526,20 @@ function ANSIEscapeParser(options) {
                 break;
 
             //  erase display/screen
+            //  'erase rows' (startRow, endRow, 'below' | 'above', column):
+            //  a terminal erases the cursor's row only from (below) or up
+            //  to and including (above) the cursor's column
             case 'J':
                 if (isNaN(args[0]) || 0 === args[0]) {
-                    self.emit('erase rows', self.row, self.termHeight);
+                    self.emit(
+                        'erase rows',
+                        self.row,
+                        self.termHeight,
+                        'below',
+                        self.column
+                    );
                 } else if (1 === args[0]) {
-                    self.emit('erase rows', 1, self.row);
+                    self.emit('erase rows', 1, self.row, 'above', self.column);
                 } else if (2 === args[0]) {
                     self.clearScreen();
                 }
@@ -511,6 +568,19 @@ function ANSIEscapeParser(options) {
 
                 for (let i = 0, len = args.length; i < len; ++i) {
                     arg = args[i];
+
+                    if (self.extendedSgr) {
+                        if (38 === arg || 48 === arg || 58 === arg) {
+                            const skip =
+                                5 === args[i + 1] ? 2 : 2 === args[i + 1] ? 4 : 0;
+                            self.emit('sgr unsupported', args.slice(i, i + 1 + skip));
+                            i += skip;
+                            continue;
+                        }
+                        if ((arg >= 90 && arg <= 97) || (arg >= 100 && arg <= 107)) {
+                            self.emit('sgr unsupported', [arg]);
+                        }
+                    }
 
                     if (ANSIEscapeParser.foregroundColors[arg]) {
                         self.graphicRendition.fg = arg;
