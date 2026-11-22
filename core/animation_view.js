@@ -37,8 +37,8 @@ const _ = require('lodash');
 //          frameDurations: [ 0, 250 ]  //  per frame; overrides frameInterval
 //          mode: loop              //  loop | pingpong | once | random
 //          startFrame: 3           //  first frame shown (0-based)
-//          idle: [ 4000, 9000 ]    //  random wait (ms) at frame 0 before
-//                                  //  each run (not for random)
+//          idle: [ 4000, 9000 ]    //  random wait (ms) on frame 0, each
+//                                  //  time it shows (not for random)
 //          transparent: "~"        //  never drawn, if so in every frame
 //      }
 //
@@ -51,8 +51,14 @@ const _ = require('lodash');
 //
 //  Timing: a frame shows for its frameDurations entry, else frameInterval,
 //  never less than menus.animations.minFrameIntervalMs (the clock's floor).
-//  With `idle`, frame 0 shows for a random wait in [ min, max ] each time
-//  a run starts (the first draw too), instead of its duration. Modes:
+//  With `idle`, frame 0 shows for a random wait in [ min, max ] instead of
+//  its duration every time it comes round: the first draw (when it starts
+//  on frame 0), each lap of loop, each return of pingpong, each rest of
+//  once. Durations are numbers of ms >= 0: frameInterval missing, null,
+//  false or "" is the default; idle (one number, or [ min, max ]) missing,
+//  null, false, "" or with a max of 0 (idle: 0) is off -- no idle, so once
+//  stops on its last frame. Anything else is warned and ignored (idle:
+//  off). Modes:
 //
 //      loop        0, 1, .. n-1, 0, ..
 //      pingpong    0, 1, .. n-1, n-2, .. 0, 1, ..
@@ -488,15 +494,34 @@ class AnimationView extends View {
                 this._invalidate();
                 break;
             case 'frameInterval': {
-                const n = Number(value);
-                if (Number.isFinite(n) && n >= 0) {
-                    this.frameInterval = n;
+                const ms = parseMs(value);
+                if (undefined === ms) {
+                    this.frameInterval = DEFAULT_FRAME_INTERVAL_MS;
+                } else if (Number.isNaN(ms)) {
+                    this._warn(
+                        { frameInterval: value },
+                        `"frameInterval" is not a number of ms >= 0; using ${this.frameInterval}`
+                    );
+                } else {
+                    this.frameInterval = ms;
                 }
                 break;
             }
-            case 'frameDurations':
-                this.frameDurations = Array.isArray(value) ? value.map(Number) : null;
+            case 'frameDurations': {
+                //  an entry not set, or not a duration: frameInterval
+                const durations = Array.isArray(value) ? value.map(parseMs) : null;
+                if (
+                    (null === durations && undefined !== parseMs(value)) ||
+                    (durations && durations.some(d => Number.isNaN(d)))
+                ) {
+                    this._warn(
+                        { frameDurations: value },
+                        '"frameDurations" holds something that is not a number of ms >= 0; frameInterval used for it'
+                    );
+                }
+                this.frameDurations = durations;
                 break;
+            }
             case 'mode':
                 if (MODES.includes(value)) {
                     this.mode = value;
@@ -512,9 +537,17 @@ class AnimationView extends View {
                 this.startFrame = n >= 0 ? n : 0;
                 break;
             }
-            case 'idle':
-                this.idle = parseIdle(value);
+            case 'idle': {
+                const idle = parseIdle(value);
+                if (false === idle) {
+                    this._warn(
+                        { idle: value },
+                        '"idle" is not a number of ms >= 0 or [ min, max ]; idle is off'
+                    );
+                }
+                this.idle = idle || null;
                 break;
+            }
             case 'transparent':
                 this.transparent =
                     _.isString(value) && value.length > 0 ? [...value][0] : null;
@@ -799,22 +832,50 @@ class AnimationView extends View {
     }
 }
 
-//  [ min, max ] ms from [ min, max ] or one number; null if neither
+//
+//  A duration from config: a finite number of ms >= 0 (or a string of
+//  one). undefined: not set (missing, null, false or ""); NaN: set, but
+//  not a duration (true, -1, "fast", an object).
+//
+function parseMs(value) {
+    if (undefined === value || null === value || false === value || '' === value) {
+        return undefined;
+    }
+    if ('number' === typeof value) {
+        return Number.isFinite(value) && value >= 0 ? value : NaN;
+    }
+    if ('string' === typeof value && /^\s*\d+(\.\d+)?\s*$/.test(value)) {
+        return Number(value);
+    }
+    return NaN;
+}
+
+//
+//  `idle`: [ min, max ] ms from one duration or a list of two; null when
+//  off (not set, or a max of 0: idle: 0 is no idle, not an idle of no
+//  wait); false when it is neither (warned, and off)
+//
 function parseIdle(value) {
     let min;
     let max;
     if (Array.isArray(value)) {
-        [min, max] = value.map(Number);
-        if (undefined === value[1]) {
-            max = min;
+        if (2 !== value.length) {
+            return false;
         }
+        [min, max] = value.map(parseMs);
     } else {
-        min = max = Number(value);
+        min = max = parseMs(value);
+        if (undefined === min) {
+            return null; //  not set
+        }
     }
-    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < 0) {
-        return null;
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        return false;
     }
-    return min <= max ? [min, max] : [max, min];
+    if (min > max) {
+        [min, max] = [max, min];
+    }
+    return max > 0 ? [min, max] : null;
 }
 
 function isAnimationView(view) {

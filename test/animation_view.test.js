@@ -391,6 +391,70 @@ describe('AnimationView (%AV)', function () {
             assert.equal(lettersWritten(term), 'ABCA');
         });
 
+        it('frameInterval not set (null, false, ""): the default; not a duration: warned, the default', function () {
+            [null, false, '', undefined, true, -5, 'fast', {}].forEach(frameInterval => {
+                const { client, view } = letters(
+                    { frames: letterFrames(3), frameInterval },
+                    250
+                );
+                const what = JSON.stringify(frameInterval);
+                assert.equal(view.frameInterval, 100, what);
+                assert.equal(lettersWritten(client.term), 'ABC', what);
+                const warned = client.log.warns.some(w => /frameInterval/.test(w.msg));
+                const notSet = [null, false, '', undefined].includes(frameInterval);
+                assert.equal(warned, !notSet, what);
+            });
+            //  a number, or a string of one
+            assert.equal(
+                letters({ frames: letterFrames(2), frameInterval: '200' }, 0).view
+                    .frameInterval,
+                200
+            );
+        });
+
+        it('frameDurations: an entry not set is frameInterval, not 0', function () {
+            const { client } = letters(
+                { frames: letterFrames(3), frameDurations: [null, false] },
+                0
+            );
+            time.advance(99);
+            assert.equal(lettersWritten(client.term), 'A');
+            time.advance(1);
+            assert.equal(lettersWritten(client.term), 'AB');
+            assert.equal(client.log.warns.length, 0);
+        });
+
+        it('idle not set, or 0 (no idle): once stops on its last frame; not a duration: warned, off', function () {
+            const off = [false, null, '', undefined, 0, '0', [0, 0]];
+            const bad = [true, 'x', -1, [1000], [1000, 2000, 3000], [1000, 'x'], {}];
+            [...off, ...bad].forEach(idle => {
+                const { client, view } = letters(
+                    { frames: letterFrames(3), mode: 'once', idle },
+                    5000
+                );
+                const what = JSON.stringify(idle);
+                assert.equal(view.idle, null, what);
+                assert.equal(lettersWritten(client.term), 'ABC', what);
+                assert.equal(FrameClock.isRegistered(view), false, what);
+                const warned = client.log.warns.some(w => /idle/.test(w.msg));
+                assert.equal(warned, bad.includes(idle), what);
+            });
+            assert.equal(time.live(), 0);
+            //  one number, or [ min, max ] in either order
+            assert.deepEqual(
+                letters({ frames: letterFrames(2), idle: 500 }, 0).view.idle,
+                [500, 500]
+            );
+            assert.deepEqual(
+                letters({ frames: letterFrames(2), idle: [900, 300] }, 0).view.idle,
+                [300, 900]
+            );
+            assert.deepEqual(
+                letters({ frames: letterFrames(2), idle: [0, 300] }, 0).view.idle,
+                [0, 300]
+            );
+        });
+
         it('startFrame: the first frame shown, the second pillar out of step', function () {
             assert.equal(
                 letters({ frames: letterFrames(4), startFrame: 2 }, 200).seq,
