@@ -16,6 +16,10 @@ An animation view is defined with a percent (%) and the characters AV, followed 
 See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 :::
 
+:::tip
+To animate the selected item of a menu list instead (an arrow that pulses beside it, brackets that bounce around it), use `focusItemFrames` on the list itself. See [Animated Focused Item](views.md#animated-focused-item).
+:::
+
 The animation starts when the screen is drawn and stops when the screen goes away. It is never focused and takes no input: it is left out of the focus order and of the form's submitted data, and it is never picked as the form's [submit view](../mci.md#the-submit-view). Keys go to the menu's other views as if it were not there.
 
 ### Placing the box
@@ -150,6 +154,8 @@ With `transparent: "~"`, a cell that is `~` in every frame is never drawn: the a
 * Animations play on ANSI sessions only. On PETSCII, ATASCII and RIP sessions frame 0 is drawn once and nothing moves.
 
 When animations are off each animation view draws frame 0 once (not `startFrame`) and nothing ticks, so the screen still looks finished. Draw frame 0 as the resting state.
+
+These switches also cover [animated focused items](views.md#animated-focused-item) (`focusItemFrames`): with animations off, the focused item shows its `focusItemFormat`, or frame 0.
 
 ```hjson
 //  config.hjson

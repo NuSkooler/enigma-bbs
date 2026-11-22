@@ -24,6 +24,7 @@ In addition to the common menu view properties, a vertical menu view accepts:
 | Property | Description |
 |----------|-------------|
 | `focusItemAtTop` | If `true`, the focused item is kept at the top of the visible window as the user scrolls, rather than the list scrolling around it |
+| `focusItemFrames` | Formats played in turn on the focused item, with `focusItemFrameInterval`, `focusItemFrameDurations` and `focusItemFrameMode`. A frame wider than `width` is cut at the view's edge. See [Animated Focused Item](views.md#animated-focused-item) |
 
 A vertical menu scrolls when it has more items than `height` rows, so `height`
 determines how many items are visible at once.

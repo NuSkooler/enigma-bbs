@@ -27,6 +27,18 @@
 					VM1: {
 						itemFormat:			"|03{text}"
 						focusItemFormat:	"|11{text!styleFirstLower}"
+						//	The focused item can be animated: formats played
+						//	in turn, each used as focusItemFormat is, which
+						//	stays the look when it is not animated. This one
+						//	rests lit and glints every 1.5 s. See "Animated
+						//	Focused Item" in the Views docs.
+						//	focusItemFrames: [
+						//		"|11{text!styleFirstLower}"
+						//		"|15{text!styleFirstLower}"
+						//		"|11{text!styleFirstLower}"
+						//		"|03{text!styleFirstLower}"
+						//	]
+						//	focusItemFrameDurations: [ 1500, 80, 80, 80 ]
 					}
 				}
 			}

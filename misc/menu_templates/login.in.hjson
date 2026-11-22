@@ -54,6 +54,24 @@
                                 submit: true
                                 focus:  true
                                 argName: navSelect
+
+                                //
+                                //  The focused item can be animated: formats
+                                //  played in turn, each used as
+                                //  focusItemFormat is. A focusItemFormat (your
+                                //  theme may set one for this view) stays the
+                                //  look when it is not animated. This one
+                                //  rests lit and glints every 1.5 s. See
+                                //  "Animated Focused Item" in the Views docs.
+                                //
+                                //  focusItemFrames: [
+                                //      "|11{text}"
+                                //      "|15{text}"
+                                //      "|11{text}"
+                                //      "|03{text}"
+                                //  ]
+                                //  focusItemFrameDurations: [ 1500, 80, 80, 80 ]
+
                                 items: [
                                     {
                                         text: login

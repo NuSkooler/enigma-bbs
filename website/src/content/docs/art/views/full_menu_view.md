@@ -24,6 +24,12 @@ per column is derived from `height` and `itemSpacing`; `itemHorizSpacing` sets
 the gap between columns. When the items do not fit, the view paginates and the
 cursor keys move between pages.
 
+In addition to the common menu view properties, a full menu view accepts:
+
+| Property | Description |
+|----------|-------------|
+| `focusItemFrames` | Formats played in turn on the focused item, with `focusItemFrameInterval`, `focusItemFrameDurations` and `focusItemFrameMode`. Each column is as wide as its widest item, frames included; a frame wider than `width` is cut at the view's edge. Only an item on the current page animates. See [Animated Focused Item](views.md#animated-focused-item) |
+
 ## Examples
 
 ### A simple vertical menu - similar to VM
