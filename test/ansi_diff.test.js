@@ -16,6 +16,7 @@ const RED = `${ESC}[0;31m`;
 const WHITE = `${ESC}[0;1;37m`;
 const BLUE = `${ESC}[0;34m`;
 const goto = (r, c) => `${ESC}[${r};${c}H`;
+const cuf = n => `${ESC}[${n}C`;
 
 //  a one-row canvas, |width| wide, of pipe coded |text|
 const row = (text, width = 16) => AnsiCanvas.fromPipe(text, { width, height: 1 });
@@ -43,24 +44,42 @@ describe('AnsiDiff', function () {
             );
         });
 
-        it('joins two runs when the gap costs less than a goto', function () {
-            //  gap of 7 unchanged cells (7 bytes) < goto (8): joined
+        it('joins two runs when the gap costs less than a jump', function () {
+            //  gap of 3 unchanged cells (3 bytes) < ESC[3C (4): joined
             assert.equal(
-                render(row('|04a1234567bcdef'), row('|04X1234567Ycdef')),
-                `${goto(1, 1)}${RED}X1234567Y`
+                render(row('|04a123bcdef'), row('|04X123Ycdef')),
+                `${goto(1, 1)}${RED}X123Y`
             );
-            //  gap of 8 (8 bytes) is not cheaper than a goto: two runs
+            //  gap of 4 (4 bytes) is not cheaper than ESC[4C (4): two runs,
+            //  the second reached with a cursor forward
             assert.equal(
-                render(row('|04a12345678bcde'), row('|04X12345678Ycde')),
-                `${goto(1, 1)}${RED}X${goto(1, 10)}Y`
+                render(row('|04a1234bcde'), row('|04X1234Ycde')),
+                `${goto(1, 1)}${RED}X${cuf(4)}Y`
             );
         });
 
+        it('a cursor forward, not a goto, between runs on one row', function () {
+            //  gap of 7: once joined (7 < goto 8), now ESC[7C (4 bytes)
+            assert.equal(
+                render(row('|04a1234567bcdef'), row('|04X1234567Ycdef')),
+                `${goto(1, 1)}${RED}X${cuf(7)}Y`
+            );
+            //  two digits: ESC[12C
+            assert.equal(
+                render(row('|04a123456789012b', 16), row('|04X123456789012Y', 16)),
+                `${goto(1, 1)}${RED}X${cuf(12)}Y`
+            );
+            //  a run on the next row still starts with a goto
+            const a = AnsiCanvas.fromPipe('|04a12345b\n|04c', { width: 7 });
+            const b = AnsiCanvas.fromPipe('|04X12345Y\n|04Z', { width: 7 });
+            assert.equal(render(a, b), `${goto(1, 1)}${RED}X${cuf(5)}Y${goto(2, 1)}Z`);
+        });
+
         it('counts the SGR a gap would need against joining it', function () {
-            //  3-cell gap in another colour: 3 + two SGR changes > goto
+            //  3-cell gap in another colour: 3 + two SGR changes > ESC[3C
             const a = row('|04a|15123|04b');
             const b = row('|04X|15123|04Y');
-            assert.equal(render(a, b), `${goto(1, 1)}${RED}X${goto(1, 5)}Y`);
+            assert.equal(render(a, b), `${goto(1, 1)}${RED}X${cuf(3)}Y`);
         });
 
         it('writes SGR only when it changes, also across runs and rows', function () {
@@ -92,13 +111,14 @@ describe('AnsiDiff', function () {
                 AnsiCanvas.fromPipe('|04c~d', { width: 3, height: 1 }),
             ];
             const { mask } = applyTransparency(frames, '~');
+            //  the masked cell is stepped over with a cursor forward
             assert.equal(
                 render(frames[0], frames[1], { mask }),
-                `${goto(1, 1)}${RED}c${goto(1, 3)}d`
+                `${goto(1, 1)}${RED}c${cuf(1)}d`
             );
             assert.equal(
                 render(null, frames[0], { mask }),
-                `${goto(1, 1)}${RED}a${goto(1, 3)}b`
+                `${goto(1, 1)}${RED}a${cuf(1)}b`
             );
         });
 
@@ -144,6 +164,32 @@ describe('AnsiDiff', function () {
                     termHeight: 25,
                 }),
                 `${goto(1, 1)}${WHITE}cd`
+            );
+        });
+
+        it('clipped: runs on one row each start with a goto', function () {
+            const a = row('|04a1234b', 8);
+            const b = row('|04X1234Y', 8);
+            const step = AnsiDiff.transition(a, b);
+            assert.equal(
+                AnsiDiff.render(step, { origin: { row: 1, col: 1 } }),
+                `${goto(1, 1)}${RED}X${cuf(4)}Y`
+            );
+            assert.equal(
+                AnsiDiff.render(step, {
+                    origin: { row: 1, col: 76 },
+                    termWidth: 80,
+                    termHeight: 25,
+                }),
+                `${goto(1, 76)}${RED}X`
+            );
+            assert.equal(
+                AnsiDiff.render(step, {
+                    origin: { row: 1, col: 74 },
+                    termWidth: 80,
+                    termHeight: 25,
+                }),
+                `${goto(1, 74)}${RED}X${goto(1, 79)}Y`
             );
         });
 

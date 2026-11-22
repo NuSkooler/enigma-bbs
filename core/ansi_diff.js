@@ -9,9 +9,12 @@ const ansi = require('./ansi_term.js');
 //
 //  - Only runs of changed cells are written; a cell masked as transparent
 //    (applyTransparency()) never is.
-//  - A run starts with a goto. Two runs on one row are joined when
-//    redrawing the unchanged cells between them costs less than the goto
-//    (about GOTO_COST bytes) would.
+//  - A run starts with a goto, or, after a run on the same row, with a
+//    cursor forward (CUF, ESC [ n C) over the cells between them when that
+//    is shorter, which on a row it always is. Two runs on one row are
+//    joined when redrawing the unchanged cells between them costs less
+//    than that jump (the cheaper of the CUF and a goto of about GOTO_COST
+//    bytes) would.
 //  - SGR is written only where it changes. Every attr starts from a reset,
 //    so the first one written does not depend on what the terminal was
 //    set to.
@@ -30,6 +33,13 @@ const GOTO_COST = 8;
 //  usual case. A UTF-8 session pays more for a non-ASCII character, which
 //  only makes joining across a gap a little less of a bargain there.
 const CHAR_COST = 1;
+
+//  ESC [ n C: what a cursor forward over |n| cells costs, in bytes. The
+//  count is always written (ESC [ C would be a byte less for one cell, but
+//  a gap of one is nearly always joined anyway).
+function cufCost(n) {
+    return 3 + String(n).length;
+}
 
 function isMasked(mask, width, row, col) {
     return Boolean(mask && mask[row * width + col]);
@@ -101,9 +111,11 @@ function transition(prev, next, options = {}) {
                     joinCost += CHAR_COST;
                 }
                 joinCost += attr !== a ? attr.length : 0;
-                const gotoCost = GOTO_COST + (attr !== runAttr ? attr.length : 0);
+                const jumpCost =
+                    Math.min(GOTO_COST, cufCost(c - gapStart)) +
+                    (attr !== runAttr ? attr.length : 0);
 
-                if (joinCost < gotoCost) {
+                if (joinCost < jumpCost) {
                     for (let g = gapStart; g < c; ++g) {
                         run.chars.push(next.chars[r][g]);
                         run.attrs.push(next.attrs[r][g]);
@@ -169,13 +181,17 @@ function render(t, options = {}) {
         origin.col + t.width - 1 <= termWidth;
 
     if (fits) {
+        let prev = null;
         for (const run of t.runs) {
-            out += ansi.goto(origin.row + run.row, origin.col + run.col) + run.body;
+            out += jumpTo(prev, run, origin) + run.body;
+            prev = run;
         }
         return out;
     }
 
-    //  clipped: each run cut to the screen, SGR tracked as written
+    //  clipped: each run cut to the screen, SGR tracked as written. Each
+    //  run starts with a goto: where a cut run left the cursor is not
+    //  worth working out.
     let a = null;
     for (const run of t.runs) {
         const row = origin.row + run.row;
@@ -203,6 +219,28 @@ function render(t, options = {}) {
         }
     }
     return out;
+}
+
+//
+//  To the start of |run|, from the end of |prev| (the run written before
+//  it, or null): a cursor forward when both are on one row and that is
+//  shorter than a goto, otherwise a goto. The cursor after |prev| is in
+//  the cell after its last one; it is never past the screen's last column
+//  (render() only uses this when the whole canvas fits), so no pending
+//  wrap is in play.
+//
+function jumpTo(prev, run, origin) {
+    const gotoStr = ansi.goto(origin.row + run.row, origin.col + run.col);
+    if (prev && prev.row === run.row) {
+        const n = run.col - (prev.col + prev.chars.length);
+        if (n > 0) {
+            const cuf = ansi.forward(n);
+            if (cuf.length < gotoStr.length) {
+                return cuf;
+            }
+        }
+    }
+    return gotoStr;
 }
 
 //
@@ -266,6 +304,7 @@ class FrameTransitions {
 }
 
 exports.GOTO_COST = GOTO_COST;
+exports.cufCost = cufCost;
 exports.transition = transition;
 exports.render = render;
 exports.write = write;
