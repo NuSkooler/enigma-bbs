@@ -49,7 +49,8 @@ const ANSI_ONLY = { dialect: 'ansi' };
 //  layouts that size items (HM slots, FM columns) make room for the
 //  widest frame. Changing the items (setItems(), removeItem(), a sort)
 //  drops the cached frames and starts the cycle again at frame 0 with the
-//  next draw of the focused item; an empty list ticks nothing.
+//  next draw of the focused item; an empty list ticks nothing. Animations
+//  switched off while one runs stop at its next tick.
 //
 //  Per-item focusItems win: with both set, focusItems are drawn and the
 //  frames are ignored (warned once). The subclass draws; it opts in with
@@ -302,6 +303,28 @@ class MenuView extends View {
             return { stop: true };
         }
         const index = this.focusedItemIndex;
+        if (!clientAnimates(this.client)) {
+            //  switched off since focus (a config reload, the menu's
+            //  config.animations): the static format, drawn once
+            this._focusFramesOn = false;
+            this._focusFrame = 0;
+            this._focusFrameDir = 1;
+            this._focusFrameItem = null;
+            if (!this.isFocusItemFrameVisible(index)) {
+                return { stop: true };
+            }
+            return {
+                draw: () => {
+                    if (
+                        index === this.focusedItemIndex &&
+                        this.isFocusItemFrameVisible(index)
+                    ) {
+                        this.drawItem(index);
+                    }
+                },
+                stop: true,
+            };
+        }
         if (index !== this._focusFrameItem) {
             //  moved without a draw of the new item: start it at frame 0
             this._focusFrameItem = index;

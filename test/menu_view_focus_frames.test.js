@@ -1077,6 +1077,48 @@ describe('Animated focused menu items (focusItemFrames)', function () {
         });
     });
 
+    describe('switched off while animating', function () {
+        it('menus.animations.enabled set false: the next tick draws the static format and stops', function () {
+            const { term, view } = track(
+                loadView('VM', vmConf({ focusItemFormat: '|14[{text}]' }))
+            );
+            time.advance(100); //  frame 1
+            configModule._pushTestConfig(
+                Object.assign({}, BASE_CONFIG, {
+                    menus: { cls: false, animations: { enabled: false } },
+                })
+            );
+            const n = term.flushes.length;
+            time.advance(100);
+            assert.equal(term.flushes.length, n + 1);
+            assert.ok(
+                term.flushes[n].includes(
+                    `${goto(5, 10)}${N}${pipeToAnsi('|14')}[one]${N}`
+                )
+            );
+            assert.equal(FrameClock.isRegistered(view), false);
+            assert.equal(time.live(), 0);
+            time.advance(1000);
+            assert.equal(term.flushes.length, n + 1);
+
+            //  navigation draws the static format
+            view.onKeyPress(null, key('down arrow'));
+            assert.ok(screen(term).row(6, 10, 19).startsWith('[two]'));
+            assert.equal(time.live(), 0);
+        });
+
+        it("the menu's config.animations set false: stops at the next tick", function () {
+            const { client, term, view } = track(loadView('VM', vmConf()));
+            time.advance(100);
+            client.currentMenuModule.menuConfig.config = { animations: false };
+            const n = term.flushes.length;
+            time.advance(100);
+            assert.deepEqual(term.since(n), [`${HIDE}${vmFocused(5, 0, 'one')}${HIDE}`]);
+            assert.equal(FrameClock.isRegistered(view), false);
+            assert.equal(time.live(), 0);
+        });
+    });
+
     describe('two animated lists on one screen', function () {
         it('only the focused one ticks; moving focus moves the cycle', function () {
             const client = makeClient({
