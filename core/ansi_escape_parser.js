@@ -157,7 +157,11 @@ function ANSIEscapeParser(options) {
         let lastCharCode;
 
         while (pos < len) {
-            charCode = text.charCodeAt(pos) & 0xff; //  8bit clean
+            //  The whole code unit, not its low byte: decoded art (UTF-8)
+            //  has characters such as U+010D or U+250A whose low byte is a
+            //  CR or LF, and they are characters, not line breaks. CP437
+            //  decoded art has none (no CP437 byte decodes to one).
+            charCode = text.charCodeAt(pos);
 
             switch (charCode) {
                 case CR:

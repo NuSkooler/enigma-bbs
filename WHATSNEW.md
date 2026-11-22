@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.2-beta
 
+* **UTF-8 art with certain box-drawing or accented characters no longer breaks lines.** Characters such as `č`, `Ċ`, `┊` and `┍` in UTF-8 art were taken as a carriage return or line feed (their low byte is one), so the line was cut there and the rest drawn in the wrong place. They are now drawn as the characters they are. CP437 art is not affected.
+
 * **Realtime interrupts are no longer drawn over, and the key that dismisses one stays with it** ([#1136](https://github.com/NuSkooler/enigma-bbs/issues/1136)). On a menu with `interrupt: realtime`, a node message, page or achievement is shown over the menu, whose forms stay underneath until it is reloaded. A `%TK` ticker or a `%SB` status bar with `refreshInterval` on that menu kept drawing its row over the interrupt, and the key pressed to dismiss it also reached the menu: it was typed into an `ET` command prompt, or ran the menu's action for that key, before the menu reloaded. While an interrupt is up the menu now draws nothing and gets no keys; a ticker in the interrupt's own pause prompt (the stock `pausePage` has one) still animates. The same goes for messages shown by a menu that could not go where it was asked to.
 
   * **The full screen editor's help no longer types into your message** ([#1137](https://github.com/NuSkooler/enigma-bbs/issues/1137)). The key pressed to close the Ctrl-O help screen was also inserted into the message body, and Escape moved the focus behind the help screen. The key now only closes help. The "added to your download queue" message after an export works the same way.
