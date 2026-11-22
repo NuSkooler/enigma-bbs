@@ -456,6 +456,30 @@ describe('AnsiCanvas', function () {
             assert.equal(capped.frames.length, 2);
             assert.deepEqual(capped.warnings, []);
 
+            //  frameCount equal to the whole frames there: a note row or two
+            //  below them is not a partial frame
+            const repro = sliceSheet(
+                AnsiCanvas.fromAnsi(
+                    'aa\r\naa\r\nbb\r\nbb\r\ncc\r\ncc\r\ndd\r\ndd\r\nnote'
+                ),
+                { width: 2, height: 2, frameCount: 4 }
+            );
+            assert.equal(repro.frames.length, 4);
+            assert.deepEqual(repro.warnings, []);
+            const oneNote = sliceSheet(sheetOf(3, { extra: '\nnote' }), {
+                width: 4,
+                height: 3,
+                frameCount: 3,
+            });
+            assert.equal(oneNote.frames.length, 3);
+            assert.deepEqual(oneNote.warnings, []);
+            //  without frameCount, the same row is a partial frame
+            assert.match(
+                sliceSheet(sheetOf(3, { extra: '\nnote' }), { width: 4, height: 3 })
+                    .warnings[0],
+                /partial frame/
+            );
+
             const short = sliceSheet(sheetOf(2), { width: 4, height: 3, frameCount: 5 });
             assert.equal(short.frames.length, 2);
             assert.match(short.warnings[0], /fewer than frameCount 5/);
