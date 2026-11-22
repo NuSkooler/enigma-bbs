@@ -464,6 +464,7 @@ class AnimationView extends View {
         this._stopped = false; //  `once` has played out
         this._prepareState = 'none'; //  'none' | 'pending' | 'done'
         this._prepareWaiters = [];
+        this._inPrepare = false; //  prepare() has not returned yet
         this._stale = false; //  config changed while loading
     }
 
@@ -593,6 +594,11 @@ class AnimationView extends View {
     //  an error: a frame that fails to load leaves the box blank. A view
     //  destroyed meanwhile draws nothing and starts no timer.
     //
+    //  Loaded at once (inline frames, a cache hit), cb is called before
+    //  prepare() returns, and what cb throws (the rest of the form's load)
+    //  is thrown out of prepare() to its caller, as it would be without
+    //  this step. Only the loading itself is caught.
+    //
     prepare(cb) {
         cb = _.isFunction(cb) ? cb : () => {};
         if (View.isDestroyed(this) || 'done' === this._prepareState) {
@@ -603,23 +609,39 @@ class AnimationView extends View {
             return;
         }
         this._prepareState = 'pending';
-        this._load();
+        this._inPrepare = true;
+        try {
+            this._load();
+        } finally {
+            this._inPrepare = false;
+        }
     }
 
     _load() {
         this._animate = animationsEnabled(this.client) && sessionAnimates(this.client);
         let called = false;
+        let sync = true;
+        let result = null; //  loadFrameSet() answered before returning
         const done = (err, frameSet, fromCache) => {
             if (called) {
                 return;
             }
             called = true;
-            this._loaded(err, frameSet, fromCache);
+            if (sync) {
+                result = [err, frameSet, fromCache];
+            } else {
+                this._loaded(err, frameSet, fromCache);
+            }
         };
         try {
             loadFrameSet(this, done);
         } catch (e) {
             done(e);
+        }
+        sync = false;
+        //  outside the try: what the waiters throw is not a load error
+        if (result) {
+            this._loaded(...result);
         }
     }
 
@@ -653,9 +675,14 @@ class AnimationView extends View {
 
         const waiters = this._prepareWaiters;
         this._prepareWaiters = [];
-        //  A waiter goes on with its form's load (the redraw, focus): what
-        //  that throws is logged, not thrown out of an fs callback, and the
-        //  other waiters still run
+        //  A waiter goes on with its form's load (the redraw, focus). Still
+        //  inside prepare(): what it throws goes to prepare()'s caller.
+        //  Later, in an fs callback, there is no caller to throw to: it is
+        //  logged, and the other waiters still run
+        if (this._inPrepare) {
+            waiters.forEach(fn => fn(null));
+            return;
+        }
         waiters.forEach(fn => {
             try {
                 fn(null);

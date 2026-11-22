@@ -57,48 +57,120 @@ const FormLoadStop = Symbol('formDestroyedWhileLoading');
 //
 //  Run the optional prepare(cb) of every view of |vc| that has one (an
 //  AnimationView loading its frames), all at once, before the form is first
-//  drawn. cb(stop): |stop| is FormLoadStop if the form was destroyed (or
-//  the client went) meanwhile; nothing more of the load should happen.
+//  drawn. cb(stop, preparedLater): |stop| is FormLoadStop if the form was
+//  destroyed (or the client went) meanwhile; nothing more of the load
+//  should happen. |preparedLater| is true if a view finished after this
+//  returned (it read a file): cb runs from that view's callback.
 //
-//  Views without prepare() are as they were: with none on the form, cb is
-//  called at once, synchronously, and the load goes on exactly as before.
-//  A prepare() that throws costs only its own view (warned).
+//  Views without prepare() are as they were: with none on the form (or all
+//  of them done at once), cb is called before this returns, and the load
+//  goes on exactly as before -- what it throws is thrown to the caller. A
+//  prepare() that throws costs only its own view (warned); cb itself is
+//  never called inside that catch.
 //
 function prepareViews(vc, cb) {
     const views = Object.values(vc.views).filter(v => _.isFunction(v.prepare));
     if (0 === views.length) {
-        return cb(null);
+        return cb(null, false);
     }
 
-    async.each(
-        views,
-        (view, next) => {
-            let called = false;
-            const done = () => {
-                if (!called) {
-                    called = true;
-                    next(null);
-                }
-            };
-            try {
-                view.prepare(done);
-            } catch (e) {
-                vc.client.log.warn(
-                    Object.assign(vc._formLogContext(view.mciCode + view.id), {
-                        error: e.message,
-                    }),
-                    'View prepare failed'
-                );
-                done();
+    const finish = preparedLater => {
+        if (FormState.isFormDestroyed(vc) || vc.client.clientEnded) {
+            return cb(FormLoadStop);
+        }
+        return cb(null, preparedLater);
+    };
+
+    let pending = views.length;
+    let preparing = true; //  in the loop below: finish() waits for its end
+    views.forEach(view => {
+        let called = false;
+        const done = () => {
+            if (called) {
+                return;
             }
-        },
-        () => {
-            if (FormState.isFormDestroyed(vc) || vc.client.clientEnded) {
-                return cb(FormLoadStop);
+            called = true;
+            if (0 === --pending && !preparing) {
+                finish(true);
+            }
+        };
+        let failed = false;
+        try {
+            view.prepare(done);
+        } catch (e) {
+            failed = true;
+            vc.client.log.warn(
+                Object.assign(vc._formLogContext(view.mciCode + view.id), {
+                    error: e.message,
+                }),
+                'View prepare failed'
+            );
+        }
+        if (failed) {
+            done();
+        }
+    });
+    preparing = false;
+    if (0 === pending) {
+        finish(false);
+    }
+}
+
+//
+//  The end of a form load: prepare the views (prepareViews()), draw the form
+//  and focus |initialFocusId|. cb(err) as the load's own callback.
+//
+//  Prepared at once (always, for a form with no view that prepares): drawn
+//  and focused before this returns, as before prepare() existed; what that
+//  throws, or cb throws, goes to the caller.
+//
+//  Prepared later (a view read a file), from that view's callback: there
+//  is no caller to throw to. What drawing or focusing throws is logged and
+//  given to cb as its error -- the caller hears of it, as of any other
+//  failed load, rather than never being called back; what cb throws is
+//  logged.
+//
+function drawLoadedForm(vc, initialFocusId, cb) {
+    prepareViews(vc, (stop, preparedLater) => {
+        if (stop) {
+            return cb(stop);
+        }
+        if (!preparedLater) {
+            vc.redrawAll(initialFocusId);
+            if (initialFocusId) {
+                vc.switchFocus(initialFocusId);
             }
             return cb(null);
         }
-    );
+
+        let error = null;
+        try {
+            vc.redrawAll(initialFocusId);
+            if (initialFocusId) {
+                vc.switchFocus(initialFocusId);
+            }
+        } catch (e) {
+            error = e;
+            vc.client.log.error(
+                Object.assign(vc._formLogContext(), {
+                    error: e && e.message,
+                    stack: e && e.stack,
+                }),
+                'Form failed to draw after its views prepared'
+            );
+        }
+        try {
+            cb(error);
+        } catch (e) {
+            vc.client.log.error(
+                Object.assign(vc._formLogContext(), {
+                    error: e && e.message,
+                    stack: e && e.stack,
+                }),
+                'Form load callback failed after its views prepared'
+            );
+        }
+    });
 }
 
 //  Tear down every view of |vc|: it takes no more input, its listeners are
@@ -1412,18 +1484,9 @@ class ViewController extends events.EventEmitter {
                     return callback(null);
                 },
                 callback => {
-                    //  views that load something before they are drawn
-                    return prepareViews(this, callback);
-                },
-                callback => {
-                    this.redrawAll(initialFocusId);
-                    callback(null);
-                },
-                callback => {
-                    if (initialFocusId) {
-                        this.switchFocus(initialFocusId);
-                    }
-                    callback(null);
+                    //  views that load something first (prepare()), then
+                    //  draw and focus
+                    return drawLoadedForm(this, initialFocusId, callback);
                 },
             ],
             err => {
@@ -1582,18 +1645,9 @@ class ViewController extends events.EventEmitter {
                     callback(null);
                 },
                 callback => {
-                    //  views that load something before they are drawn
-                    return prepareViews(this, callback);
-                },
-                callback => {
-                    this.redrawAll(this.formInitialFocusId);
-                    callback(null);
-                },
-                callback => {
-                    if (this.formInitialFocusId) {
-                        this.switchFocus(this.formInitialFocusId);
-                    }
-                    callback(null);
+                    //  views that load something first (prepare()), then
+                    //  draw and focus
+                    return drawLoadedForm(this, this.formInitialFocusId, callback);
                 },
             ],
             err => {

@@ -695,6 +695,85 @@ describe('AnimationView (%AV)', function () {
             assert.equal(time.live(), 0);
         });
 
+        it('prepared at once: what the rest of the load throws reaches the caller, as without an animation', function () {
+            //  inline frames load before prepare() returns
+            const forms = [
+                () => menuWith({ TL1: { text: 'x' } }),
+                () =>
+                    menuWith({
+                        TL1: { text: 'x' },
+                        AV20: { width: 3, height: 1, frames: TWO_FRAMES },
+                    }),
+            ];
+            const mciMap = { TL1: mci('TL', 1, 2, 2), AV20: mci('AV', 20, 5, 10) };
+            forms.forEach((menu, i) => {
+                const what = i ? 'with %AV' : 'without';
+                const throwFrom = [
+                    vc =>
+                        (vc.redrawAll = () => {
+                            throw new Error('redraw boom');
+                        }),
+                    vc =>
+                        (vc.switchFocus = () => {
+                            throw new Error('focus boom');
+                        }),
+                ];
+                throwFrom.forEach(patch => {
+                    const client = makeClient(menu());
+                    client.log.error = () => assert.fail(`${what}: logged, not thrown`);
+                    const vc = new ViewController({ client });
+                    vcs.push(vc);
+                    patch(vc);
+                    vc.formInitialFocusId = 1;
+                    let called = 0;
+                    assert.throws(
+                        () => vc.loadFromMenuConfig({ mciMap }, () => ++called),
+                        /boom/,
+                        what
+                    );
+                    assert.equal(called, 0, what);
+                    assert.ok(!client.log.warns.some(w => /prepare failed/.test(w.msg)));
+                });
+                //  the caller's own callback
+                const client = makeClient(menu());
+                const vc = new ViewController({ client });
+                vcs.push(vc);
+                assert.throws(
+                    () =>
+                        vc.loadFromMenuConfig({ mciMap }, () => {
+                            throw new Error('cb boom');
+                        }),
+                    /cb boom/,
+                    what
+                );
+            });
+        });
+
+        it('prepared later: a draw that throws is logged and given to the callback; a callback that throws is logged', function () {
+            const errors = [];
+            const client = animClient({ frames: { art: ['f1', 'f2'] } });
+            client.log.error = (obj, msg) => errors.push({ obj, msg });
+            const vc = new ViewController({ client });
+            vcs.push(vc);
+            vc.redrawAll = () => {
+                throw new Error('redraw boom');
+            };
+            const got = [];
+            vc.loadFromMenuConfig({ mciMap: { AV20: mci('AV', 20, 5, 10) } }, err => {
+                got.push(err);
+                throw new Error('cb boom');
+            });
+            assert.equal(got.length, 0);
+            pending.shift().cb(null, artInfo('abc'));
+            pending.shift().cb(null, artInfo('aXc'));
+            assert.equal(got.length, 1, 'called back');
+            assert.match(got[0].message, /redraw boom/);
+            assert.deepEqual(
+                errors.map(e => e.obj.error),
+                ['redraw boom', 'cb boom']
+            );
+        });
+
         it('a form with no prepare() views loads synchronously, as before', function () {
             const client = makeClient(menuWith({ TL1: { text: 'x' } }));
             const r = track(load(client, { TL1: mci('TL', 1, 2, 2) }));
