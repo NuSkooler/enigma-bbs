@@ -868,8 +868,9 @@ class View extends events.EventEmitter {
     //  it all goes out in one socket write.
     //
     //  A draw that throws costs only its own view: the others still draw
-    //  and the cursor is still put back. Returns { drawn, covered, failed }:
-    //  the views drawn, those covered, and [ { view, error } ].
+    //  and the cursor is still put back. A view an earlier draw of the batch
+    //  destroyed is skipped. Returns { drawn, covered, failed }: the views
+    //  drawn, those covered, and [ { view, error } ].
     //
     static drawInBackgroundBatch(client, items) {
         return drawBackground(client, items, false);
@@ -877,12 +878,15 @@ class View extends events.EventEmitter {
 }
 
 //
-//  drawInBackground() and drawInBackgroundBatch(). With |rethrow|, the
-//  first draw that throws ends the batch, and its error is thrown once the
-//  cursor has been put back and the batch written (drawInBackground(), as
-//  it always has); without, each failure is noted and the rest still draw.
+//  drawInBackground() and drawInBackgroundBatch(). |single| is
+//  drawInBackground(): its one draw that throws has its error thrown once
+//  the cursor has been put back and the batch written, whatever was thrown
+//  (undefined too), as it always has. A batch notes each failure and the
+//  rest still draw, and skips a view an earlier draw of the same batch
+//  destroyed. Draw functions are called bare (no |this|), as drawFn() always
+//  was.
 //
-function drawBackground(client, items, rethrow) {
+function drawBackground(client, items, single) {
     const result = { drawn: [], covered: [], failed: [] };
 
     //  The screen is covered for these (suspendBackgroundDraw()): draw
@@ -905,7 +909,7 @@ function drawBackground(client, items, rethrow) {
             try {
                 term.discardOutput(item.draw);
             } catch (e) {
-                if (rethrow) {
+                if (single) {
                     throw e;
                 }
                 result.failed.push({ view, error: e });
@@ -925,7 +929,9 @@ function drawBackground(client, items, rethrow) {
     const term = client.term;
     const focusView = View.getInputFocusView(client);
     const batch = _.isFunction(term.beginWrite) && _.isFunction(term.commitWrite);
-    let thrown = null;
+    //  a flag, not the error: a draw may throw undefined, 0 or null
+    let threw = false;
+    let thrown;
 
     if (batch) {
         term.beginWrite();
@@ -938,12 +944,21 @@ function drawBackground(client, items, rethrow) {
 
         try {
             for (const item of live) {
+                //  destroyed by an earlier draw of this batch: owed nothing.
+                //  (drawInBackground() draws its one view regardless.)
+                if (!single && destroyedViews.has(item.view)) {
+                    continue;
+                }
+                //  called bare, by this name: a draw that is not a function
+                //  fails as drawInBackground()'s drawFn() always has
+                const drawFn = item.draw;
                 try {
-                    item.draw();
+                    drawFn();
                     result.drawn.push(item.view);
                 } catch (e) {
                     result.failed.push({ view: item.view, error: e });
-                    if (rethrow) {
+                    if (single) {
+                        threw = true;
                         thrown = e;
                         break;
                     }
@@ -965,7 +980,7 @@ function drawBackground(client, items, rethrow) {
         }
     }
 
-    if (thrown) {
+    if (threw) {
         throw thrown;
     }
     return result;

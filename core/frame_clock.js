@@ -14,7 +14,8 @@
 //          tick,           //  (ctx) => draw | { draw, next, stop } | nothing
 //          interval,       //  ms between ticks when tick() does not say
 //          delay,          //  ms to the first tick (default: interval)
-//      });                 //  -> true, or false (destroyed view, client gone)
+//      });                 //  -> true, or false (destroyed view, client gone,
+//                          //     view without a client)
 //      FrameClock.unregister(view);
 //      FrameClock.isRegistered(view);
 //      FrameClock.getFrameClock(client, { minIntervalMs, coalesceMs });
@@ -125,6 +126,11 @@ const DEFAULT_COALESCE_MS = 10;
 
 //  client -> its FrameClock. An idle clock holds no timer and no listeners.
 const clocks = new WeakMap();
+
+//  what a thrown value says, for a log: anything may be thrown (undefined too)
+function errorMessage(e) {
+    return e && e.message ? e.message : String(e);
+}
 
 function warn(client, obj, msg) {
     const log = client && client.log;
@@ -345,7 +351,7 @@ class FrameClock {
             } catch (e) {
                 warn(
                     client,
-                    { error: e.message, viewId: view.id },
+                    { error: errorMessage(e), viewId: view.id },
                     'Frame tick failed; view taken off the frame clock'
                 );
                 this.unregister(view);
@@ -397,23 +403,41 @@ class FrameClock {
 
         let result;
         let bytes = 0;
-        if (batch) {
-            term.beginWrite();
-        }
-        const before = pendingBytes();
         try {
-            result = View.drawInBackgroundBatch(client, draws);
-            bytes = pendingBytes() - before;
-        } finally {
             if (batch) {
-                term.commitWrite();
+                term.beginWrite();
             }
+            const before = pendingBytes();
+            try {
+                result = View.drawInBackgroundBatch(client, draws);
+                bytes = pendingBytes() - before;
+            } finally {
+                if (batch) {
+                    term.commitWrite();
+                }
+            }
+        } catch (e) {
+            //  The drawing machinery itself threw (each draw's own throw is
+            //  in result.failed), e.g. putting the focus cursor back. Not
+            //  out of the timer callback: which draw is to blame is unknown,
+            //  so every view of this tick is taken off, as a failing draw
+            //  is, rather than failing (and warning) again on every frame.
+            warn(
+                client,
+                {
+                    error: errorMessage(e),
+                    viewIds: draws.map(({ view }) => view.id),
+                },
+                'Frame clock draw failed; views taken off the frame clock'
+            );
+            draws.forEach(({ view }) => this.unregister(view));
+            return;
         }
 
         result.failed.forEach(({ view, error }) => {
             warn(
                 client,
-                { error: error.message, viewId: view.id },
+                { error: errorMessage(error), viewId: view.id },
                 'Frame draw failed; view taken off the frame clock'
             );
             this.unregister(view);
@@ -447,7 +471,12 @@ function getFrameClock(client, options) {
     return clock;
 }
 
+//  false, and nothing registered, for a view with no client (one not set up
+//  yet, or a stand-in): there is no client to keep a clock for
 function register(view, spec) {
+    if (!view || !_.isObject(view.client)) {
+        return false;
+    }
     return getFrameClock(view.client).register(view, spec);
 }
 

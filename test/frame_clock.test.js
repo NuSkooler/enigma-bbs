@@ -395,6 +395,65 @@ describe('FrameClock', function () {
             assert.equal(FrameClock.isRegistered(badDraw), false);
         });
 
+        it('a draw that throws a falsy value is warned and unregistered too', function () {
+            const client = makeClient();
+            const good = frameView(client, 5);
+            const bad = frameView(client, 6);
+            register(good);
+            register(bad, {
+                tick: () => () => {
+                    throw undefined; // eslint-disable-line no-throw-literal
+                },
+            });
+            const n = client.term.flushes.length;
+            time.advance(100);
+            assert.deepEqual(client.term.since(n), ['<5:1>']);
+            assert.deepEqual(
+                client.log.warns.map(w => w.obj.error),
+                ['undefined']
+            );
+            assert.equal(FrameClock.isRegistered(bad), false);
+            assert.equal(FrameClock.isRegistered(good), true);
+        });
+
+        it('the drawing machinery throwing does not escape the timer; the clock stays usable', function () {
+            const client = makeClient();
+            const vc = new ViewController({ client });
+            const a = frameView(client, 5);
+            const b = frameView(client, 6);
+            vc.addView(a);
+            const field = addField(client, vc);
+            const restore = field.restoreFocusCursor;
+            field.restoreFocusCursor = () => {
+                throw new Error('cursor broke');
+            };
+            register(a);
+            register(b, { interval: 300 });
+            time.advance(100); //  would throw out of the timer callback before
+            assert.deepEqual(
+                client.log.warns.map(w => [w.obj.error, w.obj.viewIds]),
+                [['cursor broke', [5]]]
+            );
+            assert.equal(FrameClock.isRegistered(a), false, 'its view taken off');
+            assert.equal(FrameClock.isRegistered(b), true, 'the others keep ticking');
+            assert.equal(time.live(), 1, 'one timer, for b');
+
+            field.restoreFocusCursor = restore;
+            assert.equal(register(a), true);
+            const n = client.term.flushes.length;
+            time.advance(100);
+            assert.equal(client.term.since(n).length, 1);
+            assert.equal(a.ticks, 2);
+        });
+
+        it('register() on a view with no client is a no-op returning false', function () {
+            const view = { id: 1 };
+            assert.equal(FrameClock.register(view, { tick: () => {} }), false);
+            assert.equal(FrameClock.isRegistered(view), false);
+            assert.equal(FrameClock.unregister(view), false);
+            assert.equal(time.live(), 0);
+        });
+
         it('a real ClientTerminal: one socket write per tick; trace logs its bytes', function () {
             const client = makeClient();
             const socketWrites = [];
@@ -878,6 +937,100 @@ describe('FrameClock', function () {
             );
             const [out] = client.term.since(n);
             assert.ok(out.startsWith(HIDE_CURSOR) && out.endsWith(SHOW_CURSOR));
+        });
+    });
+
+    describe('drawInBackground(): the same as before the batch helper', function () {
+        //  a focused field, so the hide / restore path runs
+        function setup() {
+            const client = makeClient();
+            const vc = new ViewController({ client });
+            const view = frameView(client, 5);
+            vc.addView(view);
+            addField(client, vc);
+            return { client, view };
+        }
+
+        //  what |fn| threw, and whether it threw at all
+        function thrownBy(fn) {
+            try {
+                fn();
+            } catch (e) {
+                return { threw: true, error: e };
+            }
+            return { threw: false };
+        }
+
+        it('a falsy throw (undefined, 0, null) is still thrown, after restoring', function () {
+            const { client, view } = setup();
+            [undefined, 0, null].forEach(value => {
+                const n = client.term.flushes.length;
+                const got = thrownBy(() =>
+                    view.drawInBackground(() => {
+                        throw value;
+                    })
+                );
+                assert.deepEqual(got, { threw: true, error: value });
+                const [out] = client.term.since(n);
+                assert.ok(out.startsWith(HIDE_CURSOR) && out.endsWith(SHOW_CURSOR));
+            });
+        });
+
+        it('the draw function is called bare, with no this', function () {
+            const { client, view } = setup();
+            const seen = [];
+            view.drawInBackground(function () {
+                seen.push(this);
+            });
+            View.drawInBackgroundBatch(client, [
+                {
+                    view,
+                    draw: function () {
+                        seen.push(this);
+                    },
+                },
+            ]);
+            assert.deepEqual(seen, [undefined, undefined]);
+        });
+
+        it('a draw that is not a function fails with a TypeError, after restoring', function () {
+            const { client, view } = setup();
+            const n = client.term.flushes.length;
+            const got = thrownBy(() => view.drawInBackground('not a function'));
+            assert.equal(got.threw, true);
+            assert.ok(got.error instanceof TypeError);
+            const [out] = client.term.since(n);
+            assert.ok(out.startsWith(HIDE_CURSOR) && out.endsWith(SHOW_CURSOR));
+        });
+
+        it('a destroyed view still draws, as it always has', function () {
+            const { client, view } = setup();
+            view.destroy();
+            const n = client.term.flushes.length;
+            view.drawInBackground(() => client.term.write('<drawn>'));
+            assert.ok(client.term.since(n)[0].includes('<drawn>'));
+        });
+
+        it('a batch skips a view an earlier draw of the batch destroyed', function () {
+            const client = makeClient();
+            const a = frameView(client, 5);
+            const b = frameView(client, 6);
+            const c = frameView(client, 7);
+            const n = client.term.flushes.length;
+            const result = View.drawInBackgroundBatch(client, [
+                {
+                    view: a,
+                    draw: () => {
+                        b.destroy();
+                        client.term.write('<a>');
+                    },
+                },
+                { view: b, draw: () => client.term.write('<b>') },
+                { view: c, draw: () => client.term.write('<c>') },
+            ]);
+            assert.deepEqual(client.term.since(n), ['<a><c>']);
+            assert.deepEqual(result.drawn, [a, c]);
+            assert.deepEqual(result.failed, []);
         });
     });
 
