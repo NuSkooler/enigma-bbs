@@ -333,10 +333,17 @@ class MenuView extends View {
         } else {
             this._advanceFocusFrame();
         }
-        const next = this._focusFrameWait(this._focusFrame);
         if (!this.isFocusItemFrameVisible(index)) {
-            return { next };
+            //  not on screen (an HM item past the terminal, an FM item on
+            //  another page, a layout waiting for its redraw): stop, rather
+            //  than wake for nothing; the next draw of the focused item
+            //  starts the cycle again at frame 0 (_renderCacheSlot())
+            this._focusFrameItem = null;
+            this._focusFrame = 0;
+            this._focusFrameDir = 1;
+            return { stop: true };
         }
+        const next = this._focusFrameWait(this._focusFrame);
         return {
             draw: () => {
                 if (

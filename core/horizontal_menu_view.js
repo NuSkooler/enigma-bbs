@@ -151,8 +151,9 @@ class HorizontalMenuView extends MenuView {
             this.setRenderCacheItem(index, cached, true);
         }
         const slotWidth = Math.max(item.frameSlotWidth || 0, cached.textWidth);
+        //  the padding after the frame in the normal SGR, as before it
         const text = strUtil.pad(
-            cached.text,
+            `${cached.text}${this.getSGR()}`,
             slotWidth + this.getSpacer().length * 2,
             this.fillChar,
             'center',

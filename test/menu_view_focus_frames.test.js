@@ -345,9 +345,10 @@ describe('Animated focused menu items (focusItemFrames)', function () {
             const n = term.flushes.length;
             time.advance(500);
             assert.equal(term.flushes.length, n);
-            assert.ok(FrameClock.isRegistered(view), 'still cycling');
-            //  drawn again: in the window, ticking there
+            assert.equal(FrameClock.isRegistered(view), false, 'stopped, not waking');
+            //  drawn again: in the window, ticking there from frame 0
             view.setFocusItemIndex(5);
+            assert.ok(FrameClock.isRegistered(view));
             const m = term.flushes.length;
             time.advance(100);
             assert.equal(term.flushes.length, m + 1);
@@ -705,8 +706,10 @@ describe('Animated focused menu items (focusItemFrames)', function () {
             const n = term.flushes.length;
             time.advance(500);
             assert.equal(term.flushes.length, n);
+            assert.equal(FrameClock.isRegistered(view), false, 'stopped, not waking');
 
             view.onKeyPress(null, key('end')); //  to that page, drawn
+            assert.ok(FrameClock.isRegistered(view), 'started again by the draw');
             const m = term.flushes.length;
             time.advance(100);
             assert.equal(term.flushes.length, m + 1);
@@ -735,7 +738,7 @@ describe('Animated focused menu items (focusItemFrames)', function () {
                 term
                     .all()
                     .includes(
-                        `${goto(5, 10)}${N} ${pipeToAnsi('|15')}<aa> ` +
+                        `${goto(5, 10)}${N} ${pipeToAnsi('|15')}<aa>${N} ` +
                             `${goto(5, 16)}${N}  bb  ${goto(5, 22)}${N}  cc  `
                     )
             );
@@ -743,7 +746,7 @@ describe('Animated focused menu items (focusItemFrames)', function () {
             time.advance(100);
             //  a narrow frame covers the wide one
             assert.deepEqual(term.since(n), [
-                `${HIDE}${goto(5, 10)}${N}  ${pipeToAnsi('|11')}aa  ${HIDE}`,
+                `${HIDE}${goto(5, 10)}${N}  ${pipeToAnsi('|11')}aa${N}  ${HIDE}`,
             ]);
 
             const m = term.flushes.length;
@@ -751,13 +754,13 @@ describe('Animated focused menu items (focusItemFrames)', function () {
             assert.equal(
                 term.since(m).join(''),
                 `${goto(5, 10)}${goto(5, 10)}${N}  aa  ` +
-                    `${goto(5, 16)}${N} ${pipeToAnsi('|15')}<bb> ` +
+                    `${goto(5, 16)}${N} ${pipeToAnsi('|15')}<bb>${N} ` +
                     `${goto(5, 22)}${N}  cc  `
             );
             const k = term.flushes.length;
             time.advance(100);
             assert.deepEqual(term.since(k), [
-                `${HIDE}${goto(5, 16)}${N}  ${pipeToAnsi('|11')}bb  ${HIDE}`,
+                `${HIDE}${goto(5, 16)}${N}  ${pipeToAnsi('|11')}bb${N}  ${HIDE}`,
             ]);
         });
     });
@@ -945,6 +948,43 @@ describe('Animated focused menu items (focusItemFrames)', function () {
             n = term.flushes.length;
             time.advance(500);
             assert.equal(term.flushes.length, n, 'no ticks for it');
+            assert.equal(FrameClock.isRegistered(view), false, 'stopped, not waking');
+
+            view.onKeyPress(null, key('left arrow')); //  back to "bb": frame 0
+            assert.ok(FrameClock.isRegistered(view), 'started again by the draw');
+            n = term.flushes.length;
+            time.advance(100);
+            assert.equal(term.flushes.length, n + 1);
+            assert.equal(screen(term, n).row(5, 76, 80), '  bb ');
+        });
+
+        it('HM and FM: the padding after a frame is in the normal SGR, as before it', function () {
+            //  frame 0 narrower than frame 1: padded on both sides in HM
+            const BG = pipeToAnsi('|15|20');
+            const hm = track(
+                loadView('HM', {
+                    items: ['aa', 'bb'],
+                    focus: true,
+                    focusItemFrames: ['|15|20{text}', '|15|20>>{text}<<'],
+                    focusItemFrameInterval: 100,
+                })
+            );
+            assert.ok(
+                hm.term.all().includes(`${BG}aa${N}  `),
+                'no background bleeds into the right padding'
+            );
+
+            const fm = track(
+                loadView('FM', {
+                    items: ['aa', 'bb', 'cc'],
+                    focus: true,
+                    width: 20,
+                    height: 2,
+                    focusItemFrames: ['|15|20{text}', '|15|20>>{text}<<'],
+                    focusItemFrameInterval: 100,
+                })
+            );
+            assert.ok(fm.term.all().includes(`${BG}aa${N}`));
         });
     });
 

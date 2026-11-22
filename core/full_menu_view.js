@@ -292,6 +292,10 @@ class FullMenuView extends MenuView {
             textWidth = ANSI_ONLY;
             padLength = Math.min(padLength, room);
         }
+        if (frame) {
+            //  the padding after the frame in the normal SGR, as before it
+            text = `${text}${this.getSGR()}`;
+        }
 
         text = `${sgr}${strUtil.pad(
             text,
