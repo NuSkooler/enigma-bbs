@@ -245,14 +245,14 @@
         }
         1: {
           mci: {
-            ML1: {
+            MT1: {
               argName: imageUrl
               mode: edit
               scrollMode: start
               focus: true
               tabSwitchesView: true
             }
-            ML2: {
+            MT2: {
               argName: iconUrl
               mode: edit
               scrollMode: start

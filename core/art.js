@@ -12,6 +12,7 @@ const { emulationOf } = require('./term');
 const { LAYER_NAME: RIP_LAYER } = require('./term/rip');
 const { PetsciiArtParser, petsciiArtToText } = require('./term/petscii/art_parser.js');
 const { AtasciiArtParser, atasciiArtToText } = require('./term/atascii/art_parser.js');
+const { setArtOrigin, shiftArtOrigin } = require('./mci_map_origin.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -764,6 +765,13 @@ function display(client, art, options, cb) {
     const mciMap = {};
     let generatedId = 100;
 
+    //  where the art starts, as the parser counts it: a view placed by
+    //  config `position` counts from here (see mci_map_origin.js)
+    setArtOrigin(mciMap, {
+        row: Math.min(options.startRow ?? 1, client.term.termHeight || Infinity),
+        col: 1,
+    });
+
     parser.on('mci', mciInfo => {
         //  :TODO: ensure generatedId's do not conflict with any existing |id|
         const id = _.isNumber(mciInfo.id) ? mciInfo.id : generatedId;
@@ -835,12 +843,15 @@ function display(client, art, options, cb) {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             delete mciMap[mapKey];
         });
+        //  the parser starts again at the top left, and so does the art
+        setArtOrigin(mciMap, { row: 1, col: 1 });
     });
 
     parser.on('scroll', scrollY => {
         _.forEach(mciMap, mciInfo => {
             mciInfo.position[0] -= scrollY;
         });
+        shiftArtOrigin(mciMap, -scrollY, 0);
     });
 
     parser.on('insert line', (row, numLines) => {

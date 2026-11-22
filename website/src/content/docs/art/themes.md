@@ -137,6 +137,21 @@ newUserFeedbackToSysOp: {
 }
 ```
 
+A theme can also add views a menu's art has no code for, or move ones it has, with `position`. The key does not need to exist in `menu.hjson`:
+```hjson
+matrix: {
+    mci: {
+        //  no %TK50 in MATRIX.ANS: placed at row 22, column 10
+        TK50: {
+            position: { row: 22, col: 10 }
+            width: 60
+            text: "Welcome!"
+        }
+    }
+}
+```
+See [Placing Views from Configuration](mci.md#placing-views-from-configuration).
+
 ##### Custom Range Info Formatting
 Many modules support "custom range" MCI items. These are MCI codes that are left to the user to define using a format object specific to the module. For example, consider the `msg_area_list` module: This module sets MCI codes 10+ (`%TL10`, `%TL11`, etc.) as "custom range". When theming you can place these MCI codes in your artwork then define the format in `theme.hjson`:
 

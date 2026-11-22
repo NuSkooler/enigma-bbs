@@ -84,7 +84,9 @@ ENiGMA½ uses a concept of *forms* in menus. A form is a collection of associate
 
 Menus may also support more than one layout type by using a *MCI key*. A MCI key is a alpha-numerically sorted key made from 1:n MCI codes. This lets the system choose the appropriate set of form(s) based on theme or random art. An example of this may be a matrix menu: Perhaps one style of your matrix uses a vertical light bar (`VM` key) while another uses a horizontal (`HM` key). The system can discover the correct form to use by matching MCI codes found in the art to that of the available forms defined in `menu.hjson`.
 
-For more information on views and associated MCI codes, see [MCI Codes](../art/mci.md).
+Only the codes in the art make up the MCI key. Views placed from configuration with `position` (no code in the art) do not change it, so the same form is chosen with or without them.
+
+For more information on views and associated MCI codes, see [MCI Codes](../art/mci.md), including [Placing Views from Configuration](../art/mci.md#placing-views-from-configuration).
 
 ## Submit Handlers
 When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed. Note: Setting the value explicitly to null matches against any value.
