@@ -116,10 +116,7 @@ class FullMenuView extends MenuView {
                         if (this.items[i - j].col != this.items[i].col) {
                             break;
                         }
-                        const itemLength = strUtil.renderStringLength(
-                            this.items[i - j].text,
-                            ANSI_ONLY
-                        );
+                        const itemLength = this.columnItemWidth(this.items[i - j]);
                         if (itemLength > maxLength) {
                             maxLength = itemLength;
                         }
@@ -161,10 +158,7 @@ class FullMenuView extends MenuView {
                     let maxLength = 0;
                     for (let j = 0; j < this.itemsPerRow; j++) {
                         // TODO: handle complex items
-                        const itemLength = strUtil.renderStringLength(
-                            this.items[i - j].text,
-                            ANSI_ONLY
-                        );
+                        const itemLength = this.columnItemWidth(this.items[i - j]);
                         if (itemLength > maxLength) {
                             maxLength = itemLength;
                         }
@@ -209,6 +203,16 @@ class FullMenuView extends MenuView {
         this.positionCacheExpired = false;
     }
 
+    //  The width |item| needs in its column: its text, and with
+    //  focusItemFrames its widest frame as well, so no frame runs into the
+    //  next column and a narrow frame covers a wide one
+    columnItemWidth(item) {
+        const width = strUtil.renderStringLength(item.text, ANSI_ONLY);
+        return this.hasFocusItemFrames()
+            ? Math.max(width, this.focusItemFrameWidth(item))
+            : width;
+    }
+
     drawItem(index) {
         const item = this.items[index];
         if (!item) {
@@ -222,11 +226,13 @@ class FullMenuView extends MenuView {
 
         let text;
         let sgr;
+        let frame = false;
         if (item.focused && this.hasFocusItemFrames()) {
             //  from the normal SGR: a tick draws after whatever was last
             //  written (another animation), a frame never inherits it
             text = this.renderFocusItemFrame(item);
             sgr = this.getSGR();
+            frame = true;
         } else if (item.focused && this.hasFocusItems()) {
             const focusItem = this.focusItems[index];
             text = focusItem ? focusItem.text : item.text;
@@ -277,7 +283,15 @@ class FullMenuView extends MenuView {
             }
         }
 
-        const padLength = Math.min(item.fixedLength + 1, this.dimens.width);
+        let padLength = Math.min(item.fixedLength + 1, this.dimens.width);
+
+        //  a frame stops at the view's right edge
+        const room = this.dimens.width - relativeColumn;
+        if (frame && room > 0) {
+            text = this.clipFocusItemFrame(text, room);
+            textWidth = ANSI_ONLY;
+            padLength = Math.min(padLength, room);
+        }
 
         text = `${sgr}${strUtil.pad(
             text,
@@ -294,6 +308,18 @@ class FullMenuView extends MenuView {
 
     focusItemFramesSupported() {
         return true;
+    }
+
+    setPropertyValue(propName, value) {
+        super.setPropertyValue(propName, value);
+
+        //  the columns are as wide as the frames (cachePositions())
+        if (
+            'focusItemFrames' === propName ||
+            ('focusItemFormat' === propName && this.hasFocusItemFrames())
+        ) {
+            this.positionCacheExpired = true;
+        }
     }
 
     //  On the current page, laid out, and drawn as the focused item

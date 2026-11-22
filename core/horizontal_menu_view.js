@@ -130,45 +130,40 @@ class HorizontalMenuView extends MenuView {
         );
     }
 
-    //  The widest of every format |item| may show while focused
-    focusItemFrameWidth(item) {
-        return this.focusItemFrameFormats().reduce(
-            (w, format) =>
-                Math.max(
-                    w,
-                    strUtil.renderStringLength(
-                        this.renderFocusItemFrame(item, format),
-                        ANSI_ONLY
-                    )
-                ),
-            0
-        );
-    }
-
     //
     //  The focused item from focusItemFrames, centred in its slot, which is
     //  as wide as the widest look of the item (cachePositions()), so no
     //  frame overlaps the next item and a narrow frame covers a wide one.
     //  The rendered frame is cached per frame. Drawn from the normal SGR,
-    //  so a tick never inherits another animation's.
+    //  so a tick never inherits another animation's. HM lays its items out
+    //  without regard to its width, so the edge a frame is cut at is the
+    //  terminal's; an item starting past it draws nothing (its cycle still
+    //  starts again, as for any draw of the focused item).
     //
     drawFocusItemFrame(index, item) {
         let cached = this.getRenderCacheItem(index, true);
+        if (item.col > this.client.term.termWidth) {
+            return;
+        }
         if (!cached) {
             const text = this.renderFocusItemFrame(item);
             cached = { text, textWidth: strUtil.renderStringLength(text, ANSI_ONLY) };
             this.setRenderCacheItem(index, cached, true);
         }
         const slotWidth = Math.max(item.frameSlotWidth || 0, cached.textWidth);
+        const text = strUtil.pad(
+            cached.text,
+            slotWidth + this.getSpacer().length * 2,
+            this.fillChar,
+            'center',
+            '',
+            '',
+            cached.textWidth
+        );
         this.client.term.write(
-            `${goto(this.position.row, item.col)}${this.getSGR()}${strUtil.pad(
-                cached.text,
-                slotWidth + this.getSpacer().length * 2,
-                this.fillChar,
-                'center',
-                '',
-                '',
-                cached.textWidth
+            `${goto(this.position.row, item.col)}${this.getSGR()}${this.clipToTerminalWidth(
+                text,
+                item.col
             )}`
         );
     }
@@ -177,10 +172,16 @@ class HorizontalMenuView extends MenuView {
         return true;
     }
 
-    //  Laid out, and drawn as the focused item
+    //  Laid out, on the terminal, and drawn as the focused item
     isFocusItemFrameVisible(index) {
         const item = this.items[index];
-        return !!item && !!item.focused && !this.positionCacheExpired && null != item.col;
+        return (
+            !!item &&
+            !!item.focused &&
+            !this.positionCacheExpired &&
+            null != item.col &&
+            item.col <= this.client.term.termWidth
+        );
     }
 
     setPropertyValue(propName, value) {

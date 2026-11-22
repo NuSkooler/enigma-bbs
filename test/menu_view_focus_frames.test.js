@@ -193,6 +193,46 @@ function vmPlain(row, text, col = 10) {
 
 const key = name => ({ name });
 
+//  What a terminal shows after |term|'s writes (from write |from| on):
+//  cursor moves (ESC[r;cH) followed, every other escape skipped. row(r) is
+//  that row's text; maxCol(r) the rightmost column written on it.
+function screen(term, from = 0) {
+    const cells = {};
+    const maxCols = {};
+    let r = 1;
+    let c = 1;
+    const s = term.since(from).join('');
+    for (let i = 0; i < s.length; ++i) {
+        if ('\x1b' === s[i]) {
+            const m = /^\x1b\[([0-9;?]*)([A-Za-z])/.exec(s.slice(i));
+            if (m) {
+                if ('H' === m[2]) {
+                    const [row, col] = m[1].split(';');
+                    r = parseInt(row, 10) || 1;
+                    c = parseInt(col, 10) || 1;
+                }
+                i += m[0].length - 1;
+                continue;
+            }
+        }
+        cells[`${r},${c}`] = s[i];
+        maxCols[r] = Math.max(maxCols[r] || 0, c);
+        ++c;
+    }
+    return {
+        row(row, from, to) {
+            let text = '';
+            for (let col = from; col <= to; ++col) {
+                text += cells[`${row},${col}`] || ' ';
+            }
+            return text;
+        },
+        maxCol(row) {
+            return maxCols[row] || 0;
+        },
+    };
+}
+
 describe('Animated focused menu items (focusItemFrames)', function () {
     let time;
     let previousConfig;
@@ -753,6 +793,158 @@ describe('Animated focused menu items (focusItemFrames)', function () {
             view.setFocus(false);
             assert.ok(term.since(n).join('').includes(`${N}bb`));
             assert.equal(time.live(), 0);
+        });
+    });
+
+    describe('frame widths: columns, the view edge, the terminal edge', function () {
+        it('FM: a column is as wide as its widest frame, so no frame runs into the next', function () {
+            const conf = {
+                items: ['aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff'],
+                focus: true,
+                submit: true,
+                width: 30,
+                height: 3,
+                itemHorizSpacing: 2,
+                focusItemFrameInterval: 100,
+            };
+            //  without frames: columns from the item text, as before
+            const plain = track(loadView('FM', conf));
+            assert.deepEqual(
+                plain.view.items.map(item => item.fixedLength),
+                [4, 4, 4, 4, 4, 4]
+            );
+            assert.equal(plain.view.items[3].col, 16);
+            plain.vc.destroy();
+
+            const { term, view } = track(
+                loadView(
+                    'FM',
+                    Object.assign({}, conf, {
+                        focusItemFrames: ['|15>{text}', '|11>>{text}', '|03>>>>{text}'],
+                    })
+                )
+            );
+            assert.deepEqual(
+                view.items.map(item => item.fixedLength),
+                [8, 8, 8, 8, 8, 8]
+            );
+            assert.equal(view.items[3].col, 20);
+            const rows = ['>aaaa', '>>aaaa', '>>>>aaaa', '>aaaa'];
+            rows.forEach((focused, tick) => {
+                if (tick > 0) {
+                    time.advance(100);
+                }
+                assert.equal(
+                    screen(term).row(5, 10, 29),
+                    `${focused.padEnd(10)}dddd      `,
+                    `tick ${tick}`
+                );
+            });
+            assert.equal(screen(term).row(6, 10, 29), `${'bbbb'.padEnd(10)}eeee      `);
+        });
+
+        it('FM: changing the frames lays the columns out again', function () {
+            const { view } = track(
+                loadView('FM', {
+                    items: ['aaaa', 'bbbb', 'cccc', 'dddd'],
+                    focus: true,
+                    width: 30,
+                    height: 2,
+                    itemHorizSpacing: 2,
+                    focusItemFrames: ['{text}'],
+                })
+            );
+            assert.equal(view.items[2].col, 16);
+            view.setPropertyValue('focusItemFrames', ['>>>>{text}']);
+            view.redraw();
+            assert.equal(view.items[2].col, 20);
+        });
+
+        it('VM: a frame wider than the view is cut at its edge', function () {
+            const { term } = track(
+                loadView(
+                    'VM',
+                    vmConf({ focusItemFrames: ['>>>>>>>>>>{text}', '{text}'] })
+                )
+            );
+            assert.equal(screen(term).row(5, 10, 19), '>>>>>>>>>>');
+            assert.equal(screen(term).maxCol(5), 19);
+            time.advance(100);
+            assert.equal(screen(term).row(5, 10, 19), 'one       ');
+            assert.equal(screen(term).maxCol(5), 19);
+        });
+
+        it('SM: a frame wider than the view is cut at its edge', function () {
+            const { term } = track(
+                loadView('SM', {
+                    items: ['aa', 'bb'],
+                    focus: true,
+                    width: 6,
+                    focusItemFrames: ['>>>>>>{text}', '{text}'],
+                    focusItemFrameInterval: 100,
+                })
+            );
+            assert.equal(screen(term).row(5, 10, 15), '>>>>>>');
+            assert.equal(screen(term).maxCol(5), 15);
+            time.advance(100);
+            assert.equal(screen(term).row(5, 10, 15), 'aa    ');
+        });
+
+        it('FM: a column wider than the view (the first) is cut at its edge', function () {
+            const { term } = track(
+                loadView('FM', {
+                    items: ['aa', 'bb'],
+                    focus: true,
+                    width: 12,
+                    height: 2,
+                    focusItemFrames: ['>>>>>>>>>>>>{text}', '{text}'],
+                    focusItemFrameInterval: 100,
+                })
+            );
+            assert.equal(screen(term).row(5, 10, 21), '>>>>>>>>>>>>');
+            assert.equal(screen(term).maxCol(5), 21);
+            time.advance(100);
+            assert.equal(screen(term).row(5, 10, 21), 'aa          ');
+        });
+
+        it('HM: frames are cut at the terminal edge; an item past it neither draws nor ticks', function () {
+            const { term, view } = track(
+                loadView(
+                    'HM',
+                    {
+                        items: ['aa', 'bb', 'cc'],
+                        focus: true,
+                        focusItemFrames: ['|15<{text}>', '|11{text}'],
+                        focusItemFrameInterval: 100,
+                    },
+                    { col: 70 }
+                )
+            );
+            assert.deepEqual(
+                view.items.map(item => item.col),
+                [70, 76, 82]
+            );
+            //  (an unfocused item is drawn whole wherever it is, as before)
+            let n = term.flushes.length;
+            view.onKeyPress(null, key('right arrow')); //  "bb": 76-81, cut at 80
+            assert.ok(
+                term
+                    .since(n)
+                    .join('')
+                    .includes(`${goto(5, 76)}${N} ${pipeToAnsi('|15')}<bb>${N}`)
+            );
+            n = term.flushes.length;
+            time.advance(100);
+            assert.equal(term.flushes.length, n + 1);
+            assert.equal(screen(term, n).row(5, 76, 80), '  bb ');
+            assert.equal(screen(term, n).maxCol(5), 80);
+
+            n = term.flushes.length;
+            view.onKeyPress(null, key('right arrow')); //  "cc": off the terminal
+            assert.ok(!term.since(n).join('').includes(pipeToAnsi('|15')));
+            n = term.flushes.length;
+            time.advance(500);
+            assert.equal(term.flushes.length, n, 'no ticks for it');
         });
     });
 

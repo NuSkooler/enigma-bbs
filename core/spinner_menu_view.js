@@ -46,8 +46,12 @@ class SpinnerMenuView extends MenuView {
         let sgr;
         if (this.hasFocus && this.hasFocusItemFrames()) {
             //  from the normal SGR: a tick draws after whatever was last
-            //  written (another animation), a frame never inherits it
-            text = this.renderFocusItemFrame(item);
+            //  written (another animation), a frame never inherits it;
+            //  it stops at the view's right edge
+            text = this.clipFocusItemFrame(
+                this.renderFocusItemFrame(item),
+                this.dimens.width
+            );
             sgr = this.getSGR();
         } else if (this.complexItems) {
             text = pipeToAnsi(

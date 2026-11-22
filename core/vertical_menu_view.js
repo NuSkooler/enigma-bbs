@@ -86,11 +86,13 @@ class VerticalMenuView extends MenuView {
 
         let text;
         let sgr;
+        let frame = false;
         if (item.focused && this.hasFocusItemFrames()) {
             //  from the normal SGR: a tick draws after whatever was last
             //  written (another animation), a frame never inherits it
             text = this.renderFocusItemFrame(item);
             sgr = this.getSGR();
+            frame = true;
         } else if (item.focused && this.hasFocusItems()) {
             const focusItem = this.focusItems[index];
             text = focusItem ? focusItem.text : item.text;
@@ -123,6 +125,11 @@ class VerticalMenuView extends MenuView {
                 omission: this.textOverflow,
                 dialect: 'ansi',
             });
+        }
+
+        //  a frame stops at the view's right edge
+        if (frame) {
+            text = this.clipFocusItemFrame(text, this.dimens.width);
         }
 
         text = this.clipToTerminalWidth(

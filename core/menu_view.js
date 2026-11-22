@@ -5,6 +5,7 @@ const { View } = require('./view.js');
 const miscUtil = require('./misc_util.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const formatString = require('./string_format');
+const { renderStringLength, renderSplitPos } = require('./string_util.js');
 const FrameClock = require('./frame_clock.js');
 const {
     DEFAULT_FRAME_INTERVAL_MS,
@@ -16,6 +17,9 @@ const {
 //  deps
 const assert = require('assert');
 const _ = require('lodash');
+
+//  Items are drawn already rendered: only ANSI escapes are codes.
+const ANSI_ONLY = { dialect: 'ansi' };
 
 //
 //  Animated focused items (focusItemFrames)
@@ -40,6 +44,10 @@ const _ = require('lodash');
 //  switch, the menu's config.animations: false), the session is not plain
 //  ANSI -- the focused item shows one static format: focusItemFormat if
 //  set, else frame 0. Nothing ticks.
+//
+//  A frame is drawn no wider than the view (cut at its right edge); the
+//  layouts that size items (HM slots, FM columns) make room for the
+//  widest frame.
 //
 //  Per-item focusItems win: with both set, focusItems are drawn and the
 //  frames are ignored (warned once). The subclass draws; it opts in with
@@ -138,6 +146,27 @@ class MenuView extends View {
     //  |item| rendered with |format| (default: the one drawn now)
     renderFocusItemFrame(item, format = this.focusItemFrameFormat()) {
         return pipeToAnsi(formatString(format, item));
+    }
+
+    //  The widest of every format |item| may show while focused
+    focusItemFrameWidth(item) {
+        return this.focusItemFrameFormats().reduce(
+            (w, format) =>
+                Math.max(
+                    w,
+                    renderStringLength(this.renderFocusItemFrame(item, format), ANSI_ONLY)
+                ),
+            0
+        );
+    }
+
+    //  A rendered frame cut to |width| columns: one wider than the view
+    //  would leave its tail past the view's edge, which nothing covers
+    clipFocusItemFrame(text, width) {
+        if (!(width > 0) || renderStringLength(text, ANSI_ONLY) <= width) {
+            return text;
+        }
+        return text.slice(0, renderSplitPos(text, width, false));
     }
 
     //  The render cache slot for |index|: one per frame for the focused item
