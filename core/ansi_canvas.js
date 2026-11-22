@@ -468,7 +468,8 @@ class AnsiCanvas {
 //  width, height   one frame's size (the view's box), required
 //  row, col        1-based origin of frame 0 inside the sheet (default 1, 1)
 //  gap             blank rows between frames (default 0)
-//  frameCount      take at most this many frames
+//  frameCount      take at most this many frames; rows below them (notes)
+//                  are ignored, never warned as a partial frame
 //
 //  The frame count comes from the sheet's rendered rows, never from SAUCE.
 //  A partial last frame is dropped, with a warning. Returns { frames,
@@ -494,8 +495,10 @@ function sliceSheet(sheet, options = {}) {
     const leftover = available - (count * (height + gap) - (count > 0 ? gap : 0));
 
     const cap = Math.floor(options.frameCount);
-    if (cap > 0 && cap < count) {
-        count = cap; //  rows past the frames wanted (notes below them) are ignored
+    if (cap > 0 && cap <= count) {
+        //  rows past the frames wanted (notes below them) are ignored, also
+        //  when they would make a partial frame
+        count = cap;
     } else {
         if (leftover > gap || (0 === count && available > 0)) {
             const partial = 0 === count ? available : leftover - gap;

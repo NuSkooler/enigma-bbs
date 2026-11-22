@@ -2,6 +2,7 @@
 
 //  ENiGMA½
 const ansi = require('./ansi_term.js');
+const { charDisplayWidth } = require('./display_width.js');
 
 //
 //  The diff writer: what to write to turn one canvas on screen
@@ -9,9 +10,15 @@ const ansi = require('./ansi_term.js');
 //
 //  - Only runs of changed cells are written; a cell masked as transparent
 //    (applyTransparency()) never is.
-//  - A run starts with a goto. Two runs on one row are joined when
-//    redrawing the unchanged cells between them costs less than the goto
-//    (about GOTO_COST bytes) would.
+//  - A run starts with a goto, or, after a run on the same row, with a
+//    cursor forward (CUF, ESC [ n C) over the cells between them when that
+//    is shorter, which on a row it always is -- unless the run before it
+//    holds a character the terminal may not advance one column for (a
+//    wide CJK or emoji character in a UTF-8 session): then a goto, as the
+//    cursor is not where the cell count says. Two runs on one row are
+//    joined when redrawing the unchanged cells between them costs less
+//    than that jump (the cheaper of the CUF and a goto of about GOTO_COST
+//    bytes) would.
 //  - SGR is written only where it changes. Every attr starts from a reset,
 //    so the first one written does not depend on what the terminal was
 //    set to.
@@ -30,6 +37,13 @@ const GOTO_COST = 8;
 //  usual case. A UTF-8 session pays more for a non-ASCII character, which
 //  only makes joining across a gap a little less of a bargain there.
 const CHAR_COST = 1;
+
+//  ESC [ n C: what a cursor forward over |n| cells costs, in bytes. The
+//  count is always written (ESC [ C would be a byte less for one cell, but
+//  a gap of one is nearly always joined anyway).
+function cufCost(n) {
+    return 3 + String(n).length;
+}
 
 function isMasked(mask, width, row, col) {
     return Boolean(mask && mask[row * width + col]);
@@ -101,9 +115,11 @@ function transition(prev, next, options = {}) {
                     joinCost += CHAR_COST;
                 }
                 joinCost += attr !== a ? attr.length : 0;
-                const gotoCost = GOTO_COST + (attr !== runAttr ? attr.length : 0);
+                const jumpCost =
+                    Math.min(GOTO_COST, cufCost(c - gapStart)) +
+                    (attr !== runAttr ? attr.length : 0);
 
-                if (joinCost < gotoCost) {
+                if (joinCost < jumpCost) {
                     for (let g = gapStart; g < c; ++g) {
                         run.chars.push(next.chars[r][g]);
                         run.attrs.push(next.attrs[r][g]);
@@ -139,6 +155,7 @@ function transition(prev, next, options = {}) {
             body += run.chars[i];
         }
         run.body = body;
+        run.narrow = isNarrowRun(run);
     });
 
     return { full, width, height, runs };
@@ -169,13 +186,17 @@ function render(t, options = {}) {
         origin.col + t.width - 1 <= termWidth;
 
     if (fits) {
+        let prev = null;
         for (const run of t.runs) {
-            out += ansi.goto(origin.row + run.row, origin.col + run.col) + run.body;
+            out += jumpTo(prev, run, origin) + run.body;
+            prev = run;
         }
         return out;
     }
 
-    //  clipped: each run cut to the screen, SGR tracked as written
+    //  clipped: each run cut to the screen, SGR tracked as written. Each
+    //  run starts with a goto: where a cut run left the cursor is not
+    //  worth working out.
     let a = null;
     for (const run of t.runs) {
         const row = origin.row + run.row;
@@ -206,6 +227,42 @@ function render(t, options = {}) {
 }
 
 //
+//  True if every character of |run| is one column wide on a terminal
+//  (charDisplayWidth()): CP437 and other single-byte art always is. A wide
+//  character (CJK, emoji) advances the cursor two columns in a UTF-8
+//  session, a zero-width one none, so the cursor after such a run is not
+//  in the cell after its last one.
+//
+function isNarrowRun(run) {
+    return run.chars.every(ch => 1 === charDisplayWidth(ch));
+}
+
+//
+//  To the start of |run|, from the end of |prev| (the run written before
+//  it, or null): a cursor forward when both are on one row and that is
+//  shorter than a goto, otherwise a goto. The cursor after |prev| is in
+//  the cell after its last one when all of |prev| is narrow (isNarrowRun());
+//  otherwise a goto puts it right. It is never past the screen's last
+//  column (render() only uses this when the whole canvas fits), so no
+//  pending wrap is in play.
+//
+function jumpTo(prev, run, origin) {
+    const gotoStr = ansi.goto(origin.row + run.row, origin.col + run.col);
+    const narrow =
+        prev && ('boolean' === typeof prev.narrow ? prev.narrow : isNarrowRun(prev));
+    if (narrow && prev.row === run.row) {
+        const n = run.col - (prev.col + prev.chars.length);
+        if (n > 0) {
+            const cuf = ansi.forward(n);
+            if (cuf.length < gotoStr.length) {
+                return cuf;
+            }
+        }
+    }
+    return gotoStr;
+}
+
+//
 //  render() |t| and write it to |term| (client.term), encoded for the
 //  session. Returns the string written ('' writes nothing).
 //
@@ -221,20 +278,28 @@ function write(term, t, options) {
 //  Transitions between the frames of a static list (canvases of one
 //  size). Each step forward (i -> i + 1) and the wrap (last -> 0) is worked
 //  out when this is built, so a tick in loop order costs a lookup; any
-//  other pair (pingpong, random) is worked out on first use and kept.
+//  other pair (pingpong, random) is worked out on first use and kept, up
+//  to |options.maxOtherSteps| of them (the least recently used dropped
+//  first), so a large frame set played at random does not keep n * n.
 //  full(i) draws frame i whole (the first draw, a redraw).
 //
+const MAX_OTHER_STEPS = 256;
+
 class FrameTransitions {
     constructor(frames, options = {}) {
         this.frames = frames;
         this.mask = options.mask || null;
         this._full = new Map();
         this._steps = new Map();
+        this._maxOther =
+            options.maxOtherSteps > 0 ? options.maxOtherSteps : MAX_OTHER_STEPS;
+        this._other = null; //  keys of the other steps kept, oldest use first
         if (frames.length > 1) {
             for (let i = 0; i < frames.length; ++i) {
                 this.get(i, (i + 1) % frames.length);
             }
         }
+        this._other = new Set();
     }
 
     get size() {
@@ -257,15 +322,29 @@ class FrameTransitions {
         }
         const key = from * this.frames.length + to;
         let t = this._steps.get(key);
-        if (!t) {
-            t = transition(this.frames[from], this.frames[to], { mask: this.mask });
-            this._steps.set(key, t);
+        if (t) {
+            if (this._other && this._other.delete(key)) {
+                this._other.add(key); //  most recently used
+            }
+            return t;
+        }
+        t = transition(this.frames[from], this.frames[to], { mask: this.mask });
+        this._steps.set(key, t);
+        //  null while the constructor works out the steps forward: kept always
+        if (this._other) {
+            this._other.add(key);
+            if (this._other.size > this._maxOther) {
+                const oldest = this._other.values().next().value;
+                this._other.delete(oldest);
+                this._steps.delete(oldest);
+            }
         }
         return t;
     }
 }
 
 exports.GOTO_COST = GOTO_COST;
+exports.cufCost = cufCost;
 exports.transition = transition;
 exports.render = render;
 exports.write = write;

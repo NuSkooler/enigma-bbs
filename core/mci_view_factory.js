@@ -18,6 +18,7 @@ const MultiLineEditTextView =
 const TickerView = require('./ticker_view.js').TickerView;
 const StatusBarView = require('./status_bar_view.js').StatusBarView;
 const TableView = require('./table_view.js').TableView;
+const AnimationView = require('./animation_view.js').AnimationView;
 const getPredefinedMCIValue = require('./predefined_mci.js').getPredefinedMCIValue;
 const ansi = require('./ansi_term.js');
 
@@ -54,6 +55,12 @@ MCIViewFactory.UserViewCodes = [
     'TK', //  Ticker (scrolling marquee)
     'SB', //  Status Bar (auto-refreshing text label)
     'TV', //  Table View (columns, groups, sorting)
+
+    //  AV (Animation View) is made below but deliberately not listed: these
+    //  codes are the art's signature that explicit form keys (`VM: { ... }`,
+    //  `HMTL: { ... }`) are matched against (menu_util
+    //  getFormConfigByIDAndMap()), and adding an animation marker to a
+    //  menu's art must not change which form config it gets.
 ];
 
 MCIViewFactory.MovementCodes = ['CF', 'CB', 'CU', 'CD'];
@@ -99,7 +106,7 @@ MCIViewFactory.prototype.createFromMCI = function (mci) {
     }
 
     //
-    //  Note: Keep this in sync with UserViewCodes above!
+    //  Note: Keep this in sync with UserViewCodes above! (AV excepted: see there)
     //
     switch (mci.code) {
         //  Text Label (Text View)
@@ -226,6 +233,11 @@ MCIViewFactory.prototype.createFromMCI = function (mci) {
         //  Table View — configure via mci properties in menu/theme hjson
         case 'TV':
             view = new TableView(options);
+            break;
+
+        //  Animation View — configure via mci properties in menu/theme hjson
+        case 'AV':
+            view = new AnimationView(options);
             break;
 
         default:

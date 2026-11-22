@@ -228,6 +228,15 @@ module.exports = () => {
 
         menus: {
             cls: true, //  Clear screen before each menu by default?
+
+            //  Animation views (%AV). |enabled| false turns them off
+            //  everywhere; a menu's own config.animations: false turns off
+            //  just that menu. Off: each shows its first frame, never ticks.
+            animations: {
+                enabled: true,
+                //  no animation frame is drawn sooner than this after the last
+                minFrameIntervalMs: 50,
+            },
         },
 
         doors: {

@@ -115,6 +115,7 @@ items: [ "First item", "Second item", "Third Item" ]
 | [Text View](text_view.md) | `%TL` | A static single-line text label |
 | [Ticker View](ticker_view.md) | `%TK` | A continuously scrolling marquee |
 | [Status Bar View](status_bar_view.md) | `%SB` | An auto-refreshing text label |
+| [Animation View](animation_view.md) | `%AV` | Frames played in a box over the menu's art |
 
 ### Input Views
 
@@ -211,6 +212,15 @@ classDiagram
     class StatusBarView {
         +refreshInterval int
         +setText(text)
+        +destroy()
+    }
+
+    class AnimationView {
+        +frames
+        +frameInterval int
+        +mode string
+        +prepare(cb)
+        +forceNextRedraw()
         +destroy()
     }
 
@@ -362,6 +372,7 @@ classDiagram
     ViewController o-- View : views (a form)
     View <|-- TextView
     View <|-- TickerView
+    View <|-- AnimationView
     View <|-- MenuView
     View <|-- MultiLineEditTextView
     View <|-- KeyEntryView
@@ -394,6 +405,10 @@ The general flow is:
 :::note
 See [MCI](../mci.md) for details on formatting, text styles, and how MCI codes relate to menus and themes.
 :::
+
+### Views that load before the first draw
+
+A view can have a `prepare(cb)` method for work that must be done before it is drawn, such as reading art. When a form loads, the `ViewController` calls `prepare()` on every view that has one, after the views are configured from `menu.hjson` and `theme.hjson` and before the form is first drawn, and draws the form once they have all called back. [AnimationView](animation_view.md) uses it to load its frames. `cb` takes no error: a view that cannot load what it needs logs it and draws what it can, so the menu still loads. A `prepare()` that throws is logged and costs only that view. If the form is torn down (its menu left) before every view has called back, it is not drawn. A form with no view that has `prepare()` loads exactly as before.
 
 ### Views that draw on a timer
 

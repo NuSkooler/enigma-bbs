@@ -1007,6 +1007,26 @@
 					//		width: 76
 					//		text: "Thanks for calling!"
 					//	}
+					//
+					//	An animation (%AV) is added the same way. Its frames
+					//	can come from art in this theme's folder: here a sheet
+					//	of 8x5 frames stacked down the file. Do not name frame
+					//	art after the menu's art plus a number (STATUS1.ANS):
+					//	that is taken as a random variant of the menu art.
+					//	See "Animation View" in the docs.
+					//	AV51: {
+					//		position: {
+					//			row: 2
+					//			col: 70
+					//		}
+					//		width: 8
+					//		height: 5
+					//		frames: {
+					//			art: STATSFX
+					//		}
+					//		mode: loop
+					//		frameInterval: 120
+					//	}
 					UN1: { width: 15 }
 					UR2: { width: 15 }
 					MS3: { width: 15 }

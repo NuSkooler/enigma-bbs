@@ -501,6 +501,26 @@
                 "cls": {
                     "type": "boolean",
                     "default": true
+                },
+                "animations": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "description": "Animation views (%AV) animate. Off, each shows its first frame and never ticks. Off here is off everywhere; a menu's config.animations: false turns off just that menu.",
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "minFrameIntervalMs": {
+                            "description": "No animation frame is drawn sooner than this many ms after the last.",
+                            "type": "number",
+                            "minimum": 1,
+                            "default": 50
+                        }
+                    },
+                    "patternProperties": {
+                        "^_": true
+                    },
+                    "additionalProperties": false
                 }
             },
             "patternProperties": {
