@@ -585,6 +585,34 @@ describe('AnimationView (%AV)', function () {
             );
         });
 
+        it('art whose parse throws (ESC [ u, nothing saved): a load error, the menu still loads', function () {
+            //  thrown inside the art's callback, after prepare() returned
+            [{ art: ['f1', 'f2'] }, { art: 'sheet' }].forEach(frames => {
+                const client = makeClient(
+                    menuWith({
+                        TL1: { text: 'hello' },
+                        AV20: { width: 3, height: 1, frames },
+                    })
+                );
+                const r = track(
+                    load(client, { TL1: mci('TL', 1, 2, 2), AV20: mci('AV', 20, 5, 10) })
+                );
+                while (pending.length > 0) {
+                    pending.shift().cb(null, artInfo(`abc${ESC}[u`));
+                }
+                assert.equal(r.called, 1, JSON.stringify(frames));
+                assert.ifError(r.error);
+                const out = client.term.all();
+                assert.ok(out.includes('hello'), 'the rest of the form is drawn');
+                assert.ok(!out.includes(goto(5, 10)), 'nothing in the box');
+                assert.ok(
+                    client.log.warns.some(w => /failed to load/.test(w.msg)),
+                    'warned'
+                );
+            });
+            assert.equal(time.live(), 0);
+        });
+
         it('bad config never fails the menu (no width, no frames, a bad list)', function () {
             theme.getThemeArt = saved;
             [

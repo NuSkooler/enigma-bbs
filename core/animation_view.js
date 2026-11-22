@@ -304,17 +304,24 @@ function loadFrameSet(view, cb) {
                 if (cached) {
                     return cb(null, cached, true);
                 }
-                const warnings = [];
-                const frames = loaded.map((l, i) =>
-                    frameFromCanvas(
-                        canvasFromArt(l.artInfo),
-                        width,
-                        height,
-                        `Frame art "${source.art[i]}"`,
-                        warnings
-                    )
-                );
-                const set = buildFrameSet(frames, transparent, warnings);
+                //  in an fs callback: what the art's parse throws (ESC [ u
+                //  with no saved position) is a load error, not uncaught
+                let set;
+                try {
+                    const warnings = [];
+                    const frames = loaded.map((l, i) =>
+                        frameFromCanvas(
+                            canvasFromArt(l.artInfo),
+                            width,
+                            height,
+                            `Frame art "${source.art[i]}"`,
+                            warnings
+                        )
+                    );
+                    set = buildFrameSet(frames, transparent, warnings);
+                } catch (e) {
+                    return cb(e);
+                }
                 if (key) {
                     cachePut(key, set);
                 }
@@ -344,20 +351,28 @@ function loadFrameSet(view, cb) {
             if (cached) {
                 return cb(null, cached, true);
             }
-            const sheet = canvasFromArt(loaded.artInfo);
-            const sliced = sliceSheet(sheet, sheetSpec);
+            //  in an fs callback: see the list above
             const what = `Frame sheet "${source.art}"`;
-            const warnings = sliced.warnings.map(w => `${what}: ${w}`);
-            (sheet.warnings || []).forEach(w => warnings.push(`${what}: ${w}`));
-            if (sheet.mci && sheet.mci.length > 0) {
-                warnings.push(
-                    `${what} holds MCI codes, which animation frames do not support; drawn blank`
-                );
+            let set;
+            try {
+                const sheet = canvasFromArt(loaded.artInfo);
+                const sliced = sliceSheet(sheet, sheetSpec);
+                const warnings = sliced.warnings.map(w => `${what}: ${w}`);
+                (sheet.warnings || []).forEach(w => warnings.push(`${what}: ${w}`));
+                if (sheet.mci && sheet.mci.length > 0) {
+                    warnings.push(
+                        `${what} holds MCI codes, which animation frames do not support; drawn blank`
+                    );
+                }
+                if (sliced.frames.length > 0) {
+                    set = buildFrameSet(sliced.frames, transparent, warnings);
+                }
+            } catch (e) {
+                return cb(e);
             }
-            if (0 === sliced.frames.length) {
+            if (!set) {
                 return cb(new Error(`${what} has no whole frame of ${width}x${height}`));
             }
-            const set = buildFrameSet(sliced.frames, transparent, warnings);
             if (key) {
                 cachePut(key, set);
             }
