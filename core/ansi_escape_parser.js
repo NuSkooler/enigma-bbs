@@ -83,6 +83,18 @@ function ANSIEscapeParser(options) {
     }
     this.trailingLF = miscUtil.valueWithDefault(options.trailingLF, 'default');
 
+    //
+    //  |deferredWrap|: a character drawn in the last column leaves the
+    //  cursor there, with a wrap pending, as a VT terminal's autowrap does;
+    //  the wrap happens when the next character is drawn, and a CR, LF or
+    //  cursor movement before that cancels it. So an exactly-full line
+    //  ended with CRLF takes one row, not two. Off by default: art.display()
+    //  keeps wrapping at once, as it always has. Used to draw art into a
+    //  cell grid off screen (core/ansi_canvas.js).
+    //
+    this.deferredWrap = true === options.deferredWrap;
+    this.wrapPending = false;
+
     this.row = Math.min(options?.startRow ?? 1, this.termHeight);
 
     self.moveCursor = function (cols, rows) {
@@ -120,6 +132,7 @@ function ANSIEscapeParser(options) {
     };
 
     self.positionUpdated = function () {
+        self.wrapPending = false;
         if (self.row > self.termHeight) {
             if (this.savedPosition) {
                 this.savedPosition.row -= self.row - self.termHeight;
@@ -172,7 +185,26 @@ function ANSIEscapeParser(options) {
                     break;
 
                 default:
-                    if (self.column === self.breakWidth) {
+                    if (self.wrapPending) {
+                        //  deferredWrap: the line was full; this character
+                        //  starts the next one
+                        if (pos > start) {
+                            self.emit('literal', text.slice(start, pos));
+                        }
+                        start = pos;
+                        if (self.breakWidth < self.termWidth) {
+                            self.emit('literal', '\r\n');
+                        }
+                        self.column = 1;
+                        self.row += 1;
+                        self.positionUpdated();
+                    }
+
+                    if (self.column === self.breakWidth && self.deferredWrap) {
+                        self.emit('literal', text.slice(start, pos + 1));
+                        start = pos + 1;
+                        self.wrapPending = true;
+                    } else if (self.column === self.breakWidth) {
                         self.emit('literal', text.slice(start, pos + 1));
                         start = pos + 1;
 
@@ -280,6 +312,7 @@ function ANSIEscapeParser(options) {
     }
 
     self.reset = function (input) {
+        self.wrapPending = false;
         self.column = 1;
         self.row = Math.min(options?.startRow ?? 1, self.termHeight);
 
