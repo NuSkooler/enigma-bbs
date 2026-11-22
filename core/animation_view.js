@@ -61,8 +61,8 @@ const _ = require('lodash');
 //      random      any frame but the one showing, each tick
 //
 //  Not animated -- frame 0 drawn, nothing ticks -- when animations are
-//  off (menus.animations.enabled, or the menu's own config.animations,
-//  which wins, as config.cls does over menus.cls), and on any session that
+//  off (menus.animations.enabled is a hard off; a menu's own
+//  config.animations: false turns off just that menu), and on any session that
 //  is not plain ANSI (PETSCII, ATASCII, or the RIP layer). Frame 0 then
 //  goes out through client.term.write() like any view's output, so the
 //  session's translator converts it.
@@ -122,14 +122,14 @@ function minFrameIntervalMs() {
     return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_MIN_FRAME_INTERVAL_MS;
 }
 
-//  On for |client|'s current menu? Its config.animations wins, as
-//  config.cls does over menus.cls
+//  On for |client|'s current menu? The system switch is a hard off (owner,
+//  2026-11-21); a menu can only turn its own animations off, not back on
 function animationsEnabled(client) {
-    const perMenu = _.get(client, 'currentMenuModule.menuConfig.config.animations');
-    if (_.isBoolean(perMenu)) {
-        return perMenu;
+    if (false === animationsConfig().enabled) {
+        return false;
     }
-    return false !== animationsConfig().enabled;
+    const perMenu = _.get(client, 'currentMenuModule.menuConfig.config.animations');
+    return false !== perMenu;
 }
 
 //  Plain ANSI sessions only: not PETSCII, ATASCII, or the RIP layer

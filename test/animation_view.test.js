@@ -750,16 +750,22 @@ describe('AnimationView (%AV)', function () {
             assertStill(track(loadAnim({ startFrame: 1 })));
         });
 
-        it("the menu's config.animations false (and true wins over the system switch)", function () {
+        it("the menu's config.animations false; true leaves it on", function () {
             assertStill(track(loadAnim({}, { config: { animations: false } })));
 
+            const on = track(loadAnim({}, { config: { animations: true } }));
+            assert.ok(FrameClock.isRegistered(on.view));
+        });
+
+        it("the system switch is a hard off: the menu's config.animations true cannot override it", function () {
             configModule._pushTestConfig(
                 Object.assign({}, BASE_CONFIG, {
                     menus: { cls: false, animations: { enabled: false } },
                 })
             );
-            const on = track(loadAnim({}, { config: { animations: true } }));
-            assert.ok(FrameClock.isRegistered(on.view));
+            assertStill(
+                track(loadAnim({ startFrame: 1 }, { config: { animations: true } }))
+            );
         });
 
         it('PETSCII, ATASCII and RIP sessions', function () {

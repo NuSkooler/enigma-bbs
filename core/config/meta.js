@@ -132,7 +132,7 @@ module.exports = {
     'menus.animations.enabled': {
         type: 'boolean',
         description:
-            "Animation views (%AV) animate. Off, each shows its first frame and never ticks. A menu's config.animations wins.",
+            "Animation views (%AV) animate. Off, each shows its first frame and never ticks. Off here is off everywhere; a menu's config.animations: false turns off just that menu.",
     },
     'menus.animations.minFrameIntervalMs': {
         type: 'number',
