@@ -95,6 +95,17 @@ function ANSIEscapeParser(options) {
     this.deferredWrap = true === options.deferredWrap;
     this.wrapPending = false;
 
+    //
+    //  |extendedSgr|: SGR 38, 48 and 58 take their sub-parameters with them
+    //  (5;n or 2;r;g;b), rather than those being read as attributes of their
+    //  own (38;5;n as blink, and n as whatever it happens to be), and an
+    //  'sgr unsupported' event (args) is emitted for them and for the
+    //  aixterm bright colours 90-97 and 100-107 (90 is still taken as the
+    //  foreground, as always). Off by default: art.display() reads SGR as it
+    //  always has. Used by core/ansi_canvas.js.
+    //
+    this.extendedSgr = true === options.extendedSgr;
+
     this.row = Math.min(options?.startRow ?? 1, this.termHeight);
 
     self.moveCursor = function (cols, rows) {
@@ -515,11 +526,20 @@ function ANSIEscapeParser(options) {
                 break;
 
             //  erase display/screen
+            //  'erase rows' (startRow, endRow, 'below' | 'above', column):
+            //  a terminal erases the cursor's row only from (below) or up
+            //  to and including (above) the cursor's column
             case 'J':
                 if (isNaN(args[0]) || 0 === args[0]) {
-                    self.emit('erase rows', self.row, self.termHeight);
+                    self.emit(
+                        'erase rows',
+                        self.row,
+                        self.termHeight,
+                        'below',
+                        self.column
+                    );
                 } else if (1 === args[0]) {
-                    self.emit('erase rows', 1, self.row);
+                    self.emit('erase rows', 1, self.row, 'above', self.column);
                 } else if (2 === args[0]) {
                     self.clearScreen();
                 }
@@ -548,6 +568,19 @@ function ANSIEscapeParser(options) {
 
                 for (let i = 0, len = args.length; i < len; ++i) {
                     arg = args[i];
+
+                    if (self.extendedSgr) {
+                        if (38 === arg || 48 === arg || 58 === arg) {
+                            const skip =
+                                5 === args[i + 1] ? 2 : 2 === args[i + 1] ? 4 : 0;
+                            self.emit('sgr unsupported', args.slice(i, i + 1 + skip));
+                            i += skip;
+                            continue;
+                        }
+                        if ((arg >= 90 && arg <= 97) || (arg >= 100 && arg <= 107)) {
+                            self.emit('sgr unsupported', [arg]);
+                        }
+                    }
 
                     if (ANSIEscapeParser.foregroundColors[arg]) {
                         self.graphicRendition.fg = arg;

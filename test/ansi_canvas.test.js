@@ -13,6 +13,7 @@ const {
     DEFAULT_ATTR,
 } = require('../core/ansi_canvas.js');
 const { ClientTerminal } = require('../core/client_term.js');
+const AnsiDiff = require('../core/ansi_diff.js');
 
 //
 //  AnsiCanvas: ANSI and pipe coded content drawn into a cell grid off
@@ -145,6 +146,70 @@ describe('AnsiCanvas', function () {
             assert.deepEqual(c.mci, [{ mci: 'TL', id: 1, position: [1, 2] }]);
             const literal = AnsiCanvas.fromAnsi('%TL1', { mciReplaceChar: '' });
             assert.equal(rowText(literal, 0).slice(0, 4), '%TL1');
+        });
+
+        it('ESC[J erases from the cursor column on its row, then every row below', function () {
+            const grid = 'xxxxx\r\nxxxxx\r\nxxxxx';
+            const c = AnsiCanvas.fromAnsi(`${grid}${ESC}[44m${ESC}[2;3H${ESC}[J`, {
+                width: 5,
+            });
+            assert.equal(rowText(c, 0), 'xxxxx');
+            assert.equal(rowText(c, 1), 'xx   ');
+            assert.equal(rowText(c, 2), '     ');
+            assert.equal(c.getAttr(1, 1), DEFAULT_ATTR);
+            assert.equal(c.getAttr(1, 2), `${ESC}[0;44m`);
+        });
+
+        it('ESC[1J erases every row above, then its row up to the cursor column', function () {
+            const grid = 'xxxxx\r\nxxxxx\r\nxxxxx';
+            const c = AnsiCanvas.fromAnsi(`${grid}${ESC}[2;3H${ESC}[1J`, { width: 5 });
+            assert.equal(rowText(c, 0), '     ');
+            assert.equal(rowText(c, 1), '   xx');
+            assert.equal(rowText(c, 2), 'xxxxx');
+            //  on the first row: still only up to the cursor
+            const top = AnsiCanvas.fromAnsi(`${grid}${ESC}[1;3H${ESC}[1J`, { width: 5 });
+            assert.equal(rowText(top, 0), '   xx');
+            assert.equal(rowText(top, 1), 'xxxxx');
+        });
+
+        it('C0 controls (TAB, BEL, BS, ...) are drawn as spaces, with a warning', function () {
+            const c = AnsiCanvas.fromAnsi('a\tb\x07c\x08d\x01e', { width: 12 });
+            assert.equal(rowText(c, 0), 'a b c d e   ');
+            assert.ok(
+                c.warnings.some(w => w.startsWith('4 control character(s)')),
+                c.warnings.join('; ')
+            );
+            //  so the diff writer sends none
+            const out = AnsiDiff.render(AnsiDiff.transition(null, c));
+            assert.equal(/[\x00-\x08\x0b-\x1a\x1c-\x1f]/.test(out), false);
+            assert.deepEqual(AnsiCanvas.fromAnsi('abc').warnings, []);
+        });
+
+        it('256 colour and true colour SGR are skipped whole (no blink), with a warning', function () {
+            const c = AnsiCanvas.fromAnsi(
+                `${ESC}[1;34mA${ESC}[38;5;196mB${ESC}[48;5;4mC${ESC}[38;2;255;0;0mD`
+            );
+            const bright = `${ESC}[0;1;34m`;
+            assert.deepEqual(
+                [0, 1, 2, 3].map(col => c.getAttr(0, col)),
+                [bright, bright, bright, bright]
+            );
+            assert.deepEqual(c.warnings, [
+                'SGR 38;5, 48;5, 38;2 (256 colour / true colour) is not modelled ' +
+                    'on a canvas; ignored',
+            ]);
+        });
+
+        it('aixterm bright colours are warned about', function () {
+            const c = AnsiCanvas.fromAnsi(`${ESC}[91mA${ESC}[104mB${ESC}[0;90mC`);
+            assert.equal(c.getAttr(0, 0), DEFAULT_ATTR);
+            assert.equal(c.getAttr(0, 1), DEFAULT_ATTR);
+            assert.equal(c.getAttr(0, 2), `${ESC}[0;90m`);
+            assert.deepEqual(c.warnings, [
+                'SGR 91, 104 (aixterm bright colours) is not modelled on a canvas; ignored',
+                'SGR 90 (aixterm grey) is kept in cells as given, but not every ' +
+                    'terminal shows it',
+            ]);
         });
 
         it('a fixed height drops what is below it and says so', function () {

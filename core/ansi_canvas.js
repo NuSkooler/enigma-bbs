@@ -225,6 +225,8 @@ class AnsiCanvas {
             //  never scrolls: art taller than a screen is drawn whole
             termHeight: 0x3fff,
             deferredWrap: 'immediate' !== options.wrap,
+            //  38;5;n and the like skipped whole, and reported
+            extendedSgr: true,
         });
 
         let row = 0;
@@ -233,6 +235,10 @@ class AnsiCanvas {
         let maxWrittenRow = -1;
         let maxCursorRow = 0; //  rows above the cursor have been passed through
         const unsupported = new Set();
+        const unsupportedSgr = new Set(); //  '38;5', '48;2', ...
+        const brightSgr = new Set(); //  91-97, 100-107
+        let greySgr = false; //  90
+        let controlChars = 0;
 
         //  Make |r| a row of the canvas, if the canvas may hold it
         const ensureRow = r => {
@@ -255,7 +261,19 @@ class AnsiCanvas {
 
         parser.on('literal', literal => {
             //  line breaks come as position updates
-            for (const ch of literal.replace(/\r?\n|[\r\u2028\u2029]/g, '')) {
+            for (let ch of literal.replace(/\r?\n|[\r\u2028\u2029]/g, '')) {
+                //  Other C0 controls (TAB, BEL, BS, ...) are passed on as
+                //  text, each one column to the parser: a space here, so
+                //  the canvas stays in step with the parser's columns (its
+                //  wrap and MCI positions) and the diff writer never sends
+                //  a raw control that would move the terminal's cursor. A
+                //  TAB is not expanded to its tab stop, which the parser
+                //  does not do either; CP437 glyphs on those codes (a
+                //  smiley, a heart) are lost. Warned.
+                if (ch.charCodeAt(0) < 0x20) {
+                    ch = BLANK;
+                    ++controlChars;
+                }
                 if (col < width) {
                     if (ensureRow(row)) {
                         canvas.chars[row][col] = ch;
@@ -271,6 +289,18 @@ class AnsiCanvas {
 
         parser.on('sgr update', gr => {
             attr = attrOf(gr);
+        });
+
+        //  colours a cell does not model (extendedSgr): reported, not drawn
+        parser.on('sgr unsupported', args => {
+            const code = args[0];
+            if (38 === code || 48 === code || 58 === code) {
+                unsupportedSgr.add(args.length > 1 ? `${code};${args[1]}` : `${code}`);
+            } else if (90 === code) {
+                greySgr = true;
+            } else {
+                brightSgr.add(code);
+            }
         });
 
         parser.on('mci', info => {
@@ -295,14 +325,30 @@ class AnsiCanvas {
             maxCursorRow = 0;
         });
 
-        //  ESC[J: rows already on the canvas only (the parser's screen is
-        //  0x3fff rows tall)
-        parser.on('erase rows', (startRow, endRow) => {
+        //  ESC[J (erase below) and ESC[1J (erase above): rows already on
+        //  the canvas only (the parser's screen is 0x3fff rows tall). On
+        //  the cursor's row, only from (ESC[J) or up to and including
+        //  (ESC[1J) the cursor's column, as a terminal erases.
+        parser.on('erase rows', (startRow, endRow, which, column) => {
             const erase = eraseAttrOf(parser.graphicRendition);
+            const cursorRow = parser.row - 1;
+            const cursorCol = column - 1;
+            const below = 'above' !== which;
             const last = Math.min(endRow - 1, canvas.height - 1);
             for (let r = Math.max(0, startRow - 1); r <= last; ++r) {
-                canvas.chars[r].fill(BLANK);
-                canvas.attrs[r].fill(erase);
+                let from = 0;
+                let to = width - 1;
+                if (r === cursorRow) {
+                    if (below) {
+                        from = Math.max(0, cursorCol);
+                    } else {
+                        to = Math.min(width - 1, cursorCol);
+                    }
+                }
+                for (let c = from; c <= to; ++c) {
+                    canvas.chars[r][c] = BLANK;
+                    canvas.attrs[r][c] = erase;
+                }
             }
         });
 
@@ -339,6 +385,30 @@ class AnsiCanvas {
         unsupported.forEach(event => {
             canvas.warnings.push(`'${event}' is not drawn on a canvas; ignored`);
         });
+        if (unsupportedSgr.size > 0) {
+            canvas.warnings.push(
+                `SGR ${[...unsupportedSgr].join(', ')} (256 colour / true colour) ` +
+                    'is not modelled on a canvas; ignored'
+            );
+        }
+        if (brightSgr.size > 0) {
+            canvas.warnings.push(
+                `SGR ${[...brightSgr].join(', ')} (aixterm bright colours) ` +
+                    'is not modelled on a canvas; ignored'
+            );
+        }
+        if (greySgr) {
+            canvas.warnings.push(
+                'SGR 90 (aixterm grey) is kept in cells as given, but not every ' +
+                    'terminal shows it'
+            );
+        }
+        if (controlChars > 0) {
+            canvas.warnings.push(
+                `${controlChars} control character(s) (below 0x20: TAB, BEL, BS, ` +
+                    '...) drawn as spaces'
+            );
+        }
         return canvas;
     }
 

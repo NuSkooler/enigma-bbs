@@ -6,8 +6,11 @@ const { ANSIEscapeParser } = require('../core/ansi_escape_parser.js');
 
 //
 //  ANSIEscapeParser: characters are whole code units (a character whose low
-//  byte is CR or LF is not a line break).
+//  byte is CR or LF is not a line break); the opt-in extendedSgr; the
+//  'erase rows' event's which / column.
 //
+
+const ESC = '\x1b';
 
 //  The parser's events for |input|, in order
 function events(input, options) {
@@ -55,6 +58,66 @@ describe('ANSIEscapeParser', function () {
             const { parser } = events('ab\r\ncd\nef\rg');
             assert.equal(parser.row, 3);
             assert.equal(parser.column, 2);
+        });
+    });
+
+    describe('extendedSgr', function () {
+        it('off (art.display()): SGR is read as it always has been', function () {
+            const { out, parser } = events(`${ESC}[38;5;31mX`);
+            assert.equal(parser.graphicRendition.blink, 5);
+            assert.equal(parser.graphicRendition.fg, 31);
+            assert.equal(
+                out.some(e => 'sgr unsupported' === e[0]),
+                false
+            );
+        });
+
+        it('on: 38/48/58 take their sub-parameters, and are reported', function () {
+            const { out, parser } = events(
+                `${ESC}[1;34;38;5;31;48;2;255;0;0;58;5;1;4mX`,
+                { extendedSgr: true }
+            );
+            assert.deepEqual(
+                { ...parser.graphicRendition },
+                { reset: false, intensity: 1, fg: 34, underline: 4 }
+            );
+            assert.deepEqual(
+                out.filter(e => 'sgr unsupported' === e[0]),
+                [
+                    ['sgr unsupported', [38, 5, 31]],
+                    ['sgr unsupported', [48, 2, 255, 0, 0]],
+                    ['sgr unsupported', [58, 5, 1]],
+                ]
+            );
+        });
+
+        it('on: aixterm bright colours are reported; 90 is still the foreground', function () {
+            const { out, parser } = events(`${ESC}[90;101;97mX`, { extendedSgr: true });
+            assert.equal(parser.graphicRendition.fg, 90);
+            assert.equal(parser.graphicRendition.bg, undefined);
+            assert.deepEqual(
+                out.filter(e => 'sgr unsupported' === e[0]),
+                [
+                    ['sgr unsupported', [90]],
+                    ['sgr unsupported', [101]],
+                    ['sgr unsupported', [97]],
+                ]
+            );
+        });
+    });
+
+    describe("'erase rows'", function () {
+        it('carries which (below / above) and the cursor column', function () {
+            const rows = input => events(input).out.filter(e => 'erase rows' === e[0]);
+            assert.deepEqual(rows(`${ESC}[3;7H${ESC}[J`), [
+                ['erase rows', 3, 25, 'below', 7],
+            ]);
+            assert.deepEqual(rows(`${ESC}[3;7H${ESC}[0J`), [
+                ['erase rows', 3, 25, 'below', 7],
+            ]);
+            assert.deepEqual(rows(`${ESC}[1;7H${ESC}[1J`), [
+                ['erase rows', 1, 1, 'above', 7],
+            ]);
         });
     });
 });
