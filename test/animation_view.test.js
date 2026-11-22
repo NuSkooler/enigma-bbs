@@ -774,6 +774,101 @@ describe('AnimationView (%AV)', function () {
             );
         });
 
+        describe('covered or deactivated while its frames load', function () {
+            const mciMap = {
+                ET1: mci('ET', 1, 20, 5),
+                AV20: mci('AV', 20, 5, 10),
+            };
+            function startLoad() {
+                const client = makeClient(
+                    menuWith({
+                        ET1: { focus: true, submit: true, text: 'typed' },
+                        AV20: { width: 3, height: 1, frames: { art: ['f1', 'f2'] } },
+                    })
+                );
+                const r = track(load(client, mciMap));
+                assert.equal(r.called, 0);
+                return { client, r, vc: r.vc };
+            }
+            function arrive() {
+                pending.shift().cb(null, artInfo(`${ESC}[31mabc`));
+                pending.shift().cb(null, artInfo(`${ESC}[31maXc`));
+            }
+            const keyListeners = client => client.listenerCount('key press');
+
+            it('covered: nothing drawn over the cover, not made active; activate() draws, focuses and attaches it', function () {
+                const { client, r, vc } = startLoad();
+                vc.cover();
+                const n = client.term.flushes.length; //  the field's text, set at load
+                arrive();
+                assert.equal(r.called, 1);
+                assert.ifError(r.error);
+                assert.equal(client.term.flushes.length, n, 'nothing over the cover');
+                assert.equal(keyListeners(client), 0, 'takes no keys');
+                assert.equal(vc.attached, false);
+                const field = vc.getView(1);
+                assert.equal(
+                    View.getInputFocusView(client),
+                    null,
+                    'nothing has the input focus'
+                );
+                time.advance(500);
+                assert.equal(
+                    client.term.flushes.length,
+                    n,
+                    'no ticks drawn while covered'
+                );
+
+                vc.activate();
+                const out = client.term.flushes.slice(n).join('');
+                assert.ok(out.includes(`${goto(5, 10)}${RED}`), 'the animation is drawn');
+                assert.ok(out.includes('typed'), 'the field is drawn');
+                assert.equal(vc.attached, true);
+                assert.equal(keyListeners(client), 1);
+                assert.equal(vc.focusedView, field);
+                assert.equal(View.getInputFocusView(client), field);
+                assert.ok(FrameClock.isRegistered(vc.getView(20)));
+            });
+
+            it('covered: uncover() alone draws it and leaves it inactive', function () {
+                const { client, vc } = startLoad();
+                vc.cover();
+                const n = client.term.flushes.length;
+                arrive();
+                assert.equal(client.term.flushes.length, n);
+                vc.uncover();
+                const out = client.term.flushes.slice(n).join('');
+                assert.ok(out.includes('typed'));
+                assert.ok(out.includes(goto(5, 10)));
+                assert.equal(vc.attached, false);
+                assert.equal(keyListeners(client), 0);
+            });
+
+            it('deactivated: drawn (it is visible), not made active; activate() focuses and attaches it', function () {
+                const { client, vc } = startLoad();
+                vc.deactivate();
+                const n = client.term.flushes.length;
+                arrive();
+                const out = client.term.flushes.slice(n).join('');
+                assert.ok(out.includes(`${goto(5, 10)}${RED}abc`));
+                assert.ok(out.includes('typed'));
+                assert.equal(vc.attached, false);
+                assert.equal(keyListeners(client), 0);
+                assert.equal(View.getInputFocusView(client), null);
+                vc.activate();
+                assert.equal(vc.attached, true);
+                assert.equal(View.getInputFocusView(client), vc.getView(1));
+            });
+
+            it('neither: drawn, focused and attached as soon as the frames load, as before', function () {
+                const { client, vc } = startLoad();
+                arrive();
+                assert.equal(vc.attached, true);
+                assert.equal(keyListeners(client), 1);
+                assert.equal(View.getInputFocusView(client), vc.getView(1));
+            });
+        });
+
         it('a form with no prepare() views loads synchronously, as before', function () {
             const client = makeClient(menuWith({ TL1: { text: 'x' } }));
             const r = track(load(client, { TL1: mci('TL', 1, 2, 2) }));

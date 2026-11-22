@@ -128,7 +128,8 @@ function prepareViews(vc, cb) {
 //  is no caller to throw to. What drawing or focusing throws is logged and
 //  given to cb as its error -- the caller hears of it, as of any other
 //  failed load, rather than never being called back; what cb throws is
-//  logged.
+//  logged. And the form may have been covered or deactivated meanwhile: see
+//  drawPausedForm().
 //
 function drawLoadedForm(vc, initialFocusId, cb) {
     prepareViews(vc, (stop, preparedLater) => {
@@ -145,9 +146,13 @@ function drawLoadedForm(vc, initialFocusId, cb) {
 
         let error = null;
         try {
-            vc.redrawAll(initialFocusId);
-            if (initialFocusId) {
-                vc.switchFocus(initialFocusId);
+            if (FormState.isFormPaused(vc)) {
+                drawPausedForm(vc, initialFocusId);
+            } else {
+                vc.redrawAll(initialFocusId);
+                if (initialFocusId) {
+                    vc.switchFocus(initialFocusId);
+                }
             }
         } catch (e) {
             error = e;
@@ -171,6 +176,33 @@ function drawLoadedForm(vc, initialFocusId, cb) {
             );
         }
     });
+}
+
+//
+//  A form covered (cover()) or deactivated while its views prepared: not
+//  drawn over what covers it, and not made active. Its views draw through
+//  drawInBackground(): under a cover each is owed a redraw, made when the
+//  cover goes (uncover(), activate()); merely inactive (visible), they draw
+//  now. |initialFocusId| becomes the focused view without taking keys, so
+//  activate() focuses it and attaches the form, as the load would have.
+//
+function drawPausedForm(vc, initialFocusId) {
+    const items = Object.values(vc.views).map(view => ({
+        view,
+        draw: () => view.redraw(),
+    }));
+    View.drawInBackgroundBatch(vc.client, items).failed.forEach(({ view, error }) => {
+        vc.client.log.warn(
+            Object.assign(vc._formLogContext(view.mciCode + view.id), {
+                error: error && error.message,
+            }),
+            'View draw failed'
+        );
+    });
+    const focusView = initialFocusId ? vc.getView(initialFocusId) : null;
+    if (focusView && focusView.acceptsFocus) {
+        vc.focusedView = focusView;
+    }
 }
 
 //  Tear down every view of |vc|: it takes no more input, its listeners are
