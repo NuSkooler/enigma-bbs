@@ -9,6 +9,7 @@ const asset = require('./asset.js');
 const ansi = require('./ansi_term.js');
 const { isKeyPressCaptured, ensureKeyDispatch } = require('./input_capture.js');
 const { getArtOrigin } = require('./mci_map_origin.js');
+const { isAnimationView } = require('./animation_view.js');
 
 //  deps
 const events = require('events');
@@ -48,6 +49,58 @@ function parseConfigPosition(position) {
 }
 
 //
+//  Passed down a load waterfall to stop it: the form was destroyed (its
+//  menu left) while its views prepared. The final callback maps it back to
+//  no error, as a caller still expects its callback.
+const FormLoadStop = Symbol('formDestroyedWhileLoading');
+
+//
+//  Run the optional prepare(cb) of every view of |vc| that has one (an
+//  AnimationView loading its frames), all at once, before the form is first
+//  drawn. cb(stop): |stop| is FormLoadStop if the form was destroyed (or
+//  the client went) meanwhile; nothing more of the load should happen.
+//
+//  Views without prepare() are as they were: with none on the form, cb is
+//  called at once, synchronously, and the load goes on exactly as before.
+//  A prepare() that throws costs only its own view (warned).
+//
+function prepareViews(vc, cb) {
+    const views = Object.values(vc.views).filter(v => _.isFunction(v.prepare));
+    if (0 === views.length) {
+        return cb(null);
+    }
+
+    async.each(
+        views,
+        (view, next) => {
+            let called = false;
+            const done = () => {
+                if (!called) {
+                    called = true;
+                    next(null);
+                }
+            };
+            try {
+                view.prepare(done);
+            } catch (e) {
+                vc.client.log.warn(
+                    Object.assign(vc._formLogContext(view.mciCode + view.id), {
+                        error: e.message,
+                    }),
+                    'View prepare failed'
+                );
+                done();
+            }
+        },
+        () => {
+            if (FormState.isFormDestroyed(vc) || vc.client.clientEnded) {
+                return cb(FormLoadStop);
+            }
+            return cb(null);
+        }
+    );
+}
+
 //  Tear down every view of |vc|: it takes no more input, its listeners are
 //  removed and it is destroyed (its timers stopped). A view that was the
 //  input focus is released first: nothing should put the cursor back into
@@ -745,9 +798,14 @@ class ViewController extends events.EventEmitter {
                 assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]); //  shouldn't be possible with RegExp used
 
                 const view = this.getView(viewId);
+                //  Left out of the implicit submit choice: config-placed
+                //  keys, and animations (never focused, so Enter could
+                //  never submit from them), including an AV key whose
+                //  view was not made
                 const configOnly =
                     (configOnlyIds && configOnlyIds.has(viewId)) ||
-                    (view && configPlacedViews.has(view));
+                    (view && configPlacedViews.has(view)) ||
+                    (view ? isAnimationView(view) : 'AV' === mciMatch[1]);
 
                 if (viewId > highestId && !configOnly) {
                     highestId = viewId;
@@ -1354,6 +1412,10 @@ class ViewController extends events.EventEmitter {
                     return callback(null);
                 },
                 callback => {
+                    //  views that load something before they are drawn
+                    return prepareViews(this, callback);
+                },
+                callback => {
                     this.redrawAll(initialFocusId);
                     callback(null);
                 },
@@ -1365,7 +1427,7 @@ class ViewController extends events.EventEmitter {
                 },
             ],
             err => {
-                cb(err);
+                cb(FormLoadStop === err ? null : err);
             }
         );
     }
@@ -1520,6 +1582,10 @@ class ViewController extends events.EventEmitter {
                     callback(null);
                 },
                 callback => {
+                    //  views that load something before they are drawn
+                    return prepareViews(this, callback);
+                },
+                callback => {
                     this.redrawAll(this.formInitialFocusId);
                     callback(null);
                 },
@@ -1532,7 +1598,7 @@ class ViewController extends events.EventEmitter {
             ],
             err => {
                 if (_.isFunction(cb)) {
-                    cb(err);
+                    cb(FormLoadStop === err ? null : err);
                 }
             }
         );

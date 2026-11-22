@@ -128,6 +128,18 @@ module.exports = {
         description: 'Terminal types assumed to be UTF-8 without probing.',
     },
 
+    //  ── Menus ────────────────────────────────────────────────────────────
+    'menus.animations.enabled': {
+        type: 'boolean',
+        description:
+            "Animation views (%AV) animate. Off, each shows its first frame and never ticks. A menu's config.animations wins.",
+    },
+    'menus.animations.minFrameIntervalMs': {
+        type: 'number',
+        min: 1,
+        description: 'No animation frame is drawn sooner than this many ms after the last.',
+    },
+
     //  ── Users ────────────────────────────────────────────────────────────
     'users.usernameMin': { type: 'number', min: 1 },
     'users.usernameMax': { type: 'number', min: 1 },

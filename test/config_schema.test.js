@@ -427,6 +427,8 @@ describe('config schema against config_default.js', () => {
             'loginServers.telnet.port',
             'loginServers.webSocket.ws.port',
             'loginServers.webSocket.wss.port',
+            'menus.animations.enabled',
+            'menus.animations.minFrameIntervalMs',
             'messageAreaDefaults.maxAgeDays',
             'messageAreaDefaults.maxMessages',
             'messageConferences',
