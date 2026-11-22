@@ -843,6 +843,8 @@ function display(client, art, options, cb) {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             delete mciMap[mapKey];
         });
+        //  the parser starts again at the top left, and so does the art
+        setArtOrigin(mciMap, { row: 1, col: 1 });
     });
 
     parser.on('scroll', scrollY => {

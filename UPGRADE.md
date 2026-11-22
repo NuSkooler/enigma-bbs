@@ -57,7 +57,9 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
   **What you may see in the log:** warnings naming the menu (`menuName`), form (`formId`, or `promptName` for a prompt) and key (`mci`):
   * `MCI key "ET8" configures view 8, which is a %ME; applying it anyway`: the key's code is not the code in the art. Views are matched by ID, so it still applies. Rename the key to the art's code (`ME8`).
   * `MCI key "MET3" is not a code and view ID alone; read as "ET3"`: rename the key to what the art has (`ME3`). Copies of the stock `new_user` menus made from earlier templates have `MET3`.
-  * `Duplicate MCI view ID — skipping`, now also for a placed view whose ID the art already uses for another code.
+  * `MCI "position" ignored: the art already has this view ID for another code`: a placed view's ID is taken in the art. Pick a free, high ID.
+
+  These warnings are logged each time the form is loaded (each visit to the screen), not once at startup.
 
   The stock templates and the luciano_blocktronics theme have been fixed (`MET3` to `ME3`, and a few theme keys such as `ET8`/`ET9` to `ME8`/`SM9` on the user config screen). Your own copies of menus made from older templates are not changed; fix them when convenient.
 

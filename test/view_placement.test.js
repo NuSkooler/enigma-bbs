@@ -249,7 +249,7 @@ describe('View placement from config (F4)', () => {
     });
 
     describe('IDs that are taken', () => {
-        it('a config-only view whose ID is taken is skipped: "Duplicate MCI view ID"', () => {
+        it('a placed view whose ID the art uses for another code: position ignored, with a warning', () => {
             const client = makeClient({
                 form: {
                     0: {
@@ -269,7 +269,7 @@ describe('View placement from config (F4)', () => {
             assert.equal(view.mciCode, 'ET', 'the art view is kept');
             assert.deepEqual(view.position, { row: 2, col: 1 }, 'and not moved');
 
-            const dup = warningsMatching(client, /^Duplicate MCI view ID/);
+            const dup = warningsMatching(client, /^MCI "position" ignored/);
             assert.equal(dup.length, 1);
             assert.equal(dup[0].obj.viewId, 2);
             assert.equal(dup[0].obj.mciCode, 'TL2');
@@ -367,19 +367,47 @@ describe('View placement from config (F4)', () => {
             assert.notEqual(vc.getView(20).submit, true);
         });
 
-        it('a config-placed key skipped off screen does not take it away either', () => {
-            const client = makeClient({
-                form: {
-                    0: {
-                        mci: {
-                            ET1: { focus: true },
-                            TK30: { position: { row: 30, col: 1 } },
+        it('a key whose position placed nothing counts toward the choice, as before', () => {
+            //  master: a TK30 key with no view at 30 is the highest ID, so no
+            //  view gets submit; a placement that failed keeps that
+            ['off screen', 'bad value', 'no such code'].forEach(why => {
+                const key =
+                    'no such code' === why
+                        ? { ZZ30: { position: { row: 5, col: 1 } } }
+                        : {
+                              TK30: {
+                                  position:
+                                      'off screen' === why ? { row: 30, col: 1 } : 'top',
+                              },
+                          };
+                const client = makeClient({
+                    form: { 0: { mci: Object.assign({ ET1: { focus: true } }, key) } },
+                });
+                const vc = track(loadMenu(client, { ET1: mci('ET', 1, 1, 1) }));
+                assert.equal(!!vc.getView(1).submit, false, `${why}: as master`);
+            });
+        });
+
+        it('a zero view ID with a position is skipped with a warning, not a throw', () => {
+            ['TL0', 'TL00'].forEach(key => {
+                const client = makeClient({
+                    form: {
+                        0: {
+                            mci: {
+                                ET1: { focus: true },
+                                [key]: { position: { row: 5, col: 5 } },
+                            },
                         },
                     },
-                },
+                });
+                const vc = track(loadMenu(client, { ET1: mci('ET', 1, 1, 1) }));
+                assert.equal(vc.getView(0), undefined);
+                assert.equal(
+                    warningsMatching(client, /needs a view ID from 1 to 99/).length,
+                    1,
+                    key
+                );
             });
-            const vc = track(loadMenu(client, { ET1: mci('ET', 1, 1, 1) }));
-            assert.equal(vc.getView(1).submit, true);
         });
 
         it('an art view with a higher ID takes it, as before (bbsList form 0)', () => {
@@ -510,6 +538,12 @@ describe('View placement from config (F4)', () => {
             const lower = display('\r\nB %ET1\r\n', { startRow: 10 });
             assert.deepEqual(getArtOrigin(lower), { row: 10, col: 1 });
             assert.deepEqual(lower.ET1.position, [11, 3]);
+        });
+
+        it('a clear screen in the art starts the origin again at the top left', () => {
+            const mciMap = display('X\r\n\x1b[2JA %TL1\r\n', { startRow: 10 });
+            assert.deepEqual(getArtOrigin(mciMap), { row: 1, col: 1 });
+            assert.deepEqual(mciMap.TL1.position, [1, 3]);
         });
 
         it('art that scrolled moves its origin up with its markers', () => {

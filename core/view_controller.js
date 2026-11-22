@@ -604,10 +604,13 @@ class ViewController extends events.EventEmitter {
 
             const code = mciMatch[1];
             const viewId = parseInt(mciMatch[2]);
-            const existing = this.getView(viewId);
-            if (!existing) {
-                configOnlyIds.add(viewId);
+            if (!(viewId >= 1)) {
+                return this.client.log.warn(
+                    this._formLogContext(mci),
+                    'MCI "position" needs a view ID from 1 to 99; view not created'
+                );
             }
+            const existing = this.getView(viewId);
 
             const pos = parseConfigPosition(mciConf.position);
             if (!pos) {
@@ -631,14 +634,16 @@ class ViewController extends events.EventEmitter {
 
             if (existing) {
                 if (existing.mciCode && existing.mciCode !== code) {
-                    //  a view of its own was asked for: its ID is taken
+                    //  a view of its own was asked for: its ID is taken. The
+                    //  key's other properties still apply to the art's view,
+                    //  as any key does (applyViewConfig() warns about that)
                     this.client.log.warn(
                         Object.assign(
                             { viewId, mciCode: mci },
                             this._formLogContext(mci),
                             { existingMciCode: existing.mciCode }
                         ),
-                        'Duplicate MCI view ID — skipping. Check art for conflicting codes.'
+                        'MCI "position" ignored: the art already has this view ID for another code'
                     );
                     return;
                 }
@@ -690,6 +695,9 @@ class ViewController extends events.EventEmitter {
 
             view.offsetsApplied = true;
             configPlacedViews.add(view);
+            //  only a view actually placed is left out of the implicit
+            //  submit choice; a key that placed nothing counts, as before
+            configOnlyIds.add(viewId);
             added = true;
         });
 

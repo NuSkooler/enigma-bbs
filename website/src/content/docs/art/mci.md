@@ -224,7 +224,7 @@ mci: {
 * Any view code can be placed, input views included. A placed input view takes part in the form like any other: focus order (by ID) and form data.
 * With a code in the art **and** a `position`, the position wins.
 * A position off the screen is skipped with a warning. Art taller than the screen that scrolls is not supported for placed views.
-* Use **high IDs** for placed views (for example 50 to 99), so they do not clash with IDs the art uses now or later. A placed view whose ID is already taken by a different code in the art is skipped with the `Duplicate MCI view ID` warning.
+* Use **high IDs** for placed views (for example 50 to 99), so they do not clash with IDs the art uses now or later. IDs run from 1 to 99. If the art already uses the ID for a different code, the `position` is ignored with a warning, and the key's other settings still apply to the art's view, as any key's do.
 * A theme can add a placed view to a stock menu: an `mci` key the menu does not have is added by the theme. See [Themes](themes.md).
 * A menu with **no `form`** (an art-only display menu) needs a form for the `mci` block in `menu.hjson`: `form: { 0: { mci: { ... } } }`. Adding a `form` to such a menu in `menu.hjson` stops it moving on to its `next` menu by itself. Putting the `mci` block in the theme instead keeps that behaviour:
 
