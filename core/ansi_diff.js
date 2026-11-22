@@ -2,6 +2,7 @@
 
 //  ENiGMA½
 const ansi = require('./ansi_term.js');
+const { charDisplayWidth } = require('./display_width.js');
 
 //
 //  The diff writer: what to write to turn one canvas on screen
@@ -11,7 +12,10 @@ const ansi = require('./ansi_term.js');
 //    (applyTransparency()) never is.
 //  - A run starts with a goto, or, after a run on the same row, with a
 //    cursor forward (CUF, ESC [ n C) over the cells between them when that
-//    is shorter, which on a row it always is. Two runs on one row are
+//    is shorter, which on a row it always is -- unless the run before it
+//    holds a character the terminal may not advance one column for (a
+//    wide CJK or emoji character in a UTF-8 session): then a goto, as the
+//    cursor is not where the cell count says. Two runs on one row are
 //    joined when redrawing the unchanged cells between them costs less
 //    than that jump (the cheaper of the CUF and a goto of about GOTO_COST
 //    bytes) would.
@@ -151,6 +155,7 @@ function transition(prev, next, options = {}) {
             body += run.chars[i];
         }
         run.body = body;
+        run.narrow = isNarrowRun(run);
     });
 
     return { full, width, height, runs };
@@ -222,16 +227,30 @@ function render(t, options = {}) {
 }
 
 //
+//  True if every character of |run| is one column wide on a terminal
+//  (charDisplayWidth()): CP437 and other single-byte art always is. A wide
+//  character (CJK, emoji) advances the cursor two columns in a UTF-8
+//  session, a zero-width one none, so the cursor after such a run is not
+//  in the cell after its last one.
+//
+function isNarrowRun(run) {
+    return run.chars.every(ch => 1 === charDisplayWidth(ch));
+}
+
+//
 //  To the start of |run|, from the end of |prev| (the run written before
 //  it, or null): a cursor forward when both are on one row and that is
 //  shorter than a goto, otherwise a goto. The cursor after |prev| is in
-//  the cell after its last one; it is never past the screen's last column
-//  (render() only uses this when the whole canvas fits), so no pending
-//  wrap is in play.
+//  the cell after its last one when all of |prev| is narrow (isNarrowRun());
+//  otherwise a goto puts it right. It is never past the screen's last
+//  column (render() only uses this when the whole canvas fits), so no
+//  pending wrap is in play.
 //
 function jumpTo(prev, run, origin) {
     const gotoStr = ansi.goto(origin.row + run.row, origin.col + run.col);
-    if (prev && prev.row === run.row) {
+    const narrow =
+        prev && ('boolean' === typeof prev.narrow ? prev.narrow : isNarrowRun(prev));
+    if (narrow && prev.row === run.row) {
         const n = run.col - (prev.col + prev.chars.length);
         if (n > 0) {
             const cuf = ansi.forward(n);

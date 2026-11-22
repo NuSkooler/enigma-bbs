@@ -75,6 +75,35 @@ describe('AnsiDiff', function () {
             assert.equal(render(a, b), `${goto(1, 1)}${RED}X${cuf(5)}Y${goto(2, 1)}Z`);
         });
 
+        it('after a run holding a wide character, a goto: the terminal advanced two columns', function () {
+            //  a UTF-8 terminal moves two columns for each wide character,
+            //  so a CUF counted in cells would land one column right
+            const blank = new AnsiCanvas(20, 1);
+            const wide = new AnsiCanvas(20, 1);
+            wide.chars[0][2] = '字'; //  CJK, two columns
+            wide.chars[0][12] = 'x';
+            assert.equal(
+                AnsiDiff.render(AnsiDiff.transition(blank, wide)),
+                `${goto(1, 3)}${ESC}[0m字${goto(1, 13)}x`
+            );
+            const emoji = new AnsiCanvas(20, 1);
+            emoji.chars[0][2] = '\u{1F600}';
+            emoji.chars[0][12] = 'x';
+            assert.equal(
+                AnsiDiff.render(AnsiDiff.transition(blank, emoji)),
+                `${goto(1, 3)}${ESC}[0m\u{1F600}${goto(1, 13)}x`
+            );
+            //  CP437 blocks and symbols are one column: still a CUF
+            const blocks = new AnsiCanvas(20, 1);
+            blocks.chars[0][2] = '█';
+            blocks.chars[0][3] = '☺';
+            blocks.chars[0][12] = 'x';
+            assert.equal(
+                AnsiDiff.render(AnsiDiff.transition(blank, blocks)),
+                `${goto(1, 3)}${ESC}[0m█☺${cuf(8)}x`
+            );
+        });
+
         it('counts the SGR a gap would need against joining it', function () {
             //  3-cell gap in another colour: 3 + two SGR changes > ESC[3C
             const a = row('|04a|15123|04b');
