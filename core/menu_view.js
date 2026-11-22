@@ -47,7 +47,9 @@ const ANSI_ONLY = { dialect: 'ansi' };
 //
 //  A frame is drawn no wider than the view (cut at its right edge); the
 //  layouts that size items (HM slots, FM columns) make room for the
-//  widest frame.
+//  widest frame. Changing the items (setItems(), removeItem(), a sort)
+//  drops the cached frames and starts the cycle again at frame 0 with the
+//  next draw of the focused item; an empty list ticks nothing.
 //
 //  Per-item focusItems win: with both set, focusItems are drawn and the
 //  frames are ignored (warned once). The subclass draws; it opts in with
@@ -185,6 +187,39 @@ class MenuView extends View {
         return `focus#${this._focusFrame}`;
     }
 
+    //  The focused index was set or moved, perhaps with no draw (a hot key
+    //  in HM or FM; an FM move whose redraw left the item out): moved off
+    //  the item the cycle is on, the next draw of the focused item starts
+    //  at frame 0 -- even back at the same index
+    _focusFrameIndexSet() {
+        if (this._focusFramesOn && this.focusedItemIndex !== this._focusFrameItem) {
+            this._focusFrameItem = null;
+            this._focusFrame = 0;
+            this._focusFrameDir = 1;
+        }
+    }
+
+    //
+    //  The items changed (setItems(), removeItem(), a sort). With frames,
+    //  nothing cached is kept (a cached frame may be another item's now),
+    //  and the cycle stops until the focused item is drawn again, which
+    //  starts it at frame 0 (_renderCacheSlot()): the new content never
+    //  shows mid-cycle, and an emptied list ticks nothing. Views without
+    //  frames: untouched.
+    //
+    _focusFrameItemsChanged() {
+        if (!this.focusItemFrames || !this.hasFocusItemFrames()) {
+            return;
+        }
+        this.invalidateRenderCache();
+        if (this._focusFramesOn) {
+            this._focusFrameItem = null;
+            this._focusFrame = 0;
+            this._focusFrameDir = 1;
+            FrameClock.unregister(this);
+        }
+    }
+
     //  The subclass's check, each tick: is item |index| on screen now, drawn
     //  as the focused item?
     isFocusItemFrameVisible() {
@@ -217,12 +252,12 @@ class MenuView extends View {
     }
 
     //  The cycle from frame 0 at item |index|; on the clock if there is
-    //  more than one frame
+    //  more than one frame and something to show
     _restartFocusFrames(index) {
         this._focusFrameItem = index;
         this._focusFrame = 0;
         this._focusFrameDir = 1;
-        if (this.focusItemFrames.length < 2) {
+        if (this.focusItemFrames.length < 2 || !this.items || 0 === this.items.length) {
             FrameClock.unregister(this);
             return;
         }
@@ -260,7 +295,9 @@ class MenuView extends View {
             View.isDestroyed(this) ||
             !this._focusFramesOn ||
             !this.hasFocusItemFrames() ||
-            this.focusItemFrames.length < 2
+            this.focusItemFrames.length < 2 ||
+            !this.items ||
+            0 === this.items.length
         ) {
             return { stop: true };
         }
@@ -376,6 +413,7 @@ class MenuView extends View {
     }
 
     emitIndexUpdate() {
+        this._focusFrameIndexSet();
         this.emit('index update', this.focusedItemIndex);
     }
 
@@ -431,6 +469,7 @@ class MenuView extends View {
             }
 
             this.invalidateRenderCache();
+            this._focusFrameItemsChanged();
         }
     }
 
@@ -480,6 +519,7 @@ class MenuView extends View {
         });
 
         this.sorted = true;
+        this._focusFrameItemsChanged();
     }
 
     removeItem(index) {
@@ -495,6 +535,8 @@ class MenuView extends View {
         }
 
         this.removeRenderCacheItem(index);
+        //  with frames: the whole cache (the entries after |index| moved)
+        this._focusFrameItemsChanged();
 
         this.positionCacheExpired = true;
     }
@@ -553,6 +595,7 @@ class MenuView extends View {
         this.focusedItemIndex = this.items.length
             ? Math.min(Math.max(index, 0), this.items.length - 1)
             : 0;
+        this._focusFrameIndexSet();
     }
 
     getFocusItemIndex() {
@@ -695,6 +738,7 @@ class MenuView extends View {
             case 'focusItemIndex':
                 this.focusedItemIndex = value;
                 this.invalidateRenderCache();
+                this._focusFrameIndexSet();
                 break;
 
             case 'itemFormat':

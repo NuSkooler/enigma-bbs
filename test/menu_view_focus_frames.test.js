@@ -948,6 +948,135 @@ describe('Animated focused menu items (focusItemFrames)', function () {
         });
     });
 
+    describe('the items change', function () {
+        it('removeItem(): no cached frame or row of another item is drawn again', function () {
+            const { term, view } = track(loadView('VM', vmConf()));
+            view.onKeyPress(null, key('down arrow')); //  "two"
+            time.advance(300); //  every frame of "two" cached
+            view.onKeyPress(null, key('down arrow')); //  "three"
+            time.advance(150);
+            view.removeItem(0); //  "three" is index 1 now, where "two" was
+            view.redraw();
+            const n = term.flushes.length;
+            time.advance(300);
+            const ticks = term.since(n).join('');
+            assert.ok(ticks.includes('>>three'));
+            assert.ok(!ticks.includes('two'), 'the removed neighbour never ticks');
+
+            //  rows after the removed one: drawn from their own item
+            const r = track(
+                loadView('VM', vmConf({ items: ['a', 'b', 'c', 'd', 'e'], height: 4 }))
+            );
+            r.view.removeItem(1);
+            r.view.redraw();
+            assert.deepEqual(
+                [5, 6, 7, 8].map(row => screen(r.term).row(row, 10, 13)),
+                ['>a  ', 'c   ', 'd   ', 'e   ']
+            );
+        });
+
+        it('the same index after setItems() starts again at frame 0', function () {
+            const { term, view } = track(loadView('VM', vmConf()));
+            time.advance(150); //  frame 1 of "one"
+            view.setItems(['uno', 'dos']);
+            view.redraw();
+            assert.equal(screen(term).row(5, 10, 19), '>uno      ');
+            const n = term.flushes.length;
+            time.advance(99);
+            assert.equal(term.flushes.length, n, 'a full frame 0');
+            time.advance(1);
+            assert.deepEqual(term.since(n), [`${HIDE}${vmFocused(5, 1, 'uno')}${HIDE}`]);
+        });
+
+        it('back at the same index after a move with no draw (a hot key): frame 0', function () {
+            const { term, view } = track(
+                loadView('HM', {
+                    items: ['aa', 'bb', 'cc'],
+                    focus: true,
+                    hotKeys: { b: 1 },
+                    focusItemFrames: ['|15<{text}>', '|11{text}', '|03-{text}-'],
+                    focusItemFrameInterval: 100,
+                })
+            );
+            time.advance(100); //  frame 1 of "aa"
+            view.onKeyPress('b', key('b')); //  index 1, nothing drawn
+            const n = term.flushes.length;
+            view.onKeyPress(null, key('left arrow')); //  back to "aa", drawn
+            assert.ok(
+                term
+                    .since(n)
+                    .join('')
+                    .includes(`${pipeToAnsi('|15')}<aa>`)
+            );
+        });
+
+        it('an emptied list stops ticking; items back and drawn, it ticks again', function () {
+            const { term, view } = track(loadView('VM', vmConf()));
+            time.advance(120);
+            view.setItems([]);
+            view.redraw();
+            assert.equal(FrameClock.isRegistered(view), false);
+            assert.equal(time.live(), 0);
+
+            view.setItems(['uno', 'dos']);
+            view.redraw();
+            assert.ok(FrameClock.isRegistered(view));
+            const n = term.flushes.length;
+            time.advance(100);
+            assert.deepEqual(term.since(n), [`${HIDE}${vmFocused(5, 1, 'uno')}${HIDE}`]);
+
+            view.removeItem(1);
+            view.removeItem(0);
+            view.redraw();
+            assert.equal(FrameClock.isRegistered(view), false);
+            assert.equal(time.live(), 0);
+        });
+
+        it('SM: after setItems() or removeItem(), nothing ticks until it is drawn again', function () {
+            const { term, view } = track(
+                loadView('SM', {
+                    items: ['aa', 'bb', 'cc'],
+                    focus: true,
+                    width: 6,
+                    focusItemFrames: ['|15>{text}', '|11>>{text}'],
+                    focusItemFrameInterval: 100,
+                })
+            );
+            time.advance(50);
+            view.setItems(['xx', 'yy']);
+            let n = term.flushes.length;
+            time.advance(300);
+            assert.equal(term.flushes.length, n, 'the new item waits for the redraw');
+            view.redraw();
+            assert.ok(
+                term
+                    .since(n)
+                    .join('')
+                    .includes(`${pipeToAnsi('|15')}>xx`)
+            );
+            n = term.flushes.length;
+            time.advance(100);
+            assert.ok(
+                term
+                    .since(n)
+                    .join('')
+                    .includes(`${pipeToAnsi('|11')}>>xx`)
+            );
+
+            view.removeItem(0);
+            n = term.flushes.length;
+            time.advance(300);
+            assert.equal(term.flushes.length, n);
+            view.redraw();
+            assert.ok(
+                term
+                    .since(n)
+                    .join('')
+                    .includes(`${pipeToAnsi('|15')}>yy`)
+            );
+        });
+    });
+
     describe('two animated lists on one screen', function () {
         it('only the focused one ticks; moving focus moves the cycle', function () {
             const client = makeClient({

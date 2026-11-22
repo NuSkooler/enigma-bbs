@@ -25,6 +25,7 @@ class SpinnerMenuView extends MenuView {
     updateSelection() {
         assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= this.items.length);
 
+        this._focusFrameItemsDrawn = true;
         this.drawItem(this.focusedItemIndex);
         this.emit('index update', this.focusedItemIndex);
     }
@@ -92,6 +93,7 @@ class SpinnerMenuView extends MenuView {
 
     redraw() {
         super.redraw();
+        this._focusFrameItemsDrawn = true;
         this.drawItem(this.focusedItemIndex);
     }
 
@@ -99,9 +101,20 @@ class SpinnerMenuView extends MenuView {
         return true;
     }
 
-    //  The one item shown, while the view has focus
+    //  The one item shown, while the view has focus, once drawn since the
+    //  items last changed (as VM, HM and FM wait for the redraw)
     isFocusItemFrameVisible(index) {
-        return !!this.hasFocus && index === this.focusedItemIndex && !!this.items[index];
+        return (
+            !!this.hasFocus &&
+            false !== this._focusFrameItemsDrawn &&
+            index === this.focusedItemIndex &&
+            !!this.items[index]
+        );
+    }
+
+    _focusFrameItemsChanged() {
+        super._focusFrameItemsChanged();
+        this._focusFrameItemsDrawn = false;
     }
 
     setFocus(focused) {
