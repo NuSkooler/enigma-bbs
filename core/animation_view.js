@@ -10,8 +10,12 @@ const {
 } = require('./ansi_canvas.js');
 const AnsiDiff = require('./ansi_diff.js');
 const FrameClock = require('./frame_clock.js');
-const { emulationOf } = require('./term/index.js');
-const { LAYER_NAME: RIP_LAYER } = require('./term/rip');
+const {
+    DEFAULT_FRAME_INTERVAL_MS,
+    minFrameIntervalMs,
+    clientAnimates,
+    parseMs,
+} = require('./animation_config.js');
 
 //  deps
 const async = require('async');
@@ -84,8 +88,6 @@ const _ = require('lodash');
 //  (ViewController applyViewConfig()).
 //
 
-const DEFAULT_FRAME_INTERVAL_MS = 100;
-const DEFAULT_MIN_FRAME_INTERVAL_MS = FrameClock.DEFAULT_MIN_FRAME_INTERVAL_MS;
 const MODES = ['loop', 'pingpong', 'once', 'random'];
 
 //  inline frames are parsed this wide, so a line longer than the box is
@@ -114,39 +116,6 @@ function cachePut(key, entry) {
 
 function clearFrameSetCache() {
     frameSetCache.clear();
-}
-
-//  menus.animations, read when used (config.js is not captured at load)
-function animationsConfig() {
-    const getConfig = require('./config.js').get;
-    const config = _.isFunction(getConfig) ? getConfig() : null;
-    return _.get(config, 'menus.animations') || {};
-}
-
-function minFrameIntervalMs() {
-    const ms = Number(animationsConfig().minFrameIntervalMs);
-    return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_MIN_FRAME_INTERVAL_MS;
-}
-
-//  On for |client|'s current menu? The system switch is a hard off (owner,
-//  2026-11-21); a menu can only turn its own animations off, not back on
-function animationsEnabled(client) {
-    if (false === animationsConfig().enabled) {
-        return false;
-    }
-    const perMenu = _.get(client, 'currentMenuModule.menuConfig.config.animations');
-    return false !== perMenu;
-}
-
-//  Plain ANSI sessions only: not PETSCII, ATASCII, or the RIP layer
-function sessionAnimates(client) {
-    //  late: theme.js requires (through ViewController) this module
-    const { getSessionEmulation } = require('./theme.js');
-    if ('ansi' !== getSessionEmulation(client)) {
-        return false;
-    }
-    const emulation = emulationOf(_.get(client, 'term'));
-    return !(_.isFunction(emulation.hasLayer) && emulation.hasLayer(RIP_LAYER));
 }
 
 //  True if |canvas| draws anything outside |width| x |height|
@@ -209,7 +178,7 @@ function loadArt(view, name, cb) {
     const client = view.client;
     const menu = client.currentMenuModule;
     const encodedAs = _.get(menu, 'menuConfig.config.encodedAs');
-    //  late: see sessionAnimates()
+    //  late: see sessionAnimates() (animation_config.js)
     const theme = require('./theme.js');
     theme.getThemeArt(
         {
@@ -260,7 +229,7 @@ function artReadAfterStat(loaded, cb) {
         return cb(null, loaded.artInfo);
     }
     const fromPath = loaded.artInfo.fromPath;
-    //  late, as theme.js (see sessionAnimates())
+    //  late, as theme.js (see sessionAnimates(), animation_config.js)
     require('./art.js').getArtFromPath(
         fromPath,
         { readSauce: true, encodedAs: loaded.encodedAs },
@@ -618,7 +587,7 @@ class AnimationView extends View {
     }
 
     _load() {
-        this._animate = animationsEnabled(this.client) && sessionAnimates(this.client);
+        this._animate = clientAnimates(this.client);
         let called = false;
         let sync = true;
         let result = null; //  loadFrameSet() answered before returning
@@ -857,24 +826,6 @@ class AnimationView extends View {
         FrameClock.unregister(this);
         super.destroy();
     }
-}
-
-//
-//  A duration from config: a finite number of ms >= 0 (or a string of
-//  one). undefined: not set (missing, null, false or ""); NaN: set, but
-//  not a duration (true, -1, "fast", an object).
-//
-function parseMs(value) {
-    if (undefined === value || null === value || false === value || '' === value) {
-        return undefined;
-    }
-    if ('number' === typeof value) {
-        return Number.isFinite(value) && value >= 0 ? value : NaN;
-    }
-    if ('string' === typeof value && /^\s*\d+(\.\d+)?\s*$/.test(value)) {
-        return Number(value);
-    }
-    return NaN;
 }
 
 //
