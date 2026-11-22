@@ -713,6 +713,51 @@ describe('AnimationView (%AV)', function () {
             });
         });
 
+        it('cached frames are read after the stat: a file replaced after its first read is not cached stale', function (done) {
+            realTime();
+            const sheet = paths.join(dir, 'raced_sheet.ans');
+            const f1 = paths.join(dir, 'raced1.ans');
+            const f2 = paths.join(dir, 'raced2.ans');
+            //  on disk now (and so at the stat): the new art
+            fs.writeFileSync(sheet, 'new\r\nNEW\r\n');
+            fs.writeFileSync(f1, 'new');
+            fs.writeFileSync(f2, 'NEW');
+            //  what the theme lookup read, just before the file was replaced
+            const saved = theme.getThemeArt;
+            theme.getThemeArt = (options, cb) =>
+                setImmediate(() =>
+                    cb(null, {
+                        data: options.name === f2 ? 'OLD' : 'old\r\nOLD\r\n',
+                        fromPath: options.name,
+                    })
+                );
+            const restore = err => {
+                theme.getThemeArt = saved;
+                done(err);
+            };
+            loadAsync(animClient({ frames: { art: sheet } }), (err, vc) => {
+                try {
+                    assert.ifError(err);
+                    const set = vc.getView(20)._frameSet;
+                    assert.equal(set.frames[0].chars[0].join(''), 'new');
+                    assert.equal(set.frames[1].chars[0].join(''), 'NEW');
+                } catch (e) {
+                    return restore(e);
+                }
+                loadAsync(animClient({ frames: { art: [f1, f2] } }), (err, vc2) => {
+                    try {
+                        assert.ifError(err);
+                        const set = vc2.getView(20)._frameSet;
+                        assert.equal(set.frames[0].chars[0].join(''), 'new');
+                        assert.equal(set.frames[1].chars[0].join(''), 'NEW');
+                    } catch (e) {
+                        return restore(e);
+                    }
+                    restore();
+                });
+            });
+        });
+
         it('a list of art files, one per frame', function (done) {
             realTime();
             const a = paths.join(dir, 'f1.ans');

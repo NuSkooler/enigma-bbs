@@ -192,8 +192,9 @@ function buildFrameSet(frames, transparent, warnings) {
 
 //
 //  Art |name| for |view|, as the menu's art is found. cb(err, { artInfo,
-//  key }): |key| is the resolved path, mtime and size (null if the file
-//  cannot be stat'd: not cached).
+//  key, encodedAs }): |key| is the resolved path, mtime and size (null if
+//  the file cannot be stat'd: not cached). The stat comes after this read,
+//  so build from artReadAfterStat(), not |artInfo|, anything cached by key.
 //
 function loadArt(view, name, cb) {
     if (!_.isString(name) || 0 === name.length) {
@@ -217,11 +218,11 @@ function loadArt(view, name, cb) {
             if (err) {
                 return cb(err);
             }
-            if (!artInfo || !_.isString(artInfo.data) || artInfo.rip || artInfo.native) {
+            if (!isAnsiArt(artInfo)) {
                 return cb(new Error(`Frame art "${name}" is not ANSI art`));
             }
             if (!_.isString(artInfo.fromPath)) {
-                return cb(null, { artInfo, key: null });
+                return cb(null, { artInfo, key: null, encodedAs });
             }
             fs.stat(artInfo.fromPath, (statErr, stats) => {
                 const key = statErr
@@ -229,8 +230,42 @@ function loadArt(view, name, cb) {
                     : [artInfo.fromPath, stats.mtimeMs, stats.size, encodedAs || ''].join(
                           '|'
                       );
-                return cb(null, { artInfo, key });
+                return cb(null, { artInfo, key, encodedAs });
             });
+        }
+    );
+}
+
+function isAnsiArt(artInfo) {
+    return !!artInfo && _.isString(artInfo.data) && !artInfo.rip && !artInfo.native;
+}
+
+//
+//  The art of |loaded| (loadArt()) to build frames from that are cached
+//  under its key: read again, now that the stat is done, so the frames
+//  are never older than the mtime and size in the key. (Read before the
+//  stat, a file replaced in between would cache its old frames under the
+//  new mtime for good. Replaced after it, the new frames are cached under
+//  the old mtime, which the next stat no longer matches.) Only on a cache
+//  miss: a hit builds nothing. Not cached (no key): |loaded.artInfo|.
+//
+function artReadAfterStat(loaded, cb) {
+    if (!loaded.key) {
+        return cb(null, loaded.artInfo);
+    }
+    const fromPath = loaded.artInfo.fromPath;
+    //  late, as theme.js (see sessionAnimates())
+    require('./art.js').getArtFromPath(
+        fromPath,
+        { readSauce: true, encodedAs: loaded.encodedAs },
+        (err, artInfo) => {
+            if (err) {
+                return cb(err);
+            }
+            if (!isAnsiArt(artInfo)) {
+                return cb(new Error(`Frame art "${fromPath}" is not ANSI art`));
+            }
+            return cb(null, artInfo);
         }
     );
 }
@@ -304,28 +339,33 @@ function loadFrameSet(view, cb) {
                 if (cached) {
                     return cb(null, cached, true);
                 }
-                //  in an fs callback: what the art's parse throws (ESC [ u
-                //  with no saved position) is a load error, not uncaught
-                let set;
-                try {
-                    const warnings = [];
-                    const frames = loaded.map((l, i) =>
-                        frameFromCanvas(
-                            canvasFromArt(l.artInfo),
-                            width,
-                            height,
-                            `Frame art "${source.art[i]}"`,
-                            warnings
-                        )
-                    );
-                    set = buildFrameSet(frames, transparent, warnings);
-                } catch (e) {
-                    return cb(e);
-                }
-                if (key) {
-                    cachePut(key, set);
-                }
-                return cb(null, set);
+                return async.mapSeries(loaded, artReadAfterStat, (err, artInfos) => {
+                    if (err) {
+                        return cb(err);
+                    }
+                    //  in an fs callback: what the art's parse throws (ESC [ u
+                    //  with no saved position) is a load error, not uncaught
+                    let set;
+                    try {
+                        const warnings = [];
+                        const frames = artInfos.map((artInfo, i) =>
+                            frameFromCanvas(
+                                canvasFromArt(artInfo),
+                                width,
+                                height,
+                                `Frame art "${source.art[i]}"`,
+                                warnings
+                            )
+                        );
+                        set = buildFrameSet(frames, transparent, warnings);
+                    } catch (e) {
+                        return cb(e);
+                    }
+                    if (key) {
+                        cachePut(key, set);
+                    }
+                    return cb(null, set);
+                });
             }
         );
     }
@@ -351,32 +391,39 @@ function loadFrameSet(view, cb) {
             if (cached) {
                 return cb(null, cached, true);
             }
-            //  in an fs callback: see the list above
-            const what = `Frame sheet "${source.art}"`;
-            let set;
-            try {
-                const sheet = canvasFromArt(loaded.artInfo);
-                const sliced = sliceSheet(sheet, sheetSpec);
-                const warnings = sliced.warnings.map(w => `${what}: ${w}`);
-                (sheet.warnings || []).forEach(w => warnings.push(`${what}: ${w}`));
-                if (sheet.mci && sheet.mci.length > 0) {
-                    warnings.push(
-                        `${what} holds MCI codes, which animation frames do not support; drawn blank`
+            return artReadAfterStat(loaded, (err, artInfo) => {
+                if (err) {
+                    return cb(err);
+                }
+                //  in an fs callback: see the list above
+                const what = `Frame sheet "${source.art}"`;
+                let set;
+                try {
+                    const sheet = canvasFromArt(artInfo);
+                    const sliced = sliceSheet(sheet, sheetSpec);
+                    const warnings = sliced.warnings.map(w => `${what}: ${w}`);
+                    (sheet.warnings || []).forEach(w => warnings.push(`${what}: ${w}`));
+                    if (sheet.mci && sheet.mci.length > 0) {
+                        warnings.push(
+                            `${what} holds MCI codes, which animation frames do not support; drawn blank`
+                        );
+                    }
+                    if (sliced.frames.length > 0) {
+                        set = buildFrameSet(sliced.frames, transparent, warnings);
+                    }
+                } catch (e) {
+                    return cb(e);
+                }
+                if (!set) {
+                    return cb(
+                        new Error(`${what} has no whole frame of ${width}x${height}`)
                     );
                 }
-                if (sliced.frames.length > 0) {
-                    set = buildFrameSet(sliced.frames, transparent, warnings);
+                if (key) {
+                    cachePut(key, set);
                 }
-            } catch (e) {
-                return cb(e);
-            }
-            if (!set) {
-                return cb(new Error(`${what} has no whole frame of ${width}x${height}`));
-            }
-            if (key) {
-                cachePut(key, set);
-            }
-            return cb(null, set);
+                return cb(null, set);
+            });
         });
     }
 
