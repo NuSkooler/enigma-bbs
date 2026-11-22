@@ -192,12 +192,17 @@ class FullMenuView extends MenuView {
                     col += maxLength + spacer.length;
                     itemInCol++;
                 }
-
-                // Set the current page if the current item is focused.
-                if (this.focusedItemIndex === i) {
-                    this.currentPage = this.pages.length;
-                }
             }
+
+            //  the page that holds the focused item: only known once every
+            //  page is laid out (a column that does not fit moves its items
+            //  to the next page, and the last item pushes the final page)
+            const focusedPage = this.pages.findIndex(
+                page =>
+                    this.focusedItemIndex >= page.start &&
+                    this.focusedItemIndex <= page.end
+            );
+            this.currentPage = focusedPage > -1 ? focusedPage : 0;
         }
 
         this.positionCacheExpired = false;
