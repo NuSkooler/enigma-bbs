@@ -219,6 +219,15 @@ function SSHClient(clientConn, connInfo) {
         };
 
         const authWithPassword = () => {
+            //
+            //  A password change request (RFC 4252 section 8) carries the old
+            //  and new passwords, an object here. Changing a password this
+            //  way is not supported: refused, as no attempt at a login.
+            //
+            if (!_.isString(ctx.password)) {
+                return safeContextReject(SSHClient.ValidAuthMethods);
+            }
+
             const authType = User.AuthFactor1Types.Password;
             userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
                 if (err) {

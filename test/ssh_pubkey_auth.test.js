@@ -894,6 +894,57 @@ describe('SSH public key authentication', function () {
         });
     });
 
+    describe('a password change request', () => {
+        it('is refused, not thrown on, and not counted', async () => {
+            const user = addUser();
+            const result = await new Promise(resolve => {
+                const out = { ready: false };
+                const sshClient = new ssh2.Client();
+                let asked = false;
+                sshClient.on('ready', () => {
+                    out.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (out.error = err.message));
+                sshClient.on('close', () => {
+                    out.serverClient = serverClients[serverClients.length - 1];
+                    resolve(out);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username: user.username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        if (asked) {
+                            return cb(false);
+                        }
+                        asked = true;
+                        //  old and new passwords (RFC 4252 section 8)
+                        const proto = sshClient._protocol;
+                        const authPassword = proto.authPassword.bind(proto);
+                        proto.authPassword = (name, password) =>
+                            authPassword(name, password, 'a-new-password');
+                        return cb({
+                            type: 'password',
+                            username: user.username,
+                            password: 'old',
+                        });
+                    },
+                });
+            });
+            assertNoLogin(result);
+            assert.match(String(result.error), /authentication methods failed/);
+            assert.equal(result.serverClient.sessionFailedLoginAttempts, undefined);
+            assert.ok(
+                !result.serverClient.log.entries.some(e =>
+                    /SSH connection error/.test(e.msg)
+                ),
+                'no connection error'
+            );
+        });
+    });
+
     describe('SSHClient.isPubKeyBlobFor()', () => {
         const blobWith = (algo, rest) => {
             const name = Buffer.from(algo);

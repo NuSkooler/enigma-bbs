@@ -93,7 +93,7 @@ function makeRoutes() {
             userDb.exec(`CREATE TRIGGER fail_revocation BEFORE UPDATE ON api_refresh_tokens
                 BEGIN SELECT RAISE(ABORT, 'Fixture storage failure'); END`);
         },
-        request(action) {
+        request(action, body = { username: 'fixture', password: 'fixture' }) {
             return new Promise((resolve, reject) => {
                 const url = `${AUTH_PATH}/${action}`;
                 const resp = {
@@ -116,10 +116,7 @@ function makeRoutes() {
                 req.headers = { cookie: jar.header(url) };
                 try {
                     routes.find(r => r.path.test(url)).handler(req, resp);
-                    req.emit(
-                        'data',
-                        JSON.stringify({ username: 'fixture', password: 'fixture' })
-                    );
+                    req.emit('data', JSON.stringify(body));
                     req.emit('end');
                 } catch (err) {
                     reject(err);
@@ -203,6 +200,20 @@ describe('REST auth routes: refresh cookie lifecycle', () => {
             delete require.cache[require.resolve(path)];
         }
     });
+    it('refuses a login whose user name or password is not a string', async () => {
+        const ctx = makeRoutes();
+        let looked = false;
+        User.getUserByUsername = () => (looked = true);
+        for (const body of [
+            { username: 'fixture', password: { old: 'a', new: 'b' } },
+            { username: 'fixture', password: ['fixture'] },
+            { username: { $ne: 1 }, password: 'fixture' },
+        ]) {
+            assert.equal((await ctx.request('login', body)).status, 400);
+        }
+        assert.equal(looked, false, 'no login was attempted');
+    });
+
     it('revokes and clears the login session on logout', async () => {
         const ctx = makeRoutes();
         assert.equal((await ctx.request('login')).status, 200);
