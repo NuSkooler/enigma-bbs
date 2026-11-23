@@ -27,11 +27,15 @@ const Events = require('../core/events.js');
 //  require, so they are loaded fresh against this file's database and config,
 //  and put back afterwards: other test files keep the copies they have.
 //
+//  stat_log.js too: other test files replace its methods (and leave them
+//  replaced), and User counts failed logins with it.
+//
 const FreshPaths = [
     '../core/user_group.js',
     '../core/user.js',
     '../core/user_login.js',
     '../core/servers/login/ssh.js',
+    '../core/stat_log.js',
 ].map(p => require.resolve(p));
 const UserLoginPath = FreshPaths[2];
 
@@ -162,6 +166,7 @@ describe('SSH public key authentication', function () {
             return originalLoad(request, parent, isMain);
         };
         try {
+            require(FreshPaths[4]);
             require(FreshPaths[0]);
             User = require(FreshPaths[1]);
             require(FreshPaths[2]);
@@ -772,6 +777,50 @@ describe('SSH public key authentication', function () {
             ]);
             assertNoLogin(result);
             assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), '3');
+        });
+    });
+
+    describe('failedLogin.lockAccount', () => {
+        let savedLock;
+        before(() => {
+            savedLock = config.users.failedLogin.lockAccount;
+            config.users.failedLogin.lockAccount = 3;
+        });
+        after(() => {
+            config.users.failedLogin.lockAccount = savedLock;
+        });
+
+        it('with 3, three refused keys lock the account, and the right key is then refused', async () => {
+            const user = addUser();
+            for (let i = 0; i < 3; ++i) {
+                const result = await connect({
+                    ...user,
+                    key: newKey(),
+                    mode: 'queryOnly',
+                });
+                assert.equal(result.pkOk, false);
+            }
+            assert.equal(
+                getProp(user.userId, UserProps.AccountStatus),
+                String(User.AccountStatus.locked)
+            );
+
+            const result = await connect(user);
+            assertNoLogin(result);
+            assert.deepEqual(failedLoginReasons(result), [
+                'Access denied: Account is locked',
+            ]);
+        });
+
+        it('with 3, a junk signature does not count toward it', async () => {
+            const user = addUser();
+            for (let i = 0; i < 3; ++i) {
+                await connect({ ...user, mode: 'junkNoQuery' });
+            }
+            assert.equal(
+                getProp(user.userId, UserProps.AccountStatus),
+                String(User.AccountStatus.active)
+            );
         });
     });
 

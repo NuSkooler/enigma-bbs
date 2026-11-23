@@ -195,6 +195,13 @@ module.exports = class User {
         return 10; //  :TODO: Is this what we want?
     }
 
+    //
+    //  A failed login for |userId|: count it, and lock the account once
+    //  users.failedLogin.lockAccount is reached. Only an active account is
+    //  locked; a disabled or inactive one keeps its status (it cannot log in
+    //  anyway, and an unlock would otherwise "restore" it to active), and one
+    //  already locked stays as it was locked, its lock time included.
+    //
     processFailedLogin(userId, cb) {
         async.waterfall(
             [
@@ -207,31 +214,33 @@ module.exports = class User {
                         UserProps.FailedLoginAttempts,
                         1,
                         (err, failedAttempts) => {
-                            return callback(null, tempUser, failedAttempts);
+                            return callback(err, tempUser, failedAttempts);
                         }
                     );
                 },
                 (tempUser, failedAttempts, callback) => {
                     const lockAccount = _.get(Config(), 'users.failedLogin.lockAccount');
-                    if (lockAccount > 0 && failedAttempts >= lockAccount) {
-                        const props = {
-                            [UserProps.AccountStatus]: User.AccountStatus.locked,
-                            [UserProps.AccountLockedTs]: StatLog.now,
-                        };
-                        if (
-                            !_.has(tempUser.properties, UserProps.AccountLockedPrevStatus)
-                        ) {
-                            props[UserProps.AccountLockedPrevStatus] =
-                                tempUser.getProperty(UserProps.AccountStatus);
-                        }
-                        Log.info(
-                            { userId, failedAttempts },
-                            '(Re)setting account to locked due to failed logins'
-                        );
-                        return tempUser.persistProperties(props, callback);
+                    if (!(lockAccount > 0) || !(failedAttempts >= lockAccount)) {
+                        return callback(null);
                     }
 
-                    return cb(null);
+                    const status = tempUser.getPropertyAsNumber(UserProps.AccountStatus);
+                    if (User.AccountStatus.active !== status) {
+                        return callback(null);
+                    }
+
+                    Log.info(
+                        { userId, failedAttempts },
+                        'Locking account due to failed logins'
+                    );
+                    return tempUser.persistProperties(
+                        {
+                            [UserProps.AccountStatus]: User.AccountStatus.locked,
+                            [UserProps.AccountLockedTs]: StatLog.now,
+                            [UserProps.AccountLockedPrevStatus]: status,
+                        },
+                        callback
+                    );
                 },
             ],
             err => {
@@ -240,19 +249,40 @@ module.exports = class User {
         );
     }
 
+    //
+    //  Clear a lock: a locked account gets back the status it had before (see
+    //  processFailedLogin()), and the failed login count starts again. A
+    //  status set since (by a sysop, say) is left alone; only the lock's
+    //  leftovers go.
+    //
     unlockAccount(cb) {
         const prevStatus = this.getProperty(UserProps.AccountLockedPrevStatus);
-        if (!prevStatus) {
+        const isLocked =
+            User.AccountStatus.locked ===
+            this.getPropertyAsNumber(UserProps.AccountStatus);
+
+        if (!prevStatus && !_.has(this.properties, UserProps.AccountLockedTs)) {
             return cb(null); //  nothing to do
         }
 
-        this.persistProperty(UserProps.AccountStatus, prevStatus, err => {
+        const restore = callback => {
+            if (!isLocked || !prevStatus) {
+                return callback(null);
+            }
+            return this.persistProperty(UserProps.AccountStatus, prevStatus, callback);
+        };
+
+        restore(err => {
             if (err) {
                 return cb(err);
             }
 
             return this.removeProperties(
-                [UserProps.AccountLockedPrevStatus, UserProps.AccountLockedTs],
+                [
+                    UserProps.AccountLockedPrevStatus,
+                    UserProps.AccountLockedTs,
+                    UserProps.FailedLoginAttempts,
+                ],
                 cb
             );
         });
@@ -502,10 +532,51 @@ module.exports = class User {
                     });
                 },
                 function checkAccountStatus(callback) {
-                    const accountStatus = parseInt(
+                    let accountStatus = parseInt(
                         tempAuthInfo.properties[UserProps.AccountStatus],
                         10
                     );
+
+                    //
+                    //  A lock past users.failedLogin.autoUnlockMinutes is
+                    //  cleared once this login succeeds (see unlockAccount()),
+                    //  so the login is judged on the status the account had
+                    //  before it was locked.
+                    //
+                    if (User.AccountStatus.locked === accountStatus) {
+                        const autoUnlockMinutes = _.get(
+                            Config(),
+                            'users.failedLogin.autoUnlockMinutes'
+                        );
+                        const lockedTsProp =
+                            tempAuthInfo.properties[UserProps.AccountLockedTs];
+                        const lockedTs = moment(lockedTsProp);
+                        if (autoUnlockMinutes && lockedTsProp && lockedTs.isValid()) {
+                            const minutesSinceLocked = moment().diff(lockedTs, 'minutes');
+                            if (minutesSinceLocked >= autoUnlockMinutes) {
+                                const prevStatus = parseInt(
+                                    tempAuthInfo.properties[
+                                        UserProps.AccountLockedPrevStatus
+                                    ],
+                                    10
+                                );
+                                Log.info(
+                                    {
+                                        username,
+                                        userId: tempAuthInfo.userId,
+                                        lockedAt: lockedTs.format(),
+                                        prevStatus,
+                                    },
+                                    'Locked account will now be unlocked due to auto-unlock minutes policy'
+                                );
+                                //  no status kept from before: allowed, as it always was
+                                accountStatus = isNaN(prevStatus)
+                                    ? User.AccountStatus.active
+                                    : prevStatus;
+                            }
+                        }
+                    }
+
                     if (User.AccountStatus.disabled === accountStatus) {
                         return callback(
                             Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
@@ -518,28 +589,6 @@ module.exports = class User {
                     }
 
                     if (User.AccountStatus.locked === accountStatus) {
-                        const autoUnlockMinutes = _.get(
-                            Config(),
-                            'users.failedLogin.autoUnlockMinutes'
-                        );
-                        const lockedTs = moment(
-                            tempAuthInfo.properties[UserProps.AccountLockedTs]
-                        );
-                        if (autoUnlockMinutes && lockedTs.isValid()) {
-                            const minutesSinceLocked = moment().diff(lockedTs, 'minutes');
-                            if (minutesSinceLocked >= autoUnlockMinutes) {
-                                //  allow the login - we will clear any lock there
-                                Log.info(
-                                    {
-                                        username,
-                                        userId: tempAuthInfo.userId,
-                                        lockedAt: lockedTs.format(),
-                                    },
-                                    'Locked account will now be unlocked due to auto-unlock minutes policy'
-                                );
-                                return callback(null);
-                            }
-                        }
                         return callback(
                             Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
                         );
