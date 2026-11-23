@@ -311,6 +311,7 @@ describe('the current message area at login (#1141)', function () {
             const result = await login(stored('', ''));
             assert.equal(result.confTag, '');
             assert.equal(result.areaTag, '');
+            assert.deepEqual(result.writes, [], 'wrote the same values again');
         });
     });
 });

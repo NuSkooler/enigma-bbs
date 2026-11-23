@@ -178,6 +178,14 @@ function postLoginPrep(client, cb) {
                     //  move them out of both area and possibly conf to something suitable, hopefully.
                     const [newConfTag, newAreaTag] =
                         getSuitableMessageConfAndAreaTags(client);
+                    //  nothing better found (no area at all, nothing readable)
+                    if (
+                        newConfTag === (confTag || '') &&
+                        newAreaTag ===
+                            (client.user.getProperty(UserProps.MessageAreaTag) || '')
+                    ) {
+                        return callback(null);
+                    }
                     client.user.persistProperties(
                         {
                             [UserProps.MessageConfTag]: newConfTag,
