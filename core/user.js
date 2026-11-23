@@ -25,6 +25,14 @@ const AvatarGenerator = require('avatar-generator');
 const paths = require('path');
 const fse = require('fs-extra');
 
+//  what decides whether an account is locked, and whether a lock runs out
+const LockPropertyNames = [
+    UserProps.AccountStatus,
+    UserProps.AccountLockedTs,
+    UserProps.AccountLockedPrevStatus,
+    UserProps.FailedLoginAttempts,
+];
+
 module.exports = class User {
     constructor() {
         this.userId = 0;
@@ -210,9 +218,17 @@ module.exports = class User {
         async.waterfall(
             [
                 callback => {
+                    //  as stored now: other logins may have just counted, or
+                    //  locked the account
                     return User.getUser(userId, callback);
                 },
                 (tempUser, callback) => {
+                    //  a lock in force: nothing more to count, nor to move
+                    if (
+                        User.LockState.InForce === User.getLockState(tempUser.properties)
+                    ) {
+                        return callback(null, tempUser, null);
+                    }
                     return StatLog.incrementUserStat(
                         tempUser,
                         UserProps.FailedLoginAttempts,
@@ -224,12 +240,13 @@ module.exports = class User {
                 },
                 (tempUser, failedAttempts, callback) => {
                     const lockAccount = _.get(Config(), 'users.failedLogin.lockAccount');
-                    if (!(lockAccount > 0)) {
+                    if (!(lockAccount > 0) || null === failedAttempts) {
                         return callback(null);
                     }
 
                     const status = tempUser.getPropertyAsNumber(UserProps.AccountStatus);
                     if (User.AccountStatus.locked === status) {
+                        //  only a lock that has run out gets here
                         Log.info(
                             { userId, failedAttempts },
                             'Locking account again due to a failed login after its lock ran out'
@@ -405,6 +422,18 @@ module.exports = class User {
                 return cb(err || null);
             }
         );
+    }
+
+    //
+    //  cb-less: the account status and lock properties of |userId| as stored
+    //  now, or an Error
+    //
+    static loadLockProperties(userId) {
+        let props;
+        User.loadProperties(userId, { names: LockPropertyNames }, (err, p) => {
+            props = err || p;
+        });
+        return props;
     }
 
     static get LockState() {
@@ -594,7 +623,45 @@ module.exports = class User {
                     }
                     return validatePassword(tempAuthInfo.properties, callback);
                 },
+                function initGroups(callback) {
+                    userGroup.getGroupsForUser(tempAuthInfo.userId, (err, groups) => {
+                        if (!err) {
+                            tempAuthInfo.groups = groups;
+                        }
+
+                        return callback(err);
+                    });
+                },
                 function checkAccountStatus(callback) {
+                    //
+                    //  The account as it is now, not as it was before the
+                    //  password check (asynchronous; other logins may have
+                    //  locked the account meanwhile). From here to the end
+                    //  (the count reset and any unlock) nothing is
+                    //  asynchronous, so nothing can change it in between.
+                    //
+                    const fresh = User.loadLockProperties(tempAuthInfo.userId);
+                    if (fresh instanceof Error) {
+                        return callback(fresh);
+                    }
+                    LockPropertyNames.forEach(name => {
+                        if (_.has(fresh, name)) {
+                            tempAuthInfo.properties[name] = fresh[name];
+                        } else {
+                            delete tempAuthInfo.properties[name];
+                        }
+                    });
+
+                    if (
+                        User.LockState.InForce ===
+                        User.getLockState(tempAuthInfo.properties)
+                    ) {
+                        tempAuthInfo.notCounted = true;
+                        return callback(
+                            Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+                        );
+                    }
+
                     let accountStatus = parseInt(
                         tempAuthInfo.properties[UserProps.AccountStatus],
                         10
@@ -653,15 +720,6 @@ module.exports = class User {
                     }
 
                     return callback(null);
-                },
-                function initGroups(callback) {
-                    userGroup.getGroupsForUser(tempAuthInfo.userId, (err, groups) => {
-                        if (!err) {
-                            tempAuthInfo.groups = groups;
-                        }
-
-                        return callback(err);
-                    });
                 },
             ],
             err => {
