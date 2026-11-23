@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.2-beta
 
+* **Removing a file from the download queue shows the right list** ([#1160](https://github.com/NuSkooler/enigma-bbs/issues/1160)). Removing any queued file but the last drew the removed file's neighbour twice and dropped the last file from the list, until the screen was redrawn. The fix is in the code all menu lists share: after `removeItem()` or a sort, every item is drawn again from its own text, so mods that remove entries from a visible list are fixed too.
+
 * **Page sysop's "send as mail" opens the editor filled in** ([#1144](https://github.com/NuSkooler/enigma-bbs/issues/1144)). When no sysop was available and the caller chose to send their page as mail, the private mail editor opened empty: no To, no subject, and the page text they had typed was gone. It now opens addressed to the sysop, with the subject from `mailSubject` and the page text as the body, and the cursor in the body, ready to add to or save.
   * **The private mail editor no longer says "Field cannot be empty" as it opens.** Starting any new private mail showed the error for the empty To field before anything was typed. To is now checked when the caller leaves it, as before.
 
