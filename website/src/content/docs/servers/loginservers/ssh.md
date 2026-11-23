@@ -161,6 +161,10 @@ openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
 
 The keyboard interactive prompt can be customized using a `SSHPMPT.ASC` art file. See [art](../../art/general.md) for more information on configuring. This prompt includes a `newUserNames` variable to show the list of allowed new user names (see `firstMenuNewUser` above.) See [mci](../../art/mci.md) for information about formatting this string. Note: Regardless of the content of the `SSHPMPT.ASC` file, the prompt is surrounded by "Access denied", a newline, the prompt, another newline, and then the string "\[username]'s password: ". This normally occurs after the first password prompt (no art is shown before the first password attempt is made.)
 
+## Refused Logins
+
+A caller whose login is refused because of the account (already connected on another node, disabled, waiting for activation, or locked) is told why at the login stage, then disconnected: the reason is shown through keyboard-interactive with no prompt, as for a full board (see [Limiting Connections](../index.md#limiting-connections)), and needs no key press. A caller who logged in with a password or public key is sent to keyboard-interactive to see it; a client that does not do keyboard-interactive gets an authentication failure. A locked account's answer comes after 2 seconds, as a wrong password's does. A public key query (a client asking whether a key would do, before it signs with it) is answered from the key alone and says nothing about the account.
+
 ## SSH Public Key Authentication
 
 Users can now authenticate with SSH public keys in addition to passwords. Each account may store a single OpenSSH-format public key (for example, `ssh-ed25519 AAAA... comment`).

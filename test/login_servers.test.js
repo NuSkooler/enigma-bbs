@@ -9,6 +9,9 @@
 //  and its node freed; a telnet socket ended from this side is closed if the
 //  caller never closes its side.
 //
+//  #1081: SSH takes no terminal size from the window's size in pixels, and a
+//  login refused for the account's state is shown the way a busy board is.
+//
 
 const { strict: assert } = require('assert');
 const { EventEmitter } = require('events');
@@ -254,6 +257,36 @@ describe('login servers (#1017)', function () {
             assert.deepEqual(client.termTypesSet, ['xterm-256color']);
             assert.equal(client.term.termWidth, 120);
             assert.equal(client.term.termHeight, 50);
+        });
+
+        //
+        //  #1081: width and height are the window in pixels (ssh2's own
+        //  client sends 640x480), not a size in characters. A size of 0 is
+        //  left for connect.js to find.
+        //
+        const pixelsOnly = { cols: 0, rows: 0, width: 640, height: 480 };
+
+        it('a pty with 0 rows and cols takes no size from the pixels', () => {
+            const client = openShell([
+                ['pty', Object.assign({ term: 'xterm' }, pixelsOnly)],
+                ['shell'],
+            ]);
+            assert.deepEqual(client.termTypesSet, ['xterm']);
+            assert.equal(client.term.termWidth, 0);
+            assert.equal(client.term.termHeight, 0);
+        });
+
+        it('a window-change with 0 rows and cols leaves the size alone', () => {
+            const client = openShell([pty, ['shell'], ['window-change', pixelsOnly]]);
+            assert.equal(client.term.termWidth, 100);
+            assert.equal(client.term.termHeight, 40);
+        });
+
+        it('pty, window-change with 0 rows and cols, shell: keeps the pty size', () => {
+            const client = openShell([pty, ['window-change', pixelsOnly], ['shell']]);
+            assert.deepEqual(client.termTypesSet, ['xterm-256color']);
+            assert.equal(client.term.termWidth, 100);
+            assert.equal(client.term.termHeight, 40);
         });
     });
 
@@ -1074,6 +1107,285 @@ describe('login servers (#1017)', function () {
                     return !clientConns.clientConnections.includes(client);
                 });
             });
+        });
+    });
+
+    //
+    //  A login refused for the account's state: the message goes through
+    //  keyboard-interactive with no prompts, as for a busy board, then a
+    //  disconnect once the client answers. Password and public key logins
+    //  are steered to keyboard-interactive to show it.
+    //
+    describe('SSH login refused for the account (#1081)', () => {
+        const { Errors, ErrorReasons } = require('../core/enig_error.js');
+
+        let saved1081;
+        let otherSession;
+
+        beforeEach(() => {
+            saved1081 = {
+                loginTimeoutSeconds: config.loginServers.ssh.loginTimeoutSeconds,
+                slowRefusalMs: ssh.SSHClient.SlowRefusalMs,
+                isValidPubKeySignature: ssh.SSHClient.isValidPubKeySignature,
+            };
+            config.loginServers.ssh.loginTimeoutSeconds = 0;
+            //  a signed publickey request here is taken as signed well; see
+            //  test/ssh_pubkey_auth.test.js for the real thing
+            ssh.SSHClient.isValidPubKeySignature = () => true;
+        });
+
+        afterEach(() => {
+            config.loginServers.ssh.loginTimeoutSeconds = saved1081.loginTimeoutSeconds;
+            ssh.SSHClient.SlowRefusalMs = saved1081.slowRefusalMs;
+            ssh.SSHClient.isValidPubKeySignature = saved1081.isValidPubKeySignature;
+
+            const i = clientConns.clientConnections.indexOf(otherSession);
+            if (i > -1) {
+                clientConns.clientConnections.splice(i, 1);
+            }
+            otherSession = null;
+            clientConns.clientConnections
+                .slice()
+                .forEach(client => clientConns.removeClient(client));
+        });
+
+        //  a caller on a free node whose password (or key) checks out as |result|
+        function connectAs(result) {
+            const conn = makeSshConn();
+            const client = new ssh.SSHClient(conn, {
+                header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
+            });
+            new LoginServerModule().handleNewClient(client, conn._sock, ssh.moduleInfo);
+            assert.ok(clientConns.clientConnections.includes(client), 'tracked');
+
+            client.user.authenticateFactor1 = (authInfo, cb) => {
+                if ('alreadyLoggedIn' === result) {
+                    //  the same user, already on another node
+                    client.user.userId = 42;
+                    otherSession = { user: { userId: 42 }, session: { id: 2 } };
+                    clientConns.clientConnections.push(otherSession);
+                    return cb(null);
+                }
+                return cb(result);
+            };
+            return { conn, client };
+        }
+
+        const refusals = [
+            {
+                what: 'disabled',
+                result: Errors.AccessDenied('Account disabled', ErrorReasons.Disabled),
+                message: 'somebody is disabled.',
+                failedAttempt: true,
+            },
+            {
+                what: 'inactive',
+                result: Errors.AccessDenied('Account inactive', ErrorReasons.Inactive),
+                message: 'somebody is waiting for +op activation.',
+                failedAttempt: true,
+            },
+            {
+                what: 'already connected',
+                result: 'alreadyLoggedIn',
+                message:
+                    'somebody is already connected to the system. Terminating connection.',
+                failedAttempt: false,
+            },
+        ];
+
+        //  the zero-prompt form: no prompts, the message as the instruction
+        function assertShown(ctx, index, message) {
+            assert.equal(ctx.prompts.length, index + 1, 'shown');
+            const [prompts, title, instructions, cb] = ctx.prompts[index];
+            assert.deepEqual(prompts, []);
+            assert.equal(title, '');
+            assert.equal(instructions, message);
+            assert.equal(typeof cb, 'function');
+            return cb;
+        }
+
+        refusals.forEach(({ what, result, message, failedAttempt }) => {
+            it(`${what}, keyboard-interactive: shows the message with no prompt, then disconnects`, () => {
+                const { conn, client } = connectAs(result);
+                const ctx = makeAuthCtx('keyboard-interactive', 'somebody');
+                conn.emit('authentication', ctx);
+
+                const [, answerPassword] = ctx.prompts[0];
+                answerPassword(['secret']);
+
+                const answered = assertShown(ctx, 1, message);
+                assert.deepEqual(ctx.rejects, [], 'no failure before the message');
+                assert.equal(conn.endCount, 0, 'kept open to show it');
+
+                answered([]);
+                assert.equal(conn.endCount, 1);
+                assert.equal(ctx.accepts, 0);
+
+                assert.equal(
+                    client.sessionFailedLoginAttempts,
+                    failedAttempt ? 1 : undefined,
+                    'counted as before'
+                );
+                conn.emit('close');
+            });
+
+            ['password', 'publickey'].forEach(method => {
+                it(`${what}, ${method}: steered to keyboard-interactive, which shows the message`, () => {
+                    const { conn } = connectAs(result);
+                    const ctx = makeAuthCtx(method, 'somebody');
+                    ctx.password = 'secret';
+                    ctx.signature = Buffer.from('signed'); //  publickey: a login
+                    conn.emit('authentication', ctx);
+
+                    assert.deepEqual(ctx.rejects, [['keyboard-interactive']]);
+                    assert.equal(ctx.accepts, 0);
+                    assert.equal(conn.endCount, 0);
+
+                    const kbd = makeAuthCtx('keyboard-interactive', 'somebody');
+                    conn.emit('authentication', kbd);
+                    assertShown(kbd, 0, message)([]);
+                    assert.equal(conn.endCount, 1);
+                    conn.emit('close');
+                });
+            });
+        });
+
+        it('locked: the message waits as a bad login does, then the same form', async () => {
+            ssh.SSHClient.SlowRefusalMs = 20;
+            const { conn, client } = connectAs(
+                Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+            );
+            const ctx = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', ctx);
+            ctx.prompts[0][1](['secret']);
+
+            assert.equal(ctx.prompts.length, 1, 'nothing yet');
+            assert.equal(conn.endCount, 0);
+            await waitFor('the message', () => ctx.prompts.length > 1);
+
+            assertShown(ctx, 1, 'somebody is locked.')([]);
+            assert.equal(conn.endCount, 1);
+            assert.equal(client.sessionFailedLoginAttempts, 1);
+            conn.emit('close');
+        });
+
+        it('locked: nothing is sent if the connection ends while the message waits', async () => {
+            ssh.SSHClient.SlowRefusalMs = 20;
+            const { conn } = connectAs(
+                Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+            );
+            const ctx = makeAuthCtx('password', 'somebody');
+            ctx.password = 'secret';
+            conn.emit('authentication', ctx);
+            conn.emit('close');
+            await tick(50);
+            assert.deepEqual(ctx.rejects, []);
+            assert.equal(ctx.prompts.length, 0);
+        });
+
+        //
+        //  A publickey request without a signature only asks whether the key
+        //  would do (#1172): the account is not looked at, so nothing about
+        //  its state is shown, and the caller is not refused.
+        //
+        refusals.forEach(({ what, result }) => {
+            [
+                ['the key is the one stored', null],
+                ['the key is not', Errors.AccessDenied('Invalid public key')],
+            ].forEach(([which, keyResult]) => {
+                it(`${what}, a publickey query (${which}): says nothing about the account`, () => {
+                    const { conn, client } = connectAs(result);
+                    let factor1 = 0;
+                    const authenticateFactor1 = client.user.authenticateFactor1;
+                    client.user.authenticateFactor1 = (...args) => {
+                        factor1 += 1;
+                        return authenticateFactor1(...args);
+                    };
+                    client.user.checkSSHPubKey = (username, key, cb) => cb(keyResult);
+
+                    const ctx = makeAuthCtx('publickey', 'somebody');
+                    ctx.key = { algo: 'ssh-ed25519', data: Buffer.from('key') };
+                    conn.emit('authentication', ctx);
+
+                    assert.equal(factor1, 0, 'no login');
+                    assert.equal(client.refusalMessage, undefined, 'not refused');
+                    assert.deepEqual(ctx.prompts, []);
+                    if (keyResult) {
+                        assert.deepEqual(ctx.rejects, [ssh.SSHClient.ValidAuthMethods]);
+                        assert.equal(ctx.accepts, 0);
+                    } else {
+                        assert.deepEqual(ctx.rejects, []);
+                        assert.equal(ctx.accepts, 1, 'PK_OK');
+                    }
+
+                    //  keyboard-interactive next asks for the password, as
+                    //  for any account
+                    const kbd = makeAuthCtx('keyboard-interactive', 'somebody');
+                    conn.emit('authentication', kbd);
+                    assert.equal(kbd.prompts.length, 1);
+                    assert.match(kbd.prompts[0][0].prompt, /password/);
+                    assert.equal(conn.endCount, 0);
+                    conn.emit('close');
+                });
+            });
+        });
+
+        it('locked: a request that comes while the answer waits is refused too', async () => {
+            ssh.SSHClient.SlowRefusalMs = 30;
+            const { conn, client } = connectAs(
+                Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+            );
+            let factor1 = 0;
+            const authenticateFactor1 = client.user.authenticateFactor1;
+            client.user.authenticateFactor1 = (...args) => {
+                factor1 += 1;
+                return authenticateFactor1(...args);
+            };
+
+            //  the client gives up on its keyboard-interactive request once
+            //  it has answered, and sends another (ssh2 emits 'abort')
+            const first = makeAuthCtx('keyboard-interactive', 'somebody');
+            const firstEvents = new EventEmitter();
+            first.once = (...args) => firstEvents.once(...args);
+            conn.emit('authentication', first);
+            first.prompts[0][1](['secret']);
+            assert.equal(factor1, 1);
+            firstEvents.emit('abort');
+
+            const second = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', second);
+            assert.equal(factor1, 1, 'no second login attempt');
+            assertShown(second, 0, 'somebody is locked.');
+
+            await tick(60);
+            assert.equal(
+                first.prompts.length,
+                1,
+                'the abandoned request is not answered'
+            );
+            conn.emit('close');
+        });
+
+        it('a refused login cannot log in on a later attempt', () => {
+            const { conn, client } = connectAs(
+                Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
+            );
+            const first = makeAuthCtx('password', 'somebody');
+            first.password = 'secret';
+            conn.emit('authentication', first);
+
+            //  the account's state no longer matters: the refusal stands
+            client.user.authenticateFactor1 = (authInfo, cb) => cb(null);
+            ['publickey', 'password'].forEach(method => {
+                const ctx = makeAuthCtx(method, 'somebody');
+                ctx.password = 'secret';
+                conn.emit('authentication', ctx);
+                assert.equal(ctx.accepts, 0, method);
+            });
+            const newUser = makeAuthCtx('password', 'new');
+            conn.emit('authentication', newUser);
+            assert.equal(newUser.accepts, 0, 'nor as a new user');
+            conn.emit('close');
         });
     });
 

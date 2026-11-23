@@ -629,6 +629,117 @@ describe('SSH public key authentication', function () {
         });
     });
 
+    //
+    //  #1081: a login refused for the account's state is shown, as a busy
+    //  board is, through keyboard-interactive with no prompts. A client that
+    //  logged in with a key is sent there to see it.
+    //
+    describe('an account refused after a good signature, as a client sees it (#1081)', () => {
+        //  a publickey login (query, then signature) and, where the server
+        //  steers it there, keyboard-interactive
+        function connectThenKeyboard({ username, key }) {
+            const result = { ready: false, methodsLeft: [], shown: [] };
+            const sshClient = new ssh2.Client();
+            let step = 0;
+            return new Promise(resolve => {
+                const startedAt = Date.now();
+                sshClient.on('ready', () => {
+                    result.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (result.error = err.message));
+                sshClient.on('close', () => {
+                    result.elapsedMs = Date.now() - startedAt;
+                    result.serverClient = serverClients[serverClients.length - 1];
+                    resolve(result);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        step += 1;
+                        if (1 === step) {
+                            return cb({ type: 'publickey', username, key });
+                        }
+                        result.methodsLeft.push(methodsLeft);
+                        if (
+                            2 === step &&
+                            (methodsLeft || []).includes('keyboard-interactive')
+                        ) {
+                            //  ssh2's client answers a request with no prompts
+                            //  itself, without showing it: what the server
+                            //  sent is taken from the protocol
+                            const handlers = sshClient._protocol._handlers;
+                            const infoRequest = handlers.USERAUTH_INFO_REQUEST;
+                            handlers.USERAUTH_INFO_REQUEST = (
+                                p,
+                                name,
+                                instructions,
+                                prompts
+                            ) => {
+                                result.shown.push({ name, instructions, prompts });
+                                return infoRequest(p, name, instructions, prompts);
+                            };
+                            return cb({
+                                type: 'keyboard-interactive',
+                                username,
+                                //  a password prompt: no attempt is made
+                                prompt: () => sshClient.end(),
+                            });
+                        }
+                        return cb(false);
+                    },
+                });
+            });
+        }
+
+        [
+            ['disabled', 'is disabled.'],
+            ['inactive', 'is waiting for +op activation.'],
+            ['locked', 'is locked.'],
+        ].forEach(([status, says]) => {
+            it(`${status}: the reason, with no prompt, then the end`, async () => {
+                const user = addUser({
+                    props: {
+                        [UserProps.AccountStatus]: String(User.AccountStatus[status]),
+                        [UserProps.AccountLockedTs]: new Date().toISOString(),
+                    },
+                });
+                const result = await connectThenKeyboard(user);
+                assertNoLogin(result);
+                assert.deepEqual(result.methodsLeft[0], ['keyboard-interactive']);
+                assert.equal(result.shown.length, 1, JSON.stringify(result.shown));
+                assert.equal(result.shown[0].instructions, `${user.username} ${says}`);
+                assert.deepEqual(result.shown[0].prompts, []);
+                if ('locked' === status) {
+                    assert.ok(result.elapsedMs >= 1900, `${result.elapsedMs}ms`);
+                }
+            });
+        });
+
+        it('a key that is not registered: no reason shown, all methods offered', async () => {
+            const user = addUser({
+                props: {
+                    [UserProps.AccountStatus]: String(User.AccountStatus.disabled),
+                },
+            });
+            const result = await connectThenKeyboard({ ...user, key: newKey() });
+            assertNoLogin(result);
+            assert.deepEqual([...result.methodsLeft[0]].sort(), [
+                'keyboard-interactive',
+                'password',
+                'publickey',
+            ]);
+            //  keyboard-interactive asks for a password, as for any account
+            assert.equal(result.shown.length, 1);
+            assert.equal(result.shown[0].prompts.length, 1);
+            assert.match(result.shown[0].prompts[0].prompt, /password/);
+            assert.ok(!/disabled/.test(result.shown[0].instructions || ''));
+        });
+    });
+
     const newKey = (type = 'ed25519', bits) =>
         ssh2.utils.parseKey(generateKeys(type, bits ? { bits } : {}).private);
 
