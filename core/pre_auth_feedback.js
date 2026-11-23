@@ -102,7 +102,18 @@ exports.getModule = class PreAuthFeedbackFSEModule extends FullScreenEditorModul
     switchToHeader() {
         //  the body stays on screen: deactivated, not torn down
         FormLifecycle.deactivate(this.viewControllers.body);
-        this.viewControllers.header.switchFocus(MciViewIds.header.from);
+
+        //  Already on From (the form's initial focus): give the header the
+        //  keys back without moving focus. switchFocus() validates the view
+        //  focus leaves, even when it is the one asked for, so an empty From
+        //  showed "Field cannot be empty" as the editor opened.
+        const header = this.viewControllers.header;
+        const fromView = header.getView(MciViewIds.header.from);
+        if (fromView && header.focusedView === fromView) {
+            return FormLifecycle.activate(header);
+        }
+
+        header.switchFocus(MciViewIds.header.from);
     }
 
     //  Seed the header fields with defaults instead of reading client.user

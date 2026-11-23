@@ -3,6 +3,10 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.2-beta
 
+* **Pre-auth feedback no longer opens with "Field cannot be empty" showing.** The feedback editor reachable from the login matrix put the cursor on its empty From field and checked it at the same moment, as if the visitor had already left it, so the error was on screen before anything was typed. From is now checked only when the visitor moves on from it, and an empty From is still refused then.
+
+* **Page sysop's "send as mail" is addressed to the sysop by name.** When the sysop could not be paged and the caller chose to send the page as mail, the To field said `Sysop` unless `sysopUserName` was set in the `pageSysop` menu config. On a board with no account named Sysop, moving into To and pressing Enter gave "Failed to find user", and the saved mail showed `Sysop` as its recipient. With no `sysopUserName` the To is now the root user's username. A configured `sysopUserName` is used as before, and the mail still goes to the root user either way.
+
 * **Removing a file from the download queue shows the right list** ([#1160](https://github.com/NuSkooler/enigma-bbs/issues/1160)). Removing any queued file but the last drew the removed file's neighbour twice and dropped the last file from the list, until the screen was redrawn. The fix is in the code all menu lists share: after `removeItem()` or a sort, every item is drawn again from its own text, so mods that remove entries from a visible list are fixed too.
 
 * **Page sysop's "send as mail" opens the editor filled in** ([#1144](https://github.com/NuSkooler/enigma-bbs/issues/1144)). When no sysop was available and the caller chose to send their page as mail, the private mail editor opened empty: no To, no subject, and the page text they had typed was gone. It now opens addressed to the sysop, with the subject from `mailSubject` and the page text as the body, and the cursor in the body, ready to add to or save.
