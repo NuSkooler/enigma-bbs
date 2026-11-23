@@ -83,6 +83,14 @@ function setAccountStatus(user, status) {
                 return user.unlockAccount(callback);
             },
             callback => {
+                //  activating starts the failed login count again, locked or not
+                if (AccountStatus.active !== status) {
+                    return callback(null);
+                }
+
+                return user.removeProperty(UserProps.FailedLoginAttempts, callback);
+            },
+            callback => {
                 //  an account that can no longer log in keeps no REST credentials
                 if (AccountStatus.active === status) {
                     return callback(null);

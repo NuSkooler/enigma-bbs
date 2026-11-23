@@ -28,9 +28,9 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 * **Sysops: failed logins now lock accounts.** Nothing in your configuration, menus, art or themes needs to change.
 
-  **What changes by itself:** `users.failedLogin.lockAccount` (default 9) now takes effect, on every login path; before, no account was ever locked automatically. An active account is locked after that many failed logins since its last successful one, and with `users.failedLogin.autoUnlockMinutes` (default 360) the right password or key lets the user in again once that long has passed. Counts already stored carry over: a user with 9 or more failures since their last successful login is locked at their next failure. Anyone who knows a user name, the sysop's included, can lock that account by failing to log in as it.
+  **What changes by itself:** `users.failedLogin.lockAccount` (default 9) now takes effect, on every login path; before, no account was ever locked automatically. An active account is locked after that many failed logins since its last successful one. A locked account refuses every login, even with the right password or key, until `users.failedLogin.autoUnlockMinutes` (default 360) have passed; then the right password or key lets the user in again, and a wrong one locks the account again from that moment. Counts already stored carry over: a user with 9 or more failures since their last successful login is locked at their next failure. Anyone who knows a user name, the sysop's included, can lock that account by failing to log in as it.
 
-  **Action:** review `users.failedLogin`; set `lockAccount: 0` to keep today's behaviour (no locking). To unlock an account by hand: `./oputil.js user activate USERNAME`.
+  **Action:** review `users.failedLogin`; set `lockAccount: 0` to keep today's behaviour (no locking). To unlock an account by hand (this also clears its failed login count): `./oputil.js user activate USERNAME`.
 
 * **Mod authors: covers pause background drawing** ([#1136](https://github.com/NuSkooler/enigma-bbs/issues/1136), [#1137](https://github.com/NuSkooler/enigma-bbs/issues/1137)). Nothing in your configuration, menus, art or themes needs to change, and `client.waitForKeyPress()` works as before.
 

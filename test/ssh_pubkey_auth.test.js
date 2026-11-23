@@ -39,6 +39,27 @@ const FreshPaths = [
 ].map(p => require.resolve(p));
 const UserLoginPath = FreshPaths[2];
 
+//
+//  ssh2's generateKeyPairSync() now and then writes a key it cannot read
+//  back (about 1 ed25519 key in 270 has a 31 byte public key): those are
+//  thrown away for another.
+//
+function generateKeys(type, opts) {
+    for (let tries = 0; tries < 50; ++tries) {
+        const keys = ssh2.utils.generateKeyPairSync(type, opts);
+        const pub = ssh2.utils.parseKey(keys.public);
+        const priv = ssh2.utils.parseKey(keys.private);
+        if (
+            !(pub instanceof Error) &&
+            !(priv instanceof Error) &&
+            pub.getPublicSSH().equals(priv.getPublicSSH())
+        ) {
+            return keys;
+        }
+    }
+    throw new Error(`could not generate a usable ${type} key`);
+}
+
 function makeLog() {
     const entries = [];
     const log = { entries, fields: {}, child: () => log };
@@ -178,7 +199,7 @@ describe('SSH public key authentication', function () {
 
         serverClients = [];
         server = new ssh2.Server({
-            hostKeys: [ssh2.utils.generateKeyPairSync('ed25519').private],
+            hostKeys: [generateKeys('ed25519').private],
         });
         server.on('connection', (conn, info) => {
             const client = new ssh.SSHClient(conn, info);
@@ -231,9 +252,7 @@ describe('SSH public key authentication', function () {
     function addUser({ keyType = 'ed25519', bits, props = {} } = {}) {
         const username = `pkuser${++userSeq}`;
         const keys =
-            'none' === keyType
-                ? null
-                : ssh2.utils.generateKeyPairSync(keyType, bits ? { bits } : {});
+            'none' === keyType ? null : generateKeys(keyType, bits ? { bits } : {});
         const info = db.prepare('INSERT INTO user (user_name) VALUES (?)').run(username);
         const userId = info.lastInsertRowid;
         const allProps = Object.assign(
@@ -478,9 +497,7 @@ describe('SSH public key authentication', function () {
     describe('a key that is not registered', () => {
         it('is refused in a query', async () => {
             const user = addUser();
-            const other = ssh2.utils.parseKey(
-                ssh2.utils.generateKeyPairSync('ed25519').private
-            );
+            const other = ssh2.utils.parseKey(generateKeys('ed25519').private);
             const result = await connect({ ...user, key: other, mode: 'queryOnly' });
             assert.equal(result.pkOk, false);
             assertNoLogin(result);
@@ -491,25 +508,21 @@ describe('SSH public key authentication', function () {
 
         it('is refused with a good signature made with it', async () => {
             const user = addUser();
-            const other = ssh2.utils.parseKey(
-                ssh2.utils.generateKeyPairSync('ed25519').private
-            );
+            const other = ssh2.utils.parseKey(generateKeys('ed25519').private);
             const result = await connect({ ...user, key: other, mode: 'signedNoQuery' });
             assertNoLogin(result);
         });
 
         it('is refused for a user with no key', async () => {
             const user = addUser({ keyType: 'none' });
-            const key = ssh2.utils.parseKey(
-                ssh2.utils.generateKeyPairSync('ed25519').private
-            );
+            const key = ssh2.utils.parseKey(generateKeys('ed25519').private);
             assertNoLogin(await connect({ ...user, key }));
         });
 
         it('is refused, not thrown on, when an RSA key of another size', async () => {
             const user = addUser({ keyType: 'rsa', bits: 2048 });
             const other = ssh2.utils.parseKey(
-                ssh2.utils.generateKeyPairSync('rsa', { bits: 3072 }).private
+                generateKeys('rsa', { bits: 3072 }).private
             );
             const result = await connect({ ...user, key: other, mode: 'queryOnly' });
             assert.equal(result.pkOk, false);
@@ -520,9 +533,7 @@ describe('SSH public key authentication', function () {
         });
 
         it('is refused for a user that does not exist', async () => {
-            const key = ssh2.utils.parseKey(
-                ssh2.utils.generateKeyPairSync('ed25519').private
-            );
+            const key = ssh2.utils.parseKey(generateKeys('ed25519').private);
             const result = await connect({ username: 'nobody', key, mode: 'queryOnly' });
             assert.equal(result.pkOk, false);
             assertNoLogin(result);
@@ -619,9 +630,7 @@ describe('SSH public key authentication', function () {
     });
 
     const newKey = (type = 'ed25519', bits) =>
-        ssh2.utils.parseKey(
-            ssh2.utils.generateKeyPairSync(type, bits ? { bits } : {}).private
-        );
+        ssh2.utils.parseKey(generateKeys(type, bits ? { bits } : {}).private);
 
     describe('a good signature made with another key', () => {
         it('is refused with the user key offered and no query', async () => {
@@ -838,34 +847,50 @@ describe('SSH public key authentication', function () {
             assertLoggedIn(await connect(user), user);
         });
 
-        //  a client that signs with a key it was never told would do: a
-        //  failed login like a wrong password
-        it('with 3, good signatures with a key that is not registered lock the account', async () => {
+        //  a client that signs with each key it has without asking first
+        //  (paramiko, say): like a refused query, toward disconnect only
+        it('with 3, good signatures with a key that is not registered do not count toward it', async () => {
             const user = addUser();
             for (let i = 0; i < 3; ++i) {
-                await connect({ ...user, key: newKey(), mode: 'signedNoQuery' });
-            }
-            assert.equal(
-                getProp(user.userId, UserProps.AccountStatus),
-                String(User.AccountStatus.locked)
-            );
-
-            const result = await connect(user);
-            assertNoLogin(result);
-            assert.deepEqual(failedLoginReasons(result), [
-                'Access denied: Account is locked',
-            ]);
-        });
-
-        it('with 3, a junk signature does not count toward it', async () => {
-            const user = addUser();
-            for (let i = 0; i < 3; ++i) {
-                await connect({ ...user, mode: 'junkNoQuery' });
+                const result = await connect({
+                    ...user,
+                    key: newKey(),
+                    mode: 'signedNoQuery',
+                });
+                assert.equal(result.serverClient.sessionFailedLoginAttempts, 1);
             }
             assert.equal(
                 getProp(user.userId, UserProps.AccountStatus),
                 String(User.AccountStatus.active)
             );
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), undefined);
+            assertLoggedIn(await connect(user), user);
+        });
+
+        it('while locked, the right key and another key get the same answer', async () => {
+            const user = addUser({
+                props: {
+                    [UserProps.AccountStatus]: String(User.AccountStatus.locked),
+                    [UserProps.AccountLockedPrevStatus]: String(
+                        User.AccountStatus.active
+                    ),
+                    [UserProps.AccountLockedTs]: new Date().toISOString(),
+                },
+            });
+            const right = await connect({ ...user, mode: 'signedNoQuery' });
+            const other = await connect({
+                ...user,
+                key: newKey(),
+                mode: 'signedNoQuery',
+            });
+            for (const result of [right, other]) {
+                assertNoLogin(result);
+                assert.deepEqual(failedLoginReasons(result), [
+                    'Access denied: Account is locked',
+                ]);
+                assert.ok(result.elapsedMs >= 1900, `${result.elapsedMs}ms`);
+            }
+            assert.equal(right.error, other.error);
         });
     });
 
@@ -969,7 +994,7 @@ describe('SSH public key authentication', function () {
     });
 
     describe('SSHClient.isValidPubKeySignature()', () => {
-        const keys = ssh2.utils.generateKeyPairSync('ed25519');
+        const keys = generateKeys('ed25519');
         const priv = ssh2.utils.parseKey(keys.private);
         const blob = Buffer.from('session id and request');
         const ctxFor = (signature, extra = {}) =>
@@ -992,9 +1017,7 @@ describe('SSH public key authentication', function () {
         it('is false where verify() returns an Error, not false', () => {
             const ctx = ctxFor(priv.sign(blob), { hashAlgo: 'no-such-hash' });
             //  ed25519 ignores the hash; an RSA key does not
-            const rsa = ssh2.utils.parseKey(
-                ssh2.utils.generateKeyPairSync('rsa', { bits: 2048 }).private
-            );
+            const rsa = ssh2.utils.parseKey(generateKeys('rsa', { bits: 2048 }).private);
             ctx.key = { algo: 'ssh-rsa', data: rsa.getPublicSSH() };
             ctx.signature = rsa.sign(blob, 'sha256');
             assert.ok(rsa.verify(blob, ctx.signature, ctx.hashAlgo) instanceof Error);

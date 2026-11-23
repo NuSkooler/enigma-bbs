@@ -126,7 +126,11 @@ describe('account lockout (users.failedLogin)', function () {
                 passProps,
                 props
             ),
-            (value, name) => stmt.run(userId, name, String(value))
+            (value, name) => {
+                if (undefined !== value) {
+                    stmt.run(userId, name, String(value));
+                }
+            }
         );
         return { username, userId };
     }
@@ -204,21 +208,91 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
-    it('leaves an account already locked as it was locked', async () => {
-        const lockedTs = hoursAgo(0.5);
-        const { username, userId } = addUser({
-            [UserProps.AccountStatus]: status('locked'),
-            [UserProps.AccountLockedPrevStatus]: status('active'),
-            [UserProps.AccountLockedTs]: lockedTs,
-            [UserProps.FailedLoginAttempts]: 3,
+    describe('a lock in force', () => {
+        const lockedProps = (extra = {}) =>
+            Object.assign(
+                {
+                    [UserProps.AccountStatus]: status('locked'),
+                    [UserProps.AccountLockedPrevStatus]: status('active'),
+                    [UserProps.AccountLockedTs]: hoursAgo(0.5),
+                    [UserProps.FailedLoginAttempts]: 3,
+                },
+                extra
+            );
+
+        it('answers the right and a wrong password alike, before checking either', async () => {
+            const { username } = addUser(lockedProps());
+            const right = await login(username, RightPass);
+            const wrong = await login(username, 'wrong-pass');
+            assert.equal(right.err.reasonCode, ErrorReasons.Locked);
+            assert.equal(wrong.err.reasonCode, ErrorReasons.Locked);
+            assert.equal(right.err.message, wrong.err.message);
         });
-        await failTimes(username, 3);
-        assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
-        assert.equal(
-            getProp(userId, UserProps.AccountLockedPrevStatus),
-            status('active')
-        );
-        assert.equal(getProp(userId, UserProps.AccountLockedTs), lockedTs);
+
+        it('does not count further failures, nor move the lock', async () => {
+            const props = lockedProps();
+            const { username, userId } = addUser(props);
+            await failTimes(username, 3);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+            assert.equal(
+                getProp(userId, UserProps.AccountLockedPrevStatus),
+                status('active')
+            );
+            assert.equal(
+                getProp(userId, UserProps.AccountLockedTs),
+                props[UserProps.AccountLockedTs]
+            );
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
+        });
+
+        it('with no lock time (oputil user lock) never runs out', async () => {
+            const { username } = addUser(
+                lockedProps({
+                    [UserProps.AccountLockedTs]: undefined,
+                    [UserProps.AccountLockedPrevStatus]: undefined,
+                })
+            );
+            assert.equal(
+                (await login(username, RightPass)).err.reasonCode,
+                ErrorReasons.Locked
+            );
+        });
+    });
+
+    describe('a lock that has run out', () => {
+        it('a wrong password locks the account again from now', async () => {
+            const oldTs = hoursAgo(2);
+            const { username, userId } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('active'),
+                [UserProps.AccountLockedTs]: oldTs,
+                [UserProps.FailedLoginAttempts]: 3,
+            });
+            const { err } = await login(username, 'wrong-pass');
+            assert.ok(err);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+            assert.notEqual(getProp(userId, UserProps.AccountLockedTs), oldTs);
+            assert.ok(
+                Date.now() - new Date(getProp(userId, UserProps.AccountLockedTs)) <
+                    60 * 1000
+            );
+            //  in force again: the right password is refused
+            assert.equal(
+                (await login(username, RightPass)).err.reasonCode,
+                ErrorReasons.Locked
+            );
+        });
+
+        it('with no status kept from before, the right password unlocks to active', async () => {
+            const { username, userId } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedTs]: hoursAgo(2),
+            });
+            const { err } = await login(username, RightPass);
+            assert.ifError(err);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+            assert.equal(getProp(userId, UserProps.AccountLockedTs), undefined);
+        });
     });
 
     it('a successful login resets the count', async () => {
@@ -270,6 +344,130 @@ describe('account lockout (users.failedLogin)', function () {
         });
         const { err } = await login(username, RightPass);
         assert.equal(err.reasonCode, ErrorReasons.Locked);
+    });
+
+    //
+    //  The telnet / WebSocket login form: system_menu_method's login(), as a
+    //  menu calls it, with userLogin()'s other collaborators stubbed
+    //
+    describe('the login menu', () => {
+        const Module = require('module');
+        const paths = ['../core/user_login.js', '../core/system_menu_method.js'].map(p =>
+            require.resolve(p)
+        );
+        let savedModules;
+        let menuMethods;
+
+        const stubs = {
+            './theme.js': { setClientTheme: () => {} },
+            './client_connections.js': { clientConnections: [] },
+            './logger.js': { log: { child: () => makeLog() } },
+            './message_area.js': {
+                getMessageConferenceByTag: () => ({}),
+                getMessageAreaByTag: () => ({}),
+                getSuitableMessageConfAndAreaTags: () => [],
+            },
+            './file_base_area.js': {
+                getFileAreaByTag: () => ({}),
+                getDefaultFileAreaTag: () => '',
+            },
+            './stat_log.js': {
+                setUserStat: (u, n, v, cb) => cb && cb(null),
+                incrementUserStat: (u, n, v, cb) => cb && cb(null),
+                incrementSystemStat: (n, v, cb) => cb && cb(null),
+                incrementNonPersistentSystemStat: () => {},
+                setNonPersistentSystemStat: () => {},
+                appendSystemLogEntry: (k, v, m, t, cb) => cb && cb(null),
+                now: new Date().toISOString(),
+                KeepType: { Max: 'max' },
+            },
+        };
+
+        function makeLog() {
+            const log = { fields: {}, child: () => log };
+            ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].forEach(level => {
+                log[level] = () => true;
+            });
+            return log;
+        }
+
+        before(() => {
+            savedModules = paths.map(p => require.cache[p]);
+            paths.forEach(p => delete require.cache[p]);
+            const originalLoad = Module._load;
+            Module._load = function (request, parent, isMain) {
+                if (
+                    parent &&
+                    parent.filename === paths[0] &&
+                    Object.prototype.hasOwnProperty.call(stubs, request)
+                ) {
+                    return stubs[request];
+                }
+                return originalLoad(request, parent, isMain);
+            };
+            try {
+                require(paths[0]);
+                menuMethods = require(paths[1]);
+            } finally {
+                Module._load = originalLoad;
+            }
+        });
+
+        after(() => {
+            paths.forEach((p, i) => {
+                if (savedModules[i]) {
+                    require.cache[p] = savedModules[i];
+                } else {
+                    delete require.cache[p];
+                }
+            });
+        });
+
+        //  where the menu went: { goto: menu } or { prev: true }
+        function menuLogin(username, password) {
+            return new Promise(resolve => {
+                const client = {
+                    user: new User(),
+                    log: makeLog(),
+                    session: { uniqueId: 'menu-session' },
+                    remoteAddress: '192.0.2.30',
+                    friendlyRemoteAddress: () => '192.0.2.30',
+                    clientEnded: false,
+                };
+                const menu = {
+                    client,
+                    menuConfig: { config: { locked: 'accountLocked' } },
+                    gotoMenu: (name, cb) => {
+                        cb(null);
+                        resolve({ goto: name });
+                    },
+                    prevMenu: cb => {
+                        cb(null);
+                        resolve({ prev: true });
+                    },
+                };
+                menuMethods.login(menu, { value: { username, password } }, {}, () => {});
+            });
+        }
+
+        it('goes to the same place for the right and a wrong password while locked', async () => {
+            const { username } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('active'),
+                [UserProps.AccountLockedTs]: hoursAgo(0.5),
+            });
+            assert.deepEqual(await menuLogin(username, RightPass), {
+                goto: 'accountLocked',
+            });
+            assert.deepEqual(await menuLogin(username, 'wrong-pass'), {
+                goto: 'accountLocked',
+            });
+        });
+
+        it('a wrong password for an account not locked goes back, as before', async () => {
+            const { username } = addUser();
+            assert.deepEqual(await menuLogin(username, 'wrong-pass'), { prev: true });
+        });
     });
 
     describe('unlockAccount()', () => {
