@@ -115,6 +115,43 @@ describe('the current message area at login (#1141)', function () {
         });
     });
 
+    describe('getDefaultMessageConferenceTag() with no conference marked default', () => {
+        beforeEach(() => {
+            config = {
+                debug: { assertsEnabled: false },
+                messageConferences: withDefaultConfs({
+                    local: { name: 'Local', areas: { general: { name: 'General' } } },
+                }),
+            };
+        });
+
+        it('a caller with ActivityPub on gets the board conference, not the hidden ActivityPub one', () => {
+            const acs = makeAcs({ apEnabled: true });
+            assert.equal(messageArea.getDefaultMessageConferenceTag({ acs }), 'local');
+            assert.deepEqual(messageArea.getSuitableMessageConfAndAreaTags({ acs }), [
+                'local',
+                'general',
+            ]);
+        });
+
+        it('a hidden conference is still used when it is the only one readable', () => {
+            config.messageConferences.local.acs = sysopsOnly;
+            assert.equal(
+                messageArea.getDefaultMessageConferenceTag({
+                    acs: makeAcs({ apEnabled: true }),
+                }),
+                WellKnownConfTags.ActivityPubInternal
+            );
+        });
+
+        it('a caller with ActivityPub off gets the board conference, as before', () => {
+            assert.equal(
+                messageArea.getDefaultMessageConferenceTag({ acs: makeAcs() }),
+                'local'
+            );
+        });
+    });
+
     describe('postLoginPrep() through userLogin()', () => {
         let userLogin;
         const loginModulePath = require.resolve('../core/user_login.js');

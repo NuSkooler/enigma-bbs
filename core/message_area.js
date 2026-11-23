@@ -228,15 +228,20 @@ function getDefaultMessageConferenceTag(client, disableAcsCheck) {
         }
     }
 
-    //  just use anything we can
-    defaultConf = _.findKey(config.messageConferences, (conf, confTag) => {
-        return (
-            !SystemInternalConfTags.includes(confTag) &&
-            (true === disableAcsCheck || client.acs.hasMessageConfRead(conf))
-        );
-    });
+    //  just use anything we can: one shown in the conference list first,
+    //  so a caller is not put in a hidden one (the ActivityPub conference,
+    //  which the defaults place ahead of the board's own) while the board
+    //  has another they can read
+    const usable = (conf, confTag) =>
+        !SystemInternalConfTags.includes(confTag) &&
+        (true === disableAcsCheck || client.acs.hasMessageConfRead(conf));
 
-    return defaultConf;
+    return (
+        _.findKey(
+            config.messageConferences,
+            (conf, confTag) => true !== conf.hideFromBrowse && usable(conf, confTag)
+        ) || _.findKey(config.messageConferences, usable)
+    );
 }
 
 function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
