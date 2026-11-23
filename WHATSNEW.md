@@ -3,6 +3,10 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.2-beta
 
+* **The user config screen no longer fails for a user with no stored terminal height** ([#1145](https://github.com/NuSkooler/enigma-bbs/issues/1145)). Users created by `oputil`, an import or a mod may not have one; the screen was left half filled and an exception was logged. It now shows the session's terminal height, as signup stores.
+
+* **`%PE` shows the bytes sent** ([#1149](https://github.com/NuSkooler/enigma-bbs/issues/1149)). It showed the bytes received, the same as `%PI`, and showed nothing (logging an error) before any traffic was counted.
+
 * **New `%AV` animation view: frames played in a box over a menu's art.** Fire pillars beside a logo, an eye that glints every few seconds, a spinner next to the command prompt: the menu keeps taking input while they play, and only the cells that change are sent. Frames come from pipe-coded strings in the menu config, from one art file holding every frame (several animations can share one sheet), or from one art file per frame, found through the theme like any art, so themes and mods can supply their own. Place the box with an `%AV20` marker in the art, or with a `position` and no marker to animate existing art without editing it. Animations play on ANSI sessions only; PETSCII, ATASCII and RIP callers see the first frame. `menus.animations.enabled: false` in `config.hjson` turns them off everywhere, and `animations: false` in a menu's `config` turns off that menu. Stock menus do not use it yet; the templates show a commented-out example. See [Animation View](website/src/content/docs/art/views/animation_view.md).
 
   * **For mods:** a view may have a `prepare(cb)` method, which the form calls before it is first drawn (`AnimationView` loads its frames there). A form with no such view loads as before. See [Views that load before the first draw](website/src/content/docs/art/views/views.md#views-that-load-before-the-first-draw).
