@@ -500,13 +500,29 @@ function changeMessageArea(client, areaTag, cb) {
 //
 //  |areaOrTag| is an area object or an area tag. No area at all (undefined
 //  or null: a user with no current message area, or a lookup that found
-//  nothing) is no access (#1139). A tag that is no longer configured is
-//  checked as an empty area, as it always has been.
+//  nothing) is no access (#1139), and so is a tag that is not configured:
+//  checked as an empty area, it got the default ACS, which any user passes
+//  (#1141). A well-known tag (private mail, bulletins, the ActivityPub shared
+//  area) is always configured by the defaults; should one ever fail to
+//  resolve, it is still checked as an empty area, as it always has been.
 //
-function hasMessageConfAndAreaRead(client, areaOrTag) {
-    if (_.isString(areaOrTag)) {
-        areaOrTag = getMessageAreaByTag(areaOrTag) || {};
+function areaForAccessCheck(areaOrTag) {
+    if (!_.isString(areaOrTag)) {
+        return areaOrTag;
     }
+    const area = getMessageAreaByTag(areaOrTag);
+    if (area) {
+        return area;
+    }
+    //  in any case, as Message.isPrivateAreaTag() takes it
+    const wellKnown =
+        '' !== areaOrTag &&
+        Object.values(WellKnownAreaTags).includes(areaOrTag.toLowerCase());
+    return wellKnown ? {} : undefined;
+}
+
+function hasMessageConfAndAreaRead(client, areaOrTag) {
+    areaOrTag = areaForAccessCheck(areaOrTag);
     if (!_.isObject(areaOrTag)) {
         return false;
     }
@@ -518,9 +534,7 @@ function hasMessageConfAndAreaRead(client, areaOrTag) {
 
 //  see hasMessageConfAndAreaRead()
 function hasMessageConfAndAreaWrite(client, areaOrTag) {
-    if (_.isString(areaOrTag)) {
-        areaOrTag = getMessageAreaByTag(areaOrTag) || {};
-    }
+    areaOrTag = areaForAccessCheck(areaOrTag);
     if (!_.isObject(areaOrTag)) {
         return false;
     }

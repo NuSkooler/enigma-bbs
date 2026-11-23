@@ -77,10 +77,10 @@ describe('message area access with no area (#1139)', function () {
         assert.equal(messageArea.hasMessageConfAndAreaWrite(client, general), true);
     });
 
-    it('a tag no longer configured is still checked as an empty area', () => {
+    it('a tag no longer configured is no access (#1141)', () => {
         assert.equal(
             messageArea.hasMessageConfAndAreaWrite(makeClient(), 'gone_area'),
-            true
+            false
         );
     });
 

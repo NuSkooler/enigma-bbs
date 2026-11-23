@@ -295,8 +295,9 @@ const Limits = {
     maxMessageLength: 64 * 1024,
 };
 
-//  an area the sysop has removed since the packet was built still has to
-//  produce settings for the message
+//  private mail skips the access check, which refuses an area that is not
+//  configured (#1141), so it still has to produce settings for the message
+//  should its area not resolve
 const areaOrEmpty = areaTag => getMessageAreaByTag(areaTag) || {};
 
 exports.getModule = class MessageBaseOfflineImport extends MenuModule {
