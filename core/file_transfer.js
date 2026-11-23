@@ -323,13 +323,15 @@ exports.getModule = class TransferFileModule extends MenuModule {
                         return done(err);
                     }
 
-                    //  stat each to grab files only
+                    //  stat each to grab files only; lstat, so a link is not
+                    //  taken for the file it points to (the DSZLOG path checks
+                    //  the same way)
                     async.each(
                         files,
                         (fileName, nextFile) => {
                             const recvFullPath = paths.join(this.recvDirectory, fileName);
 
-                            fs.stat(recvFullPath, (err, stats) => {
+                            fs.lstat(recvFullPath, (err, stats) => {
                                 if (err) {
                                     this.client.log.warn('Failed to stat file', {
                                         path: recvFullPath,
