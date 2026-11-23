@@ -13,7 +13,10 @@ const Errors = require('./enig_error.js').Errors;
 const DownloadQueue = require('./download_queue.js');
 const StatLog = require('./stat_log.js');
 const FileEntry = require('./file_entry.js');
-const { moveFileWithCollisionHandling } = require('./file_util.js');
+const {
+    moveFileWithCollisionHandling,
+    clampImplausibleFileTime,
+} = require('./file_util.js');
 const Log = require('./logger.js').log;
 const Events = require('./events.js');
 const UploadTempDir = require('./upload_temp_dir.js');
@@ -57,6 +60,25 @@ const PROTOCOL_KILL_GRACE_MS = 5000;
 //  'SIGHUP' for 1, and so on; a number with no name stays a number
 const signalName = signal =>
     _.findKey(require('os').constants.signals, n => n === signal) || signal;
+
+//
+//  A received file keeps the modification time its sender gave it, and the
+//  sender controls that: a ZModem sender put 10 May 2446 there (#1129). An
+//  implausible one -- before 1980, or more than a day ahead -- becomes the
+//  time the file was received, before the upload module, the scanner or
+//  anything else sees it. A plausible one is left alone. Never fails the
+//  upload; see clampImplausibleFileTime() in file_util.js.
+//
+function clampReceivedFileTimes(filePaths, log, cb) {
+    const now = new Date();
+    async.each(
+        filePaths || [],
+        (filePath, next) => {
+            clampImplausibleFileTime(filePath, { now, log }, () => next(null));
+        },
+        () => cb(null)
+    );
+}
 
 /*
     Notes
@@ -250,9 +272,17 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     recvFiles(cb) {
+        //  every way out with files goes through here; see clampReceivedFileTimes()
+        const done = err => {
+            if (err) {
+                return cb(err);
+            }
+            return clampReceivedFileTimes(this.recvFilePaths, this.client.log, cb);
+        };
+
         this.executeExternalProtocolHandlerForRecv((err, exitInfo, dszLogText) => {
             if (err) {
-                return this.salvageReceivedFiles(err, exitInfo, dszLogText, cb);
+                return this.salvageReceivedFiles(err, exitInfo, dszLogText, done);
             }
 
             if (_.isString(dszLogText)) {
@@ -272,17 +302,17 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 const recvFullPath = paths.join(this.recvDirectory, this.recvFileName);
                 fs.stat(recvFullPath, (err, stats) => {
                     if (err) {
-                        return cb(err);
+                        return done(err);
                     }
 
                     if (!stats.isFile()) {
-                        return cb(
+                        return done(
                             Errors.Invalid('Expected file entry in recv directory')
                         );
                     }
 
                     this.recvFilePaths.push(recvFullPath);
-                    return cb(null);
+                    return done(null);
                 });
             } else {
                 //
@@ -290,7 +320,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 //
                 fs.readdir(this.recvDirectory, (err, files) => {
                     if (err) {
-                        return cb(err);
+                        return done(err);
                     }
 
                     //  stat each to grab files only
@@ -315,7 +345,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                             });
                         },
                         () => {
-                            return cb(null);
+                            return done(null);
                         }
                     );
                 });
