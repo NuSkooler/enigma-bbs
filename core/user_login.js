@@ -27,6 +27,7 @@ const assert = require('assert');
 const moment = require('moment');
 
 exports.userLogin = userLogin;
+exports.checkSSHPubKey = checkSSHPubKey;
 exports.recordLogin = recordLogin;
 exports.transformLoginError = transformLoginError;
 
@@ -36,21 +37,8 @@ function userLogin(client, username, password, options, cb) {
         options = {};
     }
 
-    const config = Config();
-
-    if (config.users.badUserNames.includes(username.toLowerCase())) {
-        client.log.info(
-            { username, ip: client.remoteAddress },
-            `Attempt to login with banned username "${username}"`
-        );
-
-        //  slow down a bit to thwart brute force attacks
-        return setTimeout(() => {
-            if (client.clientEnded) {
-                return cb(abandonLogin(client, username));
-            }
-            return cb(Errors.BadLogin('Disallowed username', ErrorReasons.NotAllowed));
-        }, 2000);
+    if (isBannedUsername(client, username, cb)) {
+        return;
     }
 
     const authInfo = {
@@ -138,6 +126,54 @@ function userLogin(client, username, password, options, cb) {
             //  recordLogin() must happen after 2FA!
             return cb(null);
         });
+    });
+}
+
+//
+//  A banned username gets a BadLogin, slowly, to thwart brute force attacks.
+//  Returns true if |username| is banned; |cb| is then called later.
+//
+function isBannedUsername(client, username, cb) {
+    if (!Config().users.badUserNames.includes(username.toLowerCase())) {
+        return false;
+    }
+
+    client.log.info(
+        { username, ip: client.remoteAddress },
+        `Attempt to login with banned username "${username}"`
+    );
+
+    setTimeout(() => {
+        if (client.clientEnded) {
+            return cb(abandonLogin(client, username));
+        }
+        return cb(Errors.BadLogin('Disallowed username', ErrorReasons.NotAllowed));
+    }, 2000);
+    return true;
+}
+
+//
+//  An SSH client asking whether a public key would be accepted, before it
+//  signs with it (see User.checkSSHPubKey()). Not a login: there are none of
+//  userLogin()'s side effects, and the account itself (disabled, locked, and
+//  so on) is not looked at until the client has proved it holds the key.
+//  Errors are as userLogin()'s, so its callers can handle both alike.
+//
+function checkSSHPubKey(client, username, pubKey, cb) {
+    if (isBannedUsername(client, username, cb)) {
+        return;
+    }
+
+    client.user.checkSSHPubKey(username, _.get(pubKey, 'key'), err => {
+        if (client.clientEnded) {
+            return cb(abandonLogin(client, username, err));
+        }
+
+        if (err) {
+            return cb(transformLoginError(err, client, username));
+        }
+
+        return cb(null);
     });
 }
 

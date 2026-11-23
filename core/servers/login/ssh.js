@@ -6,14 +6,13 @@ const Config = require('../../config.js').get;
 const baseClient = require('../../client.js');
 const Log = require('../../logger.js').log;
 const LoginServerModule = require('../../login_server_module.js');
-const userLogin = require('../../user_login.js').userLogin;
+const { userLogin, checkSSHPubKey } = require('../../user_login.js');
 const enigVersion = require('../../../package.json').version;
 const theme = require('../../theme.js');
 const stringFormat = require('../../string_format.js');
 const { Errors, ErrorReasons } = require('../../enig_error.js');
 const { listenServer } = require('../../server_listen.js');
 const User = require('../../user.js');
-const UserProps = require('../../user_property.js');
 
 //  deps
 const ssh2 = require('ssh2');
@@ -202,49 +201,79 @@ function SSHClient(clientConn, connInfo) {
             }
         };
 
-        const authWithPasswordOrPubKey = authType => {
-            if (
-                User.AuthFactor1Types.SSHPubKey !== authType ||
-                !self.user.isAuthenticated() ||
-                !ctx.signature
-            ) {
-                //  step 1: login/auth using PubKey
-                userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
-                    if (err) {
-                        if (isClientEnded(err)) {
-                            return;
-                        }
+        //  a failed userLogin() or checkSSHPubKey()
+        const handleLoginError = err => {
+            if (isClientEnded(err)) {
+                return;
+            }
 
-                        if (isSpecialHandleError(err)) {
-                            return handleSpecialError(err, username);
-                        }
+            if (isSpecialHandleError(err)) {
+                return handleSpecialError(err, username);
+            }
 
-                        if (Errors.BadLogin().code === err.code) {
-                            return slowTerminateConnection();
-                        }
+            if (Errors.BadLogin().code === err.code) {
+                return slowTerminateConnection();
+            }
 
-                        return safeContextReject(SSHClient.ValidAuthMethods);
-                    }
+            return safeContextReject(SSHClient.ValidAuthMethods);
+        };
 
-                    ctx.accept();
-                });
-            } else {
-                //  step 2: verify signature
-                const storedKey = self.user.getProperty(UserProps.SSHPubKey);
-                if (!storedKey) {
-                    return slowTerminateConnection();
-                }
-
-                const pubKeyActual = ssh2.utils.parseKey(storedKey);
-                if (
-                    !pubKeyActual ||
-                    pubKeyActual instanceof Error ||
-                    !pubKeyActual.verify(ctx.blob, ctx.signature)
-                ) {
-                    return slowTerminateConnection();
+        const authWithPassword = () => {
+            const authType = User.AuthFactor1Types.Password;
+            userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
+                if (err) {
+                    return handleLoginError(err);
                 }
                 return ctx.accept();
+            });
+        };
+
+        //
+        //  A publickey request comes in two kinds (RFC 4252 section 7):
+        //
+        //  - Without a signature, a query: would this key do? Anyone may know
+        //    a public key, so this is not a login. The key is only compared
+        //    with the one stored for the user, and accept() answers "yes"
+        //    (SSH_MSG_USERAUTH_PK_OK).
+        //
+        //  - With a signature, made with the key's private half over the
+        //    session: that, once verified, is the proof. Only then is the
+        //    user logged in (the key compared again, account status, and so
+        //    on), and accept() lets them in. A client need not have asked
+        //    first.
+        //
+        //  ssh2 verifies nothing itself: accept() on a signed request lets
+        //  the caller in whatever the signature is.
+        //
+        const authWithPubKey = () => {
+            if (!ctx.signature) {
+                return checkSSHPubKey(self, ctx.username, ctx, err => {
+                    if (err) {
+                        return handleLoginError(err);
+                    }
+                    return ctx.accept();
+                });
             }
+
+            if (!SSHClient.isValidPubKeySignature(ctx)) {
+                self.log.warn(
+                    {
+                        username,
+                        algo: _.get(ctx, 'key.algo'),
+                        ip: self.remoteAddress,
+                    },
+                    'SSH public key signature did not verify'
+                );
+                return slowTerminateConnection();
+            }
+
+            const authType = User.AuthFactor1Types.SSHPubKey;
+            userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
+                if (err) {
+                    return handleLoginError(err);
+                }
+                return ctx.accept();
+            });
         };
 
         const authKeyboardInteractive = () => {
@@ -314,12 +343,10 @@ function SSHClient(clientConn, connInfo) {
 
         switch (ctx.method) {
             case 'password':
-                return authWithPasswordOrPubKey(User.AuthFactor1Types.Password);
-            //return authWithPassword();
+                return authWithPassword();
 
             case 'publickey':
-                return authWithPasswordOrPubKey(User.AuthFactor1Types.SSHPubKey);
-            //return authWithPubKey();
+                return authWithPubKey();
 
             case 'keyboard-interactive':
                 return authKeyboardInteractive();
@@ -581,6 +608,45 @@ SSHClient.getLoginTimeoutMs = function () {
         return Math.max(1, Math.round(clamped * 1000));
     }
     return SSHClient.DefaultLoginTimeoutSeconds * 1000;
+};
+
+//
+//  Is the signature on a signed publickey request (ssh2's |ctx|) a good one,
+//  made over the request (|ctx.blob|: the session identifier and the request)
+//  with the private half of the key offered in it? With an RSA key, the hash
+//  is the one the client named (rsa-sha2-256, rsa-sha2-512; SHA-1 for plain
+//  ssh-rsa).
+//
+//  Whether the key is the user's own is for userLogin() to say, after this.
+//
+SSHClient.isValidPubKeySignature = function (ctx) {
+    const key = _.get(ctx, 'key');
+    if (
+        !key ||
+        !Buffer.isBuffer(key.data) ||
+        !Buffer.isBuffer(ctx.signature) ||
+        !Buffer.isBuffer(ctx.blob)
+    ) {
+        return false;
+    }
+
+    try {
+        //  the caller's bytes: parsing them must not be able to throw us out
+        const pubKey = ssh2.utils.parseKey(key.data);
+        if (!pubKey || pubKey instanceof Error || Array.isArray(pubKey)) {
+            return false;
+        }
+
+        //  the key is what the request says it is
+        if (pubKey.type !== key.algo) {
+            return false;
+        }
+
+        //  verify() returns an Error, not false, for some bad signatures
+        return true === pubKey.verify(ctx.blob, ctx.signature, ctx.hashAlgo);
+    } catch (err) {
+        return false;
+    }
 };
 
 exports.SSHClient = SSHClient; //  for tests

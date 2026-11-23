@@ -258,6 +258,108 @@ module.exports = class User {
         });
     }
 
+    //
+    //  Is |offeredKey| ({ algo, data } as ssh2 hands it over: the key type
+    //  and the public key blob) the SSH public key in |storedKey| (OpenSSH
+    //  format)? A comparison of public keys only: it proves nothing about
+    //  who offered it.
+    //
+    static sshPubKeyMatches(storedKey, offeredKey) {
+        if (!storedKey || !offeredKey || !Buffer.isBuffer(offeredKey.data)) {
+            return false;
+        }
+
+        const parsedKey = ssh2.utils.parseKey(storedKey);
+        if (!parsedKey || parsedKey instanceof Error) {
+            return false;
+        }
+
+        const pubKeyActual = Array.isArray(parsedKey) ? parsedKey[0] : parsedKey;
+        if (!pubKeyActual || !pubKeyActual.getPublicSSH) {
+            return false;
+        }
+
+        const parts = storedKey.trim().split(/\s+/);
+        if (parts.length < 2) {
+            return false;
+        }
+
+        const storedKeyData = Buffer.from(parts[1], 'base64');
+
+        if (offeredKey.algo !== pubKeyActual.type) {
+            return false;
+        }
+
+        //  timingSafeEqual() throws on buffers of different lengths (an RSA
+        //  key of another size, say)
+        if (
+            offeredKey.data.length !== storedKeyData.length ||
+            !crypto.timingSafeEqual(offeredKey.data, storedKeyData)
+        ) {
+            Log.warn(
+                {
+                    expected: parts[1],
+                    provided: offeredKey.data.toString('base64'),
+                    algo: offeredKey.algo,
+                },
+                'SSH public key mismatch'
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    //
+    //  An SSH client may ask whether a public key would be accepted before
+    //  it signs with it (RFC 4252 section 7). This answers that: is
+    //  |offeredKey| (see sshPubKeyMatches()) the key stored for |username|?
+    //  It proves nothing, as anyone may know a public key, so it is not a
+    //  login: nothing on this User changes, and there are none of a login's
+    //  side effects. A key that does not match counts as a failed login, as
+    //  it does in authenticateFactor1().
+    //
+    checkSSHPubKey(username, offeredKey, cb) {
+        let userId;
+        async.waterfall(
+            [
+                callback => {
+                    User.getUserIdAndName(username, (err, uid) => {
+                        userId = uid;
+                        return callback(err);
+                    });
+                },
+                callback => {
+                    User.loadProperties(
+                        userId,
+                        { names: User.StandardPropertyGroups.auth },
+                        callback
+                    );
+                },
+                (props, callback) => {
+                    if (!User.sshPubKeyMatches(props[UserProps.SSHPubKey], offeredKey)) {
+                        return callback(Errors.AccessDenied('Invalid public key'));
+                    }
+                    return callback(null);
+                },
+            ],
+            err => {
+                if (err && userId) {
+                    return this.processFailedLogin(userId, persistErr => {
+                        if (persistErr) {
+                            Log.warn(
+                                { error: persistErr.message },
+                                'Failed to persist failed login information'
+                            );
+                        }
+                        return cb(err);
+                    });
+                }
+                return cb(err || null);
+            }
+        );
+    }
+
     static get AuthFactor1Types() {
         return {
             SSHPubKey: 'sshPubKey',
@@ -350,54 +452,16 @@ module.exports = class User {
             );
         };
 
+        //
+        //  Only that the offered key is the one stored for this user. The
+        //  caller (the SSH server) has already verified the signature made
+        //  with it; a key alone proves nothing.
+        //
         const validatePubKey = (props, callback) => {
-            const storedKey = props[UserProps.SSHPubKey];
-            if (!storedKey) {
+            const offeredKey = _.get(authInfo, 'pubKey.key');
+            if (!User.sshPubKeyMatches(props[UserProps.SSHPubKey], offeredKey)) {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
-
-            const parsedKey = ssh2.utils.parseKey(storedKey);
-            if (!parsedKey || parsedKey instanceof Error) {
-                return callback(Errors.AccessDenied('Invalid public key'));
-            }
-
-            const pubKeyActual = Array.isArray(parsedKey) ? parsedKey[0] : parsedKey;
-            if (!pubKeyActual || !pubKeyActual.getPublicSSH) {
-                return callback(Errors.AccessDenied('Invalid public key'));
-            }
-
-            const parts = storedKey.trim().split(/\s+/);
-            if (parts.length < 2) {
-                return callback(Errors.AccessDenied('Invalid public key'));
-            }
-
-            let storedKeyData;
-            try {
-                storedKeyData = Buffer.from(parts[1], 'base64');
-            } catch (err) {
-                Log.warn(
-                    { error: err.message, username: this.username },
-                    'Failed to parse stored SSH public key'
-                );
-                return callback(Errors.AccessDenied('Invalid public key'));
-            }
-
-            if (authInfo.pubKey.key.algo !== pubKeyActual.type) {
-                return callback(Errors.AccessDenied('Invalid public key'));
-            }
-
-            if (!crypto.timingSafeEqual(authInfo.pubKey.key.data, storedKeyData)) {
-                Log.warn(
-                    {
-                        expected: parts[1],
-                        provided: authInfo.pubKey.key.data.toString('base64'),
-                        algo: authInfo.pubKey.key.algo,
-                    },
-                    'SSH public key mismatch'
-                );
-                return callback(Errors.AccessDenied('Invalid public key'));
-            }
-
             return callback(null);
         };
 
