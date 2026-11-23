@@ -1127,10 +1127,18 @@ module.exports = class User {
         return User.RootUserID === userId;
     }
 
+    //
+    //  User name and real name lookups are exact, but case-insensitive as
+    //  LIKE was (ASCII letters only, as SQLite's NOCASE): LIKE would also
+    //  take '%' and '_' in what was looked up as wildcards, so "%" found the
+    //  first user there is.
+    //
     static getUserIdAndName(username, cb) {
         try {
             const row = userDb
-                .prepare(`SELECT id, user_name FROM user WHERE user_name LIKE ?;`)
+                .prepare(
+                    `SELECT id, user_name FROM user WHERE user_name = ? COLLATE NOCASE;`
+                )
                 .get(username);
             if (row) {
                 return cb(null, row.id, row.user_name);
@@ -1159,7 +1167,7 @@ module.exports = class User {
                     WHERE id = (
                         SELECT user_id
                         FROM user_property
-                        WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
+                        WHERE prop_name='${UserProps.RealName}' AND prop_value = ? COLLATE NOCASE
                     );`
                 )
                 .get(realName);
