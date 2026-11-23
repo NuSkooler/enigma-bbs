@@ -8,6 +8,7 @@ const stringFormat = require('./string_format.js');
 const ansi = require('./ansi_term.js');
 const { TextView } = require('./text_view.js');
 const PipeCodes = require('./pipe_codes.js');
+const { ErrorReasons } = require('./enig_error.js');
 
 //  The input line previews |## colour codes only (EditTextView's live colour)
 const EDITOR_TEXT = { dialect: 'color' };
@@ -120,6 +121,14 @@ const MciViewIds = {
     },
 };
 
+//  view ID -> the MCI code the chat art must have for it
+const RequiredChatMci = {
+    [MciViewIds.chat.sysopLog]: 'MT1',
+    [MciViewIds.chat.sysopInput]: 'ET2',
+    [MciViewIds.chat.userLog]: 'MT3',
+    [MciViewIds.chat.userInput]: 'ET4',
+};
+
 exports.getModule = class SysopChatModule extends MenuModule {
     constructor(options) {
         super(options);
@@ -142,8 +151,84 @@ exports.getModule = class SysopChatModule extends MenuModule {
     initSequence() {
         async.series(
             [callback => this.beforeArt(callback), callback => this._initChat(callback)],
-            () => this.finishedLoading()
+            err => {
+                if (err) {
+                    return this.initSequenceFailed(err);
+                }
+                return this.finishedLoading();
+            }
         );
+    }
+
+    //
+    //  The chat could not be set up: its art is missing, say, or lacks one
+    //  of the views both sides type and read in. Nobody can type in what
+    //  is on screen, so say why in the log and end the chat as Escape
+    //  would (_endChat()): a partner already in it is told and sent back,
+    //  and this side goes back to where it came from.
+    //
+    //  Unlike the base, this always goes back. The base stays put on a
+    //  repeat failure in case the previous menu leads straight back here;
+    //  nothing does (a chat is only ever reached by someone choosing to
+    //  start one), and staying would strand the caller in a dead chat.
+    //
+    initSequenceFailed(err) {
+        //  left while loading (or the caller went): leave() ended the session
+        if (this.hasLeftMenu() || ErrorReasons.ClientEnded === err.reasonCode) {
+            return;
+        }
+
+        const logObj = {
+            menuName: this.menuName,
+            role: this.role,
+            //  not sessionId: the log already has that, for the connection
+            chatSessionId: this.sessionId,
+            error: err.message,
+        };
+        const missingMci = this._missingChatMci();
+        if (missingMci.length > 0) {
+            logObj.missingMci = missingMci;
+            logObj.requiredMci = Object.values(RequiredChatMci);
+        }
+        this.client.log.error(logObj, 'Sysop chat could not be set up; ending the chat');
+
+        return this._endChat(() => {
+            /* dummy */
+        });
+    }
+
+    //  The caller could not be taken to the chat menu (it would not load,
+    //  they have no access to it, they hung up): nobody will join, so end
+    //  the chat rather than leave the sysop waiting in it
+    _callerNotBroughtIn(chatMenuName, err) {
+        if (this.hasLeftMenu()) {
+            return;
+        }
+
+        this.client.log.warn(
+            {
+                menuName: this.menuName,
+                chatMenuName,
+                chatSessionId: this.sessionId,
+                error: err.message,
+            },
+            'Could not bring the caller into sysop chat; ending the chat'
+        );
+        return this._endChat(() => {
+            /* dummy */
+        });
+    }
+
+    //  The required MCI codes the chat art did not provide ([] if none, or
+    //  if the art never loaded)
+    _missingChatMci() {
+        const form = this.viewControllers.chat;
+        if (!form) {
+            return [];
+        }
+        return Object.keys(RequiredChatMci)
+            .filter(id => !form.hasView(parseInt(id)))
+            .map(id => RequiredChatMci[id]);
     }
 
     //
@@ -229,7 +314,16 @@ exports.getModule = class SysopChatModule extends MenuModule {
                                         role: 'user',
                                     },
                                 },
-                                () => {}
+                                err => {
+                                    if (err) {
+                                        //  after this step has finished (the
+                                        //  callback can come first): leave()
+                                        //  then stops what the step started
+                                        setImmediate(() =>
+                                            this._callerNotBroughtIn(chatMenuName, err)
+                                        );
+                                    }
+                                }
                             );
                         }
                     } else {
@@ -560,8 +654,10 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  Give a brief moment to read the message, then exit.
         //  Guard with _chatEndedHandled so leave() doesn't double-trigger this path.
+        //  A menu timeout: if this menu is left first (Escape, a hang up),
+        //  leave() has done the clean up and nothing more may navigate.
         this._chatEndedHandled = true;
-        setTimeout(() => {
+        this.setMenuTimeout(() => {
             exports.endSession(this.sessionId);
             this.client.startIdleMonitor();
             this.prevMenu(() => {});

@@ -145,23 +145,19 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                             return callback(null); //  preview is optional
                         }
 
+                        //  The preview follows every key, as it is typed
                         const messageView = this.viewControllers.sendMessage.getView(
                             MciViewIds.sendMessage.message
                         );
-                        let timerId;
-                        messageView.on(
-                            'key press',
-                            () => {
-                                clearTimeout(timerId);
-                                const focused =
-                                    this.viewControllers.sendMessage.getFocusedView();
-                                if (focused === messageView) {
-                                    previewView.setText(messageView.getData());
-                                    focused.setFocus(true);
-                                }
-                            },
-                            500
-                        );
+                        messageView.on('key press', () => {
+                            const focused =
+                                this.viewControllers.sendMessage.getFocusedView();
+                            if (focused === messageView) {
+                                previewView.setText(messageView.getData());
+                                focused.setFocus(true);
+                            }
+                        });
+                        return callback(null);
                     },
                 ],
                 err => {
