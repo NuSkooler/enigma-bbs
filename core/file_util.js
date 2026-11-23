@@ -19,6 +19,8 @@ exports.safeMoveFile = safeMoveFile;
 exports.pathWithTerminatingSeparator = pathWithTerminatingSeparator;
 exports.endWriteStream = endWriteStream;
 exports.isWindowsDeviceName = isWindowsDeviceName;
+exports.isPlausibleFileTime = isPlausibleFileTime;
+exports.clampImplausibleFileTime = clampImplausibleFileTime;
 
 //
 //  Is |fileName| one of the names Windows reserves for a device -- CON, PRN,
@@ -360,4 +362,97 @@ function pathWithTerminatingSeparator(path) {
         path = path + paths.sep;
     }
     return path;
+}
+
+//
+//  A received file's modification time is whatever its sender said it was:
+//  ZModem's ZFILE header carries one, and the receiving program applies it.
+//  Some senders send nonsense -- 0x37FFFFFFF seconds, 10 May 2446 (#1129) --
+//  and on-disk times leave the board: BSO/BinkP announces stat.mtime in
+//  M_FILE, and backups, cleanup scripts and find -mtime go by it.
+//
+//  Plausible: no earlier than the DOS epoch (1980-01-01 UTC) and no more than
+//  a day ahead of |now|. A day allows for a sender whose clock is off, or
+//  that sends local time where UTC belongs (offsets reach +14h), without
+//  letting through a date that cannot be real. A genuine old date is kept:
+//  senders legitimately preserve them.
+//
+const FILE_TIME_FUTURE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+const FILE_TIME_EARLIEST_MS = Date.UTC(1980, 0, 1);
+
+exports.FILE_TIME_FUTURE_TOLERANCE_MS = FILE_TIME_FUTURE_TOLERANCE_MS;
+exports.FILE_TIME_EARLIEST_MS = FILE_TIME_EARLIEST_MS;
+
+//  |time|: a Date or milliseconds since the epoch
+function isPlausibleFileTime(time, now = Date.now()) {
+    const ms = time instanceof Date ? time.getTime() : time;
+    const nowMs = now instanceof Date ? now.getTime() : now;
+    return (
+        Number.isFinite(ms) &&
+        ms >= FILE_TIME_EARLIEST_MS &&
+        ms <= nowMs + FILE_TIME_FUTURE_TOLERANCE_MS
+    );
+}
+
+//
+//  Reset |filePath|'s modification time to |options.now| (default: now) if it
+//  is not plausible; a plausible one, or anything not a regular file, is left
+//  alone. The access time is reset along with it only if it is implausible
+//  too.
+//
+//  Never fails: a stat or utimes error is logged as a warning, and the file
+//  is used as it is. Calls back (null, { clamped, originalMtime, newMtime }).
+//
+function clampImplausibleFileTime(filePath, options, cb) {
+    if (!cb && 'function' === typeof options) {
+        cb = options;
+        options = null;
+    }
+    options = options || {};
+
+    //  Logger.log is unset until the logger is initialized
+    const log = options.log || Logger.log || { info() {}, warn() {} };
+    //  a copy: the caller's Date is not ours to hand to the log
+    const now = new Date(undefined === options.now ? Date.now() : options.now);
+
+    //  lstat: utimes() follows a link, and what it points to is not ours
+    fs.lstat(filePath, (err, stats) => {
+        if (err) {
+            log.warn(
+                { path: filePath, error: err.message },
+                'Could not stat a received file to check its modification time'
+            );
+            return cb(null, { clamped: false });
+        }
+
+        if (!stats.isFile() || isPlausibleFileTime(stats.mtimeMs, now)) {
+            return cb(null, { clamped: false, originalMtime: stats.mtime });
+        }
+
+        const atime = isPlausibleFileTime(stats.atimeMs, now) ? stats.atime : now;
+        fs.utimes(filePath, atime, now, err => {
+            if (err) {
+                log.warn(
+                    {
+                        path: filePath,
+                        originalMtime: stats.mtime,
+                        error: err.message,
+                    },
+                    'Could not reset the implausible modification time of a received file'
+                );
+                return cb(null, { clamped: false, originalMtime: stats.mtime });
+            }
+
+            log.info(
+                {
+                    path: filePath,
+                    fileName: paths.basename(filePath),
+                    originalMtime: stats.mtime,
+                    newMtime: now,
+                },
+                'Received file had an implausible modification time; reset to the time received'
+            );
+            return cb(null, { clamped: true, originalMtime: stats.mtime, newMtime: now });
+        });
+    });
 }

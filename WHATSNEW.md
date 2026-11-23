@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.2-beta
 
+* **Uploads no longer keep an impossible file date** ([#1129](https://github.com/NuSkooler/enigma-bbs/issues/1129)). A file a caller uploads over ZModem or another transfer protocol keeps the modification time their terminal gave it, and the sender controls that: uploads were arriving dated 10 May 2446. An upload dated before 1980, or more than a day ahead, is now dated the time it was received, before it reaches the file base; the log says which file and the date it came with. A real date, such as an old file the sender preserved, is kept. So a hatched or FREQ'd upload is no longer offered to other systems over BinkP with a 2446 date, and backups and anything else going by file dates see a sane one. Files already in the file base are not changed.
+
 * **The user config screen no longer fails for a user with no stored terminal height** ([#1145](https://github.com/NuSkooler/enigma-bbs/issues/1145)). Users created by `oputil`, an import or a mod may not have one; the screen was left half filled and an exception was logged. It now shows the session's terminal height, as signup stores.
 
 * **`%PE` shows the bytes sent** ([#1149](https://github.com/NuSkooler/enigma-bbs/issues/1149)). It showed the bytes received, the same as `%PI`, and showed nothing (logging an error) before any traffic was counted.
