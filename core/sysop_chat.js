@@ -197,6 +197,28 @@ exports.getModule = class SysopChatModule extends MenuModule {
         });
     }
 
+    //  The caller could not be taken to the chat menu (it would not load,
+    //  they have no access to it, they hung up): nobody will join, so end
+    //  the chat rather than leave the sysop waiting in it
+    _callerNotBroughtIn(chatMenuName, err) {
+        if (this.hasLeftMenu()) {
+            return;
+        }
+
+        this.client.log.warn(
+            {
+                menuName: this.menuName,
+                chatMenuName,
+                chatSessionId: this.sessionId,
+                error: err.message,
+            },
+            'Could not bring the caller into sysop chat; ending the chat'
+        );
+        return this._endChat(() => {
+            /* dummy */
+        });
+    }
+
     //  The required MCI codes the chat art did not provide ([] if none, or
     //  if the art never loaded)
     _missingChatMci() {
@@ -292,7 +314,16 @@ exports.getModule = class SysopChatModule extends MenuModule {
                                         role: 'user',
                                     },
                                 },
-                                () => {}
+                                err => {
+                                    if (err) {
+                                        //  after this step has finished (the
+                                        //  callback can come first): leave()
+                                        //  then stops what the step started
+                                        setImmediate(() =>
+                                            this._callerNotBroughtIn(chatMenuName, err)
+                                        );
+                                    }
+                                }
                             );
                         }
                     } else {
@@ -623,8 +654,10 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  Give a brief moment to read the message, then exit.
         //  Guard with _chatEndedHandled so leave() doesn't double-trigger this path.
+        //  A menu timeout: if this menu is left first (Escape, a hang up),
+        //  leave() has done the clean up and nothing more may navigate.
         this._chatEndedHandled = true;
-        setTimeout(() => {
+        this.setMenuTimeout(() => {
             exports.endSession(this.sessionId);
             this.client.startIdleMonitor();
             this.prevMenu(() => {});

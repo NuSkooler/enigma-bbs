@@ -375,11 +375,100 @@ describe('sysop chat setup failures', () => {
             sessionId,
             viewIds: [1, 3, 4],
         });
-        chat.instance.leave(); //  e.g. hung up while the art loaded
+        //  left (hung up, say) while the art loads, which then lacks %ET2:
+        //  the failure is reached, but nothing is logged or navigated
+        const display = chat.instance.displayArtAndPrepViewController;
+        let failed = 0;
+        const initSequenceFailed = chat.instance.initSequenceFailed.bind(chat.instance);
+        chat.instance.initSequenceFailed = err => {
+            ++failed;
+            return initSequenceFailed(err);
+        };
+        chat.instance.displayArtAndPrepViewController = (...args) => {
+            chat.instance.leave();
+            return display(...args);
+        };
         chat.instance.initSequence();
         settle(() => {
+            assert.equal(failed, 1, 'the failure path was not reached');
             assert.equal(sysopClient.log.errors().length, 0);
             assert.equal(sysopClient.calls.prev, 0);
+            return done();
+        });
+    });
+
+    it('a caller who cannot be brought in: logged, and the sysop goes back', done => {
+        const { userClient, sysopClient, sessionId } = startSession();
+        const { Errors } = require('../core/enig_error.js');
+        //  as the real stack can: the callback before goto() returns
+        userClient.menuStack.goto = (name, opts, cb) =>
+            cb(Errors.AccessDenied('No access to this menu'));
+
+        const sysop = makeChat({ client: sysopClient, role: 'sysop', sessionId });
+        sysop.instance.initSequence();
+
+        settle(() => {
+            const warns = sysopClient.log.entries.filter(e => e.level === 'warn');
+            assert.equal(warns.length, 1);
+            assert.equal(warns[0].obj.chatMenuName, 'sysopChat');
+            assert.match(warns[0].obj.error, /No access/);
+            assert.equal(SysopChatModule.getSessions().has(sessionId), false);
+            assert.equal(sysopClient.calls.prev, 1, 'sysop left waiting');
+            assert.ok(sysop.instance.hasLeftMenu());
+            return done();
+        });
+    });
+
+    it('chat ended by the other side: leaving within the 2 s does not navigate twice', done => {
+        const { sysopClient, sessionId } = startSession();
+        const sysop = makeChat({ client: sysopClient, role: 'sysop', sessionId });
+        sysop.instance.getView = () => null;
+
+        const savedSetTimeout = global.setTimeout;
+        const pending = [];
+        global.setTimeout = (fn, ms) => {
+            pending.push({ fn, ms });
+            return { unref: () => {} };
+        };
+        try {
+            sysop.instance.chatEnded();
+        } finally {
+            global.setTimeout = savedSetTimeout;
+        }
+        assert.equal(pending.length, 1);
+        assert.equal(pending[0].ms, 2000);
+
+        //  Escape before the notice times out
+        sysop.instance._endChat(() => {});
+        assert.equal(sysopClient.calls.prev, 1);
+
+        pending[0].fn();
+        settle(() => {
+            assert.equal(sysopClient.calls.prev, 1, 'navigated again after leaving');
+            return done();
+        });
+    });
+
+    it('chat ended by the other side: after 2 s this side goes back', done => {
+        const { sysopClient, sessionId } = startSession();
+        const sysop = makeChat({ client: sysopClient, role: 'sysop', sessionId });
+        sysop.instance.getView = () => null;
+
+        const savedSetTimeout = global.setTimeout;
+        const pending = [];
+        global.setTimeout = fn => {
+            pending.push(fn);
+            return { unref: () => {} };
+        };
+        try {
+            sysop.instance.chatEnded();
+        } finally {
+            global.setTimeout = savedSetTimeout;
+        }
+        pending[0]();
+        settle(() => {
+            assert.equal(sysopClient.calls.prev, 1);
+            assert.equal(SysopChatModule.getSessions().has(sessionId), false);
             return done();
         });
     });
