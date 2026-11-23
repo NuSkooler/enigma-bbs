@@ -1407,8 +1407,12 @@ exports.FullScreenEditorModule =
                 bodyView.setText(message);
             }
 
-            this._focusBodyAfterInit = true;
-            this.switchToBody();
+            //  with no addressee the caller still has To to fill: the
+            //  cursor stays there
+            if (toUserName) {
+                this._focusBodyAfterInit = true;
+                this.switchToBody();
+            }
             return cb(null);
         }
 

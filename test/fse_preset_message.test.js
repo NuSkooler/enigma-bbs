@@ -209,6 +209,24 @@ describe('FSE: a new message started from a preset message (#1144)', () => {
         );
     });
 
+    it('a preset message with no addressee fills the rest and leaves the cursor on To', done => {
+        const msg = presetMail();
+        msg.toUserName = '';
+        openEditor(
+            { messageAreaTag: Message.WellKnownAreaTags.Private, message: msg },
+            editor => {
+                assert.equal(headerText(editor, 2), '');
+                assert.equal(headerText(editor, 3), 'Page from caller');
+                assert.equal(editor._bodyView.getData(), 'are you there?');
+                assert.equal(headerText(editor, 4), '');
+                assert.equal(editor.viewControllers.header.focusedView.id, 2);
+                assert.ok(editor.viewControllers.header.attached);
+                assert.ok(!editor.viewControllers.body.attached);
+                done();
+            }
+        );
+    });
+
     it('a fresh compose (no preset) opens empty, on To, with no validation error', done => {
         openEditor({}, (editor, client) => {
             assert.equal(headerText(editor, 2), '');
