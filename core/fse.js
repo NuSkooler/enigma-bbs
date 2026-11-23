@@ -133,6 +133,9 @@ const ANSI_SUBJECT_TAG = '[ANSI] ';
 //  A subject that already carries the tag, also after a reply's "RE: " (any
 //  case, as initHeaderReplyEditMode() matches it)
 const ANSI_SUBJECT_TAG_RE = /^(?:[Rr][Ee]:\s+)?\[ANSI\] /;
+//  A reply subject the editor tagged ("[ANSI] RE: ..."): the tag marks that
+//  reply's own body, not the thread
+const ANSI_TAGGED_REPLY_SUBJECT_RE = /^\[ANSI\] (?=[Rr][Ee]:\s+)/;
 
 exports.MciViewIds = MciViewIds;
 exports.FormIds = FormIds;
@@ -192,6 +195,14 @@ exports.FullScreenEditorModule =
             this.isReady = false;
             this.header = null;
             this.body = null;
+
+            //  Two separate facts (#1084):
+            //  - replyIsAnsi: the message replied to is ANSI, so its quote
+            //    lines are ANSI (set each time the quote builder opens)
+            //  - bodyIsAnsi: the body being written is ANSI art, so it is
+            //    saved as ANSI and the subject carries the [ANSI] tag
+            this.replyIsAnsi = false;
+            this.bodyIsAnsi = false;
 
             if (options?.extraArgs?.message !== undefined) {
                 this.setMessage(options.extraArgs.message);
@@ -498,6 +509,7 @@ exports.FullScreenEditorModule =
             return {
                 bodyText: bodyView ? bodyView.getData() : '',
                 replyIsAnsi: !!this.replyIsAnsi,
+                bodyIsAnsi: !!this.bodyIsAnsi,
                 headerFrom: hdr.from ?? '',
                 headerTo: hdr.to ?? '',
                 headerSubject: hdr.subject ?? '',
@@ -693,7 +705,7 @@ exports.FullScreenEditorModule =
             const getFromUserName = () => this._getFromUserName(area);
 
             let messageBody = this._bodyView.getData({
-                forceLineTerms: this.replyIsAnsi,
+                forceLineTerms: this.bodyIsAnsi,
             });
 
             const msgOpts = {
@@ -705,26 +717,27 @@ exports.FullScreenEditorModule =
 
             if (this.isReply()) {
                 msgOpts.replyToMsgId = this.replyToMessage.messageId;
+            }
 
-                if (this.replyIsAnsi) {
-                    //
-                    //  Ensure first characters indicate ANSI for detection down
-                    //  the line (other boards/etc.). We also set explicit_encoding
-                    //  to packetAnsiMsgEncoding (generally cp437) as various boards
-                    //  really don't like ANSI messages in UTF-8 encoding (they should!)
-                    //
-                    msgOpts.meta = {
-                        System: {
-                            explicit_encoding:
-                                Config()?.scannerTossers?.ftn_bso
-                                    ?.packetAnsiMsgEncoding ?? 'cp437',
-                        },
-                    };
-                    messageBody = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(
-                        1,
-                        1
-                    )}\r\n${ansi.up()}${messageBody}`;
-                }
+            //  A reply or a new post alike (#1084)
+            if (this.bodyIsAnsi) {
+                //
+                //  Ensure first characters indicate ANSI for detection down
+                //  the line (other boards/etc.). We also set explicit_encoding
+                //  to packetAnsiMsgEncoding (generally cp437) as various boards
+                //  really don't like ANSI messages in UTF-8 encoding (they should!)
+                //
+                msgOpts.meta = {
+                    System: {
+                        explicit_encoding:
+                            Config()?.scannerTossers?.ftn_bso?.packetAnsiMsgEncoding ??
+                            'cp437',
+                    },
+                };
+                messageBody = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(
+                    1,
+                    1
+                )}\r\n${ansi.up()}${messageBody}`;
             }
 
             //
@@ -1435,7 +1448,10 @@ exports.FullScreenEditorModule =
             if (toView && saved.headerTo) toView.setText(saved.headerTo);
             if (subjView && saved.headerSubject) subjView.setText(saved.headerSubject);
 
-            this.replyIsAnsi = saved.replyIsAnsi;
+            this.replyIsAnsi = !!saved.replyIsAnsi;
+            //  a state saved before bodyIsAnsi existed used replyIsAnsi for both
+            this.bodyIsAnsi =
+                undefined === saved.bodyIsAnsi ? !!saved.replyIsAnsi : !!saved.bodyIsAnsi;
             this._ansiTagAdded = !!saved.ansiTagAdded;
 
             const bodyView = this._bodyView;
@@ -1495,9 +1511,11 @@ exports.FullScreenEditorModule =
                             : 'cp437';
                     const content = iconv.decode(data, enc);
 
-                    if (isAnsi(content)) {
-                        this.replyIsAnsi = true;
-                        this._syncAnsiSubjectTag(true);
+                    //  The upload replaces the body, so it alone decides
+                    //  whether the body is ANSI
+                    this.bodyIsAnsi = isAnsi(content);
+                    this._syncAnsiSubjectTag(this.bodyIsAnsi);
+                    if (this.bodyIsAnsi) {
                         return bodyView.setAnsi(
                             content,
                             { prepped: false, forceLineTerm: true },
@@ -1511,7 +1529,7 @@ exports.FullScreenEditorModule =
                 });
             } else if (saved.bodyText) {
                 //  Round-trip with no upload (e.g. help screen) — restore body.
-                if (saved.replyIsAnsi) {
+                if (this.bodyIsAnsi) {
                     return bodyView.setAnsi(
                         saved.bodyText,
                         { prepped: false, forceLineTerm: true },
@@ -1647,7 +1665,15 @@ exports.FullScreenEditorModule =
             //  We want to prefix the subject with "RE: " only if it's not already
             //  that way -- avoid RE: RE: RE: RE: ...
             //
-            let newSubj = this.replyToMessage.subject;
+            //  "[ANSI] RE: ..." is a reply the editor tagged: the tag described
+            //  that reply's body, so it is dropped here, and this reply is
+            //  tagged again only if its own body is ANSI (#1084). A tag after
+            //  the "RE: " is part of the thread's subject and stays.
+            //
+            let newSubj = (this.replyToMessage.subject || '').replace(
+                ANSI_TAGGED_REPLY_SUBJECT_RE,
+                ''
+            );
             if (false === /^RE:\s+/i.test(newSubj)) {
                 newSubj = `RE: ${newSubj}`;
             }
@@ -1912,8 +1938,10 @@ exports.FullScreenEditorModule =
                                     return callback(err);
                                 }
 
-                                self.replyIsAnsi = replyIsAnsi;
-                                self._syncAnsiSubjectTag(replyIsAnsi);
+                                //  how the quote lines are shown and added;
+                                //  the body becomes ANSI only once ANSI
+                                //  quote lines are added to it (finalize)
+                                self.replyIsAnsi = !!replyIsAnsi;
 
                                 quoteView.setItems(quoteLines);
                                 quoteView.setFocusItems(focusQuoteLines);
@@ -2033,11 +2061,19 @@ exports.FullScreenEditorModule =
         quoteBuilderFinalize() {
             const bodyView = this._bodyView;
 
+            //  The quote lines decide the path. ANSI quote lines turn the body
+            //  into ANSI (the existing text is kept, as text); plain quote
+            //  lines are added as typed text would be, so an ANSI body (e.g.
+            //  an uploaded file) stays ANSI and a plain body stays plain.
             if (this.replyIsAnsi) {
                 //  ANSI path: combine any existing body content with the newly selected
                 //  quote lines so repeated quote sessions append rather than replace.
                 const ansiQuoteText = this._ansiQuoteLines.join('\r\n');
                 this._ansiQuoteLines = [];
+                if (ansiQuoteText.length > 0) {
+                    this.bodyIsAnsi = true;
+                    this._syncAnsiSubjectTag(true);
+                }
 
                 this.footerMode = 'editor';
                 this.switchFooter(err => {
