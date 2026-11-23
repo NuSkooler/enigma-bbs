@@ -549,6 +549,8 @@ class MenuView extends View {
         });
 
         this.sorted = true;
+        //  cached by index, and the items moved
+        this.invalidateRenderCache();
         this._focusFrameItemsChanged();
     }
 
@@ -564,8 +566,9 @@ class MenuView extends View {
             this.focusedItemIndex = Math.max(this.focusedItemIndex - 1, 0);
         }
 
-        this.removeRenderCacheItem(index);
-        //  with frames: the whole cache (the entries after |index| moved)
+        //  the whole cache: the entries after |index| moved down one, so
+        //  each would draw the item that used to be there (#1160)
+        this.invalidateRenderCache();
         this._focusFrameItemsChanged();
 
         this.positionCacheExpired = true;
