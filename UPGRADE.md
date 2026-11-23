@@ -22,6 +22,16 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.6.1-beta to 0.6.2-beta
 
+* **Sysops: SSH public key logins are checked more strictly.** Nothing in your configuration, menus, art or themes needs to change.
+
+  **Action:** none required. Concerned sysops should review accounts with SSH keys registered: their recent logins, and that the stored key, password and email are still the owner's.
+
+* **Sysops: failed logins now lock accounts.** Nothing in your configuration, menus, art or themes needs to change.
+
+  **What changes by itself:** `users.failedLogin.lockAccount` (default 9) now takes effect, on every login path; before, no account was ever locked automatically. An active account is locked after that many failed logins since its last successful one, and with `users.failedLogin.autoUnlockMinutes` (default 360) the right password or key lets the user in again once that long has passed. Counts already stored carry over: a user with 9 or more failures since their last successful login is locked at their next failure. Anyone who knows a user name, the sysop's included, can lock that account by failing to log in as it.
+
+  **Action:** review `users.failedLogin`; set `lockAccount: 0` to keep today's behaviour (no locking). To unlock an account by hand: `./oputil.js user activate USERNAME`.
+
 * **Mod authors: covers pause background drawing** ([#1136](https://github.com/NuSkooler/enigma-bbs/issues/1136), [#1137](https://github.com/NuSkooler/enigma-bbs/issues/1137)). Nothing in your configuration, menus, art or themes needs to change, and `client.waitForKeyPress()` works as before.
 
   **What changes by itself:** interrupts, help pages and pauses that clear the screen pause the background drawing (`drawInBackground()`) of the views under them while they wait, and redraw them once afterwards. Interrupts and the stock help pages also keep every key, including the one that dismisses them, from the forms underneath.
