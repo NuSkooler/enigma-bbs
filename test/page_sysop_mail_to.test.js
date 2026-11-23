@@ -110,6 +110,24 @@ describe('page_sysop: "send as mail" To name', () => {
         });
     });
 
+    it('goes nowhere when the menu is left while the name is looked up', done => {
+        stubRootUserName(null, 'NuSkooler');
+        const PageSysop = require('../core/page_sysop.js').getModule;
+        const mod = new PageSysop({
+            menuName: 'pageSysop',
+            menuConfig: { config: {} },
+            client: makeClient(),
+        });
+        mod.prevMenu = () => assert.fail('declined path taken');
+        mod.gotoMenu = () => assert.fail('went to the mail menu after leaving');
+        mod._confirmSendMail({ value: { confirm: 0 } }, err => {
+            assert.ifError(err);
+            assert.deepEqual(lookups, [User.RootUserID]);
+            return done();
+        });
+        mod.leave(); //  before the lookup calls back
+    });
+
     it("falls back to 'Sysop' when the root user's name cannot be read", done => {
         stubRootUserName(new Error('No matching user ID'));
         confirmSendMail({}, (menuName, extraArgs) => {

@@ -217,6 +217,11 @@ exports.getModule = class PageSysopModule extends MenuModule {
         //  username. A literal 'Sysop' there fails the To validator on a
         //  board with no such account.
         return this._getSysopUserName(sysopUserName => {
+            //  left (hung up) while the name was looked up: go nowhere
+            if (this.hasLeftMenu()) {
+                return cb(null);
+            }
+
             const subject = this.config.mailSubject || 'Page from {userName}';
             const body = this._pendingMessage || '';
 
