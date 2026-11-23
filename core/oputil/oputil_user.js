@@ -73,22 +73,9 @@ function setAccountStatus(user, status) {
     async.series(
         [
             callback => {
-                return user.persistProperty(UserProps.AccountStatus, status, callback);
-            },
-            callback => {
-                if (AccountStatus.active !== status) {
-                    return callback(null);
-                }
-
-                return user.unlockAccount(callback);
-            },
-            callback => {
-                //  activating starts the failed login count again, locked or not
-                if (AccountStatus.active !== status) {
-                    return callback(null);
-                }
-
-                return user.removeProperty(UserProps.FailedLoginAttempts, callback);
+                //  activate clears any lock and the failed login count; a
+                //  lock, disable or deactivate sticks (see the method)
+                return user.setAccountStatusBySysop(status, callback);
             },
             callback => {
                 //  an account that can no longer log in keeps no REST credentials

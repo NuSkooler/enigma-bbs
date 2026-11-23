@@ -285,6 +285,35 @@ module.exports = class User {
     }
 
     //
+    //  A status set by a sysop (oputil 'user activate', 'lock', ...). Activating
+    //  clears any lock and the failed login count. Any other status sticks: a
+    //  lock left from failed logins is dropped with it, so a sysop's lock does
+    //  not run out (autoUnlockMinutes) nor go with a password reset, and a
+    //  status they set over a lock is not "restored" away.
+    //
+    setAccountStatusBySysop(status, cb) {
+        this.persistProperty(UserProps.AccountStatus, status, err => {
+            if (err) {
+                return cb(err);
+            }
+
+            if (User.AccountStatus.active === status) {
+                return this.unlockAccount(err => {
+                    if (err) {
+                        return cb(err);
+                    }
+                    return this.removeProperty(UserProps.FailedLoginAttempts, cb);
+                });
+            }
+
+            return this.removeProperties(
+                [UserProps.AccountLockedTs, UserProps.AccountLockedPrevStatus],
+                cb
+            );
+        });
+    }
+
+    //
     //  Clear a lock: a locked account gets back the status it had before (see
     //  processFailedLogin()), or active if none was kept, and the failed login
     //  count starts again. A status set since (by a sysop, say) is left

@@ -525,6 +525,84 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
+    describe('a status set by a sysop (oputil user lock / disable / activate)', () => {
+        const load = userId =>
+            new Promise((resolve, reject) =>
+                User.getUser(userId, (err, user) => (err ? reject(err) : resolve(user)))
+            );
+        const setStatus = (user, name) =>
+            new Promise((resolve, reject) =>
+                user.setAccountStatusBySysop(User.AccountStatus[name], err =>
+                    err ? reject(err) : resolve()
+                )
+            );
+        const unlock = user =>
+            new Promise((resolve, reject) =>
+                user.unlockAccount(err => (err ? reject(err) : resolve()))
+            );
+        //  locked by failed logins, long enough ago to have run out
+        const autoLocked = () =>
+            addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('active'),
+                [UserProps.AccountLockedTs]: hoursAgo(2),
+                [UserProps.FailedLoginAttempts]: 3,
+            });
+
+        it('a sysop lock over a lock from failed logins does not run out', async () => {
+            const { username, userId } = autoLocked();
+            await setStatus(await load(userId), 'locked');
+            assert.equal(getProp(userId, UserProps.AccountLockedTs), undefined);
+            assert.equal(getProp(userId, UserProps.AccountLockedPrevStatus), undefined);
+            const { err } = await login(username, RightPass);
+            assert.equal(err.reasonCode, ErrorReasons.Locked);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+        });
+
+        it('a sysop lock is not undone by a password reset unlock', async () => {
+            const { userId } = autoLocked();
+            await setStatus(await load(userId), 'locked');
+            await unlock(await load(userId));
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+        });
+
+        it('disabled, then locked again, by a sysop stays locked', async () => {
+            const { username, userId } = autoLocked();
+            await setStatus(await load(userId), 'disabled');
+            await setStatus(await load(userId), 'locked');
+            assert.equal(
+                (await login(username, RightPass)).err.reasonCode,
+                ErrorReasons.Locked
+            );
+        });
+
+        it('a sysop disable over a lock is not restored away', async () => {
+            const { username, userId } = autoLocked();
+            await setStatus(await load(userId), 'disabled');
+            await unlock(await load(userId));
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('disabled'));
+            assert.equal(
+                (await login(username, RightPass)).err.reasonCode,
+                ErrorReasons.Disabled
+            );
+        });
+
+        it('activate clears the lock and the count', async () => {
+            const { username, userId } = autoLocked();
+            await setStatus(await load(userId), 'active');
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+            assert.equal(getProp(userId, UserProps.AccountLockedTs), undefined);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
+            assert.ifError((await login(username, RightPass)).err);
+        });
+
+        it('activate clears the count of an account that was never locked', async () => {
+            const { userId } = addUser({ [UserProps.FailedLoginAttempts]: 8 });
+            await setStatus(await load(userId), 'active');
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
+        });
+    });
+
     describe('unlockAccount()', () => {
         const load = userId =>
             new Promise((resolve, reject) =>
