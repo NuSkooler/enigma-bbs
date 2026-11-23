@@ -159,17 +159,19 @@ function postLoginPrep(client, cb) {
             callback => {
                 //
                 //  User may (no longer) have read (view) rights to their current
-                //  message, conferences and/or areas. Move them out if so.
+                //  message, conferences and/or areas. Move them out if so. An
+                //  area that is not configured (removed, its conference
+                //  removed, or none at all) is no read either (#1141).
                 //
                 const confTag = client.user.getProperty(UserProps.MessageConfTag);
                 const conf = getMessageConferenceByTag(confTag) || {};
-                const area =
-                    getMessageAreaByTag(
-                        client.user.getProperty(UserProps.MessageAreaTag),
-                        confTag
-                    ) || {};
+                const area = getMessageAreaByTag(
+                    client.user.getProperty(UserProps.MessageAreaTag),
+                    confTag
+                );
 
                 if (
+                    !area ||
                     !client.acs.hasMessageConfRead(conf) ||
                     !client.acs.hasMessageAreaRead(area)
                 ) {
