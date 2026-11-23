@@ -1376,6 +1376,46 @@ exports.FullScreenEditorModule =
             return cb(null);
         }
 
+        //  Step 5b: a new message started from one handed in as
+        //  extraArgs.message (page sysop's "send as mail": addressed to the
+        //  sysop, the page text as its body). setMessage() fills the views
+        //  only in view mode; in edit mode the message was kept and never
+        //  shown, so the editor opened empty (#1144). Its To, Subject and
+        //  body go into the views here, and the cursor into the body, as
+        //  after an upload round-trip: the message is ready to add to or
+        //  save. A round-trip back here (help, upload) restores what was
+        //  typed instead, in the next step.
+        _initFromPresetMessage(cb) {
+            if (
+                !this.isEditMode() ||
+                this.isReply() ||
+                !this.message ||
+                this._pendingSavedState
+            ) {
+                return cb(null);
+            }
+
+            const { toUserName, subject, message } = this.message;
+            if (toUserName) {
+                this.setHeaderText(MciViewIds.header.to, toUserName);
+            }
+            if (subject) {
+                this.setHeaderText(MciViewIds.header.subject, subject);
+            }
+            const bodyView = this._bodyView;
+            if (bodyView && message) {
+                bodyView.setText(message);
+            }
+
+            //  with no addressee the caller still has To to fill: the
+            //  cursor stays there
+            if (toUserName) {
+                this._focusBodyAfterInit = true;
+                this.switchToBody();
+            }
+            return cb(null);
+        }
+
         //  Step 6: restore state saved before a gotoMenu round-trip (e.g. file upload).
         //  Runs last so all views already exist.  Handles both the upload-completed
         //  case (read file → detect encoding → load body) and the simple round-trip
@@ -1494,6 +1534,7 @@ exports.FullScreenEditorModule =
                     callback => this._initViewState(callback),
                     callback => this._initHeaderFields(callback),
                     callback => this._setInitialFocus(callback),
+                    callback => this._initFromPresetMessage(callback),
                     callback => this._restoreSavedState(callback),
                 ],
                 cb
@@ -1937,7 +1978,19 @@ exports.FullScreenEditorModule =
 
         switchToHeader() {
             FormLifecycle.deactivate(this.viewControllers.body);
-            this.viewControllers.header.switchFocus(2); //  to
+
+            //  Already on To (the form's initial focus): give the header the
+            //  keys back without moving focus. switchFocus() validates the
+            //  view focus leaves, even when it is the one asked for, so To
+            //  was checked as if the caller had left it: empty, that showed
+            //  "Field cannot be empty" before anything was typed (#1144).
+            const header = this.viewControllers.header;
+            const toView = header.getView(MciViewIds.header.to);
+            if (toView && header.focusedView === toView) {
+                return FormLifecycle.activate(header);
+            }
+
+            header.switchFocus(MciViewIds.header.to);
         }
 
         switchToBody() {
