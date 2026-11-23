@@ -269,12 +269,20 @@ describe('SSH public key authentication', function () {
     //  - 'signedNoQuery': no query; a signed request with a good signature
     //  - 'queryOnly': a query, and a disconnect once it is answered
     //
-    //  |algo|: [ key algorithm, hash ] to use with an RSA key.
+    //  |algo|: [ key algorithm, hash ] to put in the request and sign with.
+    //  |offer|: a key whose public half goes in the request instead of |key|'s
+    //  (|key| still signs). |junk|: the junk signature.
     //
-    function connect({ username, key, mode = 'normal', algo }) {
+    function connect({
+        username,
+        key,
+        mode = 'normal',
+        algo,
+        offer,
+        junk = Buffer.alloc(64, 0x41),
+    }) {
         const result = { ready: false, pkOk: false, signedSent: false };
         const sshClient = new ssh2.Client();
-        const junk = Buffer.alloc(64, 0x41);
         let authAsked = false;
 
         const patchProtocol = proto => {
@@ -288,6 +296,9 @@ describe('SSH public key authentication', function () {
                 let hash;
                 if (algo) {
                     [keyAlgo, hash] = algo;
+                }
+                if (offer) {
+                    pubKey = offer;
                 }
                 const sign = (buf, cb) => cb(key.sign(buf, hash));
                 const junkSign = (buf, cb) => cb(junk);
@@ -303,7 +314,11 @@ describe('SSH public key authentication', function () {
                         user,
                         pubKey,
                         keyAlgo,
-                        'junkAfterQuery' === mode ? junkSign : algo ? sign : cbSign
+                        'junkAfterQuery' === mode
+                            ? junkSign
+                            : algo || offer
+                              ? sign
+                              : cbSign
                     );
                 }
 
@@ -421,9 +436,11 @@ describe('SSH public key authentication', function () {
             assertLoggedIn(result, user);
         });
 
-        it('logs in with an ECDSA key', async () => {
-            const user = addUser({ keyType: 'ecdsa', bits: 256 });
-            assertLoggedIn(await connect(user), user);
+        [256, 384, 521].forEach(bits => {
+            it(`logs in with an ECDSA P-${bits} key`, async () => {
+                const user = addUser({ keyType: 'ecdsa', bits });
+                assertLoggedIn(await connect(user), user);
+            });
         });
 
         [
@@ -592,6 +609,268 @@ describe('SSH public key authentication', function () {
                 'refused as already logged in'
             );
             assert.equal(loginEvents().length, 0);
+        });
+    });
+
+    const newKey = (type = 'ed25519', bits) =>
+        ssh2.utils.parseKey(
+            ssh2.utils.generateKeyPairSync(type, bits ? { bits } : {}).private
+        );
+
+    describe('a good signature made with another key', () => {
+        it('is refused with the user key offered and no query', async () => {
+            const user = addUser();
+            const result = await connect({
+                username: user.username,
+                key: newKey(),
+                offer: user.key,
+                mode: 'signedNoQuery',
+            });
+            assert.equal(result.signedSent, true);
+            assertNoLogin(result);
+        });
+
+        it('is refused with the user key offered after a query', async () => {
+            const user = addUser();
+            const result = await connect({
+                username: user.username,
+                key: newKey(),
+                offer: user.key,
+            });
+            assert.equal(result.pkOk, true, 'the user key is answered PK_OK');
+            assert.equal(result.signedSent, true);
+            assertNoLogin(result);
+        });
+
+        it('is refused for an RSA key offered with another RSA key signing', async () => {
+            const user = addUser({ keyType: 'rsa', bits: 2048 });
+            const result = await connect({
+                username: user.username,
+                key: newKey('rsa', 2048),
+                offer: user.key,
+                algo: ['rsa-sha2-256', 'sha256'],
+            });
+            assert.equal(result.pkOk, true);
+            assertNoLogin(result);
+        });
+    });
+
+    describe('a junk signature for other key types', () => {
+        [
+            ['RSA', { keyType: 'rsa', bits: 2048 }, Buffer.alloc(256, 0x41)],
+            ['RSA (short)', { keyType: 'rsa', bits: 2048 }, Buffer.alloc(64, 0x41)],
+            //  ssh2 itself ends the connection for this one: junk does not
+            //  decode as an ECDSA signature
+            ['ECDSA', { keyType: 'ecdsa', bits: 256 }, Buffer.alloc(64, 0x41)],
+        ].forEach(([label, keyOpts, junk]) => {
+            it(`is refused for a registered ${label} key, without a query`, async () => {
+                const user = addUser(keyOpts);
+                const result = await connect({ ...user, mode: 'junkNoQuery', junk });
+                assert.equal(result.signedSent, true);
+                assertNoLogin(result);
+            });
+
+            it(`is refused for a registered ${label} key, after a query`, async () => {
+                const user = addUser(keyOpts);
+                const algo =
+                    'rsa' === keyOpts.keyType ? ['rsa-sha2-256', 'sha256'] : undefined;
+                const result = await connect({
+                    ...user,
+                    mode: 'junkAfterQuery',
+                    junk,
+                    algo,
+                });
+                assert.equal(result.pkOk, true);
+                assertNoLogin(result);
+            });
+        });
+    });
+
+    describe('an RSA signature made with another hash than the request names', () => {
+        [
+            ['rsa-sha2-512', 'sha256'],
+            ['rsa-sha2-256', 'sha512'],
+            ['rsa-sha2-256', 'sha1'],
+            ['ssh-rsa', 'sha256'],
+        ].forEach(algo => {
+            it(`is refused: ${algo[0]} named, signed with ${algo[1]}`, async () => {
+                const user = addUser({ keyType: 'rsa', bits: 2048 });
+                const result = await connect({ ...user, algo, mode: 'signedNoQuery' });
+                assert.equal(result.signedSent, true);
+                assertNoLogin(result);
+            });
+        });
+    });
+
+    describe('a key blob that is not what the request says', () => {
+        it('is refused when the request names another key type', async () => {
+            //  the user's ECDSA key, in a request that says ssh-ed25519
+            const user = addUser({ keyType: 'ecdsa', bits: 256 });
+            const result = await connect({
+                ...user,
+                algo: ['ssh-ed25519', undefined],
+                mode: 'signedNoQuery',
+            });
+            assert.equal(result.signedSent, true);
+            assertNoLogin(result);
+        });
+    });
+
+    describe('failedLogin.disconnect', () => {
+        let savedDisconnect;
+        before(() => {
+            savedDisconnect = config.users.failedLogin.disconnect;
+            config.users.failedLogin.disconnect = 3;
+        });
+        after(() => {
+            config.users.failedLogin.disconnect = savedDisconnect;
+        });
+
+        //  as a client (an ssh-agent, say) offering several keys in turn does
+        function connectWithKeys(username, keys) {
+            return new Promise(resolve => {
+                const result = { ready: false };
+                const sshClient = new ssh2.Client();
+                sshClient.on('ready', () => {
+                    result.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (result.error = err.message));
+                sshClient.on('close', () => {
+                    result.serverClient = serverClients[serverClients.length - 1];
+                    return resolve(result);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username,
+                    readyTimeout: 10000,
+                    authHandler: keys.map(key => ({ type: 'publickey', username, key })),
+                });
+            });
+        }
+
+        it('with 3, two keys that are not registered and then the right one logs in', async () => {
+            const user = addUser();
+            const result = await connectWithKeys(user.username, [
+                newKey(),
+                newKey(),
+                user.key,
+            ]);
+            assertLoggedIn(result, user);
+            //  a login clears them
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), undefined);
+        });
+
+        it('with 3, three keys that are not registered end the connection first', async () => {
+            const user = addUser();
+            const result = await connectWithKeys(user.username, [
+                newKey(),
+                newKey(),
+                newKey(),
+                user.key,
+            ]);
+            assertNoLogin(result);
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), '3');
+        });
+    });
+
+    describe('SSHClient.isPubKeyBlobFor()', () => {
+        const blobWith = (algo, rest) => {
+            const name = Buffer.from(algo);
+            const len = Buffer.alloc(4);
+            len.writeUInt32BE(name.length);
+            return Buffer.concat([len, name, rest]);
+        };
+
+        [
+            ['ssh-ed25519', () => newKey()],
+            ['ecdsa-sha2-nistp256', () => newKey('ecdsa', 256)],
+            ['ecdsa-sha2-nistp384', () => newKey('ecdsa', 384)],
+            ['ecdsa-sha2-nistp521', () => newKey('ecdsa', 521)],
+            ['ssh-rsa', () => newKey('rsa', 2048)],
+        ].forEach(([algo, make]) => {
+            it(`is true for a ${algo} key`, () => {
+                const key = make();
+                assert.equal(key.type, algo);
+                assert.equal(
+                    ssh.SSHClient.isPubKeyBlobFor(key.getPublicSSH(), algo),
+                    true
+                );
+            });
+        });
+
+        it('is false for a blob of another key type', () => {
+            const blob = newKey('ecdsa', 256).getPublicSSH();
+            assert.equal(ssh.SSHClient.isPubKeyBlobFor(blob, 'ssh-ed25519'), false);
+            assert.equal(
+                ssh.SSHClient.isPubKeyBlobFor(blob, 'ecdsa-sha2-nistp384'),
+                false
+            );
+        });
+
+        it('is false for malformed blobs', () => {
+            const isFor = ssh.SSHClient.isPubKeyBlobFor;
+            assert.equal(isFor(Buffer.alloc(0), 'ssh-ed25519'), false);
+            assert.equal(isFor(Buffer.from([0, 0, 0]), 'ssh-ed25519'), false);
+            //  a length past the end
+            assert.equal(isFor(Buffer.from([0, 0, 0, 0xff, 0x73]), 'ssh-ed25519'), false);
+            //  the type and nothing after it
+            assert.equal(
+                isFor(blobWith('ssh-ed25519', Buffer.alloc(0)), 'ssh-ed25519'),
+                false
+            );
+            //  a text format
+            const pem = Buffer.from(
+                `-----BEGIN OPENSSH PRIVATE KEY-----\n${'A'.repeat(34000)}\n` +
+                    '-----END OPENSSH PRIVATE KEY-----'
+            );
+            assert.equal(isFor(pem, 'ssh-ed25519'), false);
+            assert.equal(
+                isFor(blobWith('ssh-ed25519', Buffer.alloc(8)), undefined),
+                false
+            );
+            assert.equal(isFor('ssh-ed25519', 'ssh-ed25519'), false);
+        });
+
+        it('is false, quickly, for an oversized blob that is otherwise well formed', () => {
+            const big = blobWith('ssh-ed25519', Buffer.alloc(64 * 1024, 0x41));
+            const startedAt = process.hrtime.bigint();
+            assert.equal(ssh.SSHClient.isPubKeyBlobFor(big, 'ssh-ed25519'), false);
+            const ctx = {
+                key: { algo: 'ssh-ed25519', data: big },
+                blob: big,
+                signature: big,
+            };
+            assert.equal(ssh.SSHClient.isValidPubKeySignature(ctx), false);
+            const ms = Number(process.hrtime.bigint() - startedAt) / 1e6;
+            assert.ok(ms < 20, `${ms}ms`);
+        });
+
+        it('keeps garbage away from the key parser', () => {
+            const parseKey = ssh2.utils.parseKey;
+            let parsed = 0;
+            ssh2.utils.parseKey = (...args) => {
+                parsed += 1;
+                return parseKey(...args);
+            };
+            try {
+                [
+                    Buffer.from('-----BEGIN RSA PRIVATE KEY-----\n' + 'A'.repeat(34000)),
+                    blobWith('ssh-rsa', Buffer.alloc(32, 0x41)),
+                    blobWith('ssh-ed25519', Buffer.alloc(20 * 1024, 0x41)),
+                ].forEach(data => {
+                    const ctx = {
+                        key: { algo: 'ssh-ed25519', data },
+                        blob: Buffer.alloc(8),
+                        signature: Buffer.alloc(64),
+                    };
+                    assert.equal(ssh.SSHClient.isValidPubKeySignature(ctx), false);
+                });
+            } finally {
+                ssh2.utils.parseKey = parseKey;
+            }
+            assert.equal(parsed, 0);
         });
     });
 

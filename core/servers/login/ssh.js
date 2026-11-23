@@ -611,6 +611,42 @@ SSHClient.getLoginTimeoutMs = function () {
 };
 
 //
+//  Is |data| shaped as an SSH public key blob (RFC 4253 section 6.6) for
+//  |algo|: a length-prefixed string naming the key type, then the key? Only
+//  the shape is checked, so that a caller's bytes reach ssh2's binary key
+//  parser and none of its text formats (PEM, PPK, RFC 4716), and within a
+//  bound. ssh2 hands over 'ssh-rsa' as |algo| for an rsa-sha2-256/512
+//  request, as the blob says.
+//
+//  The bound leaves room for the largest keys there are (a 16384-bit RSA key
+//  is about 2 KiB).
+//
+SSHClient.MaxPubKeyBlobBytes = 16 * 1024;
+SSHClient.MaxPubKeyAlgoBytes = 64;
+
+SSHClient.isPubKeyBlobFor = function (data, algo) {
+    if (
+        !Buffer.isBuffer(data) ||
+        !_.isString(algo) ||
+        data.length > SSHClient.MaxPubKeyBlobBytes
+    ) {
+        return false;
+    }
+
+    const algoLen = Buffer.byteLength(algo);
+    if (0 === algoLen || algoLen > SSHClient.MaxPubKeyAlgoBytes) {
+        return false;
+    }
+
+    //  the length, the type, and something after it
+    if (data.length <= 4 + algoLen || data.readUInt32BE(0) !== algoLen) {
+        return false;
+    }
+
+    return data.subarray(4, 4 + algoLen).equals(Buffer.from(algo));
+};
+
+//
 //  Is the signature on a signed publickey request (ssh2's |ctx|) a good one,
 //  made over the request (|ctx.blob|: the session identifier and the request)
 //  with the private half of the key offered in it? With an RSA key, the hash
@@ -627,6 +663,10 @@ SSHClient.isValidPubKeySignature = function (ctx) {
         !Buffer.isBuffer(ctx.signature) ||
         !Buffer.isBuffer(ctx.blob)
     ) {
+        return false;
+    }
+
+    if (!SSHClient.isPubKeyBlobFor(key.data, key.algo)) {
         return false;
     }
 
