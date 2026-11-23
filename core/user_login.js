@@ -157,7 +157,9 @@ function isBannedUsername(client, username, cb) {
 //  signs with it (see User.checkSSHPubKey()). Not a login: there are none of
 //  userLogin()'s side effects, and the account itself (disabled, locked, and
 //  so on) is not looked at until the client has proved it holds the key.
-//  Errors are as userLogin()'s, so its callers can handle both alike.
+//  Errors are as userLogin()'s, so its callers can handle both alike. A key
+//  that does not match counts toward users.failedLogin.disconnect, as any
+//  failed attempt on the connection does, but not toward locking the account.
 //
 function checkSSHPubKey(client, username, pubKey, cb) {
     if (isBannedUsername(client, username, cb)) {

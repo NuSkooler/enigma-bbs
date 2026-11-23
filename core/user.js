@@ -346,8 +346,13 @@ module.exports = class User {
     //  |offeredKey| (see sshPubKeyMatches()) the key stored for |username|?
     //  It proves nothing, as anyone may know a public key, so it is not a
     //  login: nothing on this User changes, and there are none of a login's
-    //  side effects. A key that does not match counts as a failed login, as
-    //  it does in authenticateFactor1().
+    //  side effects.
+    //
+    //  Nor does a key that does not match count toward locking the account
+    //  (see processFailedLogin()): an SSH client offers each key it has in
+    //  turn (OpenSSH, every key in its agent), so the user's own client would
+    //  lock them out. It is still a failed attempt for the connection, to
+    //  users.failedLogin.disconnect (see checkSSHPubKey() in user_login.js).
     //
     checkSSHPubKey(username, offeredKey, cb) {
         let userId;
@@ -374,17 +379,6 @@ module.exports = class User {
                 },
             ],
             err => {
-                if (err && userId) {
-                    return this.processFailedLogin(userId, persistErr => {
-                        if (persistErr) {
-                            Log.warn(
-                                { error: persistErr.message },
-                                'Failed to persist failed login information'
-                            );
-                        }
-                        return cb(err);
-                    });
-                }
                 return cb(err || null);
             }
         );

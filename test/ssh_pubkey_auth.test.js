@@ -484,8 +484,9 @@ describe('SSH public key authentication', function () {
             const result = await connect({ ...user, key: other, mode: 'queryOnly' });
             assert.equal(result.pkOk, false);
             assertNoLogin(result);
-            //  a failed login, as before
-            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), '1');
+            //  a failed attempt for the connection, not toward the lock
+            assert.equal(result.serverClient.sessionFailedLoginAttempts, 1);
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), undefined);
         });
 
         it('is refused with a good signature made with it', async () => {
@@ -515,7 +516,7 @@ describe('SSH public key authentication', function () {
             assertNoLogin(result);
             //  an ordinary refusal, not a dropped connection
             assert.match(String(result.error), /authentication methods failed/);
-            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), '1');
+            assert.equal(result.serverClient.sessionFailedLoginAttempts, 1);
         });
 
         it('is refused for a user that does not exist', async () => {
@@ -776,7 +777,36 @@ describe('SSH public key authentication', function () {
                 user.key,
             ]);
             assertNoLogin(result);
-            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), '3');
+            assert.equal(result.serverClient.sessionFailedLoginAttempts, 3);
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), undefined);
+        });
+
+        it('with 3, and lockAccount 3, four agent keys never lock the account', async () => {
+            const savedLock = config.users.failedLogin.lockAccount;
+            config.users.failedLogin.lockAccount = 3;
+            try {
+                const user = addUser();
+                for (let i = 0; i < 4; ++i) {
+                    const result = await connectWithKeys(user.username, [
+                        newKey(),
+                        newKey(),
+                        newKey(),
+                        user.key,
+                    ]);
+                    assert.equal(result.ready, false);
+                }
+                assert.equal(
+                    getProp(user.userId, UserProps.AccountStatus),
+                    String(User.AccountStatus.active)
+                );
+                //  with fewer keys loaded, the user gets in
+                assertLoggedIn(
+                    await connectWithKeys(user.username, [newKey(), user.key]),
+                    user
+                );
+            } finally {
+                config.users.failedLogin.lockAccount = savedLock;
+            }
         });
     });
 
@@ -790,7 +820,7 @@ describe('SSH public key authentication', function () {
             config.users.failedLogin.lockAccount = savedLock;
         });
 
-        it('with 3, three refused keys lock the account, and the right key is then refused', async () => {
+        it('with 3, keys refused in queries do not count toward it', async () => {
             const user = addUser();
             for (let i = 0; i < 3; ++i) {
                 const result = await connect({
@@ -799,6 +829,21 @@ describe('SSH public key authentication', function () {
                     mode: 'queryOnly',
                 });
                 assert.equal(result.pkOk, false);
+            }
+            assert.equal(
+                getProp(user.userId, UserProps.AccountStatus),
+                String(User.AccountStatus.active)
+            );
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), undefined);
+            assertLoggedIn(await connect(user), user);
+        });
+
+        //  a client that signs with a key it was never told would do: a
+        //  failed login like a wrong password
+        it('with 3, good signatures with a key that is not registered lock the account', async () => {
+            const user = addUser();
+            for (let i = 0; i < 3; ++i) {
+                await connect({ ...user, key: newKey(), mode: 'signedNoQuery' });
             }
             assert.equal(
                 getProp(user.userId, UserProps.AccountStatus),
