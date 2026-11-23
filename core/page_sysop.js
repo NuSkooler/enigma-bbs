@@ -211,33 +211,67 @@ exports.getModule = class PageSysopModule extends MenuModule {
             return this.prevMenu(cb);
         }
 
-        //  Build a Message pre-addressed to the sysop (userId 1)
-        const subject = this.config.mailSubject || 'Page from {userName}';
-        const body = this._pendingMessage || '';
+        //  Build a Message pre-addressed to the sysop (userId 1). The To
+        //  text is shown in the editor and checked by its validator, and is
+        //  what the saved mail shows: by default it is the root user's actual
+        //  username. A literal 'Sysop' there fails the To validator on a
+        //  board with no such account.
+        return this._getSysopUserName(sysopUserName => {
+            //  left (hung up) while the name was looked up: go nowhere
+            if (this.hasLeftMenu()) {
+                return cb(null);
+            }
 
-        const msg = new Message({
-            areaTag: Message.WellKnownAreaTags.Private,
-            toUserName: this.config.sysopUserName || 'Sysop',
-            fromUserName: this.client.user.username,
-            subject: stringFormat(subject, { userName: this.client.user.username }),
-            message: body,
-            modTimestamp: moment(),
-        });
-        msg.setLocalFromUserId(this.client.user.userId);
-        msg.setLocalToUserId(User.RootUserID);
+            const subject = this.config.mailSubject || 'Page from {userName}';
+            const body = this._pendingMessage || '';
 
-        const mailMenuName = this.config.mailMenuName || 'privateMailMenuCreateMessage';
-        return this.gotoMenu(
-            mailMenuName,
-            {
-                extraArgs: {
-                    messageAreaTag: Message.WellKnownAreaTags.Private,
-                    toUserId: User.RootUserID,
-                    message: msg,
+            const msg = new Message({
+                areaTag: Message.WellKnownAreaTags.Private,
+                toUserName: sysopUserName,
+                fromUserName: this.client.user.username,
+                subject: stringFormat(subject, {
+                    userName: this.client.user.username,
+                }),
+                message: body,
+                modTimestamp: moment(),
+            });
+            msg.setLocalFromUserId(this.client.user.userId);
+            msg.setLocalToUserId(User.RootUserID);
+
+            const mailMenuName =
+                this.config.mailMenuName || 'privateMailMenuCreateMessage';
+            return this.gotoMenu(
+                mailMenuName,
+                {
+                    extraArgs: {
+                        messageAreaTag: Message.WellKnownAreaTags.Private,
+                        toUserId: User.RootUserID,
+                        message: msg,
+                    },
                 },
-            },
-            cb
-        );
+                cb
+            );
+        });
+    }
+
+    //  The name the "send as mail" To shows: config.sysopUserName when the
+    //  sysop set one, else the root user's username ('Sysop' if that lookup
+    //  fails). The mail goes to the root user either way (toUserId).
+    _getSysopUserName(cb) {
+        if (this.config.sysopUserName) {
+            return cb(this.config.sysopUserName);
+        }
+
+        return User.getUserName(User.RootUserID, (err, userName) => {
+            if (err || !userName) {
+                this.client.log.warn(
+                    { error: err ? err.message : 'empty username' },
+                    'Could not look up the root user name for page sysop mail; using "Sysop"'
+                );
+                return cb('Sysop');
+            }
+            return cb(userName);
+        });
     }
 
     _notifySysops(sessionId, message) {
