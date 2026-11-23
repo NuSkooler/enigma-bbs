@@ -989,6 +989,42 @@ describe('Animated focused menu items (focusItemFrames)', function () {
     });
 
     describe('the items change', function () {
+        //  a plain list (no frames): cached by index too (#1160)
+        const plainVm = items =>
+            track(
+                loadView('VM', {
+                    items,
+                    focus: true,
+                    submit: true,
+                    width: 10,
+                    height: 4,
+                })
+            );
+
+        it('removeItem() on a plain list: the rows after it draw their own item', function () {
+            const { term, view } = plainVm(['a', 'b', 'c', 'd', 'e']);
+            view.redraw(); //  every visible row cached
+            view.removeItem(1);
+            const n = term.flushes.length;
+            view.redraw();
+            assert.deepEqual(
+                [5, 6, 7, 8].map(row => screen(term, n).row(row, 10, 13)),
+                ['a   ', 'c   ', 'd   ', 'e   ']
+            );
+        });
+
+        it('a sort on a plain list: the rows draw their own item', function () {
+            const { term, view } = plainVm(['d', 'c', 'b', 'a']);
+            view.redraw();
+            view.setSort('text');
+            const n = term.flushes.length;
+            view.redraw();
+            assert.deepEqual(
+                [5, 6, 7, 8].map(row => screen(term, n).row(row, 10, 13)),
+                ['a   ', 'b   ', 'c   ', 'd   ']
+            );
+        });
+
         it('removeItem(): no cached frame or row of another item is drawn again', function () {
             const { term, view } = track(loadView('VM', vmConf()));
             view.onKeyPress(null, key('down arrow')); //  "two"
