@@ -1072,17 +1072,18 @@ module.exports = class User {
     }
 
     static getUserName(userId, cb) {
+        //  the callback runs outside the try: a throw in it is not caught
+        //  here and passed to it again as a lookup error
+        let row;
         try {
-            const row = userDb
-                .prepare(`SELECT user_name FROM user WHERE id = ?;`)
-                .get(userId);
-            if (row) {
-                return cb(null, row.user_name);
-            }
-            return cb(Errors.DoesNotExist('No matching user ID'));
+            row = userDb.prepare(`SELECT user_name FROM user WHERE id = ?;`).get(userId);
         } catch (err) {
             return cb(err);
         }
+        if (row) {
+            return cb(null, row.user_name);
+        }
+        return cb(Errors.DoesNotExist('No matching user ID'));
     }
 
     static loadProperties(userId, options, cb) {

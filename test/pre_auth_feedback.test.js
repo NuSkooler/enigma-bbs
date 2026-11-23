@@ -246,9 +246,13 @@ describe('PreAuthFeedbackFSEModule.switchToHeader', () => {
         const { client, body, field } = makeBody();
         let switchedTo = null;
 
+        //  the header's focus is on another field (Subject), so it moves
+        const headerViews = { 1: { id: 1 }, 3: { id: 3 } };
         inst.viewControllers = {
             body,
             header: {
+                getView: id => headerViews[id],
+                focusedView: headerViews[3],
                 switchFocus: id => {
                     switchedTo = id;
                 },

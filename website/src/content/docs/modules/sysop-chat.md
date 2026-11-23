@@ -90,7 +90,7 @@ Messages from either party appear in the **sender's panel** on both screens.
 | `rateLimitArt` | `PAGESYPLM` | Art shown when rate-limited (optional; fallback text used if missing) |
 | `rateLimitText` | pipe-colored string | Fallback text if `rateLimitArt` is missing |
 | `mailSubject` | `Page from {userName}` | Subject for the "send as mail" path. Token: `{userName}` |
-| `sysopUserName` | `Sysop` | Display name used as the mail recipient |
+| `sysopUserName` | root user's username | Name shown as the mail's To. The mail always goes to the root user (user 1); falls back to `Sysop` if that user's name cannot be read |
 | `mailMenuName` | `privateMailMenuCreateMessage` | Menu navigated to for the mail compose path |
 
 ---

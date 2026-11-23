@@ -296,7 +296,13 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         self.setViewText(
                             'menu',
                             MciCodeIds.TermHeight,
-                            user.properties[UserProps.TermHeight].toString()
+                            //  a user created without one (oputil, an import,
+                            //  a mod): this session's height, as signup
+                            //  stores (#1145)
+                            String(
+                                user.properties[UserProps.TermHeight] ??
+                                    self.client.term.termHeight
+                            )
                         );
 
                         var themeView = self.getMenuView(MciCodeIds.Theme);
