@@ -3,6 +3,10 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.6.2-beta
 
+* **The user config screen no longer fails for a user with no stored terminal height** ([#1145](https://github.com/NuSkooler/enigma-bbs/issues/1145)). Users created by `oputil`, an import or a mod may not have one; the screen was left half filled and an exception was logged. It now shows the session's terminal height, as signup stores.
+
+* **`%PE` shows the bytes sent** ([#1149](https://github.com/NuSkooler/enigma-bbs/issues/1149)). It showed the bytes received, the same as `%PI`, and showed nothing (logging an error) before any traffic was counted.
+
 * **Pre-auth feedback no longer opens with "Field cannot be empty" showing.** The feedback editor reachable from the login matrix put the cursor on its empty From field and checked it at the same moment, as if the visitor had already left it, so the error was on screen before anything was typed. From is now checked only when the visitor moves on from it, and an empty From is still refused then.
 
 * **Page sysop's "send as mail" is addressed to the sysop by name.** When the sysop could not be paged and the caller chose to send the page as mail, the To field said `Sysop` unless `sysopUserName` was set in the `pageSysop` menu config. On a board with no account named Sysop, moving into To and pressing Enter gave "Failed to find user", and the saved mail showed `Sysop` as its recipient. With no `sysopUserName` the To is now the root user's username. A configured `sysopUserName` is used as before, and the mail still goes to the root user either way.

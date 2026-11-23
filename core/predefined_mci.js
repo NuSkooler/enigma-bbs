@@ -482,7 +482,7 @@ const PREDEFINED_MCI_GENERATORS = {
         const stats = StatLog.getSystemStat(SysProps.ProcessTrafficStats) || {
             egress: 0,
         };
-        return stats.ingress.toLocaleString();
+        return stats.egress.toLocaleString();
     },
 
     RR: function randomRumor() {
