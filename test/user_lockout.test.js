@@ -603,6 +603,87 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
+    //
+    //  The reset form's POST, with the web server stubbed out
+    //
+    describe('an email password reset', () => {
+        const Module = require('module');
+        const resetPath = require.resolve('../core/web_password_reset.js');
+        let savedModule;
+        let WebPasswordReset;
+        let body;
+
+        const stubs = {
+            './listening_server.js': {
+                getServer: () => ({
+                    instance: {
+                        checkRateLimit: () => true,
+                        respondWithError: (resp, code) => resp.writeHead(code),
+                    },
+                }),
+            },
+            './servers/content/web.js': { moduleInfo: { packageName: 'web' } },
+            './servers/content/web': { WellKnownLocations: { Internal: '/_internal' } },
+            './web_util': { buildUrl: p => p },
+            './http_body': {
+                readTextBody: (req, max, cb) => cb(null, body),
+                isTooLarge: () => false,
+            },
+        };
+
+        before(() => {
+            savedModule = require.cache[resetPath];
+            delete require.cache[resetPath];
+            const originalLoad = Module._load;
+            Module._load = function (request, parent, isMain) {
+                if (
+                    parent &&
+                    parent.filename === resetPath &&
+                    Object.prototype.hasOwnProperty.call(stubs, request)
+                ) {
+                    return stubs[request];
+                }
+                return originalLoad(request, parent, isMain);
+            };
+            try {
+                WebPasswordReset = require(resetPath).WebPasswordReset;
+            } finally {
+                Module._load = originalLoad;
+            }
+        });
+
+        after(() => {
+            if (savedModule) {
+                require.cache[resetPath] = savedModule;
+            } else {
+                delete require.cache[resetPath];
+            }
+        });
+
+        function reset(userId, password) {
+            body = `token=tok&password=${password}&confirm_password=${password}`;
+            WebPasswordReset.getUserByToken = (token, cb) => User.getUser(userId, cb);
+            return new Promise(resolve => {
+                const resp = {
+                    writeHead: code => (resp.code = code),
+                    end: () => resolve(resp.code),
+                };
+                WebPasswordReset.routeResetPasswordPost({}, resp);
+                //  a refused reset only writes the head
+                setTimeout(() => resolve(resp.code), 3000);
+            });
+        }
+
+        it('clears the failed login count of an account that is not locked', async () => {
+            const { username, userId } = addUser({ [UserProps.FailedLoginAttempts]: 2 });
+            assert.equal(await reset(userId, 'new-pass-1'), 200);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
+            //  one typo now is one failure, not the one that locks
+            await failTimes(username, 1);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+        });
+    });
+
     describe('unlockAccount()', () => {
         const load = userId =>
             new Promise((resolve, reject) =>

@@ -369,10 +369,12 @@ class WebPasswordReset {
                         return badRequest();
                     }
 
-                    //  delete assoc properties - no need to wait for completion
+                    //  delete assoc properties - no need to wait for completion;
+                    //  the failed login count starts again with the new password
                     user.removeProperties([
                         UserProps.EmailPwResetToken,
                         UserProps.EmailPwResetTokenTs,
+                        UserProps.FailedLoginAttempts,
                     ]);
 
                     if (true === _.get(config, 'users.unlockAtEmailPwReset')) {
