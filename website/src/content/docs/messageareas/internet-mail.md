@@ -27,7 +27,7 @@ If delivery fails (e.g. transport not configured, SMTP error), the message is ma
 
 ## Receiving Email (Inbound IMAP)
 
-ENiGMA½ polls an IMAP mailbox at a configurable interval. When a new message arrives addressed to `username@yourdomain.com`, the username portion before `@` is matched against local BBS users. Matched messages are delivered to the user's private mail area.
+ENiGMA½ polls an IMAP mailbox at a configurable interval. When a new message arrives addressed to `username@yourdomain.com`, the username portion before `@` is matched against local BBS users: a user name as it is (ignoring case), or else the local-part outbound mail from a user is sent as (`John_Doe` for "John Doe"; see `outbound.usernameReplaceChar`). An address that two users' names would both give is not delivered to either. Matched messages are delivered to the user's private mail area.
 
 Messages that cannot be matched to a local user are saved as `.eml` files in `mail/email/failed/` for sysop review.
 

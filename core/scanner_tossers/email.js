@@ -10,8 +10,7 @@ const {
     StateFlags0,
 } = require('../message_const');
 const { persistMessage } = require('../message_area');
-const { sendMail } = require('../email');
-const User = require('../user');
+const { sendMail, emailLocalPart, resolveEmailLocalPart } = require('../email');
 const Config = require('../config').get;
 const Log = require('../logger').log;
 const { stripAllControlCodes } = require('../string_util');
@@ -193,17 +192,7 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
     }
 
     _sanitizeLocalPart(name, replaceChar) {
-        //  RFC 5321 local-parts allow a broader set, but restrict to the
-        //  conservative subset (letters, digits, dot, hyphen, underscore)
-        //  that virtually every receiver handles without surprise.
-        let local = String(name).replace(/[^a-zA-Z0-9._-]+/g, replaceChar);
-        //  Trim leading/trailing separators and collapse repeats
-        local = local.replace(/^[._-]+|[._-]+$/g, '');
-        if (replaceChar) {
-            const esc = replaceChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            local = local.replace(new RegExp(`${esc}{2,}`, 'g'), replaceChar);
-        }
-        return local;
+        return emailLocalPart(name, replaceChar);
     }
 
     _startInbound() {
@@ -385,8 +374,10 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
                 continue;
             }
 
+            //  the address outbound mail from a user is sent as finds them
+            //  again (see _buildFromAddress())
             const result = await new Promise(resolve => {
-                User.getUserIdAndName(userPart, (err, userId, username) => {
+                resolveEmailLocalPart(userPart, (err, userId, username) => {
                     resolve(err || !userId ? null : { userId, username });
                 });
             });

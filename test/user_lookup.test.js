@@ -14,19 +14,29 @@ const configDefault = require('../core/config_default.js');
 const dbModule = require('../core/database.js');
 const UserProps = require('../core/user_property.js');
 
-const FreshPaths = ['../core/user_group.js', '../core/user.js'].map(p =>
-    require.resolve(p)
-);
+//  email.js and system_view_validate.js capture Config, and user.js
+const FreshPaths = [
+    '../core/user_group.js',
+    '../core/user.js',
+    '../core/email.js',
+    '../core/system_view_validate.js',
+    '../core/scanner_tossers/email.js',
+].map(p => require.resolve(p));
 
 describe('user name and real name lookups', function () {
     let saved;
     let previousConfig;
     let db;
     let User;
+    let config;
+    let email;
+    let validate;
+    let EmailTosser;
     const ids = {};
 
     before(() => {
-        previousConfig = configModule._pushTestConfig(configDefault());
+        config = configDefault();
+        previousConfig = configModule._pushTestConfig(config);
 
         db = new Database(':memory:');
         db.exec(`
@@ -54,8 +64,22 @@ describe('user name and real name lookups', function () {
         };
         dbModule.dbs.user = db;
         FreshPaths.forEach(p => delete require.cache[p]);
+        //  email.js and the tosser capture the logger too; another test file
+        //  may have left one without child()
+        const loggerModule = require('../core/logger.js');
+        saved.log = loggerModule.log;
+        const quiet = {};
+        ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].forEach(level => {
+            quiet[level] = () => true;
+        });
+        quiet.child = () => quiet;
+        loggerModule.log = quiet;
+
         require(FreshPaths[0]);
         User = require(FreshPaths[1]);
+        email = require(FreshPaths[2]);
+        validate = require(FreshPaths[3]);
+        EmailTosser = require(FreshPaths[4]).getModule;
 
         const insUser = db.prepare('INSERT INTO user (user_name) VALUES (?)');
         const insProp = db.prepare(
@@ -66,6 +90,11 @@ describe('user name and real name lookups', function () {
             ['a-b', 'Jane Doe'],
             ['Bob', 'Bob Smith'],
             ['Ärger', 'Örjan Ölund'],
+            ['John Doe', 'Johnny'],
+            ['Mary  Ann', 'Mary'],
+            ['Pat Lee', 'P1'],
+            ['Pat.Lee', 'P2'],
+            ['pat lee!', 'P3'],
         ].forEach(([name, realName]) => {
             ids[name] = Number(insUser.run(name).lastInsertRowid);
             insProp.run(ids[name], UserProps.RealName, realName);
@@ -81,6 +110,7 @@ describe('user name and real name lookups', function () {
             }
         });
         dbModule.dbs.user = saved.userDb;
+        require('../core/logger.js').log = saved.log;
         configModule._popTestConfig(previousConfig);
         db.close();
     });
@@ -154,6 +184,90 @@ describe('user name and real name lookups', function () {
         it('finds by user name, then real name', async () => {
             await assertFinds('getUserIdAndNameByLookup', 'BOB', 'Bob');
             await assertFinds('getUserIdAndNameByLookup', 'real sysop', 'SysOp');
+        });
+    });
+    describe('email recipients (resolveEmailLocalPart())', () => {
+        const resolve = localPart =>
+            new Promise(done =>
+                email.resolveEmailLocalPart(localPart, (err, userId, userName) =>
+                    done({ err, userId, userName })
+                )
+            );
+
+        afterEach(() => {
+            delete config.email.outbound.usernameReplaceChar;
+        });
+
+        it('finds the user outbound mail from them is sent as', async () => {
+            assert.equal(email.emailLocalPart('John Doe'), 'John_Doe');
+            const { err, userName } = await resolve('John_Doe');
+            assert.ifError(err);
+            assert.equal(userName, 'John Doe');
+            assert.equal((await resolve('john_doe')).userName, 'John Doe');
+            //  runs of other characters are one replacement
+            assert.equal((await resolve('Mary_Ann')).userName, 'Mary  Ann');
+        });
+
+        it('the email tosser delivers a reply to the user it came from', async () => {
+            const tosser = new EmailTosser();
+            const from = tosser._buildFromAddress(
+                { outbound: { fromDomain: 'bbs.example' } },
+                'John Doe'
+            );
+            assert.equal(from.address, 'John_Doe@bbs.example');
+            const recipient = await tosser._resolveRecipient([{ address: from.address }]);
+            assert.ok(recipient, 'found');
+            assert.equal(recipient.username, 'John Doe');
+            assert.equal(recipient.userId, ids['John Doe']);
+        });
+
+        it('finds a user name as it is first', async () => {
+            assert.equal((await resolve('a-b')).userName, 'a-b');
+            assert.equal((await resolve('bob')).userName, 'Bob');
+        });
+
+        it('works with another replacement character', async () => {
+            config.email.outbound.usernameReplaceChar = '.';
+            assert.equal((await resolve('John.Doe')).userName, 'John Doe');
+            assert.ok((await resolve('John_Doe')).err);
+        });
+
+        it('delivers to nobody when two users give the same address', async () => {
+            //  "Pat Lee" and "pat lee!" both give Pat_Lee ("Pat.Lee" does not)
+            const { err } = await resolve('Pat_Lee');
+            assert.ok(err, 'ambiguous');
+            assert.equal((await resolve('Pat.Lee')).userName, 'Pat.Lee');
+        });
+
+        it('takes "%" and "_" in an address literally', async () => {
+            assert.ok((await resolve('%')).err);
+            assert.ok((await resolve('_')).err);
+            assert.ok((await resolve('J%')).err);
+            assert.ok((await resolve('John%')).err);
+        });
+    });
+
+    describe('new user names (validateUserNameAvail())', () => {
+        const check = name =>
+            new Promise(done => validate.validateUserNameAvail(name, done));
+
+        it('refuses a name that would get an existing user email address', async () => {
+            for (const name of [
+                'John_Doe',
+                'john_doe',
+                'John  Doe',
+                ' John Doe',
+                'Mary Ann',
+            ]) {
+                const err = await check(name);
+                assert.ok(err, `${name} is refused`);
+            }
+        });
+
+        it('allows names that give another address', async () => {
+            for (const name of ['John-Doe', 'John_Dow', 'Johnny_Doe', 'a_b']) {
+                assert.equal(await check(name), null, name);
+            }
         });
     });
 });

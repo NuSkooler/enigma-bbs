@@ -1204,6 +1204,27 @@ module.exports = class User {
         }
     }
 
+    //
+    //  cb(err, [ { userId, userName } ]) for user names LIKE |pattern|, which
+    //  may use '\\' to escape '%' and '_'. For narrowing a search down only:
+    //  check each name found exactly.
+    //
+    static getUserIdsAndNamesLike(pattern, cb) {
+        try {
+            const rows = userDb
+                .prepare(
+                    `SELECT id, user_name FROM user WHERE user_name LIKE ? ESCAPE '\\';`
+                )
+                .all(pattern);
+            return cb(
+                null,
+                rows.map(row => ({ userId: row.id, userName: row.user_name }))
+            );
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static getUserByUsername(username, cb) {
         User.getUserIdAndName(username, (err, userId) => {
             if (err) {

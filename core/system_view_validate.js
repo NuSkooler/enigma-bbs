@@ -6,6 +6,7 @@ const User = require('./user');
 const Config = require('./config').get;
 const Log = require('./logger').log;
 const { getAddressedToInfo } = require('./mail_util');
+const { emailLocalPart, findUsersByEmailLocalPart } = require('./email');
 const Message = require('./message');
 const { Errors, ErrorReasons } = require('./enig_error'); // note: Only use ValidationFailed in this module!
 
@@ -75,19 +76,34 @@ function validateUserNameAvail(data, cb) {
                 )
             );
         } else {
+            const unavailable = () =>
+                cb(
+                    Errors.ValidationFailed(
+                        'Username unavailable',
+                        ErrorReasons.NotAvailable
+                    )
+                );
+
             //  a new user name cannot be an existing user name or an existing real name
             User.getUserIdAndNameByLookup(data, function userIdAndName(err) {
                 if (!err) {
                     //  err is null if we succeeded -- meaning this user exists already
-                    return cb(
-                        Errors.ValidationFailed(
-                            'Username unavailable',
-                            ErrorReasons.NotAvailable
-                        )
-                    );
+                    return unavailable();
                 }
 
-                return cb(null);
+                //
+                //  ...nor give the same email address as an existing user's:
+                //  "John_Doe" would get "John Doe"'s mail (see
+                //  emailLocalPart()). Checked whether or not email is set up,
+                //  so turning it on later finds no two users sharing one.
+                //
+                const localPart = emailLocalPart(data);
+                if (!localPart) {
+                    return cb(null);
+                }
+                findUsersByEmailLocalPart(localPart, (err, users) => {
+                    return err || users.length > 0 ? unavailable() : cb(null);
+                });
             });
         }
     }
