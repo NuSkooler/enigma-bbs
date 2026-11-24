@@ -71,7 +71,14 @@ function _loginHandler(req, resp, webServer, log) {
         if (err && isTooLarge(err)) {
             return respondBodyError(resp, err);
         }
-        if (err || !body?.username || !body?.password) {
+        //  strings only: anything else is not a user name or a password
+        if (
+            err ||
+            !body?.username ||
+            !body?.password ||
+            'string' !== typeof body.username ||
+            'string' !== typeof body.password
+        ) {
             return problemDetail(
                 resp,
                 400,

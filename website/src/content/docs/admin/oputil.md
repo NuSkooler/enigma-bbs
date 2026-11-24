@@ -121,10 +121,10 @@ info arguments:
 | `rm`        | Removes user      | `./oputil.js user del joeuser`        | `remove`, `del`, `delete` |
 | `rename` | Renames a user | `./oputil.js user rename joeuser joe` | `mv` |
 | `2fa-otp` | Manage 2FA/OTP for a user | `./oputil.js user 2fa-otp joeuser googleAuth` | `otp`
-| `activate` | Activates user    | `./oputil.js user activate joeuser`   | N/A   |
+| `activate` | Activates user, clearing any lock and the failed login count | `./oputil.js user activate joeuser`   | N/A   |
 | `deactivate`    | Deactivates user  | `./oputil.js user deactivate joeuser` | N/A   |
 | `disable`   | Disables user (user will not be able to login)    | `./oputil.js user disable joeuser`    | N/A   |
-| `lock` | Locks the user account (prevents logins) | `./oputil.js user lock joeuser` | N/A |
+| `lock` | Locks the user account: no logins, with any password or key, until `activate`. Unlike a lock from failed logins, it does not run out (`users.failedLogin.autoUnlockMinutes`) and an email password reset does not clear it | `./oputil.js user lock joeuser` | N/A |
 | `group`   | Modifies users group membership   | Add to group: `./oputil.js user group joeuser +derp`<br/>Remove from group: `./oputil.js user group joeuser ~derp`   | N/A    |
 | `time`   | Sets a user's daily time allowance, overriding any [`users.timeLimits`](../configuration/time-limits.md) band. `0` means unlimited; `clear` removes the override so the bands apply again.   | `./oputil.js user time joeuser 120`<br/>`./oputil.js user time joeuser clear`   | N/A    |
 

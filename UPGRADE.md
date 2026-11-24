@@ -22,6 +22,22 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.6.1-beta to 0.6.2-beta
 
+* **Sysops: SSH public key logins are checked more strictly.** Nothing in your configuration, menus, art or themes needs to change.
+
+  **Action:** none required. Concerned sysops should review accounts with SSH keys registered: their recent logins, and that the stored key, password and email are still the owner's.
+
+* **Sysops: failed logins now lock accounts.** Nothing in your configuration, menus, art or themes needs to change.
+
+  **What changes by itself:** `users.failedLogin.lockAccount` (default 9) now takes effect; before, no account was ever locked automatically. Wrong passwords count on every login path (telnet, SSH, WebSocket, the web/REST API, NNTP); a wrong second-factor (OTP) code counts only toward `disconnect`. An active account is locked after that many failed logins since its last successful one. A locked account refuses every login, even with the right password or key, until `users.failedLogin.autoUnlockMinutes` (default 360) have passed; then the right password or key lets the user in again, and a wrong one locks the account again from that moment. While it is locked, its REST API keys and refresh tokens are refused too; once the lock has run out they work again only after the user logs in, or the sysop activates the account. Counts already stored carry over: a user with 9 or more failures since their last successful login is locked at their next failure. Anyone who knows a user name, the sysop's included, can lock that account by failing to log in as it. A lock set with `oputil.js user lock` does not run out.
+
+  **Action:** review `users.failedLogin`; set `lockAccount: 0` to keep today's behaviour (no locking). To unlock an account by hand (this also clears its failed login count): `./oputil.js user activate USERNAME`.
+
+* **Sysops: user names are looked up exactly.** Nothing in your configuration, menus, art or themes needs to change.
+
+  **What changes by itself:** a user name or real name is matched exactly, ignoring case as before. Mail, netmail and anything else addressed with `_` or `%` standing in for other characters no longer finds a user, except internet mail sent to the address ENiGMA½ derives from a user name (`John_Doe@` for "John Doe"), which is mapped back. A new user name whose derived mail address would be an existing user's (`John_Doe` when "John Doe" exists) is refused at signup.
+
+  **Action:** none.
+
 * **Mod authors: covers pause background drawing** ([#1136](https://github.com/NuSkooler/enigma-bbs/issues/1136), [#1137](https://github.com/NuSkooler/enigma-bbs/issues/1137)). Nothing in your configuration, menus, art or themes needs to change, and `client.waitForKeyPress()` works as before.
 
   **What changes by itself:** interrupts, help pages and pauses that clear the screen pause the background drawing (`drawInBackground()`) of the views under them while they wait, and redraw them once afterwards. Interrupts and the stock help pages also keep every key, including the one that dismisses them, from the forms underneath.

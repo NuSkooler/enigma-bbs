@@ -276,6 +276,7 @@ class StatLog {
         );
     }
 
+    //  cb(err, newValue)
     incrementUserStat(user, statName, incrementBy, cb) {
         incrementBy = incrementBy || 1;
 
@@ -295,7 +296,7 @@ class StatLog {
             }
 
             if (cb) {
-                return cb(err);
+                return cb(err, newValue);
             }
         });
     }

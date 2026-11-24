@@ -369,21 +369,40 @@ class WebPasswordReset {
                         return badRequest();
                     }
 
-                    //  delete assoc properties - no need to wait for completion
-                    user.removeProperties([
-                        UserProps.EmailPwResetToken,
-                        UserProps.EmailPwResetTokenTs,
-                    ]);
-
-                    if (true === _.get(config, 'users.unlockAtEmailPwReset')) {
-                        Log.info(
-                            { username: user.username, userId: user.userId },
-                            'Remove any lock on account due to password reset policy'
-                        );
-                        user.unlockAccount(() => {
-                            /* dummy */
-                        });
-                    }
+                    //
+                    //  The account as it is now (deriving the new key took a
+                    //  while; a sysop may have set its status, or a lock
+                    //  landed, meanwhile), in one transaction with what is
+                    //  decided on it. The failed login count starts again
+                    //  with the new password.
+                    //
+                    const unlock = true === _.get(config, 'users.unlockAtEmailPwReset');
+                    User.inLockTransaction(
+                        done => {
+                            User.refreshLockProperties(user.userId, user.properties);
+                            user.removeProperties([
+                                UserProps.EmailPwResetToken,
+                                UserProps.EmailPwResetTokenTs,
+                                UserProps.FailedLoginAttempts,
+                            ]);
+                            if (!unlock) {
+                                return done(null);
+                            }
+                            Log.info(
+                                { username: user.username, userId: user.userId },
+                                'Remove any lock on account due to password reset policy'
+                            );
+                            return user.unlockAccount(done);
+                        },
+                        err => {
+                            if (err) {
+                                Log.warn(
+                                    { error: err.message, userId: user.userId },
+                                    'Failed to update account after password reset'
+                                );
+                            }
+                        }
+                    );
 
                     resp.writeHead(200);
                     return resp.end('Password changed successfully');
