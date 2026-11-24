@@ -73,8 +73,9 @@ function ANSIEscapeParser(options) {
     };
 
     this.mciReplaceChar = miscUtil.valueWithDefault(options.mciReplaceChar, '');
-    this.termHeight = miscUtil.valueWithDefault(options.termHeight, 25);
-    this.termWidth = miscUtil.valueWithDefault(options.termWidth, 80);
+    //  a size of 0 (or anything not positive) is no size: the default stands
+    this.termHeight = options.termHeight > 0 ? options.termHeight : 25;
+    this.termWidth = options.termWidth > 0 ? options.termWidth : 80;
     this.breakWidth = this.termWidth;
     // toNumber takes care of null, undefined etc as well.
     let artWidth = Number(options.artWidth);

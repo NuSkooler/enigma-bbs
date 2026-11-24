@@ -249,8 +249,14 @@ class View extends events.EventEmitter {
         //  sanitize
         this.position.row = Math.max(this.position.row, 1);
         this.position.col = Math.max(this.position.col, 1);
-        this.position.row = Math.min(this.position.row, this.client.term.termHeight);
-        this.position.col = Math.min(this.position.col, this.client.term.termWidth);
+        //  only to a known size: clamping to an unknown (0) one gives row 0
+        const { termHeight, termWidth } = this.client.term;
+        if (termHeight > 0) {
+            this.position.row = Math.min(this.position.row, termHeight);
+        }
+        if (termWidth > 0) {
+            this.position.col = Math.min(this.position.col, termWidth);
+        }
     }
 
     setDimension(dimens) {
