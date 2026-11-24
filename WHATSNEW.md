@@ -1,6 +1,10 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.6.3-beta
+
+* **NetRunner's telnet window size is read.** NetRunner pads its window size (NAWS) with an extra byte on each side, and it was rejected, so NetRunner was always sized by the connect queries instead. `telnet-socket` 0.2.7 reads it, reports any other malformed telnet subnegotiation as a command error (logged at debug) instead of passing it on with no data, and no longer has any dependencies: installing ENiGMA½ no longer fetches one from a git URL. It also fixes a telnet client being able to raise an uncaught exception with an incomplete subnegotiation for an option ENiGMA½ does not use (it was logged and the board carried on).
+
 ## 0.6.2-beta
 
 * **A telnet window size narrower than 20 columns or shorter than 10 rows is measured instead of trusted.** Windows telnet sends only the low byte of each dimension, so a 270 column window arrived as 14 columns and every screen was laid out for 14. Such a width or height is now ignored and logged: at connect the size query measures it, and later in the session the size already in use is kept. A narrow width from the size query reply is now kept only for terminals that identify themselves as ones that state their size (SyncTERM, TERMinator, IcyTerm, enig-term); NetRunner and Qmodem answer that query with the cursor position, so from any other terminal a narrow width is taken as 80, as a cursor position always was. Window sizes of 20x10 and up are taken exactly as before.

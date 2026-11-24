@@ -773,6 +773,22 @@ describe('ANSI terminal size probe', function () {
             }
         });
 
+        it("NetRunner's NAWS, padded with a NUL each side and sent without WILL NAWS: 80x25", () => {
+            const client = telnetClient();
+            try {
+                //  exactly as NetRunner sent it: IAC SB NAWS 00 00 50 00 19 00 IAC SE
+                client.socket.rawSocket.emit(
+                    'data',
+                    Buffer.from([255, 250, 31, 0, 0, 80, 0, 25, 0, 255, 240])
+                );
+                assert.deepEqual(sizeOf(client), [80, 25]);
+                assert.deepEqual(client.term.env, { COLUMNS: 80, ROWS: 25 });
+                assert.equal(client.sizeUpdates().length, 1);
+            } finally {
+                client.emit('end');
+            }
+        });
+
         it('a NAWS with no usable size changes nothing and logs no size update', () => {
             const { TelnetSpec } = require('telnet-socket');
             const client = telnetClient();
@@ -785,8 +801,8 @@ describe('ANSI terminal size probe', function () {
                     option: TelnetSpec.Options.NAWS,
                     optionData: {},
                 });
-                //  and one with a 5 byte payload, as bytes: telnet-socket hands
-                //  the handler its parse Error as the optionData
+                //  and one with a 5 byte payload, as bytes: telnet-socket
+                //  (0.2.7+) emits it as a command error, not an SB
                 client.socket.rawSocket.emit(
                     'data',
                     Buffer.from([255, 250, 31, 0, 80, 0, 25, 0, 255, 240])
