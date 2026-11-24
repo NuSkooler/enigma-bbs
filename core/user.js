@@ -215,73 +215,81 @@ module.exports = class User {
     //  stays limited.
     //
     processFailedLogin(userId, cb) {
-        async.waterfall(
-            [
-                callback => {
-                    //  as stored now: other logins may have just counted, or
-                    //  locked the account
-                    return User.getUser(userId, callback);
-                },
-                (tempUser, callback) => {
-                    //  a lock in force: nothing more to count, nor to move
-                    if (
-                        User.LockState.InForce === User.getLockState(tempUser.properties)
-                    ) {
-                        return callback(null, tempUser, null);
-                    }
-                    return StatLog.incrementUserStat(
-                        tempUser,
-                        UserProps.FailedLoginAttempts,
-                        1,
-                        (err, failedAttempts) => {
-                            return callback(err, tempUser, failedAttempts);
+        return User.inLockTransaction(cb => {
+            async.waterfall(
+                [
+                    callback => {
+                        //  as stored now: other logins may have just counted, or
+                        //  locked the account
+                        return User.getUser(userId, callback);
+                    },
+                    (tempUser, callback) => {
+                        //  a lock in force: nothing more to count, nor to move
+                        if (
+                            User.LockState.InForce ===
+                            User.getLockState(tempUser.properties)
+                        ) {
+                            return callback(null, tempUser, null);
                         }
-                    );
-                },
-                (tempUser, failedAttempts, callback) => {
-                    const lockAccount = _.get(Config(), 'users.failedLogin.lockAccount');
-                    if (!(lockAccount > 0) || null === failedAttempts) {
-                        return callback(null);
-                    }
+                        return StatLog.incrementUserStat(
+                            tempUser,
+                            UserProps.FailedLoginAttempts,
+                            1,
+                            (err, failedAttempts) => {
+                                return callback(err, tempUser, failedAttempts);
+                            }
+                        );
+                    },
+                    (tempUser, failedAttempts, callback) => {
+                        const lockAccount = _.get(
+                            Config(),
+                            'users.failedLogin.lockAccount'
+                        );
+                        if (!(lockAccount > 0) || null === failedAttempts) {
+                            return callback(null);
+                        }
 
-                    const status = tempUser.getPropertyAsNumber(UserProps.AccountStatus);
-                    if (User.AccountStatus.locked === status) {
-                        //  only a lock that has run out gets here
+                        const status = tempUser.getPropertyAsNumber(
+                            UserProps.AccountStatus
+                        );
+                        if (User.AccountStatus.locked === status) {
+                            //  only a lock that has run out gets here
+                            Log.info(
+                                { userId, failedAttempts },
+                                'Locking account again due to a failed login after its lock ran out'
+                            );
+                            return tempUser.persistProperty(
+                                UserProps.AccountLockedTs,
+                                StatLog.now,
+                                callback
+                            );
+                        }
+                        if (
+                            User.AccountStatus.active !== status ||
+                            !(failedAttempts >= lockAccount)
+                        ) {
+                            return callback(null);
+                        }
+
                         Log.info(
                             { userId, failedAttempts },
-                            'Locking account again due to a failed login after its lock ran out'
+                            'Locking account due to failed logins'
                         );
-                        return tempUser.persistProperty(
-                            UserProps.AccountLockedTs,
-                            StatLog.now,
+                        return tempUser.persistProperties(
+                            {
+                                [UserProps.AccountStatus]: User.AccountStatus.locked,
+                                [UserProps.AccountLockedTs]: StatLog.now,
+                                [UserProps.AccountLockedPrevStatus]: status,
+                            },
                             callback
                         );
-                    }
-                    if (
-                        User.AccountStatus.active !== status ||
-                        !(failedAttempts >= lockAccount)
-                    ) {
-                        return callback(null);
-                    }
-
-                    Log.info(
-                        { userId, failedAttempts },
-                        'Locking account due to failed logins'
-                    );
-                    return tempUser.persistProperties(
-                        {
-                            [UserProps.AccountStatus]: User.AccountStatus.locked,
-                            [UserProps.AccountLockedTs]: StatLog.now,
-                            [UserProps.AccountLockedPrevStatus]: status,
-                        },
-                        callback
-                    );
-                },
-            ],
-            err => {
-                return cb(err);
-            }
-        );
+                    },
+                ],
+                err => {
+                    return cb(err);
+                }
+            );
+        }, cb);
     }
 
     //
@@ -292,6 +300,13 @@ module.exports = class User {
     //  status they set over a lock is not "restored" away.
     //
     setAccountStatusBySysop(status, cb) {
+        return User.inLockTransaction(
+            cb => this._setAccountStatusBySysop(status, cb),
+            cb
+        );
+    }
+
+    _setAccountStatusBySysop(status, cb) {
         this.persistProperty(UserProps.AccountStatus, status, err => {
             if (err) {
                 return cb(err);
@@ -321,6 +336,17 @@ module.exports = class User {
     //  'user lock') is the sysop's to clear, with 'user activate'.
     //
     unlockAccount(cb) {
+        return User.inLockTransaction(cb => {
+            //  decided on the account as stored now, not as loaded earlier
+            const fresh = User.refreshLockProperties(this.userId, this.properties);
+            if (fresh instanceof Error) {
+                return cb(fresh);
+            }
+            return this._unlockAccount(cb);
+        }, cb);
+    }
+
+    _unlockAccount(cb) {
         const prevStatus = this.getProperty(UserProps.AccountLockedPrevStatus);
         const isLocked =
             User.AccountStatus.locked ===
@@ -454,6 +480,33 @@ module.exports = class User {
     }
 
     //
+    //  Run |work(cb)|, which reads and writes an account's status and lock
+    //  properties, in one IMMEDIATE transaction: another process (oputil, say)
+    //  cannot change them between the read and the write. Every step of such
+    //  work is better-sqlite3, so it calls back before the transaction ends;
+    //  |cb| is called after it commits (or rolls back), outside it.
+    //
+    static inLockTransaction(work, cb) {
+        let result;
+        try {
+            userDb
+                .transaction(() => {
+                    work((...args) => (result = args));
+                    if (!result) {
+                        throw new Error('Account lock update did not complete in step');
+                    }
+                    if (result[0]) {
+                        throw result[0]; //  roll back
+                    }
+                })
+                .immediate();
+        } catch (err) {
+            return cb(err);
+        }
+        return cb(...result);
+    }
+
+    //
     //  cb-less: the account status and lock properties of |userId| as stored
     //  now, or an Error
     //
@@ -553,60 +606,62 @@ module.exports = class User {
                         return callback(Errors.AccessDenied('Invalid password'));
                     }
 
-                    //  Upgrade legacy hashes transparently on successful login.
-                    //  setImmediate defers past the current call stack — loadProperties
-                    //  is synchronous (better-sqlite3), so without deferral async's
-                    //  waterfall double-call guard trips on the initProps step.
-                    if (User.needsRehash(props)) {
-                        const oldParams = User.getHashParams(props);
-                        Log.info(
-                            {
-                                userId: tempAuthInfo.userId,
-                                username: tempAuthInfo.username,
-                                fromParams: {
-                                    digest: oldParams.digest,
-                                    iterations: oldParams.iterations,
-                                    keyLen: oldParams.keyLen,
-                                },
-                                toParams: {
-                                    digest: User.PBKDF2.digest,
-                                    iterations: User.PBKDF2.iterations,
-                                    keyLen: User.PBKDF2.keyLen,
-                                },
-                            },
-                            'Upgrading password hash to current parameters'
-                        );
-                        setImmediate(() => {
-                            User.rehashPassword(
-                                tempAuthInfo.userId,
-                                authInfo.password,
-                                rehashErr => {
-                                    if (rehashErr) {
-                                        Log.warn(
-                                            {
-                                                error: rehashErr.message,
-                                                userId: tempAuthInfo.userId,
-                                                username: tempAuthInfo.username,
-                                            },
-                                            'Failed to upgrade password hash; will retry on next login'
-                                        );
-                                    } else {
-                                        Log.info(
-                                            {
-                                                userId: tempAuthInfo.userId,
-                                                username: tempAuthInfo.username,
-                                            },
-                                            'Password hash upgrade complete'
-                                        );
-                                    }
-                                }
-                            );
-                        });
-                    }
+                    //  a legacy hash is upgraded once the login is accepted
+                    //  (see upgradePasswordHash()), never for a refused one
+                    tempAuthInfo.needsRehash = User.needsRehash(props);
 
                     return callback(null);
                 }
             );
+        };
+
+        //
+        //  Upgrade a legacy password hash to the current parameters, in the
+        //  background: only for a login that was accepted, so a refused one
+        //  (a lock, say) leaves nothing behind to time. setImmediate defers
+        //  past the current call stack.
+        //
+        const upgradePasswordHash = () => {
+            const oldParams = User.getHashParams(tempAuthInfo.properties);
+            Log.info(
+                {
+                    userId: tempAuthInfo.userId,
+                    username: tempAuthInfo.username,
+                    fromParams: {
+                        digest: oldParams.digest,
+                        iterations: oldParams.iterations,
+                        keyLen: oldParams.keyLen,
+                    },
+                    toParams: {
+                        digest: User.PBKDF2.digest,
+                        iterations: User.PBKDF2.iterations,
+                        keyLen: User.PBKDF2.keyLen,
+                    },
+                },
+                'Upgrading password hash to current parameters'
+            );
+            setImmediate(() => {
+                User.rehashPassword(tempAuthInfo.userId, authInfo.password, rehashErr => {
+                    if (rehashErr) {
+                        Log.warn(
+                            {
+                                error: rehashErr.message,
+                                userId: tempAuthInfo.userId,
+                                username: tempAuthInfo.username,
+                            },
+                            'Failed to upgrade password hash; will retry on next login'
+                        );
+                    } else {
+                        Log.info(
+                            {
+                                userId: tempAuthInfo.userId,
+                                username: tempAuthInfo.username,
+                            },
+                            'Password hash upgrade complete'
+                        );
+                    }
+                });
+            });
         };
 
         //
@@ -852,6 +907,10 @@ module.exports = class User {
                                 { error: unlockErr.message },
                                 'Failed to unlock account'
                             );
+                        }
+
+                        if (tempAuthInfo.needsRehash) {
+                            upgradePasswordHash();
                         }
                         return cb(null);
                     });

@@ -347,6 +347,87 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
+    describe('a legacy password hash', () => {
+        //  password props hashed with the old parameters (no PassHashParams)
+        const legacyProps = () =>
+            new Promise((resolve, reject) => {
+                const salt = require('crypto').randomBytes(32).toString('hex');
+                User.generatePasswordDerivedKey(
+                    RightPass,
+                    salt,
+                    User.LegacyPBKDF2,
+                    (err, dk) =>
+                        err
+                            ? reject(err)
+                            : resolve({
+                                  [UserProps.PassPbkdf2Salt]: salt,
+                                  [UserProps.PassPbkdf2Dk]: dk,
+                                  [UserProps.PassHashParams]: undefined,
+                              })
+                );
+            });
+        //  long enough for a background upgrade to have finished
+        const settle = () => new Promise(resolve => setTimeout(resolve, 1000));
+
+        it('is upgraded after a successful login', async () => {
+            const props = await legacyProps();
+            const { username, userId } = addUser(props);
+            assert.ifError((await login(username, RightPass)).err);
+            await settle();
+            assert.ok(getProp(userId, UserProps.PassHashParams), 'upgraded');
+            assert.notEqual(
+                getProp(userId, UserProps.PassPbkdf2Dk),
+                props[UserProps.PassPbkdf2Dk]
+            );
+        });
+
+        it('is not upgraded for the right password answered locked in a burst', async () => {
+            const props = await legacyProps();
+            const { username, userId } = addUser(props);
+            const results = await burst(username);
+            assert.equal(results[results.length - 1].err.reasonCode, ErrorReasons.Locked);
+            await settle();
+            assert.equal(getProp(userId, UserProps.PassHashParams), undefined);
+            assert.equal(
+                getProp(userId, UserProps.PassPbkdf2Dk),
+                props[UserProps.PassPbkdf2Dk]
+            );
+        });
+
+        it('is not upgraded for the right password of an account refused after the check', async () => {
+            //  a lock that ran out over an account disabled before it
+            const props = await legacyProps();
+            const { username, userId } = addUser(
+                Object.assign(props, {
+                    [UserProps.AccountStatus]: status('locked'),
+                    [UserProps.AccountLockedPrevStatus]: status('disabled'),
+                    [UserProps.AccountLockedTs]: hoursAgo(2),
+                })
+            );
+            const { err } = await login(username, RightPass);
+            assert.equal(err.reasonCode, ErrorReasons.Disabled);
+            await settle();
+            assert.equal(getProp(userId, UserProps.PassHashParams), undefined);
+        });
+
+        it('is not upgraded for the right password on a locked account', async () => {
+            const props = await legacyProps();
+            const { username, userId } = addUser(
+                Object.assign(props, {
+                    [UserProps.AccountStatus]: status('locked'),
+                    [UserProps.AccountLockedPrevStatus]: status('active'),
+                    [UserProps.AccountLockedTs]: hoursAgo(0.5),
+                })
+            );
+            assert.equal(
+                (await login(username, RightPass)).err.reasonCode,
+                ErrorReasons.Locked
+            );
+            await settle();
+            assert.equal(getProp(userId, UserProps.PassHashParams), undefined);
+        });
+    });
+
     describe('a lock that has run out', () => {
         it('a wrong password locks the account again from now', async () => {
             const oldTs = hoursAgo(2);
@@ -773,6 +854,40 @@ describe('account lockout (users.failedLogin)', function () {
             assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
             //  one typo now is one failure, not the one that locks
             await failTimes(username, 1);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+        });
+    });
+
+    describe('User.inLockTransaction()', () => {
+        it('writes nothing when the work fails', async () => {
+            const { userId } = addUser();
+            const err = await new Promise(resolve =>
+                User.inLockTransaction(done => {
+                    User.persistPropertyByUserId(
+                        userId,
+                        UserProps.AccountStatus,
+                        User.AccountStatus.locked,
+                        () => done(new Error('fixture failure'))
+                    );
+                }, resolve)
+            );
+            assert.match(err.message, /fixture failure/);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+        });
+
+        it('refuses, and writes nothing for, work that does not finish in step', async () => {
+            const { userId } = addUser();
+            const err = await new Promise(resolve =>
+                User.inLockTransaction(done => {
+                    User.persistPropertyByUserId(
+                        userId,
+                        UserProps.AccountStatus,
+                        User.AccountStatus.locked
+                    );
+                    setImmediate(() => done(null));
+                }, resolve)
+            );
+            assert.ok(err);
             assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
         });
     });
