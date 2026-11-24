@@ -165,6 +165,10 @@ The keyboard interactive prompt can be customized using a `SSHPMPT.ASC` art file
 
 A caller whose login is refused because of the account (already connected on another node, disabled, waiting for activation, or locked) is told why at the login stage, then disconnected: the reason is shown through keyboard-interactive with no prompt, as for a full board (see [Limiting Connections](../index.md#limiting-connections)), and needs no key press. A caller who logged in with a password or public key is sent to keyboard-interactive to see it; a client that does not do keyboard-interactive gets an authentication failure. A locked account's answer comes after 2 seconds, as a wrong password's does. A public key query (a client asking whether a key would do, before it signs with it) is answered from the key alone and says nothing about the account.
 
+## Busy Message
+
+The message a caller sees when every node is busy, *All nodes are busy. Try again later...* by default, can be replaced with an optional `BUSY.ASC` art file, shared by all login servers. There is no user yet when a caller is turned away, so it is looked for in the default theme (`theme.default`), then in `art/general`. It is read in the background, at most once a minute while callers come in, so a new or changed file is used within about a minute. Over SSH it is shown as plain text: OpenSSH shows control characters as escapes, so ANSI sequences, pipe codes and other control characters are removed, and the text is best kept short and plain. Telnet and WebSocket callers get it as written, with pipe colour codes rendered (MCI codes are not: there is no session yet to fill them in). The terminal type is not known yet at that point, so ANSI in it reaches every telnet caller as it is.
+
 ## SSH Public Key Authentication
 
 Users can now authenticate with SSH public keys in addition to passwords. Each account may store a single OpenSSH-format public key (for example, `ssh-ed25519 AAAA... comment`).

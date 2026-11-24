@@ -11,12 +11,16 @@
 //
 //  #1081: SSH takes no terminal size from the window's size in pixels, and a
 //  login refused for the account's state is shown the way a busy board is.
+//  The busy message can come from an optional art file, BUSY.ASC.
 //
 
 const { strict: assert } = require('assert');
 const { EventEmitter } = require('events');
 const { PassThrough } = require('stream');
 const http = require('http');
+const fs = require('fs');
+const os = require('os');
+const paths = require('path');
 const _ = require('lodash');
 
 const configModule = require('../core/config.js');
@@ -87,12 +91,24 @@ describe('login servers (#1017)', function () {
     let websocket;
     let clientConns;
     let connect;
+    let artRoot;
 
     before(() => {
+        //  art directories of this file's own, empty but for what a test puts
+        //  there: no BUSY.ASC the board's art may have changes the message
+        artRoot = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-login-servers-'));
+        fs.mkdirSync(paths.join(artRoot, 'general'));
+        fs.mkdirSync(paths.join(artRoot, 'themes', 'busy_theme'), { recursive: true });
+
         config = makeConfig({
             general: { maxConnections: 1, closedSystem: false },
             users: { newUserNames: ['new'] },
             loginServers: { webSocket: { proxied: false } },
+            paths: {
+                art: paths.join(artRoot, 'general'),
+                themes: paths.join(artRoot, 'themes'),
+            },
+            theme: { default: 'busy_theme', preLogin: 'busy_theme' },
         });
         previousConfig = configModule._pushTestConfig(config);
         previousLog = loggerModule.log;
@@ -142,6 +158,7 @@ describe('login servers (#1017)', function () {
         connect.connectEntry = saved.connectEntry;
         configModule._popTestConfig(previousConfig);
         loggerModule.log = previousLog;
+        fs.rmSync(artRoot, { recursive: true, force: true });
     });
 
     //  a session already on the one node there is
@@ -676,6 +693,175 @@ describe('login servers (#1017)', function () {
                     config.loginServers.webSocket.proxied = previous;
                 }
             });
+        });
+    });
+
+    describe('every node busy: BUSY.ASC (#1081)', () => {
+        const generalArt = () => paths.join(artRoot, 'general', 'BUSY.ASC');
+        const themeArt = () => paths.join(artRoot, 'themes', 'busy_theme', 'BUSY.ASC');
+
+        const refresh = () =>
+            new Promise(resolve =>
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true }, resolve)
+            );
+
+        afterEach(async () => {
+            [generalArt(), themeArt()].forEach(f => fs.rmSync(f, { force: true }));
+            await refresh();
+        });
+
+        //  an SSH caller turned away, and what keyboard-interactive shows it
+        function sshRefusal() {
+            fillBoard();
+            const conn = makeSshConn();
+            const client = new ssh.SSHClient(conn, {
+                header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
+            });
+            new LoginServerModule().handleNewClient(client, conn._sock, ssh.moduleInfo);
+            const ctx = makeAuthCtx('keyboard-interactive');
+            conn.emit('authentication', ctx);
+            conn.emit('close');
+            assert.equal(ctx.prompts.length, 1);
+            const [prompts, , instructions] = ctx.prompts[0];
+            assert.deepEqual(prompts, [], 'no prompt');
+            return instructions;
+        }
+
+        it('without the file: the default message, and nothing above debug logged', async () => {
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), BusyMessage);
+            assert.equal(sshRefusal(), BusyMessage);
+            assert.deepEqual(
+                log.entries.filter(e => !['trace', 'debug', 'info'].includes(e.level)),
+                []
+            );
+        });
+
+        it('from the general art directory', async () => {
+            fs.writeFileSync(generalArt(), 'The board is full.\nCall back soon!\n');
+            await refresh();
+            assert.equal(
+                LoginServerModule.getAllNodesBusyMessage(),
+                'The board is full.\nCall back soon!'
+            );
+            assert.equal(sshRefusal(), 'The board is full.\nCall back soon!');
+        });
+
+        it('from the default theme before the general art directory', async () => {
+            fs.writeFileSync(generalArt(), 'general');
+            fs.writeFileSync(themeArt(), 'themed');
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('SSH: as plain text, without ANSI sequences, pipe codes or control characters', async () => {
+            fs.writeFileSync(
+                generalArt(),
+                Buffer.concat([
+                    Buffer.from('\x1b[1;31m|04Busy\x1b[0m |07now\x07\r\n'),
+                    Buffer.from('\xc4\xc4 later\r\n\r\n', 'latin1'),
+                    Buffer.from('\x1aSAUCE00 not shown'),
+                ])
+            );
+            await refresh();
+            assert.equal(sshRefusal(), 'Busy now\n\u2500\u2500 later');
+        });
+
+        it('SSH: a file with nothing to show as text still refuses, with the default message', async () => {
+            fs.writeFileSync(generalArt(), '\x1b[2J\x1b[1;1H|07\r\n');
+            await refresh();
+            assert.equal(sshRefusal(), BusyMessage);
+
+            //  ...and no other method gets past it (the board is still full)
+            const conn = makeSshConn();
+            const client = new ssh.SSHClient(conn, {
+                header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
+            });
+            new LoginServerModule().handleNewClient(client, conn._sock, ssh.moduleInfo);
+            const ctx = makeAuthCtx('password', 'new');
+            conn.emit('authentication', ctx);
+            assert.equal(ctx.accepts, 0);
+            assert.deepEqual(ctx.rejects, [['keyboard-interactive']]);
+            conn.emit('close');
+        });
+
+        it('a file that is removed again: back to the default message', async () => {
+            fs.writeFileSync(generalArt(), 'The board is full.');
+            await refresh();
+            assert.equal(
+                LoginServerModule.getAllNodesBusyMessage(),
+                'The board is full.'
+            );
+            fs.rmSync(generalArt());
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), BusyMessage);
+        });
+
+        it('is read at most once in a while, however many callers come', async () => {
+            await refresh();
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            let reads = 0;
+            theme.getThemeArt = (...args) => {
+                reads += 1;
+                return getThemeArt(...args);
+            };
+            try {
+                for (let i = 0; i < 20; i++) {
+                    LoginServerModule.refreshAllNodesBusyMessage();
+                    sshRefusal();
+                    clientConns.clientConnections.splice(
+                        clientConns.clientConnections.indexOf(occupant),
+                        1
+                    );
+                }
+                await new Promise(resolve =>
+                    LoginServerModule.refreshAllNodesBusyMessage(resolve)
+                );
+                assert.equal(reads, 0, 'read just now: not again');
+
+                //  a forced read while one is under way: just the one
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true });
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true });
+                await refresh();
+                assert.equal(reads, 1);
+            } finally {
+                theme.getThemeArt = getThemeArt;
+            }
+        });
+
+        it('telnet: the art is written, pipe colour codes rendered', async () => {
+            fs.writeFileSync(generalArt(), '|04Busy|07 now\n');
+            await refresh();
+
+            const net = require('net');
+            const server = net.createServer(socket => {
+                const client = new telnet.TelnetClient(socket);
+                client.banner();
+                new LoginServerModule().handleNewClient(
+                    client,
+                    socket,
+                    telnet.moduleInfo
+                );
+            });
+            await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+            try {
+                fillBoard();
+                const text = await new Promise((resolve, reject) => {
+                    const sock = net.connect(server.address().port, '127.0.0.1');
+                    const data = [];
+                    sock.on('data', d => data.push(d));
+                    sock.on('error', reject);
+                    sock.on('end', () => resolve(Buffer.concat(data).toString('latin1')));
+                });
+                assert.ok(text.includes('\x1b['), 'rendered: ' + JSON.stringify(text));
+                assert.ok(!text.includes('|04'), JSON.stringify(text));
+                assert.ok(text.includes('Busy'), JSON.stringify(text));
+                assert.ok(text.includes(' now'), JSON.stringify(text));
+                assert.ok(!text.includes(BusyMessage));
+            } finally {
+                await new Promise(resolve => server.close(resolve));
+            }
         });
     });
 
@@ -1308,7 +1494,7 @@ describe('login servers (#1017)', function () {
                     conn.emit('authentication', ctx);
 
                     assert.equal(factor1, 0, 'no login');
-                    assert.equal(client.refusalMessage, undefined, 'not refused');
+                    assert.ok(!client.refused, 'not refused');
                     assert.deepEqual(ctx.prompts, []);
                     if (keyResult) {
                         assert.deepEqual(ctx.rejects, [ssh.SSHClient.ValidAuthMethods]);

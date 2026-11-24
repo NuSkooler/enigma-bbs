@@ -13,6 +13,7 @@ const stringFormat = require('../../string_format.js');
 const { Errors, ErrorReasons } = require('../../enig_error.js');
 const { listenServer } = require('../../server_listen.js');
 const User = require('../../user.js');
+const { stripAllControlCodes } = require('../../string_util.js');
 
 //  deps
 const ssh2 = require('ssh2');
@@ -139,7 +140,7 @@ function SSHClient(clientConn, connInfo) {
         //  Checked before anything else, so a refused new user is not
         //  accepted either, and a caller refused at login cannot try again.
         //
-        if (self.refusalMessage) {
+        if (self.refused) {
             return showRefusal();
         }
 
@@ -609,10 +610,14 @@ function SSHClient(clientConn, connInfo) {
     //  A connection is refused once; a later call changes nothing.
     //
     this.refuseConnection = function (message) {
-        if (self.refusalMessage) {
+        if (self.refused) {
             return;
         }
-        self.refusalMessage = message;
+        self.refused = true;
+
+        //  only an art file (the busy message's) can leave nothing to show
+        self.refusalMessage =
+            SSHClient.toInstructionText(message) || LoginServerModule.AllNodesBusyMessage;
 
         //  the refusal has its own, shorter, timer
         self.clearLoginTimer();
@@ -637,6 +642,22 @@ SSHClient.ValidAuthMethods = ['password', 'keyboard-interactive', 'publickey'];
 //  other authentication methods it may try before keyboard-interactive
 SSHClient.RefusalTimeoutMs = 10000;
 SSHClient.RefusalSteerAttempts = 3;
+
+//
+//  |message| as the instruction text of a keyboard-interactive request, the
+//  form a refusal is shown in. That is plain text: OpenSSH shows a control
+//  character in it as an escape (ESC as "\033"), so ANSI sequences and pipe
+//  codes are removed, as is any other control character but a line feed or
+//  tab. A line ends with a line feed alone, and trailing blank lines go.
+//  The busy refusal's message can come from an art file (see
+//  getAllNodesBusyMessage() in core/login_server_module.js).
+//
+SSHClient.toInstructionText = function (message) {
+    return stripAllControlCodes(String(message || ''))
+        .replace(/\r\n?/g, '\n')
+        .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '') //  eslint-disable-line no-control-regex
+        .trimEnd();
+};
 
 //  How long a bad login, or a login refused for a locked account, waits for
 //  its answer, to slow down brute force attempts

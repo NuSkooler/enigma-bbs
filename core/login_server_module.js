@@ -15,6 +15,94 @@ const moment = require('moment');
 
 const AllNodesBusyMessage = 'All nodes are busy. Try again later...';
 
+//
+//  The "all nodes are busy" refusal can come from an optional art file,
+//  BUSY.ASC, looked for as any art is with no user yet: the default theme
+//  (theme.default), then the general art directory. Without one, the
+//  message is AllNodesBusyMessage. Each transport shows it as it can: a
+//  terminal (telnet, WebSocket) gets it as written, pipe colour codes
+//  rendered; SSH shows it as plain text (see SSHClient.toInstructionText()).
+//
+//  A refusal must not wait on the disk, nor may a flood of connections turn
+//  into a flood of reads: the message is kept, and read again in the
+//  background at most every BusyMessageRefreshMs, once a connection comes
+//  in after that. A file added, changed or removed is therefore seen within
+//  about that long. Any connection does it, so the message is ready by the
+//  time the board is full.
+//
+const BusyArtName = 'BUSY.ASC';
+const BusyMessageRefreshMs = 60 * 1000;
+
+const busyMessage = {
+    message: null, //  from BUSY.ASC; null for none
+    loadedAt: 0, //  Date.now() of the last read, 0 for never
+    loading: false,
+};
+
+function getAllNodesBusyMessage() {
+    return busyMessage.message || AllNodesBusyMessage;
+}
+
+//
+//  Read BUSY.ASC again if it has not been read in BusyMessageRefreshMs (or
+//  |force|), unless a read is already under way. |cb|, optional, is called
+//  once this read, or the one under way, is done (or at once if none is
+//  needed).
+//
+const busyMessageWaiters = [];
+
+function refreshAllNodesBusyMessage(options, cb) {
+    if (!cb && _.isFunction(options)) {
+        cb = options;
+        options = {};
+    }
+    options = options || {};
+
+    if (cb) {
+        busyMessageWaiters.push(cb);
+    }
+
+    const done = () => {
+        busyMessageWaiters.splice(0).forEach(waiter => waiter(null));
+    };
+
+    if (busyMessage.loading) {
+        return; //  the read under way calls |cb|
+    }
+
+    const fresh =
+        busyMessage.loadedAt > 0 &&
+        Date.now() - busyMessage.loadedAt < BusyMessageRefreshMs;
+    if (fresh && !options.force) {
+        return done();
+    }
+
+    busyMessage.loading = true;
+
+    //  late, as in prepareClient()
+    const theme = require('./theme.js');
+
+    const loaded = text => {
+        busyMessage.loading = false;
+        busyMessage.loadedAt = Date.now();
+        busyMessage.message = _.isString(text)
+            ? text.replace(/\r\n/g, '\n').trimEnd() || null
+            : null;
+        return done();
+    };
+
+    //  no client: there is no user yet, so no theme of theirs. Nor is a
+    //  missing file worth more than getThemeArt()'s own debug line.
+    try {
+        theme.getThemeArt({ name: BusyArtName, readSauce: false }, (err, artInfo) => {
+            return loaded(err ? null : _.get(artInfo, 'data'));
+        });
+    } catch (err) {
+        logger.log.debug({ error: err.message }, `Cannot read ${BusyArtName}`);
+        return loaded(null);
+    }
+}
+
 module.exports = class LoginServerModule extends ServerModule {
     constructor() {
         super();
@@ -64,6 +152,10 @@ module.exports = class LoginServerModule extends ServerModule {
 
         client.rawSocket = clientSock;
 
+        if (maxConnections > 0) {
+            refreshAllNodesBusyMessage();
+        }
+
         if (maxConnections > 0 && numConnections >= maxConnections) {
             //
             //  The client is not tracked, so it never gets the node logger
@@ -80,7 +172,7 @@ module.exports = class LoginServerModule extends ServerModule {
                 { maxConnections, numConnections },
                 'All nodes are busy; refusing connection'
             );
-            return client.refuseConnection(AllNodesBusyMessage);
+            return client.refuseConnection(getAllNodesBusyMessage());
         }
 
         client.session.serverName = modInfo.name;
@@ -221,3 +313,6 @@ function timeUpLogoff(client, cb) {
 
 module.exports.timeUpLogoff = timeUpLogoff;
 module.exports.AllNodesBusyMessage = AllNodesBusyMessage;
+module.exports.BusyArtName = BusyArtName;
+module.exports.getAllNodesBusyMessage = getAllNodesBusyMessage;
+module.exports.refreshAllNodesBusyMessage = refreshAllNodesBusyMessage;
