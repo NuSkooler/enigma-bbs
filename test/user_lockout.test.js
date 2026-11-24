@@ -178,6 +178,137 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
+    describe('the failed login count stat event', () => {
+        const LogPath = require.resolve('../core/logger.js');
+        let warnings;
+        let savedWarn;
+
+        //  run |fn| with |listener| for UserStatIncrement in place of the stub
+        async function withListener(listener, fn) {
+            const stubbedEmit = Events.emit;
+            Events.emit = (event, info) => {
+                if (Events.getSystemEvents().UserStatIncrement === event) {
+                    listener(info);
+                }
+                return true;
+            };
+            try {
+                return await fn();
+            } finally {
+                Events.emit = stubbedEmit;
+            }
+        }
+
+        beforeEach(() => {
+            warnings = [];
+            const log = require(LogPath).log;
+            savedWarn = log.warn;
+            log.warn = (fields, msg) => warnings.push({ fields, msg });
+        });
+
+        afterEach(() => {
+            require(LogPath).log.warn = savedWarn;
+        });
+
+        it('is sent once the count is stored, outside the transaction', async () => {
+            const { username, userId } = addUser({ [UserProps.FailedLoginAttempts]: 1 });
+            const seen = [];
+            await withListener(
+                info => {
+                    seen.push({
+                        statName: info.statName,
+                        statValue: info.statValue,
+                        oldValue: info.oldValue,
+                        stored: getProp(userId, UserProps.FailedLoginAttempts),
+                        inTransaction: db.inTransaction,
+                        userId: info.user.userId,
+                    });
+                },
+                () => failTimes(username, 1)
+            );
+            assert.deepEqual(seen, [
+                {
+                    statName: UserProps.FailedLoginAttempts,
+                    statValue: 2,
+                    oldValue: 1,
+                    stored: '2',
+                    inTransaction: false,
+                    userId,
+                },
+            ]);
+        });
+
+        it('a listener that throws does not undo the count nor the lock, and is logged', async () => {
+            const { username, userId } = addUser();
+            await withListener(
+                () => {
+                    throw new Error('listener failure');
+                },
+                () => failTimes(username, 3)
+            );
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+            assert.equal(warnings.length, 3);
+            assert.ok(
+                warnings.every(w => 'listener failure' === w.fields.error),
+                JSON.stringify(warnings)
+            );
+        });
+
+        it('is not sent when the transaction rolls back', async () => {
+            const { userId } = addUser();
+            const seen = [];
+            const user = new User();
+            const persist = User.prototype.persistProperties;
+            //  the lock write fails: everything is rolled back
+            User.prototype.persistProperties = function (props, cb) {
+                return cb(new Error('fixture failure'));
+            };
+            try {
+                db.prepare(
+                    'INSERT INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?)'
+                ).run(userId, UserProps.FailedLoginAttempts, '2');
+                const err = await withListener(
+                    info => seen.push(info),
+                    () => new Promise(resolve => user.processFailedLogin(userId, resolve))
+                );
+                assert.match(err.message, /fixture failure/);
+            } finally {
+                User.prototype.persistProperties = persist;
+            }
+            assert.deepEqual(seen, []);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '2');
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+        });
+
+        it('StatLog.incrementUserStat() still sends it at once', done => {
+            const user = { properties: { n: '1' } };
+            user.getPropertyAsNumber = name => parseInt(user.properties[name], 10);
+            user.persistProperty = (name, value, cb) => {
+                user.properties[name] = value;
+                return cb(null);
+            };
+            const seen = [];
+            const stubbedEmit = Events.emit;
+            Events.emit = (event, info) => seen.push({ event, info });
+            try {
+                StatLog.incrementUserStat(user, 'n', 1, err => {
+                    assert.ifError(err);
+                    //  sent before the callback, as before
+                    assert.equal(seen.length, 1);
+                    assert.equal(
+                        seen[0].event,
+                        Events.getSystemEvents().UserStatIncrement
+                    );
+                    assert.equal(seen[0].info.statValue, 2);
+                    done();
+                });
+            } finally {
+                Events.emit = stubbedEmit;
+            }
+        });
+    });
+
     it('locks an active account at the threshold, and refuses the right password then', async () => {
         const { username, userId } = addUser();
         await failTimes(username, 2);

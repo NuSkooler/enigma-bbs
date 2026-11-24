@@ -214,7 +214,28 @@ module.exports = class User {
     //  authenticateFactor1()): the lock starts again from now, so guessing
     //  stays limited.
     //
+    //  The UserStatIncrement event for the count is sent once it is stored
+    //  (the transaction has committed), and not at all if it is not: a
+    //  listener runs outside the transaction, so what it does (or throws)
+    //  cannot undo the count, nor be undone with it.
+    //
     processFailedLogin(userId, cb) {
+        let statEventInfo;
+        const afterCommit = err => {
+            //  committed: the count is stored, so the event may go
+            if (!err && statEventInfo) {
+                try {
+                    StatLog.emitUserStatIncrement(statEventInfo);
+                } catch (e) {
+                    Log.warn(
+                        { error: e.message, userId },
+                        'A failed login stat event listener threw'
+                    );
+                }
+            }
+            return cb(err);
+        };
+
         return User.inLockTransaction(cb => {
             async.waterfall(
                 [
@@ -231,11 +252,13 @@ module.exports = class User {
                         ) {
                             return callback(null, tempUser, null);
                         }
-                        return StatLog.incrementUserStat(
+                        return StatLog.incrementUserStatWithOptions(
                             tempUser,
                             UserProps.FailedLoginAttempts,
                             1,
-                            (err, failedAttempts) => {
+                            { noEvent: true },
+                            (err, failedAttempts, eventInfo) => {
+                                statEventInfo = eventInfo;
                                 return callback(err, tempUser, failedAttempts);
                             }
                         );
@@ -289,7 +312,7 @@ module.exports = class User {
                     return cb(err);
                 }
             );
-        }, cb);
+        }, afterCommit);
     }
 
     //

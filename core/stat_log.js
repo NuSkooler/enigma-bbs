@@ -278,27 +278,45 @@ class StatLog {
 
     //  cb(err, newValue)
     incrementUserStat(user, statName, incrementBy, cb) {
+        return this.incrementUserStatWithOptions(user, statName, incrementBy, {}, cb);
+    }
+
+    //
+    //  As incrementUserStat(). With |options.noEvent|, the UserStatIncrement
+    //  event is not sent: the caller is handed what it would carry, and sends
+    //  it with emitUserStatIncrement() when it is ready to (once a database
+    //  transaction the count is written in has committed, say).
+    //
+    //  cb(err, newValue, eventInfo)
+    //
+    incrementUserStatWithOptions(user, statName, incrementBy, options, cb) {
         incrementBy = incrementBy || 1;
 
         const oldValue = user.getPropertyAsNumber(statName) || 0;
         const newValue = oldValue + incrementBy;
 
         this.setUserStatWithOptions(user, statName, newValue, { noEvent: true }, err => {
-            if (!err) {
-                const Events = require('./events.js'); //  we need to late load currently
-                Events.emit(Events.getSystemEvents().UserStatIncrement, {
-                    user,
-                    statName,
-                    oldValue,
-                    statIncrementBy: incrementBy,
-                    statValue: newValue,
-                });
+            const eventInfo = {
+                user,
+                statName,
+                oldValue,
+                statIncrementBy: incrementBy,
+                statValue: newValue,
+            };
+
+            if (!err && !options.noEvent) {
+                this.emitUserStatIncrement(eventInfo);
             }
 
             if (cb) {
-                return cb(err, newValue);
+                return cb(err, newValue, eventInfo);
             }
         });
+    }
+
+    emitUserStatIncrement(eventInfo) {
+        const Events = require('./events.js'); //  we need to late load currently
+        Events.emit(Events.getSystemEvents().UserStatIncrement, eventInfo);
     }
 
     //  the time "now" in the ISO format we use and love :)
