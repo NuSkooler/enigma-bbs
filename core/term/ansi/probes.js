@@ -455,14 +455,28 @@ const isKnownDimension = value => value > 0;
 const isSaneSizeDimension = value => value >= 10 && 999 !== value && 231 !== value;
 
 //
-//  A width under 80 from the cursor position (CSI 6 n) is taken as 80:
-//  Telemate stops the cursor at column 79 though it draws column 80, and with
-//  a width of 79 every line of 80 column art would be taken to wrap. An answer
-//  to CSI 255 n is the terminal stating its screen size, and is taken as it
-//  is: a narrow web terminal (WebSocket logins send no size, so they are
-//  always probed) keeps its width. Two replies before the sentinel mean the
-//  first answers CSI 255 n; one reply is the CSI 6 n answer (no terminal
-//  answers CSI 255 n but not CSI 6 n). NAWS is never changed here.
+//  Terminals known, from their DA reply, to answer CSI 255 n with their screen
+//  size: SyncTERM and TERMinator (both CTerm), IcyTerm and enig-term. Others
+//  that answer it (NetRunner, Qmodem) send the cursor position, a CPR like
+//  any other. DA is asked in basicPrepWork and answered before the home
+//  position CPR, so the client is known by the time the size step looks at
+//  its replies.
+//
+const StatedSizeClients = new Set(['cterm', 'enig_term', 'icy_term']);
+
+const statesItsSize = client => StatedSizeClients.has(client.term.termClient);
+
+//
+//  A width under 80 from the cursor position is taken as 80: Telemate stops
+//  the cursor at column 79 though it draws column 80, and with a width of 79
+//  every line of 80 column art would be taken to wrap. Only a terminal in
+//  StatedSizeClients states its screen size in answer to CSI 255 n, and that
+//  is taken as it is: a narrow web terminal (WebSocket logins send no size,
+//  so they are always probed) keeps its width. From such a terminal two
+//  replies before the sentinel mean the first answers CSI 255 n; one reply is
+//  the CSI 6 n answer (no terminal answers CSI 255 n but not CSI 6 n). From
+//  any other terminal every reply is a cursor position, and a narrow width is
+//  taken as 80. NAWS is never changed here.
 //
 const MIN_PROBED_COLS = 80;
 
@@ -531,8 +545,9 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
             //  the first sane value of each dimension, each on its own
             let height;
             let width;
+            const statedSizeFirst = replies.length >= 2 && statesItsSize(client);
             replies.forEach(([h, w], index) => {
-                const statedSize = replies.length >= 2 && 0 === index;
+                const statedSize = statedSizeFirst && 0 === index;
                 const rows = h - rowShift;
                 const goodRows = isSaneSizeDimension(h) && rows >= 10;
                 const goodCols = isSaneSizeDimension(w);

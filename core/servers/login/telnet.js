@@ -23,6 +23,15 @@ const ModuleInfo = (exports.moduleInfo = {
     packageName: 'codes.l33t.enigma.telnet.server.v2',
 });
 
+//
+//  The smallest NAWS width and height taken as a real window. 20 columns
+//  keeps the 22 column VIC-20 and 40 column PETSCII and ATASCII clients.
+//
+const NawsMinWidth = 20;
+const NawsMinHeight = 10;
+
+const isPlausibleNawsDimension = (value, min) => Number.isInteger(value) && value >= min;
+
 class TelnetClient {
     //
     //  |listener| is set only for a connection accepted on a named listener
@@ -174,25 +183,7 @@ class TelnetClient {
                     break;
 
                 case Options.NAWS:
-                    {
-                        const { width, height } = command.optionData;
-
-                        this.term.termWidth = width;
-                        this.term.termHeight = height;
-
-                        if (width) {
-                            this.term.env.COLUMNS = width;
-                        }
-
-                        if (height) {
-                            this.term.env.ROWS = height;
-                        }
-
-                        this._logDebug(
-                            { width, height, source: 'NAWS' },
-                            'Windows size updated'
-                        );
-                    }
+                    this._handleNaws(command.optionData);
                     break;
 
                 default:
@@ -299,6 +290,60 @@ class TelnetClient {
         this.socket.do.ttype();
         this.socket.do.naws();
         this.socket.do.new_environ();
+    }
+
+    //
+    //  A NAWS window size (RFC 1073). Each dimension is taken on its own. A 0
+    //  means the client gives none for it (RFC 1073). One too small to be a
+    //  real window is not trusted: Windows telnet.exe sends only the low byte
+    //  of each, so a 270x72 window arrives as 14x72. A dimension not taken
+    //  keeps what the terminal has: at connect that is 0, and the connect
+    //  size probe measures it (see core/term/ansi/probes.js); later it is the
+    //  size already in use.
+    //
+    _handleNaws(optionData) {
+        const { width, height } = optionData || {};
+
+        const widthOk = isPlausibleNawsDimension(width, NawsMinWidth);
+        const heightOk = isPlausibleNawsDimension(height, NawsMinHeight);
+
+        const reasons = [];
+        if (!widthOk && width > 0) {
+            reasons.push(`width ${width} is under ${NawsMinWidth} columns`);
+        }
+        if (!heightOk && height > 0) {
+            reasons.push(`height ${height} is under ${NawsMinHeight} rows`);
+        }
+        if (reasons.length > 0) {
+            const log = this.log || Log;
+            log.info(
+                { width, height, source: 'NAWS' },
+                `Telnet: Ignoring implausible window size: ${reasons.join(
+                    ', '
+                )} (Windows telnet sends only the low byte of each dimension)`
+            );
+        }
+
+        if (widthOk) {
+            this.term.termWidth = width;
+            this.term.env.COLUMNS = width;
+        }
+
+        if (heightOk) {
+            this.term.termHeight = height;
+            this.term.env.ROWS = height;
+        }
+
+        if (widthOk || heightOk) {
+            this._logDebug(
+                {
+                    width: widthOk ? width : undefined,
+                    height: heightOk ? height : undefined,
+                    source: 'NAWS',
+                },
+                'Windows size updated'
+            );
+        }
     }
 
     _logTrace(info, msg) {

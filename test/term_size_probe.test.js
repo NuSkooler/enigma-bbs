@@ -16,14 +16,18 @@ const async = require('async');
 //  Config() through the getter captured when they were first required, which
 //  may be any test's config by now. They are required afresh here, under a
 //  config pushed for this suite, and the cached copies are put back after.
+//  core/servers/login/telnet.js is too, so its TelnetClient is built on the
+//  fresh core/client.js.
 //
 const FreshModules = [
     '../core/term/ansi/probes.js',
     '../core/client_term.js',
     '../core/client.js',
+    '../core/servers/login/telnet.js',
 ].map(m => require.resolve(m));
 
 const CTERM_DA = '\x1b[=67;84;101;114;109;1;316c';
+const ENIG_TERM_DA = '\x1b[=101;110;105;103;45;116;101;114;109;0;1;0c';
 
 //
 //  A terminal on the other end of a real Client: it reads what the probes
@@ -39,6 +43,8 @@ const CTERM_DA = '\x1b[=67;84;101;114;109;1;316c';
 //      telix   like vt, every row reported one too high
 //      qmodem  ignores a cursor move beyond the screen, answers CSI 255 n
 //              with the cursor position, prints a font selection as text
+//      netrunner  like normal, but CSI 255 n is answered with the cursor
+//              position, as CSI 6 n is (no DA identity)
 //
 //  |lateMs| delays every answer; |bytewise| sends each byte on its own;
 //  |cterm| answers CSI < c and CSI = 6 n as SyncTERM does; |zeroBased|
@@ -113,6 +119,7 @@ function makeTerminal(client, opts) {
                 pos = '255n' === kind ? null : [cur.row + 1, cur.col];
                 break;
             case 'qmodem':
+            case 'netrunner':
                 pos = [cur.row, cur.col];
                 break;
         }
@@ -443,7 +450,10 @@ describe('ANSI terminal size probe', function () {
     describe('replies recorded from DOS terminals, and narrow terminals', () => {
         const recorded = (name, script, expected, extra = {}) =>
             it(`${name}: ${expected[0]}x${expected[1]}`, done => {
-                const { client } = connect({ script: script.slice(), ...extra });
+                const { client } = connect(
+                    { script: script.slice(), ...extra },
+                    { da: extra.da }
+                );
                 runProbes(client, elapsed => {
                     assert.deepEqual(sizeOf(client), expected);
                     assert(elapsed < 1500, `no timeout (${elapsed}ms)`);
@@ -467,11 +477,33 @@ describe('ANSI terminal size probe', function () {
         //  the cursor stops at column 79, though column 80 is drawn
         recorded('Telemate 4.21', ['1;1', null, '24;79', '1;5', '1;2'], [80, 24]);
         //  a narrow terminal stating its size (CSI 255 n), then the cursor
-        //  position (CSI 6 n): the stated width is kept
+        //  position (CSI 6 n): the stated width is kept, as it identified
+        //  itself (DA) as a terminal that states its size
         recorded(
-            'a 50 column web terminal',
+            'a 50 column web terminal (enig-term)',
             ['1;1', '25;50', '25;50', '1;5', '1;1'],
-            [50, 25]
+            [50, 25],
+            {
+                da: ENIG_TERM_DA,
+                check: client => assert.equal(client.term.termClient, 'enig_term'),
+            }
+        );
+        recorded(
+            'a 50 column CTerm terminal',
+            ['1;1', '25;50', '25;50', '1;5', '1;1'],
+            [50, 25],
+            {
+                da: CTERM_DA,
+                check: client => assert.equal(client.term.termClient, 'cterm'),
+            }
+        );
+        //  the same replies from a terminal that did not identify itself:
+        //  both may be cursor positions (NetRunner answers CSI 255 n with
+        //  one), so the narrow width is taken as 80
+        recorded(
+            'the same replies with no DA identity',
+            ['1;1', '25;50', '25;50', '1;5', '1;1'],
+            [80, 25]
         );
         //  a 50 column answer to CSI 6 n alone may be a clamped cursor: 80
         recorded(
@@ -489,6 +521,18 @@ describe('ANSI terminal size probe', function () {
                 assert(sent(client).includes(' D'), 'the font probe is still sent');
                 assert.equal(client.term.syncTermFontsEnabled, false);
             },
+        });
+    });
+
+    it('NetRunner-like (no DA, CSI 255 n answered with the cursor position) at 50 columns: 80', done => {
+        const { client, terminal } = connect({ cpr: 'netrunner', rows: 25, cols: 50 });
+        runProbes(client, elapsed => {
+            assert.deepEqual(sizeOf(client), [80, 25]);
+            assert(elapsed < 1000, `no timeout (${elapsed}ms)`);
+            assert.equal(client.term.termClient, 'unknown');
+            //  home, CSI 255 n, CSI 6 n, the sentinel, the font probe
+            assert.deepEqual(terminal.queries, ['6n', '255n', '6n', '6n', '6n']);
+            return done();
         });
     });
 
@@ -586,8 +630,8 @@ describe('ANSI terminal size probe', function () {
         });
     });
     describe('telnet NAWS', () => {
-        //  ClientTerminal's size setters take positive values only
-        it('a dimension of 0 never replaces a known one', () => {
+        //  a real TelnetClient over a stand-in socket; NAWS arrives as bytes
+        function telnetClient() {
             const { EventEmitter } = require('events');
             const telnet = require('../core/servers/login/telnet.js');
             const rawSocket = new EventEmitter();
@@ -595,7 +639,21 @@ describe('ANSI terminal size probe', function () {
             rawSocket.end = () => {};
             const client = new telnet.TelnetClient(rawSocket);
             clients.push(client);
-            const naws = (w, h) =>
+            client.session = { id: 1 }; //  client.node
+            client.logged = [];
+            client.warnings = [];
+            const capture = level => (obj, msg) =>
+                client.logged.push({ level, obj, msg });
+            client.log = {
+                info: capture('info'),
+                debug: capture('debug'),
+                trace: capture('trace'),
+                warn: (obj, msg) => {
+                    client.warnings.push(msg);
+                    capture('warn')(obj, msg);
+                },
+            };
+            client.naws = (w, h) =>
                 rawSocket.emit(
                     'data',
                     Buffer.from([
@@ -610,22 +668,135 @@ describe('ANSI terminal size probe', function () {
                         240,
                     ])
                 );
+            client.sizeUpdates = () =>
+                client.logged.filter(l => /Windows size updated/.test(l.msg));
+            return client;
+        }
+
+        //  a terminal on the other end of |client|, as connect() sets up
+        function attachTerminal(client, terminalOpts) {
+            client.writes = [];
+            const terminal = makeTerminal(client, terminalOpts);
+            client.term.rawWrite = s => {
+                client.writes.push(s);
+                terminal.write(s);
+            };
+            client.term.write = client.term.rawWrite;
+            client.term.writeUnfilteredRip = client.term.rawWrite;
+            return terminal;
+        }
+
+        //  ClientTerminal's size setters take positive values only
+        it('a dimension of 0 never replaces a known one', () => {
+            const client = telnetClient();
             try {
                 //  before the connect probes: 80x0 gives the width only
-                naws(80, 0);
+                client.naws(80, 0);
                 assert.deepEqual(sizeOf(client), [80, 0]);
 
                 //  after them (a probed or default height): kept
                 client.term.termHeight = 25;
-                naws(132, 0);
+                client.naws(132, 0);
                 assert.deepEqual(sizeOf(client), [132, 25]);
                 assert.deepEqual(client.term.env, { COLUMNS: 132 });
 
                 //  a real size is taken as always
-                naws(100, 40);
+                client.naws(100, 40);
                 assert.deepEqual(sizeOf(client), [100, 40]);
             } finally {
                 client.emit('end'); //  clears the terminal type timer
+            }
+        });
+
+        it('80x24 and 40x25 are taken as they are', () => {
+            const client = telnetClient();
+            try {
+                client.naws(80, 24);
+                assert.deepEqual(sizeOf(client), [80, 24]);
+                assert.deepEqual(client.term.env, { COLUMNS: 80, ROWS: 24 });
+
+                client.naws(40, 25);
+                assert.deepEqual(sizeOf(client), [40, 25]);
+                assert.deepEqual(client.term.env, { COLUMNS: 40, ROWS: 25 });
+
+                assert.equal(client.sizeUpdates().length, 2);
+                assert(
+                    !client.logged.some(l => /implausible/i.test(l.msg)),
+                    'nothing ignored'
+                );
+            } finally {
+                client.emit('end');
+            }
+        });
+
+        it('Windows telnet 14x72 (a 270 column window) at connect: the probe measures the width, the height is kept', done => {
+            const client = telnetClient();
+            client.naws(14, 72);
+            assert.deepEqual(sizeOf(client), [0, 72], 'the width is not taken');
+            assert.deepEqual(client.term.env, { ROWS: 72 });
+            const ignored = client.logged.filter(l => /implausible/i.test(l.msg));
+            assert.equal(ignored.length, 1);
+            assert.equal(ignored[0].obj.width, 14);
+            assert.equal(ignored[0].obj.height, 72);
+
+            //  Windows telnet ignores CSI 255 n and answers CSI 6 n
+            const terminal = attachTerminal(client, { cpr: 'vt', rows: 72, cols: 270 });
+            runProbes(client, elapsed => {
+                try {
+                    assert.deepEqual(sizeOf(client), [270, 72]);
+                    assert(elapsed < 1000, `no timeout (${elapsed}ms)`);
+                    assert(terminal.queries.includes('255n'), 'the size query was sent');
+                    return done();
+                } catch (e) {
+                    return done(e);
+                } finally {
+                    client.emit('end');
+                }
+            });
+        });
+
+        it('a mid-session resize to 14 wide keeps the previous width', () => {
+            const client = telnetClient();
+            try {
+                client.naws(132, 50);
+                client.naws(14, 60);
+                assert.deepEqual(sizeOf(client), [132, 60]);
+                assert.deepEqual(client.term.env, { COLUMNS: 132, ROWS: 60 });
+
+                //  nothing usable at all: nothing changes, no size update logged
+                const updates = client.sizeUpdates().length;
+                client.naws(14, 5);
+                assert.deepEqual(sizeOf(client), [132, 60]);
+                assert.equal(client.sizeUpdates().length, updates);
+            } finally {
+                client.emit('end');
+            }
+        });
+
+        it('a NAWS with no usable size changes nothing and logs no size update', () => {
+            const { TelnetSpec } = require('telnet-socket');
+            const client = telnetClient();
+            try {
+                client.naws(80, 25);
+                const before = client.sizeUpdates().length;
+
+                //  a malformed NAWS reaches the handler with no width or height
+                client.socket.emit('SB', {
+                    option: TelnetSpec.Options.NAWS,
+                    optionData: {},
+                });
+                //  and one with a 5 byte payload, as bytes: telnet-socket hands
+                //  the handler its parse Error as the optionData
+                client.socket.rawSocket.emit(
+                    'data',
+                    Buffer.from([255, 250, 31, 0, 80, 0, 25, 0, 255, 240])
+                );
+
+                assert.deepEqual(sizeOf(client), [80, 25]);
+                assert.deepEqual(client.term.env, { COLUMNS: 80, ROWS: 25 });
+                assert.equal(client.sizeUpdates().length, before);
+            } finally {
+                client.emit('end');
             }
         });
     });
