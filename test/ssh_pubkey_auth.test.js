@@ -945,6 +945,64 @@ describe('SSH public key authentication', function () {
         });
     });
 
+    describe('a keyboard-interactive prompt the client abandons', () => {
+        it('is no login attempt, and is not counted', async () => {
+            //  a user with a password, so that a login attempt would count
+            const info = await new Promise((resolve, reject) =>
+                User.generatePasswordDerivedKeyAndSalt('a-password', (err, i) =>
+                    err ? reject(err) : resolve(i)
+                )
+            );
+            const user = addUser({
+                props: {
+                    [UserProps.PassPbkdf2Salt]: info.salt,
+                    [UserProps.PassPbkdf2Dk]: info.dk,
+                    [UserProps.PassHashParams]: JSON.stringify(User.PBKDF2),
+                },
+            });
+            const result = await new Promise(resolve => {
+                const out = { ready: false };
+                const sshClient = new ssh2.Client();
+                let asked = false;
+                sshClient.on('ready', () => {
+                    out.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (out.error = err.message));
+                sshClient.on('close', () => {
+                    out.serverClient = serverClients[serverClients.length - 1];
+                    resolve(out);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username: user.username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        if (asked) {
+                            return cb(false);
+                        }
+                        asked = true;
+                        return cb({
+                            type: 'keyboard-interactive',
+                            username: user.username,
+                            //  asked for the password: another request instead
+                            prompt: () => {
+                                sshClient._protocol.authNone(user.username);
+                                setTimeout(() => sshClient.end(), 300);
+                            },
+                        });
+                    },
+                });
+            });
+            //  any login attempt would have finished by now
+            await tick(500);
+            assertNoLogin(result);
+            assert.equal(result.serverClient.sessionFailedLoginAttempts, undefined);
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), undefined);
+        });
+    });
+
     describe('SSHClient.isPubKeyBlobFor()', () => {
         const blobWith = (algo, rest) => {
             const name = Buffer.from(algo);

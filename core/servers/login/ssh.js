@@ -296,6 +296,15 @@ function SSHClient(clientConn, connInfo) {
             };
 
             ctx.prompt(interactivePrompt, function retryPrompt(answers) {
+                //
+                //  ssh2 calls back with an Error, not answers, when the
+                //  client abandons the prompt for another request: there is
+                //  no password, so no login attempt, and nothing to answer.
+                //
+                if (!Array.isArray(answers)) {
+                    return;
+                }
+
                 userLogin(self, username, answers[0] || '', err => {
                     if (err) {
                         if (isClientEnded(err)) {
