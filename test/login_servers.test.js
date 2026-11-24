@@ -99,6 +99,7 @@ describe('login servers (#1017)', function () {
         artRoot = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-login-servers-'));
         fs.mkdirSync(paths.join(artRoot, 'general'));
         fs.mkdirSync(paths.join(artRoot, 'themes', 'busy_theme'), { recursive: true });
+        fs.mkdirSync(paths.join(artRoot, 'themes', 'busy_prelogin'));
 
         config = makeConfig({
             general: { maxConnections: 1, closedSystem: false },
@@ -108,7 +109,7 @@ describe('login servers (#1017)', function () {
                 art: paths.join(artRoot, 'general'),
                 themes: paths.join(artRoot, 'themes'),
             },
-            theme: { default: 'busy_theme', preLogin: 'busy_theme' },
+            theme: { default: 'busy_theme', preLogin: 'busy_prelogin' },
         });
         previousConfig = configModule._pushTestConfig(config);
         previousLog = loggerModule.log;
@@ -699,15 +700,134 @@ describe('login servers (#1017)', function () {
     describe('every node busy: BUSY.ASC (#1081)', () => {
         const generalArt = () => paths.join(artRoot, 'general', 'BUSY.ASC');
         const themeArt = () => paths.join(artRoot, 'themes', 'busy_theme', 'BUSY.ASC');
+        const preLoginArt = () =>
+            paths.join(artRoot, 'themes', 'busy_prelogin', 'BUSY.ASC');
 
         const refresh = () =>
             new Promise(resolve =>
                 LoginServerModule.refreshAllNodesBusyMessage({ force: true }, resolve)
             );
 
+        //
+        //  The themes this file's art directories hold, as the loaded themes
+        //  would list them: another test file may have loaded the real ones,
+        //  and these would not be among them.
+        //
+        let savedGetAvailableThemes;
+        const availableThemes = ids => {
+            require('../core/theme.js').getAvailableThemes = () =>
+                new Map(ids.map(id => [id, {}]));
+        };
+
+        beforeEach(() => {
+            savedGetAvailableThemes = require('../core/theme.js').getAvailableThemes;
+            availableThemes(['busy_theme', 'busy_prelogin']);
+        });
+
         afterEach(async () => {
-            [generalArt(), themeArt()].forEach(f => fs.rmSync(f, { force: true }));
+            [generalArt(), themeArt(), preLoginArt()].forEach(f =>
+                fs.rmSync(f, { force: true })
+            );
+            config.theme.preLogin = 'busy_prelogin';
             await refresh();
+            require('../core/theme.js').getAvailableThemes = savedGetAvailableThemes;
+        });
+
+        it('from the pre-login theme before the default theme', async () => {
+            fs.writeFileSync(generalArt(), 'general');
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'pre-login');
+        });
+
+        it('from the pre-login theme before the themes are loaded', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            require('../core/theme.js').getAvailableThemes = () => {
+                throw new TypeError('no theme manager yet');
+            };
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'pre-login');
+        });
+
+        it('not from the pre-login theme when it is a random pick, "*"', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            config.theme.preLogin = '*';
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('not from a pre-login theme that is not available', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            availableThemes(['busy_theme']);
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('a pre-login theme with no such directory: on to the default theme', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            availableThemes(['busy_theme', 'no_such_theme']);
+            config.theme.preLogin = 'no_such_theme';
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('a read that never finishes is given up on, and its late answer ignored', async () => {
+            await refresh();
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            const realNow = Date.now;
+            let reads = 0;
+            let hungCb;
+            theme.getThemeArt = (opts, cb) => {
+                reads += 1;
+                hungCb = cb; //  never called back
+            };
+            try {
+                Date.now = () => realNow() + 2 * 60 * 1000; //  stale
+                LoginServerModule.refreshAllNodesBusyMessage();
+                LoginServerModule.refreshAllNodesBusyMessage();
+                assert.equal(reads, 1, 'one read under way');
+
+                //  much later, still nothing: read again
+                Date.now = () => realNow() + 4 * 60 * 1000;
+                theme.getThemeArt = (opts, cb) => {
+                    reads += 1;
+                    cb(null, { data: 'second read' });
+                };
+                await new Promise(resolve =>
+                    LoginServerModule.refreshAllNodesBusyMessage(resolve)
+                );
+                assert.equal(reads, 2);
+                assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'second read');
+
+                hungCb(null, { data: 'first read, late' });
+                assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'second read');
+            } finally {
+                Date.now = realNow;
+                theme.getThemeArt = getThemeArt;
+            }
+        });
+
+        it('a read that answers at once is taken once, whatever its waiters do', async () => {
+            await refresh();
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            theme.getThemeArt = (opts, cb) => cb(null, { data: 'at once' });
+            let calls = 0;
+            try {
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true }, () => {
+                    calls += 1;
+                    throw new Error('a waiter that throws');
+                });
+            } finally {
+                theme.getThemeArt = getThemeArt;
+            }
+            assert.equal(calls, 1);
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'at once');
         });
 
         //  an SSH caller turned away, and what keyboard-interactive shows it

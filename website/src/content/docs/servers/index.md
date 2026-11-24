@@ -29,7 +29,8 @@ blocked over plain Telnet.
 login server (`0`, the default, means no limit). A caller who connects while
 the board is full is not given a node, and is turned away with
 *All nodes are busy. Try again later...*, or the text of an optional
-`BUSY.ASC` art file in the default theme or `art/general` (see
+`BUSY.ASC` art file in the pre-login theme, the default theme or
+`art/general` (see
 [Busy Message](loginservers/ssh.md#busy-message)):
 
 - **Telnet:** the message, then the connection is closed.
