@@ -386,8 +386,9 @@ function decode(data, host, emit) {
 //  rest of the chunk is decoded at once. Any ESC bytes straight before the
 //  ESC [ are held with it, as decode() reads a run of them as one sequence.
 //  Nothing else is held: not a lone ESC (the Escape key, delivered at once
-//  as always), not ESC O, not ESC and any other byte. A key never ends in an
-//  unfinished CSI, so no key that decodes today is delayed.
+//  as always, except while a reply is awaited: below), not ESC O, not ESC
+//  and any other byte. A key never ends in an unfinished CSI, so no key that
+//  decodes today is delayed.
 //
 //  The next chunk:
 //
@@ -396,6 +397,15 @@ function decode(data, host, emit) {
 //                              an unfinished tail of that is held in turn)
 //      anything else           the held bytes are decoded on their own, then
 //                              the chunk as the object it arrived as
+//
+//  While the session waits for a reply to a query (holdLoneEsc(true), set by
+//  the connect probes around each cursor position query), a lone ESC at the
+//  end of a chunk is held too, with any ESC bytes before it: a terminal that
+//  sends its reply a byte at a time (one TCP packet per byte, as DOS
+//  terminals behind an emulated modem can) starts it with a chunk that is
+//  ESC alone, which would otherwise be the Escape key, and the rest of the
+//  reply keys. An Escape key pressed in that window arrives up to holdMs
+//  late. Outside it nothing changes.
 //
 //  When nothing comes within holdMs (default 100) the held bytes are decoded
 //  on their own: what decode() gives for them today, a little later. The
@@ -441,6 +451,7 @@ function createCsiTailHolder({ holdMs, onError }) {
     let heldEmit = null;
     let timer = null;
     let disposed = false;
+    let holdingLoneEsc = false;
 
     const cancelTimer = () => {
         if (timer) {
@@ -479,7 +490,13 @@ function createCsiTailHolder({ holdMs, onError }) {
     //  |data| is what feed() was given, |buf| the bytes to look at: the same
     //  bytes, or held bytes joined with them
     function decodeHoldingTail(buf, data, host, emit) {
-        const at = unfinishedCsiStart(buf);
+        let at = unfinishedCsiStart(buf);
+        if (-1 === at && holdingLoneEsc && ESC === buf[buf.length - 1]) {
+            at = buf.length - 1;
+            while (at > 0 && ESC === buf[at - 1]) {
+                --at;
+            }
+        }
         if (
             -1 === at ||
             buf.length - at > MAX_HELD_CSI_BYTES ||
@@ -530,7 +547,11 @@ function createCsiTailHolder({ holdMs, onError }) {
         takeHeld();
     }
 
-    return { feed, dispose };
+    function holdLoneEsc(hold) {
+        holdingLoneEsc = !!hold;
+    }
+
+    return { feed, dispose, holdLoneEsc };
 }
 
 //
@@ -579,6 +600,10 @@ function createAnsiInputDecoder(options = {}) {
     return {
         expectRipReply() {
             ripReplies.expectReply();
+        },
+        //  true while a reply to a query is awaited: see createCsiTailHolder()
+        holdLoneEsc(hold) {
+            csiTail.holdLoneEsc(hold);
         },
         decode(data, host, emit) {
             lastHost = host;

@@ -15,8 +15,9 @@ const async = require('async');
 //  core/term/ansi/probes.js reads Config().term through the config getter
 //  captured when it was first required, during mocha's load phase, as this
 //  is: the same object (test/setup.js's minimal config). Its term settings
-//  (read by ClientTerminal too, which captures its getter the same way) are
-//  set before each test and put back in after().
+//  (read by ClientTerminal too, which captures its getter the same way) and
+//  logging (read by client.js) are set before each test and put back in
+//  after().
 //
 const loadTimeConfig = require('../core/config.js').get();
 
@@ -162,32 +163,39 @@ describe('ANSI terminal size probe', function () {
     let ClientTerminal;
     let Events;
     let Probes;
-    let savedTerm;
+    //  the config sections set for these tests, as they were before
+    let saved;
 
     before(() => {
         ClientModule = require('../core/client.js');
         ClientTerminal = require('../core/client_term.js').ClientTerminal;
         Events = require('../core/events.js');
         Probes = require('../core/term/ansi/probes.js');
-        savedTerm = loadTimeConfig.term;
+        saved = { term: loadTimeConfig.term, logging: loadTimeConfig.logging };
     });
 
     beforeEach(() => {
-        loadTimeConfig.term = Object.assign({}, savedTerm, {
+        loadTimeConfig.term = Object.assign({}, saved.term, {
             checkAnsiHomePosition: true,
             checkUtf8Encoding: true,
             probeUtf8Encoding: false,
             utf8TermList: [],
             cp437TermList: [],
         });
+        //  read by client.js for each key press
+        loadTimeConfig.logging = Object.assign({}, saved.logging, {
+            traceUserKeyboardInput: false,
+        });
     });
 
     after(() => {
-        if (undefined === savedTerm) {
-            delete loadTimeConfig.term;
-        } else {
-            loadTimeConfig.term = savedTerm;
-        }
+        Object.keys(saved).forEach(section => {
+            if (undefined === saved[section]) {
+                delete loadTimeConfig[section];
+            } else {
+                loadTimeConfig[section] = saved[section];
+            }
+        });
     });
 
     const clients = [];
@@ -384,6 +392,55 @@ describe('ANSI terminal size probe', function () {
                 '\x1b[1;1H\x1b[0;0 D\x1b[6n', //  the SyncTERM font probe
             ]);
             return done();
+        });
+    });
+
+    describe('a terminal that sends its replies a byte at a time', () => {
+        it('has every reply read, and none of it taken as keys', done => {
+            const { client } = connect({
+                cpr: 'normal',
+                rows: 30,
+                cols: 90,
+                bytewise: true,
+            });
+            const keys = [];
+            client.on('key press', (ch, key) => keys.push(ch || (key && key.name)));
+            runProbes(client, elapsed => {
+                assert.deepEqual(sizeOf(client), [90, 30]);
+                assert(elapsed < 1500, `no timeout (${elapsed}ms)`);
+                assert.deepEqual(keys, []);
+                return done();
+            });
+        });
+
+        it('the decoder holds a lone ESC only while a reply is awaited', () => {
+            const {
+                createAnsiInputDecoder,
+            } = require('../core/term/ansi/input_decoder.js');
+            const decoder = createAnsiInputDecoder();
+            const events = [];
+            const host = { isNixTerm: () => false };
+            const feed = text =>
+                decoder.decode(Buffer.from(text, 'latin1'), host, (name, ...args) =>
+                    events.push([name, 'key press' === name ? args[1].name : args[0]])
+                );
+            try {
+                //  not waiting: ESC alone is the Escape key, at once
+                feed('\x1b');
+                assert.deepEqual(events, [['key press', 'escape']]);
+                events.length = 0;
+
+                decoder.holdLoneEsc(true);
+                '\x1b[25;80R'.split('').forEach(feed);
+                assert.deepEqual(events, [['cursor position report', [25, 80]]]);
+                events.length = 0;
+
+                decoder.holdLoneEsc(false);
+                feed('\x1b');
+                assert.deepEqual(events, [['key press', 'escape']]);
+            } finally {
+                decoder.dispose();
+            }
         });
     });
 

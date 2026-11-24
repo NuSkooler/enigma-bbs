@@ -79,6 +79,18 @@ const CPR_TIMEOUT_MS = 2000;
 //  last one wanted. |cb(err)|: err on a timeout, or when the probe is skipped
 //  because an earlier one timed out (nothing is sent then).
 //
+//  While it waits, the input decoder holds a lone ESC at the end of a chunk,
+//  for a terminal that sends its reply a byte at a time (see
+//  createCsiTailHolder() in input_decoder.js).
+//
+const holdLoneEsc = (client, hold) => {
+    const emulation = client.term.emulation;
+    const decoder = emulation && emulation.inputDecoder;
+    if (decoder && 'function' === typeof decoder.holdLoneEsc) {
+        decoder.holdLoneEsc(hold);
+    }
+};
+
 const awaitCursorPositionReports = (client, onReport, failMessage, sendQueries, cb) => {
     if (cprUnanswered.has(client)) {
         return cb(
@@ -91,6 +103,7 @@ const awaitCursorPositionReports = (client, onReport, failMessage, sendQueries, 
     const done = function (err) {
         client.removeListener('cursor position report', cprListener);
         clearTimeout(giveUpTimer);
+        holdLoneEsc(client, false);
         return cb(err);
     };
 
@@ -101,6 +114,7 @@ const awaitCursorPositionReports = (client, onReport, failMessage, sendQueries, 
     };
 
     client.on('cursor position report', cprListener);
+    holdLoneEsc(client, true);
 
     giveUpTimer = setTimeout(() => {
         cprUnanswered.add(client);
