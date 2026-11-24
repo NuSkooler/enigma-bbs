@@ -414,7 +414,7 @@ function SSHClient(clientConn, connInfo) {
 
         //
         //  Note that if we fail here, connect.js attempts some non-standard
-        //  queries/etc., and ultimately will default to 80x24 if all else fails
+        //  queries/etc., and ultimately will default to 80x25 if all else fails
         //
         if (termHeight > 0 && termWidth > 0) {
             self.term.termHeight = termHeight;

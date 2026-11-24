@@ -166,6 +166,11 @@ function Client(/*input, output*/) {
                 cprArgs[0] = cprArgs[0] + self.cprOffset;
                 cprArgs[1] = cprArgs[1] + self.cprOffset;
             }
+            //  a terminal that reports column;row (Terminate), found by the
+            //  size probe's sentinel: see core/term/ansi/probes.js
+            if (self.cprTransposed) {
+                cprArgs.reverse();
+            }
             self.emit('cursor position report', cprArgs);
         },
 

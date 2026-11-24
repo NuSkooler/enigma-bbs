@@ -35,26 +35,109 @@ const wantsCtermQueries = client => CtermQueryClients.has(client.term.termClient
 //  true once the terminal has answered CSI < c
 const ctdaAnswered = client => Array.isArray(client.term.termCapabilities.ctda);
 
-const withCursorPositionReport = (client, cprHandler, failMessage, cb) => {
+//
+//  Telling replies to the CPR probes apart
+//  ---------------------------------------
+//  Every reply to a cursor position query (CSI 6 n, and the ANSI-BBS screen
+//  size query CSI 255 n) is a CPR, CSI row ; col R, and nothing in it says
+//  which query it answers. Terminals do answer in order, so a probe that
+//  takes exactly the replies to its own queries leaves the next probe its
+//  own. Two things broke that:
+//
+//  * A probe that gave up after its 2s left its reply on the way; when it
+//    came, the next probe took it as its own answer. A late 1;1 taken by the
+//    SyncTERM font probe (which decides on column 1) turns fonts on for a
+//    terminal that prints the font sequence as text (Qmodem).
+//  * A probe can get more replies than it asked for: the size query asks
+//    two questions (CSI 255 n, CSI 6 n) and some terminals answer both
+//    (SyncTERM), others one.
+//
+//  So:
+//
+//  * Once any CPR probe has gone unanswered, no later CPR probe is sent: on
+//    a terminal that knows CPR every probe ends in a plain CSI 6 n, which it
+//    answers at once, so a timeout means it does not answer CSI 6 n at all
+//    (or not within 2s), and a later probe would only wait 2s more or take
+//    the late reply for its own. This is what a terminal without CPR has
+//    always got: the home position probe timed out and the remaining probes
+//    were skipped. Now the size default (80x25) is still applied after it.
+//  * A probe that can get a varying number of replies ends its queries with
+//    a sentinel: a CSI 6 n at a position none of the other replies can have,
+//    recognised by its column. Everything up to the sentinel is that
+//    probe's (see ansiQueryTermSizeIfNeeded).
+//
+//  Replies are matched after core/client.js has applied a home position
+//  offset (client.cprOffset), so all of this is in 1-based positions, and
+//  after it has swapped a reply from a terminal found to report column;row
+//  (client.cprTransposed, set by the size probe).
+//
+const cprUnanswered = new WeakSet(); //  clients with a CPR probe that timed out
+
+const CPR_TIMEOUT_MS = 2000;
+
+//
+//  Wait for the replies to the cursor position queries that |sendQueries|
+//  writes. |onReport(pos)| sees each one and returns true when it was the
+//  last one wanted. |cb(err)|: err on a timeout, or when the probe is skipped
+//  because an earlier one timed out (nothing is sent then).
+//
+//  While it waits, the input decoder holds a lone ESC at the end of a chunk,
+//  for a terminal that sends its reply a byte at a time (see
+//  createCsiTailHolder() in input_decoder.js).
+//
+const holdLoneEsc = (client, hold) => {
+    const emulation = client.term.emulation;
+    const decoder = emulation && emulation.inputDecoder;
+    if (decoder && 'function' === typeof decoder.holdLoneEsc) {
+        decoder.holdLoneEsc(hold);
+    }
+};
+
+const awaitCursorPositionReports = (client, onReport, failMessage, sendQueries, cb) => {
+    if (cprUnanswered.has(client)) {
+        return cb(
+            Errors.General(`${failMessage}: skipped, an earlier CPR went unanswered`)
+        );
+    }
+
     let giveUpTimer;
 
     const done = function (err) {
         client.removeListener('cursor position report', cprListener);
         clearTimeout(giveUpTimer);
+        holdLoneEsc(client, false);
         return cb(err);
     };
 
     const cprListener = pos => {
-        cprHandler(pos);
-        return done(null);
+        if (onReport(pos)) {
+            return done(null);
+        }
     };
 
-    client.once('cursor position report', cprListener);
+    client.on('cursor position report', cprListener);
+    holdLoneEsc(client, true);
 
-    //  give up after 2s
     giveUpTimer = setTimeout(() => {
+        cprUnanswered.add(client);
         return done(Errors.General(failMessage));
-    }, 2000);
+    }, CPR_TIMEOUT_MS);
+
+    sendQueries();
+};
+
+//  A probe asking for one CPR
+const withCursorPositionReport = (client, cprHandler, failMessage, sendQuery, cb) => {
+    return awaitCursorPositionReports(
+        client,
+        pos => {
+            cprHandler(pos);
+            return true;
+        },
+        failMessage,
+        sendQuery,
+        cb
+    );
 };
 
 function ansiDiscoverHomePosition(client, cb) {
@@ -93,10 +176,9 @@ function ansiDiscoverHomePosition(client, cb) {
             }
         },
         'ANSI query home position timed out',
+        () => client.term.write(`${ansi.goHome()}${ansi.queryPos()}`), //  go home, query pos
         cb
     );
-
-    client.term.write(`${ansi.goHome()}${ansi.queryPos()}`); //  go home, query pos
 }
 
 function ansiAttemptDetectUTF8(client, cb) {
@@ -139,13 +221,15 @@ function ansiAttemptDetectUTF8(client, cb) {
                     }
                 },
                 'Detect UTF-8 stage 2 timed out',
+                () => {
+                    client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`); //  U+9760 (CJK 靠, a wide character) on each side
+                    client.term.rawWrite(ansi.queryPos());
+                },
                 cb
             );
-
-            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`); //  U+9760 (CJK 靠, a wide character) on each side
-            client.term.rawWrite(ansi.queryPos());
         },
         'Detect UTF-8 stage 1 timed out',
+        () => client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`),
         err => {
             if (err) {
                 //  bailing early
@@ -153,8 +237,6 @@ function ansiAttemptDetectUTF8(client, cb) {
             }
         }
     );
-
-    client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`);
 }
 
 function ansiProbeUTF8Upward(client, cb) {
@@ -206,21 +288,21 @@ function ansiProbeUTF8Upward(client, cb) {
                     }
                 },
                 'UTF-8 upward probe stage 2 timed out',
+                () => {
+                    client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`);
+                    client.term.rawWrite(ansi.queryPos());
+                },
                 cb
             );
-
-            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`);
-            client.term.rawWrite(ansi.queryPos());
         },
         'UTF-8 upward probe stage 1 timed out',
+        () => client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`),
         err => {
             if (err) {
                 return cb(err);
             }
         }
     );
-
-    client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`);
 }
 
 function ansiQuerySyncTermFontSupport(client, cb) {
@@ -270,11 +352,11 @@ function ansiQuerySyncTermFontSupport(client, cb) {
             }
         },
         'SyncTERM font detection timed out',
+        () =>
+            client.term.rawWrite(
+                `${ansi.goto(1, 1)}${ansi.setSyncTermFont('cp437')}${ansi.queryPos()}`
+            ),
         cb
-    );
-
-    client.term.rawWrite(
-        `${ansi.goto(1, 1)}${ansi.setSyncTermFont('cp437')}${ansi.queryPos()}`
     );
 }
 
@@ -313,6 +395,13 @@ function ansiQueryCtermCapabilities(client, cb) {
         client,
         () => {},
         'CTerm capability query timed out',
+        () => {
+            client.log.debug(
+                { termClient: client.term.termClient },
+                'Querying CTerm capabilities (CSI < c, CSI = 6 n)'
+            );
+            client.term.rawWrite(`\x1b[<c\x1b[=${CTERM_CAP_OSC8}n${ansi.queryPos()}`);
+        },
         err => {
             client.removeListener('cterm capability response', capListener);
             client.log.info(
@@ -328,73 +417,208 @@ function ansiQueryCtermCapabilities(client, cb) {
             return cb(null);
         }
     );
-
-    client.log.debug(
-        { termClient: client.term.termClient },
-        'Querying CTerm capabilities (CSI < c, CSI = 6 n)'
-    );
-    client.term.rawWrite(`\x1b[<c\x1b[=${CTERM_CAP_OSC8}n${ansi.queryPos()}`);
 }
 
+//
+//  The size query ends with a sentinel CPR at row 1 of this column. No other
+//  reply in the size step can be in it: a size is only taken from a reply of
+//  10 columns or more, and the junk answers seen (a home position reply
+//  arriving late, 1;1 from terminals that ignore the 999;999 move or answer
+//  every query with it) are in column 1. The sentinel is never in column 1,
+//  which a terminal that cannot move the cursor at all would report.
+//
+const SIZE_SENTINEL_COL = 5;
+//  A 0-based terminal (ConnectBot) with the home position check turned off
+//  has no CPR offset, and reports the sentinel one column to the left
+const isSizeSentinel = ([, col]) =>
+    SIZE_SENTINEL_COL === col || SIZE_SENTINEL_COL - 1 === col;
+//
+//  Terminate reports cursor positions as column;row: it answers the sentinel
+//  with 5;1. No reply in row 5 or 4 and column 1 or 0 can come otherwise: the
+//  cursor is never left there before the size query.
+//
+const isTransposedSizeSentinel = ([row, col]) => col <= 1 && isSizeSentinel([col, row]);
+//  CSI 255 n, CSI 6 n, the sentinel: a terminal answers each once at most
+const SIZE_QUERY_COUNT = 3;
+
+const isKnownDimension = value => value > 0;
+
+//
+//  Each dimension of a reply is judged on its own: Procomm Plus answers 24;231,
+//  a good row count beside a column that is no size. Values that are no size:
+//
+//  * under 10: NetRunner, Qmodem and others answer 1;1
+//  * 999: the 999;999 we moved to, from a terminal that does not clamp
+//  * 231: 999 in a byte (999 & 0xFF), from terminals that keep the cursor
+//    position in one (Procomm Plus, Procomm 2.4.3)
+//
+const isSaneSizeDimension = value => value >= 10 && 999 !== value && 231 !== value;
+
+//
+//  A width under 80 from the cursor position (CSI 6 n) is taken as 80:
+//  Telemate stops the cursor at column 79 though it draws column 80, and with
+//  a width of 79 every line of 80 column art would be taken to wrap. An answer
+//  to CSI 255 n is the terminal stating its screen size, and is taken as it
+//  is: a narrow web terminal (WebSocket logins send no size, so they are
+//  always probed) keeps its width. Two replies before the sentinel mean the
+//  first answers CSI 255 n; one reply is the CSI 6 n answer (no terminal
+//  answers CSI 255 n but not CSI 6 n). NAWS is never changed here.
+//
+const MIN_PROBED_COLS = 80;
+
 function ansiQueryTermSizeIfNeeded(client, cb) {
-    if (client.term.termHeight > 0 || client.term.termWidth > 0) {
+    const term = client.term;
+
+    //  only when NAWS/ENV did not already give both dimensions
+    if (isKnownDimension(term.termHeight) && isKnownDimension(term.termWidth)) {
         return cb(null);
     }
 
-    withCursorPositionReport(
+    //
+    //  The query:
+    //  1 - Go to 999,999 -- a very much "bottom right" (generally 80x25 for
+    //      example is the real size)
+    //  2 - CSI 255 n, the bansi.txt style screen size query, answered with
+    //      the screen size by terminals that know it
+    //  3 - CSI 6 n, an ordinary cursor position query: since we moved to the
+    //      bottom right, its answer is the screen size too, from terminals
+    //      that ignore CSI 255 n (modern VT terminals, Procomm Plus, Telix)
+    //  4 - The sentinel: go to 1,SIZE_SENTINEL_COL and CSI 6 n again
+    //
+    //  A terminal may answer both 2 and 3 (SyncTERM does), either, or neither.
+    //  Answers come in order, so every reply up to the sentinel's is ours,
+    //  and none is left over for the next probe to take as its own (the CTerm
+    //  capability query uses a CPR to know it has everything). Nor can three
+    //  replies be followed by another, which also ends the wait for a
+    //  terminal that answers the sentinel in some other column.
+    //
+    //  The first sane reply is the size. A terminal that reports every row
+    //  one too high (Telix, whose home position is 2;1) reports the sentinel
+    //  in row 2: the size is corrected by the same amount.
+    //
+    const replies = [];
+    let sentinel;
+
+    awaitCursorPositionReports(
         client,
         pos => {
-            //
-            //  If we've already found out, disregard
-            //
-            if (client.term.termHeight > 0 || client.term.termWidth > 0) {
-                return;
+            if (isSizeSentinel(pos)) {
+                sentinel = pos;
+                return true;
             }
+            if (isTransposedSizeSentinel(pos)) {
+                client.log.info(
+                    { sentinel: pos },
+                    'Terminal reports cursor positions as column;row; swapping them'
+                );
+                client.cprTransposed = true;
+                replies.forEach(reply => reply.reverse());
+                sentinel = [pos[1], pos[0]];
+                return true;
+            }
+            replies.push(pos);
+            return replies.length >= SIZE_QUERY_COUNT;
+        },
+        'No term size established by CPR within timeout',
+        () =>
+            term.rawWrite(
+                `${ansi.goto(999, 999)}${ansi.queryScreenSize()}${ansi.queryPos()}` +
+                    `${ansi.goto(1, SIZE_SENTINEL_COL)}${ansi.queryPos()}`
+            ),
+        err => {
+            const rowShift = sentinel && sentinel[0] > 1 ? sentinel[0] - 1 : 0;
 
-            //
-            //  NetRunner for example gives us 1x1 here. Not really useful. Ignore
-            //  values that seem obviously bad. Included in the set is the explicit
-            //  999x999 values we asked to move to.
-            //
-            const [h, w] = pos;
-            if (h < 10 || h === 999 || w < 10 || w === 999) {
-                return client.log.warn(
-                    { height: h, width: w },
-                    'Ignoring ANSI CPR screen size query response due to non-sane values'
+            //  the first sane value of each dimension, each on its own
+            let height;
+            let width;
+            replies.forEach(([h, w], index) => {
+                const statedSize = replies.length >= 2 && 0 === index;
+                const rows = h - rowShift;
+                const goodRows = isSaneSizeDimension(h) && rows >= 10;
+                const goodCols = isSaneSizeDimension(w);
+                if (!goodRows || !goodCols) {
+                    client.log.warn(
+                        { height: rows, width: w },
+                        'Ignoring non-sane value(s) in ANSI CPR screen size query response'
+                    );
+                }
+                if (goodRows && undefined === height) {
+                    height = rows;
+                }
+                if (goodCols && undefined === width) {
+                    width = statedSize ? w : Math.max(w, MIN_PROBED_COLS);
+                }
+            });
+
+            //  fill in only what NAWS/ENV (even while we waited) did not give
+            const fillHeight = undefined !== height && !isKnownDimension(term.termHeight);
+            const fillWidth = undefined !== width && !isKnownDimension(term.termWidth);
+            if (fillHeight) {
+                term.termHeight = height;
+            }
+            if (fillWidth) {
+                term.termWidth = width;
+            }
+            if (fillHeight || fillWidth) {
+                client.log.debug(
+                    {
+                        termWidth: term.termWidth,
+                        termHeight: term.termHeight,
+                        rowShift,
+                        source: 'ANSI CPR',
+                    },
+                    'Window size updated'
                 );
             }
 
-            client.term.termHeight = h;
-            client.term.termWidth = w;
-
-            client.log.debug(
-                {
-                    termWidth: client.term.termWidth,
-                    termHeight: client.term.termHeight,
-                    source: 'ANSI CPR',
-                },
-                'Window size updated'
-            );
-        },
-        'No term size established by CPR within timeout',
-        cb
+            return cb(err);
+        }
     );
-
-    //  Start the process:
-    //  1 - Ask to goto 999,999 -- a very much "bottom right" (generally 80x25 for example
-    //      is the real size)
-    //  2 - Query for screen size with bansi.txt style specialized Device Status Report (DSR)
-    //      request. We expect a CPR of:
-    //      a - Terms that support bansi.txt style: Screen size
-    //      b - Terms that do not support bansi.txt style: Since we moved to the bottom right
-    //          we should still be able to determine a screen size.
-    //
-    client.term.rawWrite(`${ansi.goto(999, 999)}${ansi.queryScreenSize()}`);
 }
 
 //  The size assumed when neither NAWS/ENV nor CPR produced one
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 25;
+
+//
+//  Whatever happened in the size step (a reply that was no size, a timeout, a
+//  skipped probe, a NAWS of 80x0), each dimension still unknown gets the DOS
+//  default on its own: a size of 0 puts every view at row 0 / column 0.
+//
+function defaultUnknownTermSize(client, reason) {
+    const term = client.term;
+    const noHeight = !isKnownDimension(term.termHeight);
+    const noWidth = !isKnownDimension(term.termWidth);
+
+    if (noHeight && noWidth) {
+        client.log.warn(
+            { reason },
+            'Failed to negotiate term size; Defaulting to 80x25!'
+        );
+    } else if (noHeight) {
+        client.log.warn(
+            { reason, termWidth: term.termWidth },
+            `Failed to negotiate term height; Defaulting to ${DEFAULT_ROWS} rows`
+        );
+    } else if (noWidth) {
+        client.log.warn(
+            { reason, termHeight: term.termHeight },
+            `Failed to negotiate term width; Defaulting to ${DEFAULT_COLS} columns`
+        );
+    }
+
+    if (noHeight) {
+        term.termHeight = DEFAULT_ROWS;
+    }
+    if (noWidth) {
+        term.termWidth = DEFAULT_COLS;
+    }
+
+    client.log.debug(
+        { termWidth: term.termWidth, termHeight: term.termHeight },
+        'Terminal size settled'
+    );
+}
 
 const probes = [
     {
@@ -428,34 +652,17 @@ const probes = [
     {
         name: 'discoverHomePosition',
         run(client, callback) {
-            return ansiDiscoverHomePosition(client, callback);
+            return ansiDiscoverHomePosition(client, () => callback(null));
         },
     },
     {
         name: 'queryTermSizeByNonStandardAnsi',
         run(client, callback) {
-            const term = client.term;
             ansiQueryTermSizeIfNeeded(client, err => {
-                if (err) {
-                    //
-                    //  Check again; We may have got via NAWS/similar before CPR completed.
-                    //
-                    if (0 === term.termHeight || 0 === term.termWidth) {
-                        //
-                        //  We still don't have something good for term height/width.
-                        //  Default to DOS size 80x25.
-                        //
-                        //  :TODO: Netrunner is currently hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing???
-                        client.log.warn(
-                            { reason: err.message },
-                            'Failed to negotiate term size; Defaulting to 80x25!'
-                        );
-
-                        term.termHeight = DEFAULT_ROWS;
-                        term.termWidth = DEFAULT_COLS;
-                    }
-                }
-
+                defaultUnknownTermSize(
+                    client,
+                    err ? err.message : 'no sane size in the CPR replies'
+                );
                 return callback(null);
             });
         },
@@ -463,13 +670,13 @@ const probes = [
     {
         name: 'checkUtf8IfNeeded',
         run(client, callback) {
-            return ansiAttemptDetectUTF8(client, callback);
+            return ansiAttemptDetectUTF8(client, () => callback(null));
         },
     },
     {
         name: 'probeUtf8IfOptedIn',
         run(client, callback) {
-            return ansiProbeUTF8Upward(client, callback);
+            return ansiProbeUTF8Upward(client, () => callback(null));
         },
     },
     {
@@ -481,7 +688,7 @@ const probes = [
     {
         name: 'querySyncTERMFontSupport',
         run(client, callback) {
-            return ansiQuerySyncTermFontSupport(client, callback);
+            return ansiQuerySyncTermFontSupport(client, () => callback(null));
         },
     },
 ];
