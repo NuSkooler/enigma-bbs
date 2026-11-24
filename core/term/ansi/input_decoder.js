@@ -451,7 +451,9 @@ function createCsiTailHolder({ holdMs, onError }) {
     let heldEmit = null;
     let timer = null;
     let disposed = false;
-    let holdingLoneEsc = false;
+    //  counted: a probe started from another's reply holds before the first
+    //  one lets go (the UTF-8 probes' second query)
+    let loneEscHolds = 0;
 
     const cancelTimer = () => {
         if (timer) {
@@ -491,7 +493,7 @@ function createCsiTailHolder({ holdMs, onError }) {
     //  bytes, or held bytes joined with them
     function decodeHoldingTail(buf, data, host, emit) {
         let at = unfinishedCsiStart(buf);
-        if (-1 === at && holdingLoneEsc && ESC === buf[buf.length - 1]) {
+        if (-1 === at && loneEscHolds > 0 && ESC === buf[buf.length - 1]) {
             at = buf.length - 1;
             while (at > 0 && ESC === buf[at - 1]) {
                 --at;
@@ -548,7 +550,7 @@ function createCsiTailHolder({ holdMs, onError }) {
     }
 
     function holdLoneEsc(hold) {
-        holdingLoneEsc = !!hold;
+        loneEscHolds = hold ? loneEscHolds + 1 : Math.max(0, loneEscHolds - 1);
     }
 
     return { feed, dispose, holdLoneEsc };

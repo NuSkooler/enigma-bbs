@@ -41,7 +41,8 @@ const CTERM_DA = '\x1b[=67;84;101;114;109;1;316c';
 //              with the cursor position, prints a font selection as text
 //
 //  |lateMs| delays every answer; |bytewise| sends each byte on its own;
-//  |cterm| answers CSI < c and CSI = 6 n as SyncTERM does.
+//  |cterm| answers CSI < c and CSI = 6 n as SyncTERM does; |zeroBased|
+//  reports positions from 0,0 (ConnectBot).
 //
 function makeTerminal(client, opts) {
     const {
@@ -51,6 +52,7 @@ function makeTerminal(client, opts) {
         lateMs = 0,
         bytewise = false,
         cterm = false,
+        zeroBased = false,
     } = opts;
     const cur = { row: 1, col: 1 };
     const queries = [];
@@ -103,6 +105,9 @@ function makeTerminal(client, opts) {
             case 'qmodem':
                 pos = [cur.row, cur.col];
                 break;
+        }
+        if (pos && zeroBased) {
+            pos = [pos[0] - 1, pos[1] - 1];
         }
         if (pos) {
             send(`\x1b[${pos[0]};${pos[1]}R`);
@@ -355,6 +360,17 @@ describe('ANSI terminal size probe', function () {
         });
     });
 
+    it('a 0-based terminal with the home check off finds the sentinel: no timeout', done => {
+        testConfig.term.checkAnsiHomePosition = false;
+        const { client } = connect({ cpr: 'vt', zeroBased: true });
+        runProbes(client, elapsed => {
+            assert(elapsed < 1000, `no timeout (${elapsed}ms)`);
+            assert(client.term.termWidth > 0 && client.term.termHeight > 0);
+            assert(sent(client).includes(' D'), 'the font probe is still sent');
+            return done();
+        });
+    });
+
     it("Telix's rows, one too high, are corrected from the sentinel", done => {
         const { client } = connect({ cpr: 'telix' });
         runProbes(client, elapsed => {
@@ -449,6 +465,19 @@ describe('ANSI terminal size probe', function () {
                 assert.deepEqual(events, [['cursor position report', [25, 80]]]);
                 events.length = 0;
 
+                decoder.holdLoneEsc(false);
+                feed('\x1b');
+                assert.deepEqual(events, [['key press', 'escape']]);
+                events.length = 0;
+
+                //  holds are counted: a probe started from another's reply
+                //  holds before the first lets go (the UTF-8 probes)
+                decoder.holdLoneEsc(true);
+                decoder.holdLoneEsc(true);
+                decoder.holdLoneEsc(false);
+                '\x1b[3;7R'.split('').forEach(feed);
+                assert.deepEqual(events, [['cursor position report', [3, 7]]]);
+                events.length = 0;
                 decoder.holdLoneEsc(false);
                 feed('\x1b');
                 assert.deepEqual(events, [['key press', 'escape']]);

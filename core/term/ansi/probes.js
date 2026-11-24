@@ -426,6 +426,10 @@ function ansiQueryCtermCapabilities(client, cb) {
 //  which a terminal that cannot move the cursor at all would report.
 //
 const SIZE_SENTINEL_COL = 5;
+//  A 0-based terminal (ConnectBot) with the home position check turned off
+//  has no CPR offset, and reports the sentinel one column to the left
+const isSizeSentinel = ([, col]) =>
+    SIZE_SENTINEL_COL === col || SIZE_SENTINEL_COL - 1 === col;
 //  CSI 255 n, CSI 6 n, the sentinel: a terminal answers each once at most
 const SIZE_QUERY_COUNT = 3;
 
@@ -474,7 +478,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
     awaitCursorPositionReports(
         client,
         pos => {
-            if (SIZE_SENTINEL_COL === pos[1]) {
+            if (isSizeSentinel(pos)) {
                 sentinel = pos;
                 return true;
             }
