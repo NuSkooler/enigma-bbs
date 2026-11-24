@@ -455,10 +455,14 @@ const isKnownDimension = value => value > 0;
 const isSaneSizeDimension = value => value >= 10 && 999 !== value && 231 !== value;
 
 //
-//  A width under 80 from the probe is taken as 80: Telemate stops the cursor
-//  at column 79 though it draws column 80, and with a width of 79 every line
-//  of 80 column art would be taken to wrap. A narrower terminal tells us its
-//  size by NAWS, which is never changed here.
+//  A width under 80 from the cursor position (CSI 6 n) is taken as 80:
+//  Telemate stops the cursor at column 79 though it draws column 80, and with
+//  a width of 79 every line of 80 column art would be taken to wrap. An answer
+//  to CSI 255 n is the terminal stating its screen size, and is taken as it
+//  is: a narrow web terminal (WebSocket logins send no size, so they are
+//  always probed) keeps its width. Two replies before the sentinel mean the
+//  first answers CSI 255 n; one reply is the CSI 6 n answer (no terminal
+//  answers CSI 255 n but not CSI 6 n). NAWS is never changed here.
 //
 const MIN_PROBED_COLS = 80;
 
@@ -527,7 +531,8 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
             //  the first sane value of each dimension, each on its own
             let height;
             let width;
-            replies.forEach(([h, w]) => {
+            replies.forEach(([h, w], index) => {
+                const statedSize = replies.length >= 2 && 0 === index;
                 const rows = h - rowShift;
                 const goodRows = isSaneSizeDimension(h) && rows >= 10;
                 const goodCols = isSaneSizeDimension(w);
@@ -541,7 +546,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
                     height = rows;
                 }
                 if (goodCols && undefined === width) {
-                    width = Math.max(w, MIN_PROBED_COLS);
+                    width = statedSize ? w : Math.max(w, MIN_PROBED_COLS);
                 }
             });
 

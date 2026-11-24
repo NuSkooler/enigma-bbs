@@ -440,7 +440,7 @@ describe('ANSI terminal size probe', function () {
     //  retest, 2026-11-23): home, CSI 255 n, CSI 6 n, the sentinel, then the
     //  font probe where known.
     //
-    describe('replies recorded from DOS terminals', () => {
+    describe('replies recorded from DOS terminals, and narrow terminals', () => {
         const recorded = (name, script, expected, extra = {}) =>
             it(`${name}: ${expected[0]}x${expected[1]}`, done => {
                 const { client } = connect({ script: script.slice(), ...extra });
@@ -466,6 +466,19 @@ describe('ANSI terminal size probe', function () {
         });
         //  the cursor stops at column 79, though column 80 is drawn
         recorded('Telemate 4.21', ['1;1', null, '24;79', '1;5', '1;2'], [80, 24]);
+        //  a narrow terminal stating its size (CSI 255 n), then the cursor
+        //  position (CSI 6 n): the stated width is kept
+        recorded(
+            'a 50 column web terminal',
+            ['1;1', '25;50', '25;50', '1;5', '1;1'],
+            [50, 25]
+        );
+        //  a 50 column answer to CSI 6 n alone may be a clamped cursor: 80
+        recorded(
+            'a 50 column cursor position alone',
+            ['1;1', null, '25;50', '1;5', '1;2'],
+            [80, 25]
+        );
         //  every row one too high, its menu bar on row 1
         recorded('Telix 3.51', ['2;1', null, '24;80', '2;5', '2;2'], [80, 23]);
         //  column;row, a byte at a time: the font probe's 1;2 comes as 2;1
