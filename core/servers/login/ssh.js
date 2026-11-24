@@ -13,6 +13,7 @@ const stringFormat = require('../../string_format.js');
 const { Errors, ErrorReasons } = require('../../enig_error.js');
 const { listenServer } = require('../../server_listen.js');
 const User = require('../../user.js');
+const ACS = require('../../acs.js');
 const { stripAllControlCodes } = require('../../string_util.js');
 
 //  deps
@@ -163,7 +164,18 @@ function SSHClient(clientConn, connInfo) {
         //  while a slow answer waits is refused too; only this request's
         //  answer waits.
         //
+        //  The caller is no longer anyone: an already connected refusal
+        //  comes after the password or key checked out, with this client's
+        //  User loaded, and until the connection closes (up to
+        //  RefusalTimeoutMs) the client is still tracked. With that User it
+        //  would count as the user online (userLogin()'s already connected
+        //  check, the who's online list) and be logged off as them when it
+        //  ends. It gets a fresh, unauthenticated User instead. Nothing the
+        //  login stored is undone.
+        //
         const refuseLogin = (msg, method = 'standard') => {
+            self.user = new User();
+            self.acs = new ACS({ client: self, user: self.user });
             self.refuseConnection(msg);
             if ('slow' !== method) {
                 return showRefusal();
@@ -229,6 +241,19 @@ function SSHClient(clientConn, connInfo) {
             }
         };
 
+        //
+        //  A login that checked out, unless the connection was refused
+        //  meanwhile: a keyboard-interactive request the client abandons for
+        //  another is still being checked while the other is handled, and
+        //  the other can be refused first.
+        //
+        const acceptLogin = () => {
+            if (self.refused) {
+                return showRefusal();
+            }
+            return ctx.accept();
+        };
+
         //  a failed userLogin() or checkSSHPubKey()
         const handleLoginError = err => {
             if (isClientEnded(err)) {
@@ -261,7 +286,7 @@ function SSHClient(clientConn, connInfo) {
                 if (err) {
                     return handleLoginError(err);
                 }
-                return ctx.accept();
+                return acceptLogin();
             });
         };
 
@@ -288,7 +313,7 @@ function SSHClient(clientConn, connInfo) {
                     if (err) {
                         return handleLoginError(err);
                     }
-                    return ctx.accept();
+                    return acceptLogin();
                 });
             }
 
@@ -309,7 +334,7 @@ function SSHClient(clientConn, connInfo) {
                 if (err) {
                     return handleLoginError(err);
                 }
-                return ctx.accept();
+                return acceptLogin();
             });
         };
 
@@ -373,7 +398,7 @@ function SSHClient(clientConn, connInfo) {
                             return ctx.prompt(interactivePrompt, retryPrompt);
                         });
                     } else {
-                        ctx.accept();
+                        acceptLogin();
                     }
                 });
             });
@@ -648,14 +673,24 @@ SSHClient.RefusalSteerAttempts = 3;
 //  form a refusal is shown in. That is plain text: OpenSSH shows a control
 //  character in it as an escape (ESC as "\033"), so ANSI sequences and pipe
 //  codes are removed, as is any other control character but a line feed or
-//  tab. A line ends with a line feed alone, and trailing blank lines go.
+//  tab: C0, DEL and C1, and the Unicode format characters that change how
+//  text around them is ordered or shown (bidi embeddings, overrides and
+//  isolates, zero width characters, the BOM), so the text reads as written.
+//  OSC, DCS, APC, PM and SOS strings go whole, up to their terminator (BEL
+//  or ESC backslash), or to the end if there is none. A line ends with a
+//  line feed alone, and trailing blank lines go.
 //  The busy refusal's message can come from an art file (see
 //  getAllNodesBusyMessage() in core/login_server_module.js).
 //
 SSHClient.toInstructionText = function (message) {
-    return stripAllControlCodes(String(message || ''))
+    const text = String(message || '').replace(
+        /\x1b[\]P^_X][\s\S]*?(?:\x07|\x1b\\|$)/g, //  eslint-disable-line no-control-regex
+        ''
+    );
+    return stripAllControlCodes(text)
         .replace(/\r\n?/g, '\n')
-        .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '') //  eslint-disable-line no-control-regex
+        .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '') //  eslint-disable-line no-control-regex
+        .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '')
         .trimEnd();
 };
 

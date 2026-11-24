@@ -754,6 +754,28 @@ describe('login servers (#1017)', function () {
             assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
         });
 
+        it('SSH: no bidi or other format characters, nor OSC strings', async () => {
+            fs.writeFileSync(
+                generalArt(),
+                Buffer.concat([
+                    Buffer.from('\x1b]0;title\x07', 'latin1'),
+                    Buffer.from('\u202eFull\u202c \u200bboard\u2066!\u2069\ufeff'),
+                    Buffer.from('\x1bP+q\x1b\\', 'latin1'),
+                ])
+            );
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            //  as UTF-8, not CP437: the characters themselves
+            theme.getThemeArt = (opts, cb) =>
+                cb(null, { data: fs.readFileSync(generalArt(), 'utf8') });
+            try {
+                await refresh();
+            } finally {
+                theme.getThemeArt = getThemeArt;
+            }
+            assert.equal(sshRefusal(), 'Full board!');
+        });
+
         it('SSH: as plain text, without ANSI sequences, pipe codes or control characters', async () => {
             fs.writeFileSync(
                 generalArt(),
@@ -1529,7 +1551,11 @@ describe('login servers (#1017)', function () {
             };
 
             //  the client gives up on its keyboard-interactive request once
-            //  it has answered, and sends another (ssh2 emits 'abort')
+            //  it has answered, and sends another: ssh2 emits 'abort' on the
+            //  first and then emits the second while the first is still
+            //  being checked (it queues a request only before the first
+            //  answer). See test/ssh_pubkey_auth.test.js for the same with a
+            //  real ssh2 client and server.
             const first = makeAuthCtx('keyboard-interactive', 'somebody');
             const firstEvents = new EventEmitter();
             first.once = (...args) => firstEvents.once(...args);
@@ -1549,6 +1575,59 @@ describe('login servers (#1017)', function () {
                 1,
                 'the abandoned request is not answered'
             );
+            conn.emit('close');
+        });
+
+        it('already connected: the refused caller does not count as the user online', () => {
+            const { conn, client } = connectAs('alreadyLoggedIn');
+            const ctx = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', ctx);
+            ctx.prompts[0][1](['secret']);
+            assertShown(
+                ctx,
+                1,
+                'somebody is already connected to the system. Terminating connection.'
+            );
+
+            //  still tracked until it closes, but as nobody
+            assert.ok(clientConns.clientConnections.includes(client));
+            assert.equal(client.user.userId, 0);
+            assert.equal(client.user.isAuthenticated(), false);
+            assert.equal(client.acs.subject.user, client.user);
+
+            //  the session it was refused for ends: the user may come back
+            //  at once (userLogin()'s check, the who's online lookup)
+            clientConns.clientConnections.splice(
+                clientConns.clientConnections.indexOf(otherSession),
+                1
+            );
+            assert.equal(
+                clientConns.clientConnections.find(cc => 42 === cc.user.userId),
+                undefined
+            );
+            assert.equal(clientConns.getConnectionByUserId(42), undefined);
+            conn.emit('close');
+        });
+
+        //
+        //  The same check (acceptLogin()) guards every accept; a public key
+        //  query is the one that can be finished here without a login's
+        //  side effects.
+        //
+        it('a request that checks out after the connection was refused is not accepted', () => {
+            const { conn, client } = connectAs(null);
+            let finishCheck;
+            client.user.checkSSHPubKey = (username, key, cb) => (finishCheck = cb);
+
+            const ctx = makeAuthCtx('publickey', 'somebody');
+            ctx.key = { algo: 'ssh-ed25519', data: Buffer.from('key') };
+            conn.emit('authentication', ctx);
+
+            //  refused meanwhile (another request, say)
+            client.refuseConnection('refused');
+            finishCheck(null);
+            assert.equal(ctx.accepts, 0);
+            assert.deepEqual(ctx.rejects, [['keyboard-interactive']], 'steered');
             conn.emit('close');
         });
 

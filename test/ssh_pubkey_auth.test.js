@@ -1056,6 +1056,96 @@ describe('SSH public key authentication', function () {
         });
     });
 
+    //
+    //  #1081: a locked account's answer waits SlowRefusalMs, but the
+    //  connection is refused at once. A client that answers the password
+    //  prompt and then sends another request (ssh2 aborts the first and
+    //  hands over the second while the first is still being checked) gets
+    //  the refusal for it, not a login attempt.
+    //
+    //  That the abandoned request is then not answered cannot be seen from
+    //  here: the answer would be message 60, which a client reads according
+    //  to its current request, and ssh2 drops it for a 'none' request. See
+    //  test/login_servers.test.js for that part.
+    //
+    describe('a request sent while a locked account answer waits (#1081)', () => {
+        it('is refused, with no second login attempt', async () => {
+            const user = addUser({
+                props: {
+                    [UserProps.AccountStatus]: String(User.AccountStatus.locked),
+                    [UserProps.AccountLockedTs]: new Date().toISOString(),
+                },
+            });
+            const result = await new Promise(resolve => {
+                const out = { ready: false, infoRequests: [], methodsLeft: [] };
+                const sshClient = new ssh2.Client();
+                let step = 0;
+                sshClient.on('ready', () => {
+                    out.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (out.error = err.message));
+                sshClient.on('close', () => {
+                    out.serverClient = serverClients[serverClients.length - 1];
+                    resolve(out);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username: user.username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        step += 1;
+                        if (1 === step) {
+                            const handlers = sshClient._protocol._handlers;
+                            const infoRequest = handlers.USERAUTH_INFO_REQUEST;
+                            handlers.USERAUTH_INFO_REQUEST = (
+                                p,
+                                name,
+                                instr,
+                                prompts
+                            ) => {
+                                out.infoRequests.push({ instr, prompts });
+                                return infoRequest(p, name, instr, prompts);
+                            };
+                            return cb({
+                                type: 'keyboard-interactive',
+                                username: user.username,
+                                prompt: (name, instr, lang, prompts, finish) => {
+                                    finish(['a-password']);
+                                    //  once the server has decided (the lock
+                                    //  is checked first, well before 2 s),
+                                    //  another request
+                                    setTimeout(
+                                        () => sshClient._protocol.authNone(user.username),
+                                        300
+                                    );
+                                },
+                            });
+                        }
+                        //  the answer to the second request; wait past
+                        //  SlowRefusalMs to see whether the first is answered
+                        out.methodsLeft.push(methodsLeft);
+                        setTimeout(() => cb(false), 2500);
+                    },
+                });
+            });
+            assertNoLogin(result);
+            //  refused: steered to keyboard-interactive to be shown why, where
+            //  a request that is not refused gets every method
+            assert.deepEqual(result.methodsLeft, [['keyboard-interactive']]);
+            assert.equal(result.infoRequests.length, 1, 'the password prompt');
+            assert.equal(result.infoRequests[0].prompts.length, 1);
+            //  one login attempt: the first request's; locked is not counted
+            assert.deepEqual(
+                result.serverClient.log.entries
+                    .filter(e => /Failed login attempt/.test(e.msg))
+                    .map(e => e.obj.reason),
+                ['Access denied: Account is locked']
+            );
+        });
+    });
+
     describe('a keyboard-interactive prompt the client abandons', () => {
         it('is no login attempt, and is not counted', async () => {
             //  a user with a password, so that a login attempt would count
