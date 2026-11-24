@@ -49,7 +49,10 @@ function userLogin(client, username, password, options, cb) {
     authInfo.type = options.authType || User.AuthFactor1Types.Password;
     authInfo.pubKey = options.ctx;
 
-    client.user.authenticateFactor1(authInfo, err => {
+    //  the User this login is for; see the check after authentication
+    const loginUser = client.user;
+
+    loginUser.authenticateFactor1(authInfo, err => {
         //
         //  The connection can end while authentication is under way (the
         //  caller hangs up, the SSH login timeout fires). There is nobody to
@@ -63,6 +66,26 @@ function userLogin(client, username, password, options, cb) {
 
         if (err) {
             return cb(transformLoginError(err, client, username));
+        }
+
+        //
+        //  Nor is there anyone to log in if the connection was refused while
+        //  authentication was under way: the SSH server refuses a login for
+        //  the account's state and gives the client a fresh User (see
+        //  refuseLogin() in core/servers/login/ssh.js), and a request the
+        //  client abandoned can still be checking a password meanwhile. Its
+        //  success is not a login, and none of a login's side effects run.
+        //  A failure above is counted as any is.
+        //
+        if (client.user !== loginUser || client.refused) {
+            return cb(
+                abandonLogin(
+                    client,
+                    username,
+                    null,
+                    'Login abandoned: the connection was refused during login'
+                )
+            );
         }
 
         const user = client.user;
@@ -179,14 +202,19 @@ function checkSSHPubKey(client, username, pubKey, cb) {
     });
 }
 
-function abandonLogin(client, username, authErr) {
+function abandonLogin(
+    client,
+    username,
+    authErr,
+    why = 'Login abandoned: the connection ended during login'
+) {
     client.log.info(
         {
             username,
             ip: client.remoteAddress,
             authResult: authErr ? authErr.message : 'authenticated',
         },
-        'Login abandoned: the connection ended during login'
+        why
     );
     return Errors.General('The connection ended during login', ErrorReasons.ClientEnded);
 }

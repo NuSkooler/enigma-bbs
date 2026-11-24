@@ -31,8 +31,9 @@ const AllNodesBusyMessage = 'All nodes are busy. Try again later...';
 //  in after that, one read at a time. A file added, changed or removed is
 //  therefore seen within about that long. Any connection does it, so the
 //  message is ready by the time the board is full. A read that has not
-//  finished after BusyMessageRefreshMs is given up on, and its answer, if
-//  it ever comes, ignored.
+//  finished after BusyMessageRefreshMs no longer holds up a refresh: the
+//  next one starts a new read, and from then on the earlier read's answer,
+//  if it ever comes, is ignored. Until then it is taken as any answer is.
 //
 const BusyArtName = 'BUSY.ASC';
 const BusyMessageRefreshMs = 60 * 1000;

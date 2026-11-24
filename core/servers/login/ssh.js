@@ -124,8 +124,21 @@ function SSHClient(clientConn, connInfo) {
         //  Other methods are steered to keyboard-interactive (a client may
         //  try a few before it gets there), then ended.
         //
+        //
+        //  A keyboard-interactive request the client gave up on (it sent
+        //  another request; ssh2 emits 'abort') is no longer answered: the
+        //  client would read an answer as one to its current request.
+        //
+        let ctxAborted = false;
+        if (_.isFunction(ctx.once)) {
+            ctx.once('abort', () => (ctxAborted = true));
+        }
+
         const showRefusal = () => {
             if ('keyboard-interactive' === ctx.method) {
+                if (ctxAborted) {
+                    return; //  the request the client sent instead is answered
+                }
                 return ctx.prompt([], '', self.refusalMessage, () => clientConn.end());
             }
 
@@ -181,14 +194,8 @@ function SSHClient(clientConn, connInfo) {
                 return showRefusal();
             }
 
-            //  a keyboard-interactive request the client gave up on (it sent
-            //  another) is not answered
-            let abandoned = false;
-            if (_.isFunction(ctx.once)) {
-                ctx.once('abort', () => (abandoned = true));
-            }
             setTimeout(() => {
-                if (self.clientEnded || abandoned) {
+                if (self.clientEnded) {
                     return; //  gone while the answer waited
                 }
                 return showRefusal();
@@ -370,6 +377,11 @@ function SSHClient(clientConn, connInfo) {
 
                         if (Errors.BadLogin().code === err.code) {
                             return slowTerminateConnection();
+                        }
+
+                        //  abandoned by the client: nobody to ask again
+                        if (ctxAborted) {
+                            return;
                         }
 
                         const artOpts = {
@@ -675,7 +687,9 @@ SSHClient.RefusalSteerAttempts = 3;
 //  codes are removed, as is any other control character but a line feed or
 //  tab: C0, DEL and C1, and the Unicode format characters that change how
 //  text around them is ordered or shown (bidi embeddings, overrides and
-//  isolates, zero width characters, the BOM), so the text reads as written.
+//  isolates, the Arabic letter mark, zero width and invisible characters,
+//  the deprecated format characters, tag characters, the BOM), so the text
+//  reads as written.
 //  OSC, DCS, APC, PM and SOS strings go whole, up to their terminator (BEL
 //  or ESC backslash), or to the end if there is none. A line ends with a
 //  line feed alone, and trailing blank lines go.
@@ -690,7 +704,8 @@ SSHClient.toInstructionText = function (message) {
     return stripAllControlCodes(text)
         .replace(/\r\n?/g, '\n')
         .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '') //  eslint-disable-line no-control-regex
-        .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '')
+        .replace(/[\u061c\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
+        .replace(/[\u{e0000}-\u{e007f}]/gu, '')
         .trimEnd();
 };
 

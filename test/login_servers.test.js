@@ -879,7 +879,10 @@ describe('login servers (#1017)', function () {
                 generalArt(),
                 Buffer.concat([
                     Buffer.from('\x1b]0;title\x07', 'latin1'),
-                    Buffer.from('\u202eFull\u202c \u200bboard\u2066!\u2069\ufeff'),
+                    Buffer.from(
+                        '\u202eFull\u202c \u200bboard\u2066!\u2069\ufeff' +
+                            '\u061c\u206a\u206f\u{e0001}\u{e0041}\u{e007f}'
+                    ),
                     Buffer.from('\x1bP+q\x1b\\', 'latin1'),
                 ])
             );
@@ -1748,6 +1751,69 @@ describe('login servers (#1017)', function () {
             finishCheck(null);
             assert.equal(ctx.accepts, 0);
             assert.deepEqual(ctx.rejects, [['keyboard-interactive']], 'steered');
+            conn.emit('close');
+        });
+
+        //
+        //  Request A is abandoned for B while A's password is still being
+        //  checked (ssh2 emits 'abort' on A, then B); B is refused for the
+        //  account. A finishing afterwards is no login and gets no answer.
+        //
+        function abandonedThenRefused() {
+            const { conn, client } = connectAs(null);
+            const pending = [];
+            client.user.authenticateFactor1 = (authInfo, cb) => pending.push(cb);
+
+            const a = makeAuthCtx('keyboard-interactive', 'somebody');
+            const aEvents = new EventEmitter();
+            a.once = (...args) => aEvents.once(...args);
+            conn.emit('authentication', a);
+            a.prompts[0][1](['secret']);
+            aEvents.emit('abort');
+
+            const b = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', b);
+            b.prompts[0][1](['secret']);
+            assert.equal(pending.length, 2);
+            pending[1](Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+            assertShown(b, 1, 'somebody is disabled.');
+
+            return { conn, client, a, finishA: pending[0] };
+        }
+
+        it('an abandoned request whose password checks out after a refusal is no login', () => {
+            const Events = require('../core/events.js');
+            const emit = Events.emit;
+            const emitted = [];
+            Events.emit = (name, ...args) => {
+                emitted.push(name);
+                return emit.call(Events, name, ...args);
+            };
+            try {
+                const { conn, client, a, finishA } = abandonedThenRefused();
+                const refusedUser = client.user;
+                finishA(null);
+
+                assert.equal(a.accepts, 0);
+                assert.equal(a.prompts.length, 1, 'no answer to A');
+                assert.ok(!emitted.includes(Events.getSystemEvents().UserLogin));
+                assert.equal(client.user, refusedUser);
+                assert.equal(client.user.isAuthenticated(), false);
+                assert.ok(
+                    client.log.entries.some(e => /refused during login/.test(e.msg)),
+                    'abandoned'
+                );
+                conn.emit('close');
+            } finally {
+                Events.emit = emit;
+            }
+        });
+
+        it('an abandoned request refused after B was refused gets no answer', () => {
+            const { conn, a, finishA } = abandonedThenRefused();
+            finishA(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+            assert.equal(a.prompts.length, 1, 'no answer to A');
+            assert.equal(a.accepts, 0);
             conn.emit('close');
         });
 
