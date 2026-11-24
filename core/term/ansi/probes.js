@@ -67,7 +67,9 @@ const ctdaAnswered = client => Array.isArray(client.term.termCapabilities.ctda);
 //    probe's (see ansiQueryTermSizeIfNeeded).
 //
 //  Replies are matched after core/client.js has applied a home position
-//  offset (client.cprOffset), so all of this is in 1-based positions.
+//  offset (client.cprOffset), so all of this is in 1-based positions, and
+//  after it has swapped a reply from a terminal found to report column;row
+//  (client.cprTransposed, set by the size probe).
 //
 const cprUnanswered = new WeakSet(); //  clients with a CPR probe that timed out
 
@@ -430,17 +432,35 @@ const SIZE_SENTINEL_COL = 5;
 //  has no CPR offset, and reports the sentinel one column to the left
 const isSizeSentinel = ([, col]) =>
     SIZE_SENTINEL_COL === col || SIZE_SENTINEL_COL - 1 === col;
+//
+//  Terminate reports cursor positions as column;row: it answers the sentinel
+//  with 5;1. No reply in row 5 or 4 and column 1 or 0 can come otherwise: the
+//  cursor is never left there before the size query.
+//
+const isTransposedSizeSentinel = ([row, col]) => col <= 1 && isSizeSentinel([col, row]);
 //  CSI 255 n, CSI 6 n, the sentinel: a terminal answers each once at most
 const SIZE_QUERY_COUNT = 3;
 
 const isKnownDimension = value => value > 0;
 
 //
-//  Values that are obviously no screen size. NetRunner, Qmodem and others
-//  answer 1;1 here; 999 is the 999;999 we moved to, from a terminal that
-//  does not clamp.
+//  Each dimension of a reply is judged on its own: Procomm Plus answers 24;231,
+//  a good row count beside a column that is no size. Values that are no size:
 //
-const isSaneSizeReply = ([h, w]) => !(h < 10 || h === 999 || w < 10 || w === 999);
+//  * under 10: NetRunner, Qmodem and others answer 1;1
+//  * 999: the 999;999 we moved to, from a terminal that does not clamp
+//  * 231: 999 in a byte (999 & 0xFF), from terminals that keep the cursor
+//    position in one (Procomm Plus, Procomm 2.4.3)
+//
+const isSaneSizeDimension = value => value >= 10 && 999 !== value && 231 !== value;
+
+//
+//  A width under 80 from the probe is taken as 80: Telemate stops the cursor
+//  at column 79 though it draws column 80, and with a width of 79 every line
+//  of 80 column art would be taken to wrap. A narrower terminal tells us its
+//  size by NAWS, which is never changed here.
+//
+const MIN_PROBED_COLS = 80;
 
 function ansiQueryTermSizeIfNeeded(client, cb) {
     const term = client.term;
@@ -482,6 +502,16 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
                 sentinel = pos;
                 return true;
             }
+            if (isTransposedSizeSentinel(pos)) {
+                client.log.info(
+                    { sentinel: pos },
+                    'Terminal reports cursor positions as column;row; swapping them'
+                );
+                client.cprTransposed = true;
+                replies.forEach(reply => reply.reverse());
+                sentinel = [pos[1], pos[0]];
+                return true;
+            }
             replies.push(pos);
             return replies.length >= SIZE_QUERY_COUNT;
         },
@@ -494,29 +524,35 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
         err => {
             const rowShift = sentinel && sentinel[0] > 1 ? sentinel[0] - 1 : 0;
 
-            let size;
+            //  the first sane value of each dimension, each on its own
+            let height;
+            let width;
             replies.forEach(([h, w]) => {
-                const reply = [h - rowShift, w];
-                if (size) {
-                    return;
-                }
-                if (!isSaneSizeReply(reply)) {
-                    return client.log.warn(
-                        { height: reply[0], width: reply[1] },
-                        'Ignoring ANSI CPR screen size query response due to non-sane values'
+                const rows = h - rowShift;
+                const goodRows = isSaneSizeDimension(h) && rows >= 10;
+                const goodCols = isSaneSizeDimension(w);
+                if (!goodRows || !goodCols) {
+                    client.log.warn(
+                        { height: rows, width: w },
+                        'Ignoring non-sane value(s) in ANSI CPR screen size query response'
                     );
                 }
-                size = reply;
+                if (goodRows && undefined === height) {
+                    height = rows;
+                }
+                if (goodCols && undefined === width) {
+                    width = Math.max(w, MIN_PROBED_COLS);
+                }
             });
 
             //  fill in only what NAWS/ENV (even while we waited) did not give
-            const fillHeight = size && !isKnownDimension(term.termHeight);
-            const fillWidth = size && !isKnownDimension(term.termWidth);
+            const fillHeight = undefined !== height && !isKnownDimension(term.termHeight);
+            const fillWidth = undefined !== width && !isKnownDimension(term.termWidth);
             if (fillHeight) {
-                term.termHeight = size[0];
+                term.termHeight = height;
             }
             if (fillWidth) {
-                term.termWidth = size[1];
+                term.termWidth = width;
             }
             if (fillHeight || fillWidth) {
                 client.log.debug(

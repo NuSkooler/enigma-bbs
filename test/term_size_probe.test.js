@@ -42,7 +42,9 @@ const CTERM_DA = '\x1b[=67;84;101;114;109;1;316c';
 //
 //  |lateMs| delays every answer; |bytewise| sends each byte on its own;
 //  |cterm| answers CSI < c and CSI = 6 n as SyncTERM does; |zeroBased|
-//  reports positions from 0,0 (ConnectBot).
+//  reports positions from 0,0 (ConnectBot). |script| replaces |cpr|: the
+//  answer to each CSI 6 n / CSI 255 n in turn, as 'row;col' (null for none),
+//  exactly as a real terminal sent them.
 //
 function makeTerminal(client, opts) {
     const {
@@ -53,6 +55,7 @@ function makeTerminal(client, opts) {
         bytewise = false,
         cterm = false,
         zeroBased = false,
+        script,
     } = opts;
     const cur = { row: 1, col: 1 };
     const queries = [];
@@ -88,6 +91,13 @@ function makeTerminal(client, opts) {
 
     const answerCpr = kind => {
         queries.push(kind);
+        if (script) {
+            const answer = script.shift();
+            if (answer) {
+                send(`\x1b[${answer}R`);
+            }
+            return;
+        }
         let pos;
         switch (cpr) {
             case 'one':
@@ -422,6 +432,50 @@ describe('ANSI terminal size probe', function () {
                 '\x1b[1;1H\x1b[0;0 D\x1b[6n', //  the SyncTERM font probe
             ]);
             return done();
+        });
+    });
+
+    //
+    //  The replies real DOS terminals sent ENiGMA under dos_terms (Windows
+    //  retest, 2026-11-23): home, CSI 255 n, CSI 6 n, the sentinel, then the
+    //  font probe where known.
+    //
+    describe('replies recorded from DOS terminals', () => {
+        const recorded = (name, script, expected, extra = {}) =>
+            it(`${name}: ${expected[0]}x${expected[1]}`, done => {
+                const { client } = connect({ script: script.slice(), ...extra });
+                runProbes(client, elapsed => {
+                    assert.deepEqual(sizeOf(client), expected);
+                    assert(elapsed < 1500, `no timeout (${elapsed}ms)`);
+                    if (extra.check) {
+                        extra.check(client);
+                    }
+                    return done();
+                });
+            });
+
+        //  24 good rows beside 999 wrapped in a byte (231): rows kept
+        recorded('Procomm Plus TD', ['1;1', null, '24;231', '1;5', '1;2'], [80, 24], {
+            check: client => assert.equal(client.term.syncTermFontsEnabled, false),
+        });
+        //  231 in both: no size at all
+        recorded('Procomm 2.4.3', ['1;1', null, '231;231', '1;5', '1;2'], [80, 25]);
+        //  1;1 to both size queries
+        recorded('Qmodem 4.6', ['1;1', '1;1', '1;1', '1;5', '1;8'], [80, 25], {
+            check: client => assert.equal(client.term.syncTermFontsEnabled, false),
+        });
+        //  the cursor stops at column 79, though column 80 is drawn
+        recorded('Telemate 4.21', ['1;1', null, '24;79', '1;5', '1;2'], [80, 24]);
+        //  every row one too high, its menu bar on row 1
+        recorded('Telix 3.51', ['2;1', null, '24;80', '2;5', '2;2'], [80, 23]);
+        //  column;row, a byte at a time: the font probe's 1;2 comes as 2;1
+        recorded('Terminate 5.00', ['1;1', null, '80;24', '5;1', '2;1'], [80, 24], {
+            bytewise: true,
+            check: client => {
+                assert.equal(client.cprTransposed, true);
+                assert(sent(client).includes(' D'), 'the font probe is still sent');
+                assert.equal(client.term.syncTermFontsEnabled, false);
+            },
         });
     });
 
