@@ -20,6 +20,14 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.6.2-beta to 0.6.3-beta
+
+* **Sysops: a disabled or inactive account is answered before the password is checked.** Nothing in your configuration, menus, art or themes needs to change.
+
+  **What changes by itself:** a login for an account that is disabled, or inactive (waiting for activation), is refused before its password or SSH key is looked at, with the same answer whether it is right or wrong. On the menus a wrong password now goes to the menu's `config.disabled` / `config.inactive` (ACCOUNTDISABLED / ACCOUNTINACTIVE art in the stock templates), or logs off, as the right one always did; before, it went back to the login prompt. Over SSH a wrong password or key now gets the status message and a disconnect instead of a plain failure. Anyone who knows a user name can therefore tell that the account is disabled or awaiting activation, as they already could for a locked one; in exchange, trying passwords on such an account tells nothing about them. These logins are no longer counted in `failed_login_attempts`, and the log shows "Account disabled" / "Account inactive" for them instead of "Invalid password". A lock that has run out over an account that was disabled or inactive before it is answered by that status. The REST API and NNTP answer as before.
+
+  **Action:** none.
+
 ## 0.6.1-beta to 0.6.2-beta
 
 * **Sysops: SSH public key logins are checked more strictly.** Nothing in your configuration, menus, art or themes needs to change.

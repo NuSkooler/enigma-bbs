@@ -339,6 +339,122 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
+    //  counts the password checks made while it is in place
+    function countDerives() {
+        const derive = User.generatePasswordDerivedKey;
+        const counter = { calls: 0 };
+        User.generatePasswordDerivedKey = function (...args) {
+            ++counter.calls;
+            return derive.apply(User, args);
+        };
+        counter.restore = () => (User.generatePasswordDerivedKey = derive);
+        return counter;
+    }
+
+    describe('a disabled or inactive account', () => {
+        [
+            ['disabled', ErrorReasons.Disabled],
+            ['inactive', ErrorReasons.Inactive],
+        ].forEach(([name, reason]) => {
+            it(`${name}: answers the right and a wrong password alike, before checking either`, async () => {
+                const { username, userId } = addUser({
+                    [UserProps.AccountStatus]: status(name),
+                    [UserProps.FailedLoginAttempts]: 1,
+                });
+                const derives = countDerives();
+                let right;
+                let wrong;
+                try {
+                    right = await login(username, RightPass);
+                    wrong = await login(username, 'wrong-pass');
+                } finally {
+                    derives.restore();
+                }
+                assert.equal(right.err.reasonCode, reason);
+                assert.equal(wrong.err.reasonCode, reason);
+                assert.equal(right.err.message, wrong.err.message);
+                assert.equal(right.user.isAuthenticated(), false);
+                assert.equal(derives.calls, 0, 'no password was checked');
+                //  nothing counted
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '1');
+            });
+        });
+
+        it('any other status that is not active is refused alike, unchecked', async () => {
+            const { username } = addUser({ [UserProps.AccountStatus]: '42' });
+            const derives = countDerives();
+            let right;
+            let wrong;
+            try {
+                right = await login(username, RightPass);
+                wrong = await login(username, 'wrong-pass');
+            } finally {
+                derives.restore();
+            }
+            assert.match(right.err.message, /Account is not active/);
+            assert.equal(right.err.message, wrong.err.message);
+            assert.equal(derives.calls, 0);
+        });
+
+        it('a lock that ran out over a disabled account: the right and a wrong password both get Disabled', async () => {
+            const lockedTs = hoursAgo(2);
+            const { username, userId } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('disabled'),
+                [UserProps.AccountLockedTs]: lockedTs,
+            });
+            const right = await login(username, RightPass);
+            const wrong = await login(username, 'wrong-pass');
+            assert.equal(right.err.reasonCode, ErrorReasons.Disabled);
+            assert.equal(wrong.err.reasonCode, ErrorReasons.Disabled);
+            //  the lock is neither re-armed nor cleared
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+            assert.equal(getProp(userId, UserProps.AccountLockedTs), lockedTs);
+        });
+
+        it('disabled by a sysop while a wrong password is checked: answered Disabled, as the right one is', async () => {
+            const { username, userId } = addUser();
+            const derive = User.generatePasswordDerivedKey;
+            User.generatePasswordDerivedKey = function (...args) {
+                //  oputil user disable, during the check
+                db.prepare(
+                    'UPDATE user_property SET prop_value = ? WHERE user_id = ? AND prop_name = ?'
+                ).run(status('disabled'), userId, UserProps.AccountStatus);
+                return derive.apply(User, args);
+            };
+            let wrong;
+            try {
+                wrong = await login(username, 'wrong-pass');
+            } finally {
+                User.generatePasswordDerivedKey = derive;
+            }
+            assert.equal(wrong.err.reasonCode, ErrorReasons.Disabled);
+            const right = await login(username, RightPass);
+            assert.equal(right.err.reasonCode, ErrorReasons.Disabled);
+            assert.equal(right.err.message, wrong.err.message);
+        });
+
+        it('disabled by a sysop while the right password is checked: refused, and not counted', async () => {
+            const { username, userId } = addUser();
+            const derive = User.generatePasswordDerivedKey;
+            User.generatePasswordDerivedKey = function (...args) {
+                db.prepare(
+                    'UPDATE user_property SET prop_value = ? WHERE user_id = ? AND prop_name = ?'
+                ).run(status('inactive'), userId, UserProps.AccountStatus);
+                return derive.apply(User, args);
+            };
+            let right;
+            try {
+                right = await login(username, RightPass);
+            } finally {
+                User.generatePasswordDerivedKey = derive;
+            }
+            assert.equal(right.err.reasonCode, ErrorReasons.Inactive);
+            assert.equal(right.user.isAuthenticated(), false);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
+        });
+    });
+
     describe('a lock in force', () => {
         const lockedProps = (extra = {}) =>
             Object.assign(
@@ -736,7 +852,13 @@ describe('account lockout (users.failedLogin)', function () {
                 };
                 const menu = {
                     client,
-                    menuConfig: { config: { locked: 'accountLocked' } },
+                    menuConfig: {
+                        config: {
+                            locked: 'accountLocked',
+                            disabled: 'accountDisabled',
+                            inactive: 'accountInactive',
+                        },
+                    },
                     gotoMenu: (name, cb) => {
                         cb(null);
                         resolve({ goto: name });
@@ -776,6 +898,17 @@ describe('account lockout (users.failedLogin)', function () {
         it('a wrong password for an account not locked goes back, as before', async () => {
             const { username } = addUser();
             assert.deepEqual(await menuLogin(username, 'wrong-pass'), { prev: true });
+        });
+
+        [
+            ['disabled', 'accountDisabled'],
+            ['inactive', 'accountInactive'],
+        ].forEach(([name, menu]) => {
+            it(`goes to the same place for the right and a wrong password when the account is ${name}`, async () => {
+                const { username } = addUser({ [UserProps.AccountStatus]: status(name) });
+                assert.deepEqual(await menuLogin(username, RightPass), { goto: menu });
+                assert.deepEqual(await menuLogin(username, 'wrong-pass'), { goto: menu });
+            });
         });
     });
 

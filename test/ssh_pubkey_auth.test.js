@@ -743,6 +743,230 @@ describe('SSH public key authentication', function () {
     const newKey = (type = 'ed25519', bits) =>
         ssh2.utils.parseKey(generateKeys(type, bits ? { bits } : {}).private);
 
+    //
+    //  A disabled or inactive account is answered before the password or key
+    //  is looked at: the same whether or not it is right.
+    //
+    describe('a disabled or inactive account, by password', () => {
+        const RightPass = 'right-pass';
+        let passProps;
+        let derives;
+        let savedDerive;
+
+        before(done => {
+            User.generatePasswordDerivedKeyAndSalt(RightPass, (err, info) => {
+                if (err) {
+                    return done(err);
+                }
+                passProps = {
+                    [UserProps.PassPbkdf2Salt]: info.salt,
+                    [UserProps.PassPbkdf2Dk]: info.dk,
+                    [UserProps.PassHashParams]: JSON.stringify(User.PBKDF2),
+                };
+                return done();
+            });
+        });
+
+        beforeEach(() => {
+            derives = 0;
+            savedDerive = User.generatePasswordDerivedKey;
+            User.generatePasswordDerivedKey = (...args) => {
+                ++derives;
+                return savedDerive.apply(User, args);
+            };
+        });
+
+        afterEach(() => {
+            User.generatePasswordDerivedKey = savedDerive;
+        });
+
+        //
+        //  Log in as |username| with |password| by |method|, and see what the
+        //  client is told: |methodsLeft| at each failure, |shown| (each
+        //  keyboard-interactive request: its instructions and prompts) and
+        //  |serverClosed| (the server ended the connection rather than
+        //  waiting for another try). As OpenSSH does, a client steered to
+        //  keyboard-interactive goes there (#1081); asked for a password
+        //  again, it gives up.
+        //
+        function passwordLogin({ username, password, method }) {
+            return new Promise(resolve => {
+                const out = { ready: false, methodsLeft: [], shown: [] };
+                const sshClient = new ssh2.Client();
+                let step = 0;
+                let closed = false;
+                let passwordPrompts = 0;
+
+                const giveUpUnlessClosed = after => {
+                    setTimeout(() => {
+                        if (!closed) {
+                            out.serverClosed = false;
+                            after();
+                        }
+                    }, 500);
+                };
+
+                const keyboard = () => {
+                    //  ssh2's client answers a request with no prompts itself,
+                    //  without showing it: what the server sent is taken
+                    //  from the protocol
+                    const handlers = sshClient._protocol._handlers;
+                    const infoRequest = handlers.USERAUTH_INFO_REQUEST;
+                    handlers.USERAUTH_INFO_REQUEST = (p, name, instructions, prompts) => {
+                        out.shown.push({
+                            instructions,
+                            prompts: (prompts || []).map(pr => pr.prompt),
+                        });
+                        return infoRequest(p, name, instructions, prompts);
+                    };
+                    return {
+                        type: 'keyboard-interactive',
+                        username,
+                        prompt: (name, instructions, lang, prompts, finish) => {
+                            //  only the login itself answers the password
+                            if (
+                                'keyboard-interactive' === method &&
+                                0 === passwordPrompts++
+                            ) {
+                                return finish([password]);
+                            }
+                            giveUpUnlessClosed(() => sshClient.end());
+                        },
+                    };
+                };
+
+                sshClient.on('ready', () => {
+                    out.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (out.error = err.message));
+                sshClient.on('close', () => {
+                    closed = true;
+                    if (undefined === out.serverClosed) {
+                        out.serverClosed = true;
+                    }
+                    out.serverClient = serverClients[serverClients.length - 1];
+                    resolve(out);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        step += 1;
+                        if (1 === step) {
+                            return cb(
+                                'password' === method
+                                    ? { type: 'password', username, password }
+                                    : keyboard()
+                            );
+                        }
+                        out.methodsLeft.push(methodsLeft);
+                        if (
+                            2 === step &&
+                            'password' === method &&
+                            _.isEqual(methodsLeft, ['keyboard-interactive'])
+                        ) {
+                            return cb(keyboard());
+                        }
+                        //  (the handler must return nothing: ssh2 takes a
+                        //  value returned as the next method to try)
+                        giveUpUnlessClosed(() => cb(false));
+                        return;
+                    },
+                });
+            });
+        }
+
+        //  what the client could tell apart
+        const outcome = r => ({
+            ready: r.ready,
+            methodsLeft: r.methodsLeft,
+            shown: r.shown.map(sh => ({
+                instructions: (sh.instructions || '').replace(/pkuser\d+/g, 'USER'),
+                prompts: sh.prompts.map(pr => pr.replace(/pkuser\d+/g, 'USER')),
+            })),
+            serverClosed: r.serverClosed,
+        });
+
+        ['disabled', 'inactive'].forEach(status => {
+            ['password', 'keyboard-interactive'].forEach(method => {
+                it(`${status}, ${method}: the right and a wrong password get the same answer, unchecked`, async () => {
+                    const user = addUser({
+                        keyType: 'none',
+                        props: Object.assign(
+                            {
+                                [UserProps.AccountStatus]: String(
+                                    User.AccountStatus[status]
+                                ),
+                            },
+                            passProps
+                        ),
+                    });
+                    const right = await passwordLogin({
+                        ...user,
+                        password: RightPass,
+                        method,
+                    });
+                    const wrong = await passwordLogin({
+                        ...user,
+                        password: 'wrong-pass',
+                        method,
+                    });
+                    assertNoLogin(right);
+                    assertNoLogin(wrong);
+                    assert.deepEqual(outcome(wrong), outcome(right));
+                    assert.equal(right.serverClosed, true, 'the connection is ended');
+                    //  the reason, as a keyboard-interactive request with no
+                    //  prompts (#1081)
+                    const refusal = right.shown[right.shown.length - 1];
+                    assert.match(
+                        refusal.instructions,
+                        'disabled' === status ? /is disabled/ : /activation/
+                    );
+                    assert.deepEqual(refusal.prompts, []);
+                    assert.equal(derives, 0, 'no password was checked');
+                    assert.equal(
+                        getProp(user.userId, UserProps.FailedLoginAttempts),
+                        undefined
+                    );
+                });
+            });
+        });
+
+        it('an active account: a wrong password is a plain failure, as before', async () => {
+            const user = addUser({ keyType: 'none', props: passProps });
+            const wrong = await passwordLogin({
+                ...user,
+                password: 'wrong-pass',
+                method: 'password',
+            });
+            assertNoLogin(wrong);
+            assert.equal(wrong.methodsLeft.length, 1);
+            assert.ok(wrong.methodsLeft[0].includes('password'));
+            assert.equal(wrong.serverClosed, false);
+            assert.equal(derives, 1);
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), '1');
+        });
+
+        it('a good signature with a key that is not the user, on a disabled account, gets the status answer', async () => {
+            const user = addUser({
+                props: { [UserProps.AccountStatus]: String(User.AccountStatus.disabled) },
+            });
+            const result = await connect({
+                username: user.username,
+                key: newKey(),
+                mode: 'signedNoQuery',
+            });
+            assert.equal(result.signedSent, true);
+            assertNoLogin(result);
+            const reasons = failedLoginReasons(result);
+            assert.equal(reasons.length, 1, JSON.stringify(reasons));
+            assert.match(reasons[0], /Account disabled/);
+        });
+    });
+
     describe('a good signature made with another key', () => {
         it('is refused with the user key offered and no query', async () => {
             const user = addUser();
