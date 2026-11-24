@@ -259,36 +259,52 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
-    describe('logins in flight', () => {
-        //  the right password's check finishes |ms| after the others
-        function slowRightPassword(ms) {
-            const derive = User.generatePasswordDerivedKey;
-            User.generatePasswordDerivedKey = function (...args) {
-                if (RightPass === args[0]) {
-                    return setTimeout(() => derive.apply(User, args), ms);
-                }
-                return derive.apply(User, args);
-            };
-            return () => (User.generatePasswordDerivedKey = derive);
-        }
+    //  the right password's check finishes |ms| after the others
+    function slowRightPassword(ms) {
+        const derive = User.generatePasswordDerivedKey;
+        User.generatePasswordDerivedKey = function (...args) {
+            if (RightPass === args[0]) {
+                return setTimeout(() => derive.apply(User, args), ms);
+            }
+            return derive.apply(User, args);
+        };
+        return () => (User.generatePasswordDerivedKey = derive);
+    }
 
+    //  10 wrong passwords and the right one at once, the right one finishing last
+    async function burst(username, loginFn = login) {
+        const restore = slowRightPassword(400);
+        try {
+            return await Promise.all([
+                ...Array.from({ length: 10 }, () => loginFn(username, 'wrong-pass')),
+                loginFn(username, RightPass),
+            ]);
+        } finally {
+            restore();
+        }
+    }
+
+    describe('logins in flight', () => {
         it('the right password is refused once the lock lands, and the lock stays as set', async () => {
             const { username, userId } = addUser();
-            const restore = slowRightPassword(400);
-            let results;
-            try {
-                results = await Promise.all([
-                    ...Array.from({ length: 10 }, () => login(username, 'wrong-pass')),
-                    login(username, RightPass),
-                ]);
-            } finally {
-                restore();
-            }
+            const results = await burst(username);
 
             const right = results[results.length - 1];
             assert.ok(right.err, 'refused');
             assert.equal(right.err.reasonCode, ErrorReasons.Locked);
             assert.equal(right.user.isAuthenticated(), false);
+
+            //  every answer from the lock on is the right password's: the two
+            //  wrong ones before it are told so, the rest (the one that set
+            //  the lock included) are told it is locked
+            const answers = results.map(r => `${r.err.message} [${r.err.reasonCode}]`);
+            const locked = `${right.err.message} [${right.err.reasonCode}]`;
+            assert.equal(answers.filter(a => a === locked).length, 9, answers.join(', '));
+            assert.equal(
+                answers.filter(a => /Invalid password/.test(a)).length,
+                2,
+                answers.join(', ')
+            );
 
             assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
             assert.equal(
@@ -300,6 +316,22 @@ describe('account lockout (users.failedLogin)', function () {
             assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
         });
 
+        it('on a lock that has run out, every answer is the right password', async () => {
+            const { username, userId } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('active'),
+                [UserProps.AccountLockedTs]: hoursAgo(2),
+            });
+            const results = await burst(username);
+            const answers = new Set(
+                results.map(
+                    r => `${r.err && r.err.message} [${r.err && r.err.reasonCode}]`
+                )
+            );
+            assert.deepEqual([...answers], ['Access denied: Account is locked [LOCKED]']);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+        });
+
         it('a wrong password finishing after the lock landed does not move it', async () => {
             const { username, userId } = addUser({ [UserProps.FailedLoginAttempts]: 2 });
             //  this one is checked against the account before the lock...
@@ -308,7 +340,8 @@ describe('account lockout (users.failedLogin)', function () {
             await failTimes(username, 1);
             const lockedTs = getProp(userId, UserProps.AccountLockedTs);
             assert.ok(lockedTs);
-            await late;
+            const { err } = await late;
+            assert.equal(err.reasonCode, ErrorReasons.Locked);
             assert.equal(getProp(userId, UserProps.AccountLockedTs), lockedTs);
             assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
         });
@@ -519,6 +552,15 @@ describe('account lockout (users.failedLogin)', function () {
             });
         });
 
+        it('in a burst, every caller after the lock lands goes to the same place', async () => {
+            const { username } = addUser();
+            const results = await burst(username, menuLogin);
+            const right = results[results.length - 1];
+            assert.deepEqual(right, { goto: 'accountLocked' });
+            assert.equal(results.filter(r => r.prev).length, 2);
+            assert.equal(results.filter(r => 'accountLocked' === r.goto).length, 9);
+        });
+
         it('a wrong password for an account not locked goes back, as before', async () => {
             const { username } = addUser();
             assert.deepEqual(await menuLogin(username, 'wrong-pass'), { prev: true });
@@ -660,9 +702,21 @@ describe('account lockout (users.failedLogin)', function () {
             }
         });
 
-        function reset(userId, password) {
+        //  |during|: run while the new password's key is derived
+        function reset(userId, password, during) {
             body = `token=tok&password=${password}&confirm_password=${password}`;
-            WebPasswordReset.getUserByToken = (token, cb) => User.getUser(userId, cb);
+            WebPasswordReset.getUserByToken = (token, cb) =>
+                User.getUser(userId, (err, user) => {
+                    if (user && during) {
+                        const setCredentials = user.setNewAuthCredentials.bind(user);
+                        user.setNewAuthCredentials = (pw, done) =>
+                            setCredentials(pw, err => {
+                                during();
+                                return done(err);
+                            });
+                    }
+                    return cb(err, user);
+                });
             return new Promise(resolve => {
                 const resp = {
                     writeHead: code => (resp.code = code),
@@ -673,6 +727,45 @@ describe('account lockout (users.failedLogin)', function () {
                 setTimeout(() => resolve(resp.code), 3000);
             });
         }
+
+        it('leaves a status a sysop set while it was under way', async () => {
+            const { userId } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('active'),
+                [UserProps.AccountLockedTs]: hoursAgo(0.1),
+                [UserProps.FailedLoginAttempts]: 3,
+            });
+            const code = await reset(userId, 'new-pass-2', () => {
+                //  oputil user disable
+                User.getUser(userId, (err, other) =>
+                    other.setAccountStatusBySysop(User.AccountStatus.disabled, () => {})
+                );
+            });
+            assert.equal(code, 200);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('disabled'));
+        });
+
+        it('unlocks a lock that landed while it was under way', async () => {
+            const { userId } = addUser();
+            const code = await reset(userId, 'new-pass-3', () => {
+                db.prepare(
+                    'INSERT INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?) ON CONFLICT(user_id, prop_name) DO UPDATE SET prop_value = excluded.prop_value'
+                ).run(
+                    userId,
+                    UserProps.AccountStatus,
+                    status('locked'),
+                    userId,
+                    UserProps.AccountLockedPrevStatus,
+                    status('active'),
+                    userId,
+                    UserProps.AccountLockedTs,
+                    new Date().toISOString()
+                );
+            });
+            assert.equal(code, 200);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+            assert.equal(getProp(userId, UserProps.AccountLockedTs), undefined);
+        });
 
         it('clears the failed login count of an account that is not locked', async () => {
             const { username, userId } = addUser({ [UserProps.FailedLoginAttempts]: 2 });

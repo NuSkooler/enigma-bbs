@@ -369,6 +369,13 @@ class WebPasswordReset {
                         return badRequest();
                     }
 
+                    //
+                    //  The account as it is now: deriving the new key took a
+                    //  while, and a sysop may have set its status, or a lock
+                    //  landed, meanwhile. What follows is not asynchronous.
+                    //
+                    User.refreshLockProperties(user.userId, user.properties);
+
                     //  delete assoc properties - no need to wait for completion;
                     //  the failed login count starts again with the new password
                     user.removeProperties([

@@ -465,6 +465,25 @@ module.exports = class User {
         return props;
     }
 
+    //
+    //  cb-less: update |properties| (of |userId|) with the status and lock
+    //  properties as stored now. Returns |properties|, or an Error.
+    //
+    static refreshLockProperties(userId, properties) {
+        const fresh = User.loadLockProperties(userId);
+        if (fresh instanceof Error) {
+            return fresh;
+        }
+        LockPropertyNames.forEach(name => {
+            if (_.has(fresh, name)) {
+                properties[name] = fresh[name];
+            } else {
+                delete properties[name];
+            }
+        });
+        return properties;
+    }
+
     static get LockState() {
         return {
             None: 'none', //  not locked
@@ -669,17 +688,13 @@ module.exports = class User {
                     //  (the count reset and any unlock) nothing is
                     //  asynchronous, so nothing can change it in between.
                     //
-                    const fresh = User.loadLockProperties(tempAuthInfo.userId);
+                    const fresh = User.refreshLockProperties(
+                        tempAuthInfo.userId,
+                        tempAuthInfo.properties
+                    );
                     if (fresh instanceof Error) {
                         return callback(fresh);
                     }
-                    LockPropertyNames.forEach(name => {
-                        if (_.has(fresh, name)) {
-                            tempAuthInfo.properties[name] = fresh[name];
-                        } else {
-                            delete tempAuthInfo.properties[name];
-                        }
-                    });
 
                     if (
                         User.LockState.InForce ===
@@ -753,6 +768,37 @@ module.exports = class User {
             ],
             err => {
                 if (err) {
+                    const isAccountStatusErr = [
+                        ErrorReasons.Disabled,
+                        ErrorReasons.Inactive,
+                        ErrorReasons.Locked,
+                    ].includes(err.reasonCode);
+
+                    //
+                    //  Once the account is locked, every refused login gets
+                    //  the same answer as the right password does: a wrong one
+                    //  under way when the lock landed (or the one that set
+                    //  it) must not answer otherwise, or the right one stands
+                    //  out among them.
+                    //
+                    const answer = () => {
+                        if (!isAccountStatusErr && tempAuthInfo.userId) {
+                            const fresh = User.loadLockProperties(tempAuthInfo.userId);
+                            if (
+                                !(fresh instanceof Error) &&
+                                User.LockState.InForce === User.getLockState(fresh)
+                            ) {
+                                return cb(
+                                    Errors.AccessDenied(
+                                        'Account is locked',
+                                        ErrorReasons.Locked
+                                    )
+                                );
+                            }
+                        }
+                        return cb(err);
+                    };
+
                     //
                     //  A wrong password counts as a failed login (see
                     //  processFailedLogin(): it may lock the account, or
@@ -761,9 +807,7 @@ module.exports = class User {
                     //  in force, nor a key that is not the user's.
                     //
                     if (
-                        ![ErrorReasons.Disabled, ErrorReasons.Inactive].includes(
-                            err.reasonCode
-                        ) &&
+                        !isAccountStatusErr &&
                         !tempAuthInfo.notCounted &&
                         tempAuthInfo.userId
                     ) {
@@ -774,8 +818,10 @@ module.exports = class User {
                                     'Failed to persist failed login information'
                                 );
                             }
-                            return cb(err); //  pass along original error
+                            return answer();
                         });
+                    } else if (!isAccountStatusErr) {
+                        return answer();
                     } else {
                         return cb(err);
                     }
