@@ -12,14 +12,16 @@ const { strict: assert } = require('assert');
 const async = require('async');
 
 //
-//  core/term/ansi/probes.js reads Config().term through the config getter
-//  captured when it was first required, during mocha's load phase, as this
-//  is: the same object (test/setup.js's minimal config). Its term settings
-//  (read by ClientTerminal too, which captures its getter the same way) and
-//  logging (read by client.js) are set before each test and put back in
-//  after().
+//  core/term/ansi/probes.js, core/client_term.js and core/client.js read
+//  Config() through the getter captured when they were first required, which
+//  may be any test's config by now. They are required afresh here, under a
+//  config pushed for this suite, and the cached copies are put back after.
 //
-const loadTimeConfig = require('../core/config.js').get();
+const FreshModules = [
+    '../core/term/ansi/probes.js',
+    '../core/client_term.js',
+    '../core/client.js',
+].map(m => require.resolve(m));
 
 const CTERM_DA = '\x1b[=67;84;101;114;109;1;316c';
 
@@ -163,39 +165,51 @@ describe('ANSI terminal size probe', function () {
     let ClientTerminal;
     let Events;
     let Probes;
-    //  the config sections set for these tests, as they were before
-    let saved;
+    //  read by the probes (term), ClientTerminal (term) and client.js (logging)
+    const testTerm = {
+        checkAnsiHomePosition: true,
+        checkUtf8Encoding: true,
+        probeUtf8Encoding: false,
+        utf8TermList: [],
+        cp437TermList: [],
+    };
+    let testConfig;
+    let previousConfig;
+    let savedModules;
 
     before(() => {
-        ClientModule = require('../core/client.js');
-        ClientTerminal = require('../core/client_term.js').ClientTerminal;
-        Events = require('../core/events.js');
+        const configModule = require('../core/config.js');
+        testConfig = Object.assign({}, configModule.get(), {
+            term: Object.assign({}, testTerm),
+            logging: { traceUserKeyboardInput: false },
+        });
+        previousConfig = configModule._pushTestConfig(testConfig);
+
+        savedModules = FreshModules.map(path => [path, require.cache[path]]);
+        FreshModules.forEach(path => delete require.cache[path]);
+
         Probes = require('../core/term/ansi/probes.js');
-        saved = { term: loadTimeConfig.term, logging: loadTimeConfig.logging };
+        ClientTerminal = require('../core/client_term.js').ClientTerminal;
+        ClientModule = require('../core/client.js');
+        Events = require('../core/events.js');
     });
 
     beforeEach(() => {
-        loadTimeConfig.term = Object.assign({}, saved.term, {
-            checkAnsiHomePosition: true,
-            checkUtf8Encoding: true,
-            probeUtf8Encoding: false,
-            utf8TermList: [],
-            cp437TermList: [],
-        });
-        //  read by client.js for each key press
-        loadTimeConfig.logging = Object.assign({}, saved.logging, {
-            traceUserKeyboardInput: false,
-        });
+        testConfig.term = Object.assign({}, testTerm);
     });
 
     after(() => {
-        Object.keys(saved).forEach(section => {
-            if (undefined === saved[section]) {
-                delete loadTimeConfig[section];
-            } else {
-                loadTimeConfig[section] = saved[section];
-            }
-        });
+        try {
+            (savedModules || []).forEach(([path, cached]) => {
+                if (cached) {
+                    require.cache[path] = cached;
+                } else {
+                    delete require.cache[path];
+                }
+            });
+        } finally {
+            require('../core/config.js')._popTestConfig(previousConfig);
+        }
     });
 
     const clients = [];
@@ -305,7 +319,7 @@ describe('ANSI terminal size probe', function () {
         //  without the home position probe, the size query is the first; a
         //  late 1;1 taken by the font probe would turn fonts on
         this.timeout(8000);
-        loadTimeConfig.term.checkAnsiHomePosition = false;
+        testConfig.term.checkAnsiHomePosition = false;
         const { client, terminal } = connect({ cpr: 'one', lateMs: 2300 });
         runProbes(client, () => {
             assert.deepEqual(sizeOf(client), [80, 25]);
