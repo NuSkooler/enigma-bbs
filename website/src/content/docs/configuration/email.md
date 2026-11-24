@@ -129,7 +129,7 @@ See [Configuration Files — Secret Files](config-files.md#secret-files) for det
 
 ## Password Reset / Account Unlock
 
-If email is configured and you allow email-driven password resets, you may also allow locked accounts to be unlocked at reset time. This is controlled by `users.unlockAtEmailPwReset`. If an account is locked due to too many failed login attempts, the user can reset their password to remedy the situation themselves.
+If email is configured and you allow email-driven password resets, you may also allow locked accounts to be unlocked at reset time. This is controlled by `users.unlockAtEmailPwReset`. If an account is locked due to too many failed login attempts, the user can reset their password to remedy the situation themselves. This does not apply to an account with [2FA/OTP](security.md#two-factor-authentication-via-one-time-password): a reset changes its password but leaves its failed login count and any lock as they are.
 
 ## See Also
 

@@ -95,6 +95,9 @@ Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets inten
 +ops can also manually enable or disable 2FA/OTP for a user using [oputil](../admin/oputil.md), but this is generally discouraged.
 :::
 
+#### Failed Codes and Account Lock
+A wrong one-time password or backup code counts toward `users.failedLogin` just as a wrong password does: after `disconnect` failures the caller is disconnected, and after `lockAccount` failed logins in a row (passwords and codes together) the account is locked. While it is locked, the code prompt answers "locked" whatever is entered, without checking it. For an account with 2FA/OTP, the failed login count, and a lock that has run out (`autoUnlockMinutes`), are cleared only once the code checks out, not by the password alone. An email password reset leaves the count and any lock of such an account as they are, since it proves nothing about the second factor; the lock runs out as usual, or the sysop can clear it with `./oputil.js user activate USERNAME`.
+
 #### Recovery
 In the situation that a user loses their 2FA/OTP device (such as a lost phone with Google Auth), there are some options:
 * Utilize one of their backup codes.

@@ -28,6 +28,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** none.
 
+* **Sysops: wrong one-time password (2FA/OTP) codes can lock an account.** Nothing in your configuration needs to change.
+
+  **What changes by itself:** a wrong code or backup code at the 2FA prompt counts toward `users.failedLogin.lockAccount` (default 9) together with wrong passwords, so a user who mistypes their code that many times in a row is locked, as with passwords; before, codes counted only toward `disconnect`. While an account is locked the prompt refuses every code, right or wrong, without checking it. For accounts with 2FA, the right password alone no longer clears the failed login count or a lock that has run out (this applies to every login path, the REST API and NNTP included, though those refuse 2FA accounts anyway); the right code does. A 2FA user who mistypes their password and then disconnects at the code prompt keeps the count. An email password reset no longer clears the count or the lock of a 2FA account (`unlockAtEmailPwReset` applies only to accounts without 2FA); non-2FA accounts are reset as before.
+
+  **Action:** if you have customised the 2FA menu (`loginTwoFactorAuthOTP`, or the `petscii`, `rip` or `atascii` versions), add `locked`, `disabled` and `inactive` to its `config`, with the same targets as your login menu's, as the stock templates now do; without them, a locked, disabled or inactive account at the code prompt is logged off instead of shown the ACCOUNTLOCKED, ACCOUNTDISABLED or ACCOUNTINACTIVE screen. To unlock an account by hand: `./oputil.js user activate USERNAME`.
+
 ## 0.6.1-beta to 0.6.2-beta
 
 * **Sysops: SSH public key logins are checked more strictly.** Nothing in your configuration, menus, art or themes needs to change.

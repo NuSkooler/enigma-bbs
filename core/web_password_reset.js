@@ -376,15 +376,32 @@ class WebPasswordReset {
                     //  decided on it. The failed login count starts again
                     //  with the new password.
                     //
-                    const unlock = true === _.get(config, 'users.unlockAtEmailPwReset');
+                    //  Not for an account with a second factor (2FA/OTP): a
+                    //  password reset proves nothing about that, and wrong
+                    //  codes count toward the lock too, so its count and any
+                    //  lock stay as they are.
+                    //
+                    const hasFactor2 = !!user.getProperty(UserProps.AuthFactor2OTP);
+                    const unlock =
+                        !hasFactor2 &&
+                        true === _.get(config, 'users.unlockAtEmailPwReset');
                     User.inLockTransaction(
                         done => {
                             User.refreshLockProperties(user.userId, user.properties);
-                            user.removeProperties([
-                                UserProps.EmailPwResetToken,
-                                UserProps.EmailPwResetTokenTs,
-                                UserProps.FailedLoginAttempts,
-                            ]);
+                            user.removeProperties(
+                                [
+                                    UserProps.EmailPwResetToken,
+                                    UserProps.EmailPwResetTokenTs,
+                                ].concat(
+                                    hasFactor2 ? [] : [UserProps.FailedLoginAttempts]
+                                )
+                            );
+                            if (hasFactor2) {
+                                Log.info(
+                                    { username: user.username, userId: user.userId },
+                                    'Password reset leaves the failed login count and any lock: the account has a second factor'
+                                );
+                            }
                             if (!unlock) {
                                 return done(null);
                             }

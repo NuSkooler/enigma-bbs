@@ -369,6 +369,28 @@ module.exports = class User {
         }, cb);
     }
 
+    //
+    //  A login is complete (every factor checked out): the failed login count
+    //  starts again, and a lock (one that has run out, or the login would
+    //  have been refused) is cleared, back to the status from before it (see
+    //  unlockAccount()).
+    //
+    clearFailedLogins(cb) {
+        return User.inLockTransaction(cb => {
+            //  decided on the account as stored now, not as loaded earlier
+            const fresh = User.refreshLockProperties(this.userId, this.properties);
+            if (fresh instanceof Error) {
+                return cb(fresh);
+            }
+            return this.removeProperty(UserProps.FailedLoginAttempts, err => {
+                if (err) {
+                    return cb(err);
+                }
+                return this._unlockAccount(cb);
+            });
+        }, cb);
+    }
+
     _unlockAccount(cb) {
         const prevStatus = this.getProperty(UserProps.AccountLockedPrevStatus);
         const isLocked =
@@ -853,7 +875,9 @@ module.exports = class User {
                                         UserProps.AccountLockedPrevStatus
                                     ],
                             },
-                            'Locked account will now be unlocked due to auto-unlock minutes policy'
+                            tempAuthInfo.properties[UserProps.AuthFactor2OTP]
+                                ? 'Locked account will be unlocked once its second factor (2FA/OTP) checks out, due to auto-unlock minutes policy'
+                                : 'Locked account will now be unlocked due to auto-unlock minutes policy'
                         );
                     }
 
@@ -930,24 +954,32 @@ module.exports = class User {
                         ? true
                         : false);
 
-                    self.removeProperty(UserProps.FailedLoginAttempts);
-
-                    //
-                    //  We need to *revert* any locked status back to
-                    //  the user's previous status & clean up props.
-                    //
-                    self.unlockAccount(unlockErr => {
-                        if (unlockErr) {
-                            Log.warn(
-                                { error: unlockErr.message },
-                                'Failed to unlock account'
-                            );
-                        }
-
+                    const done = () => {
                         if (tempAuthInfo.needsRehash) {
                             upgradePasswordHash();
                         }
                         return cb(null);
+                    };
+
+                    //
+                    //  The failed login count, and a lock that has run out,
+                    //  are cleared once the login is complete: with a second
+                    //  factor still to come, that is after it (see
+                    //  loginFactor2_OTP()), so wrong codes count toward the
+                    //  lock as wrong passwords do.
+                    //
+                    if (!self.authenticated) {
+                        return done();
+                    }
+
+                    self.clearFailedLogins(clearErr => {
+                        if (clearErr) {
+                            Log.warn(
+                                { error: clearErr.message },
+                                'Failed to unlock account'
+                            );
+                        }
+                        return done();
                     });
                 }
             }

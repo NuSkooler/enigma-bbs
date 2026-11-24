@@ -150,7 +150,7 @@ Many built in global/system methods exist. Below are a few. See [system_menu_met
 | Method | Description |
 |--------|-------------|
 | `login` | Performs a standard login. |
-| `login2FA_OTP` | Performs a 2-Factor Authentication (2FA) One-Time Password (OTP) check, if configured for the user. |
+| `login2FA_OTP` | Performs a 2-Factor Authentication (2FA) One-Time Password (OTP) check, if configured for the user. A wrong code counts toward `users.failedLogin`, as a wrong password does. A locked, disabled or inactive account goes to the menu's `config.locked`, `config.disabled` or `config.inactive` menu, as with `login`, or is logged off if that is not set. |
 | `logoff` | Performs a standard system logoff. |
 | `prevMenu` | Goes to the previous menu. |
 | `nextMenu` | Goes to the next menu (as set by `next`) |
