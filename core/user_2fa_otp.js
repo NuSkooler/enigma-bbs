@@ -82,9 +82,18 @@ function createBackupCodes() {
 
 function validateAndConsumeBackupCode(user, token, cb) {
     try {
-        let validCodes = JSON.parse(
-            user.getProperty(UserProps.AuthFactor2OTPBackupCodes)
-        );
+        //  none stored (or unreadable): no code matches
+        let validCodes;
+        try {
+            validCodes = JSON.parse(
+                user.getProperty(UserProps.AuthFactor2OTPBackupCodes) || '[]'
+            );
+        } catch (e) {
+            validCodes = [];
+        }
+        if (!Array.isArray(validCodes)) {
+            validCodes = [];
+        }
         const matchingCode = validCodes.find(c => c === token);
         if (!matchingCode) {
             return cb(
@@ -147,19 +156,46 @@ function prepareOTP(otpType, options, cb) {
     return cb(null, { secret, qr });
 }
 
+//
+//  The second factor of a login: |token| is a one-time password, or one of
+//  the user's backup codes.
+//
+//  As for a password (see User.authenticateFactor1()), the account is looked
+//  at first: locked (another login, or this one, may have locked it since
+//  the password was checked), disabled or inactive, it is refused whatever
+//  the code, which is not checked, and the attempt is not counted. A wrong
+//  code counts toward users.failedLogin.lockAccount (see
+//  User.processFailedLogin()); the failure that sets the lock is answered
+//  as the lock is, the same as the right code would be from then on. Once a
+//  code checks out, the login is complete: the failed login count starts
+//  again, and a lock that had run out is cleared.
+//
 function loginFactor2_OTP(client, token, cb) {
-    if (client.user.authFactor < User.AuthFactors.Factor1) {
+    const user = client.user;
+    if (user.authFactor < User.AuthFactors.Factor1) {
         return cb(Errors.AccessDenied('OTP requires prior authentication factor 1'));
     }
 
-    const otpType = client.user.getProperty(UserProps.AuthFactor2OTP);
+    const refused = err => cb(transformLoginError(err, client, user.username));
+
+    //  the account as stored now
+    const fresh = User.refreshLockProperties(user.userId, user.properties);
+    if (fresh instanceof Error) {
+        return cb(fresh);
+    }
+    const statusErr = User.accountStatusError(user.properties);
+    if (statusErr) {
+        return refused(statusErr);
+    }
+
+    const otpType = user.getProperty(UserProps.AuthFactor2OTP);
     const otp = otpFromType(otpType);
 
     if (!otp) {
         return cb(Errors.Invalid(`Unknown OTP type: ${otpType}`));
     }
 
-    const secret = client.user.getProperty(UserProps.AuthFactor2OTPSecret);
+    const secret = user.getProperty(UserProps.AuthFactor2OTPSecret);
     if (!secret) {
         return cb(Errors.Invalid('Missing OTP secret'));
     }
@@ -167,9 +203,14 @@ function loginFactor2_OTP(client, token, cb) {
     const valid = otp.verify({ token, secret });
 
     const allowLogin = () => {
-        client.user.authFactor = User.AuthFactors.Factor2;
-        client.user.authenticated = true;
-        return recordLogin(client, cb);
+        user.clearFailedLogins(err => {
+            if (err) {
+                client.log.warn({ error: err.message }, 'Failed to unlock account');
+            }
+            user.authFactor = User.AuthFactors.Factor2;
+            user.authenticated = true;
+            return recordLogin(client, cb);
+        });
     };
 
     if (valid) {
@@ -177,11 +218,33 @@ function loginFactor2_OTP(client, token, cb) {
     }
 
     //  maybe they punched in a backup code?
-    validateAndConsumeBackupCode(client.user, token, err => {
-        if (err) {
-            return cb(transformLoginError(err, client, client.user.username));
+    validateAndConsumeBackupCode(user, token, err => {
+        if (!err) {
+            return allowLogin();
         }
 
-        return allowLogin();
+        //  not a wrong code (the backup code could not be consumed, say)
+        if (ErrorReasons.Invalid2FA !== err.reasonCode) {
+            return refused(err);
+        }
+
+        user.processFailedLogin(user.userId, persistErr => {
+            if (persistErr) {
+                client.log.warn(
+                    { error: persistErr.message },
+                    'Failed to persist failed login information'
+                );
+            }
+
+            //  locked now (by this failure, or another login meanwhile)?
+            const now = User.loadLockProperties(user.userId);
+            if (!(now instanceof Error)) {
+                const nowErr = User.accountStatusError(now);
+                if (nowErr) {
+                    return refused(nowErr);
+                }
+            }
+            return refused(err);
+        });
     });
 }

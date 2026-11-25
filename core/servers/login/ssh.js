@@ -101,6 +101,14 @@ function SSHClient(clientConn, connInfo) {
             'SSH authentication attempt'
         );
 
+        //
+        //  The connection is being ended (see slowTerminateConnection()):
+        //  no request is looked at any more, and none is answered.
+        //
+        if (self.authEnded) {
+            return;
+        }
+
         const safeContextReject = param => {
             try {
                 return ctx.reject(param);
@@ -111,8 +119,31 @@ function SSHClient(clientConn, connInfo) {
         };
 
         const terminateConnection = () => {
+            //  before the reject: ssh2 hands over the next queued request
+            //  from within it, and that one is not to be looked at
+            self.authEnded = true;
             safeContextReject();
             return clientConn.end();
+        };
+
+        //
+        //  ssh2 can refuse to send an accept: it keeps the methods of the
+        //  requests it has seen in order, and a keyboard-interactive request
+        //  the client replaced stays first, so a publickey query answered
+        //  after it (a held one, say) throws. Here that is outside ssh2's
+        //  own handling, which would otherwise close the connection for it:
+        //  the connection is ended instead.
+        //
+        const safeContextAccept = () => {
+            try {
+                return ctx.accept();
+            } catch (err) {
+                self.log.warn(
+                    { error: err.message, method: ctx.method, username },
+                    'SSH authentication answer could not be sent; ending the connection'
+                );
+                return terminateConnection();
+            }
         };
 
         //
@@ -158,8 +189,32 @@ function SSHClient(clientConn, connInfo) {
             return showRefusal();
         }
 
-        //  slow version to thwart brute force attacks
+        //
+        //  One login at a time per connection (RFC 4252 section 5: each
+        //  request is processed completely before the next). ssh2 queues a
+        //  request that comes before the current one is answered, except
+        //  after a keyboard-interactive prompt: there it drops the current
+        //  request (its 'abort') and hands over the new one at once, while
+        //  the password already sent for the old one may still be checked.
+        //  Such a request is held here until that login is done, then
+        //  answered as any (see endLogin()), or never, if the connection is
+        //  ended meanwhile. At most one is held: the held request has no
+        //  answer yet, so ssh2 queues any after it itself.
+        //
+        if (self.authInFlight) {
+            self.authInFlight.abandoned = true;
+            self.heldAuthCtx = ctx;
+            return;
+        }
+
+        //
+        //  The slow refusal: the answer waits SlowRefusalMs, but the decision
+        //  is made now. From here on no request is looked at (see
+        //  self.authEnded above), so none starts a login while the answer
+        //  waits.
+        //
         const slowTerminateConnection = () => {
+            self.authEnded = true;
             setTimeout(() => {
                 return terminateConnection();
             }, SSHClient.SlowRefusalMs);
@@ -258,7 +313,7 @@ function SSHClient(clientConn, connInfo) {
             if (self.refused) {
                 return showRefusal();
             }
-            return ctx.accept();
+            return safeContextAccept();
         };
 
         //  a failed userLogin() or checkSSHPubKey()
@@ -278,6 +333,86 @@ function SSHClient(clientConn, connInfo) {
             return safeContextReject(SSHClient.ValidAuthMethods);
         };
 
+        //
+        //  A login in flight (see the hold above). endLogin() is called once
+        //  its request has been answered: a keyboard-interactive failure
+        //  only after the prompt to try again is sent, so a request that
+        //  comes meanwhile is held, not answered alongside it. It then
+        //  answers a held request, unless the connection is being ended.
+        //
+        const endLogin = attempt => {
+            if (self.authInFlight !== attempt) {
+                return;
+            }
+            self.authInFlight = null;
+            const held = self.heldAuthCtx;
+            self.heldAuthCtx = null;
+            if (held && !self.authEnded && !self.clientEnded) {
+                return authAttempt(held);
+            }
+        };
+
+        //
+        //  A login whose request the client replaced (another request came
+        //  while it was checked): there is nobody to answer on it, but what
+        //  it means for the connection still holds. Its failure is counted
+        //  (userLogin()), toward the account lock and toward
+        //  users.failedLogin.disconnect.
+        //
+        const finishAbandonedLogin = (attempt, err) => {
+            if (!err) {
+                //  the login went through all the same (the request was
+                //  replaced after userLogin() last looked): the connection
+                //  is ended, as nobody asked for it any more
+                self.log.warn(
+                    { username, ip: self.remoteAddress },
+                    'Login completed for a request the client had replaced; ending the connection'
+                );
+                return terminateConnection();
+            }
+
+            if (isClientEnded(err)) {
+                //  gone, or a success given up on (see userLogin())
+                return endLogin(attempt);
+            }
+
+            if (isSpecialHandleError(err)) {
+                //  refused for the account: the held request is shown why
+                handleSpecialError(err, username);
+                return endLogin(attempt);
+            }
+
+            if (Errors.BadLogin().code === err.code) {
+                //  too many failures: the held request is never answered
+                return slowTerminateConnection();
+            }
+
+            return endLogin(attempt);
+        };
+
+        //
+        //  userLogin() as one login in flight: |onResult(err, done)| answers
+        //  the request and calls |done| once it has, unless the request was
+        //  replaced meanwhile.
+        //
+        const loginOnce = (loginUsername, password, options, onResult) => {
+            const attempt = { abandoned: false };
+            self.authInFlight = attempt;
+            const isAbandoned = () => attempt.abandoned || true === self.authEnded;
+            userLogin(
+                self,
+                loginUsername,
+                password,
+                Object.assign({}, options, { isAbandoned }),
+                err => {
+                    if (isAbandoned()) {
+                        return finishAbandonedLogin(attempt, err);
+                    }
+                    return onResult(err, () => endLogin(attempt));
+                }
+            );
+        };
+
         const authWithPassword = () => {
             //
             //  A password change request (RFC 4252 section 8) carries the old
@@ -289,11 +424,13 @@ function SSHClient(clientConn, connInfo) {
             }
 
             const authType = User.AuthFactor1Types.Password;
-            userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
+            loginOnce(ctx.username, ctx.password, { authType, ctx }, (err, done) => {
                 if (err) {
-                    return handleLoginError(err);
+                    handleLoginError(err);
+                } else {
+                    acceptLogin();
                 }
-                return acceptLogin();
+                return done();
             });
         };
 
@@ -337,11 +474,13 @@ function SSHClient(clientConn, connInfo) {
             }
 
             const authType = User.AuthFactor1Types.SSHPubKey;
-            userLogin(self, ctx.username, ctx.password, { authType, ctx }, err => {
+            loginOnce(ctx.username, ctx.password, { authType, ctx }, (err, done) => {
                 if (err) {
-                    return handleLoginError(err);
+                    handleLoginError(err);
+                } else {
+                    acceptLogin();
                 }
-                return acceptLogin();
+                return done();
             });
         };
 
@@ -365,23 +504,25 @@ function SSHClient(clientConn, connInfo) {
                     return;
                 }
 
-                userLogin(self, username, answers[0] || '', err => {
+                loginOnce(username, answers[0] || '', {}, (err, done) => {
                     if (err) {
                         if (isClientEnded(err)) {
-                            return;
+                            return done();
                         }
 
                         if (isSpecialHandleError(err)) {
-                            return handleSpecialError(err, username);
+                            handleSpecialError(err, username);
+                            return done();
                         }
 
                         if (Errors.BadLogin().code === err.code) {
-                            return slowTerminateConnection();
+                            slowTerminateConnection();
+                            return done();
                         }
 
                         //  abandoned by the client: nobody to ask again
                         if (ctxAborted) {
-                            return;
+                            return done();
                         }
 
                         const artOpts = {
@@ -407,10 +548,16 @@ function SSHClient(clientConn, connInfo) {
                                     { newUserNames: newUserNameList }
                                 )}\n${ctx.username}'s password:`;
                             }
-                            return ctx.prompt(interactivePrompt, retryPrompt);
+                            //  replaced while the art was read: the request
+                            //  sent instead is answered, not this one
+                            if (!ctxAborted) {
+                                ctx.prompt(interactivePrompt, retryPrompt);
+                            }
+                            return done();
                         });
                     } else {
                         acceptLogin();
+                        return done();
                     }
                 });
             });
@@ -421,7 +568,7 @@ function SSHClient(clientConn, connInfo) {
         //  sequence is hijacked in order to start the application process.
         //
         if (false === config.general.closedSystem && self.isNewUser) {
-            return ctx.accept();
+            return safeContextAccept();
         }
 
         switch (ctx.method) {
@@ -710,7 +857,7 @@ SSHClient.toInstructionText = function (message) {
 };
 
 //  How long a bad login, or a login refused for a locked account, waits for
-//  its answer, to slow down brute force attempts
+//  its answer, to slow down repeated attempts
 SSHClient.SlowRefusalMs = 2000;
 
 //  How long a caller has to close its side after endAndClose() (a refusal or

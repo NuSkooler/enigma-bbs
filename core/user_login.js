@@ -31,6 +31,12 @@ exports.checkSSHPubKey = checkSSHPubKey;
 exports.recordLogin = recordLogin;
 exports.transformLoginError = transformLoginError;
 
+//
+//  |options|: authType and ctx (SSH), and isAbandoned(): when it returns true
+//  once the credentials have checked out, the caller has given up on this
+//  login, which is then not one (ClientEnded, as for a connection that
+//  ended). Callers that do not pass it are unaffected.
+//
 function userLogin(client, username, password, options, cb) {
     if (!cb && _.isFunction(options)) {
         cb = options;
@@ -84,6 +90,27 @@ function userLogin(client, username, password, options, cb) {
                     username,
                     null,
                     'Login abandoned: the connection was refused during login'
+                )
+            );
+        }
+
+        //
+        //  Nor if the caller gave up on this login for another (the SSH
+        //  server answers one request at a time, and a keyboard-interactive
+        //  request can be replaced while its password is checked; see
+        //  options.isAbandoned in core/servers/login/ssh.js). The User the
+        //  check filled in goes back to nobody, in place, so the client and
+        //  its ACS stay in step. A failure above is counted as any is.
+        //
+        if (_.isFunction(options.isAbandoned) && options.isAbandoned()) {
+            loginUser.reset();
+            return cb(
+                abandonLogin(
+                    client,
+                    username,
+                    null,
+                    'Login abandoned: the client sent another request during login',
+                    'warn'
                 )
             );
         }
@@ -153,7 +180,7 @@ function userLogin(client, username, password, options, cb) {
 }
 
 //
-//  A banned username gets a BadLogin, slowly, to thwart brute force attacks.
+//  A banned username gets a BadLogin, slowly, to slow repeated attempts.
 //  Returns true if |username| is banned; |cb| is then called later.
 //
 function isBannedUsername(client, username, cb) {
@@ -206,9 +233,10 @@ function abandonLogin(
     client,
     username,
     authErr,
-    why = 'Login abandoned: the connection ended during login'
+    why = 'Login abandoned: the connection ended during login',
+    level = 'info'
 ) {
-    client.log.info(
+    client.log[level](
         {
             username,
             ip: client.remoteAddress,
