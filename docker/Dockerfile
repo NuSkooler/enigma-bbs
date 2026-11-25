@@ -35,12 +35,11 @@ FROM node:22-bookworm-slim AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-#  git is not optional here: package-lock.json resolves one dependency from a
-#  git URL, so npm ci clones it. None of this stage's packages reach the
-#  final image, so what is installed here costs nothing at pull time.
+#  The toolchain for npm ci's native modules. None of this stage's packages
+#  reach the final image, so what is installed here costs nothing at pull
+#  time. No git: nothing in package-lock.json is resolved from a git URL.
 RUN apt-get update \
     && apt-get install -y \
-    git \
     curl \
     build-essential \
     python3 \
