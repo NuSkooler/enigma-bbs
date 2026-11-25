@@ -1755,14 +1755,24 @@ describe('login servers (#1017)', function () {
         });
 
         //
-        //  Request A is abandoned for B while A's password is still being
-        //  checked (ssh2 emits 'abort' on A, then B); B is refused for the
-        //  account. A finishing afterwards is no login and gets no answer.
+        //  Request A is replaced by B while A's password is still being
+        //  checked (ssh2 emits 'abort' on A, then B). One login at a time
+        //  per connection: B is held, with no login of its own, until A is
+        //  done, and then answered. A gets no answer.
         //
-        function abandonedThenRefused() {
+        function replacedWhileChecked() {
             const { conn, client } = connectAs(null);
             const pending = [];
             client.user.authenticateFactor1 = (authInfo, cb) => pending.push(cb);
+            //  a password that checks out, as authenticateFactor1() leaves
+            //  the User it checks
+            const checksOut = cb => {
+                client.user.userId = 42;
+                client.user.username = 'somebody';
+                client.user.authFactor = 1;
+                client.user.authenticated = true;
+                return cb(null);
+            };
 
             const a = makeAuthCtx('keyboard-interactive', 'somebody');
             const aEvents = new EventEmitter();
@@ -1773,15 +1783,13 @@ describe('login servers (#1017)', function () {
 
             const b = makeAuthCtx('keyboard-interactive', 'somebody');
             conn.emit('authentication', b);
-            b.prompts[0][1](['secret']);
-            assert.equal(pending.length, 2);
-            pending[1](Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
-            assertShown(b, 1, 'somebody is disabled.');
+            assert.equal(b.prompts.length, 0, 'B is held');
+            assert.equal(pending.length, 1, 'no second login while A is checked');
 
-            return { conn, client, a, finishA: pending[0] };
+            return { conn, client, a, b, pending, checksOut };
         }
 
-        it('an abandoned request whose password checks out after a refusal is no login', () => {
+        function recordEvents() {
             const Events = require('../core/events.js');
             const emit = Events.emit;
             const emitted = [];
@@ -1789,31 +1797,64 @@ describe('login servers (#1017)', function () {
                 emitted.push(name);
                 return emit.call(Events, name, ...args);
             };
+            emitted.restore = () => (Events.emit = emit);
+            emitted.logins = () =>
+                emitted.filter(n => Events.getSystemEvents().UserLogin === n).length;
+            return emitted;
+        }
+
+        it('a replaced request whose password checks out is no login; the held one is answered after it', () => {
+            const emitted = recordEvents();
             try {
-                const { conn, client, a, finishA } = abandonedThenRefused();
-                const refusedUser = client.user;
-                finishA(null);
+                const { conn, client, a, b, pending, checksOut } = replacedWhileChecked();
+                const user = client.user;
+                checksOut(pending[0]);
 
                 assert.equal(a.accepts, 0);
                 assert.equal(a.prompts.length, 1, 'no answer to A');
-                assert.ok(!emitted.includes(Events.getSystemEvents().UserLogin));
-                assert.equal(client.user, refusedUser);
+                assert.equal(emitted.logins(), 0, 'no login');
+                //  the same User, back to nobody, and the ACS still with it
+                assert.equal(client.user, user);
+                assert.equal(client.user.userId, 0);
                 assert.equal(client.user.isAuthenticated(), false);
+                assert.equal(client.acs.subject.user, client.user);
                 assert.ok(
-                    client.log.entries.some(e => /refused during login/.test(e.msg)),
-                    'abandoned'
+                    client.log.entries.some(
+                        e =>
+                            'warn' === e.level &&
+                            /another request during login/.test(e.msg) &&
+                            'somebody' === e.obj.username
+                    ),
+                    'logged'
                 );
+
+                //  now B: asked for its password, and checked as any (a
+                //  login that goes through is in test/ssh_pubkey_auth.test.js)
+                assert.equal(b.prompts.length, 1);
+                assert.match(b.prompts[0][0].prompt, /password/);
+                b.prompts[0][1](['secret']);
+                assert.equal(pending.length, 2);
                 conn.emit('close');
             } finally {
-                Events.emit = emit;
+                emitted.restore();
             }
         });
 
-        it('an abandoned request refused after B was refused gets no answer', () => {
-            const { conn, a, finishA } = abandonedThenRefused();
-            finishA(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+        it('a replaced request refused for the account: the held one is shown why', () => {
+            const { conn, a, b, pending } = replacedWhileChecked();
+            pending[0](Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
             assert.equal(a.prompts.length, 1, 'no answer to A');
             assert.equal(a.accepts, 0);
+            assertShown(b, 0, 'somebody is disabled.');
+            conn.emit('close');
+        });
+
+        it('a replaced request whose password is wrong: the held one is asked for a password', () => {
+            const { conn, a, b, pending } = replacedWhileChecked();
+            pending[0](Errors.AccessDenied('Invalid password'));
+            assert.equal(a.prompts.length, 1, 'no answer to A');
+            assert.equal(b.prompts.length, 1);
+            assert.match(b.prompts[0][0].prompt, /password/);
             conn.emit('close');
         });
 

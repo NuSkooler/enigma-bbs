@@ -214,6 +214,13 @@
             desc: 2FA
             art: P2FAOTP
             next: petsciiLoginLastCallers
+            //  a locked, disabled or inactive account is told so,
+            //  whatever code is entered
+            config: {
+                locked: petsciiLoginAccountLocked
+                disabled: petsciiLoginAccountDisabled
+                inactive: petsciiLoginAccountInactive
+            }
             form: {
                 0: {
                     mci: {

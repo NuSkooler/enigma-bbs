@@ -157,7 +157,7 @@ describe('docker/Dockerfile (#814)', () => {
     it('installs the toolchain and runs npm ci in the build stage', () => {
         assert(build, 'no stage named "build"');
         const installed = aptInstalls(build);
-        for (const pkg of ['build-essential', 'python3', 'git']) {
+        for (const pkg of ['build-essential', 'python3']) {
             assert(installed.includes(pkg), `build stage does not install ${pkg}`);
         }
         const runs = build.instructions.filter(i => i.name === 'RUN').map(i => i.args);
@@ -165,6 +165,11 @@ describe('docker/Dockerfile (#814)', () => {
             runs.some(r => /\bnpm ci\b/.test(r)),
             'build stage does not run npm ci'
         );
+    });
+
+    it('installs no git in the build stage: nothing in the lockfile is resolved from a git URL', () => {
+        assert(build, 'no stage named "build"');
+        assert(!aptInstalls(build).includes('git'), 'build stage installs git');
     });
 
     it('copies only the lockfile inputs before npm ci, so a source change does not rebuild native modules', () => {

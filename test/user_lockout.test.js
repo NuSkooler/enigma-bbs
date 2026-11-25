@@ -178,6 +178,137 @@ describe('account lockout (users.failedLogin)', function () {
         });
     });
 
+    describe('the failed login count stat event', () => {
+        const LogPath = require.resolve('../core/logger.js');
+        let warnings;
+        let savedWarn;
+
+        //  run |fn| with |listener| for UserStatIncrement in place of the stub
+        async function withListener(listener, fn) {
+            const stubbedEmit = Events.emit;
+            Events.emit = (event, info) => {
+                if (Events.getSystemEvents().UserStatIncrement === event) {
+                    listener(info);
+                }
+                return true;
+            };
+            try {
+                return await fn();
+            } finally {
+                Events.emit = stubbedEmit;
+            }
+        }
+
+        beforeEach(() => {
+            warnings = [];
+            const log = require(LogPath).log;
+            savedWarn = log.warn;
+            log.warn = (fields, msg) => warnings.push({ fields, msg });
+        });
+
+        afterEach(() => {
+            require(LogPath).log.warn = savedWarn;
+        });
+
+        it('is sent once the count is stored, outside the transaction', async () => {
+            const { username, userId } = addUser({ [UserProps.FailedLoginAttempts]: 1 });
+            const seen = [];
+            await withListener(
+                info => {
+                    seen.push({
+                        statName: info.statName,
+                        statValue: info.statValue,
+                        oldValue: info.oldValue,
+                        stored: getProp(userId, UserProps.FailedLoginAttempts),
+                        inTransaction: db.inTransaction,
+                        userId: info.user.userId,
+                    });
+                },
+                () => failTimes(username, 1)
+            );
+            assert.deepEqual(seen, [
+                {
+                    statName: UserProps.FailedLoginAttempts,
+                    statValue: 2,
+                    oldValue: 1,
+                    stored: '2',
+                    inTransaction: false,
+                    userId,
+                },
+            ]);
+        });
+
+        it('a listener that throws does not undo the count nor the lock, and is logged', async () => {
+            const { username, userId } = addUser();
+            await withListener(
+                () => {
+                    throw new Error('listener failure');
+                },
+                () => failTimes(username, 3)
+            );
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+            assert.equal(warnings.length, 3);
+            assert.ok(
+                warnings.every(w => 'listener failure' === w.fields.error),
+                JSON.stringify(warnings)
+            );
+        });
+
+        it('is not sent when the transaction rolls back', async () => {
+            const { userId } = addUser();
+            const seen = [];
+            const user = new User();
+            const persist = User.prototype.persistProperties;
+            //  the lock write fails: everything is rolled back
+            User.prototype.persistProperties = function (props, cb) {
+                return cb(new Error('fixture failure'));
+            };
+            try {
+                db.prepare(
+                    'INSERT INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?)'
+                ).run(userId, UserProps.FailedLoginAttempts, '2');
+                const err = await withListener(
+                    info => seen.push(info),
+                    () => new Promise(resolve => user.processFailedLogin(userId, resolve))
+                );
+                assert.match(err.message, /fixture failure/);
+            } finally {
+                User.prototype.persistProperties = persist;
+            }
+            assert.deepEqual(seen, []);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '2');
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+        });
+
+        it('StatLog.incrementUserStat() still sends it at once', done => {
+            const user = { properties: { n: '1' } };
+            user.getPropertyAsNumber = name => parseInt(user.properties[name], 10);
+            user.persistProperty = (name, value, cb) => {
+                user.properties[name] = value;
+                return cb(null);
+            };
+            const seen = [];
+            const stubbedEmit = Events.emit;
+            Events.emit = (event, info) => seen.push({ event, info });
+            try {
+                StatLog.incrementUserStat(user, 'n', 1, err => {
+                    assert.ifError(err);
+                    //  sent before the callback, as before
+                    assert.equal(seen.length, 1);
+                    assert.equal(
+                        seen[0].event,
+                        Events.getSystemEvents().UserStatIncrement
+                    );
+                    assert.equal(seen[0].info.statValue, 2);
+                    done();
+                });
+            } finally {
+                Events.emit = stubbedEmit;
+            }
+        });
+    });
+
     it('locks an active account at the threshold, and refuses the right password then', async () => {
         const { username, userId } = addUser();
         await failTimes(username, 2);
@@ -205,6 +336,122 @@ describe('account lockout (users.failedLogin)', function () {
             assert.equal(getProp(userId, UserProps.AccountStatus), status(name));
             assert.equal(getProp(userId, UserProps.AccountLockedPrevStatus), undefined);
             assert.equal(getProp(userId, UserProps.AccountLockedTs), undefined);
+        });
+    });
+
+    //  counts the password checks made while it is in place
+    function countDerives() {
+        const derive = User.generatePasswordDerivedKey;
+        const counter = { calls: 0 };
+        User.generatePasswordDerivedKey = function (...args) {
+            ++counter.calls;
+            return derive.apply(User, args);
+        };
+        counter.restore = () => (User.generatePasswordDerivedKey = derive);
+        return counter;
+    }
+
+    describe('a disabled or inactive account', () => {
+        [
+            ['disabled', ErrorReasons.Disabled],
+            ['inactive', ErrorReasons.Inactive],
+        ].forEach(([name, reason]) => {
+            it(`${name}: answers the right and a wrong password alike, before checking either`, async () => {
+                const { username, userId } = addUser({
+                    [UserProps.AccountStatus]: status(name),
+                    [UserProps.FailedLoginAttempts]: 1,
+                });
+                const derives = countDerives();
+                let right;
+                let wrong;
+                try {
+                    right = await login(username, RightPass);
+                    wrong = await login(username, 'wrong-pass');
+                } finally {
+                    derives.restore();
+                }
+                assert.equal(right.err.reasonCode, reason);
+                assert.equal(wrong.err.reasonCode, reason);
+                assert.equal(right.err.message, wrong.err.message);
+                assert.equal(right.user.isAuthenticated(), false);
+                assert.equal(derives.calls, 0, 'no password was checked');
+                //  nothing counted
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '1');
+            });
+        });
+
+        it('any other status that is not active is refused alike, unchecked', async () => {
+            const { username } = addUser({ [UserProps.AccountStatus]: '42' });
+            const derives = countDerives();
+            let right;
+            let wrong;
+            try {
+                right = await login(username, RightPass);
+                wrong = await login(username, 'wrong-pass');
+            } finally {
+                derives.restore();
+            }
+            assert.match(right.err.message, /Account is not active/);
+            assert.equal(right.err.message, wrong.err.message);
+            assert.equal(derives.calls, 0);
+        });
+
+        it('a lock that ran out over a disabled account: the right and a wrong password both get Disabled', async () => {
+            const lockedTs = hoursAgo(2);
+            const { username, userId } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('disabled'),
+                [UserProps.AccountLockedTs]: lockedTs,
+            });
+            const right = await login(username, RightPass);
+            const wrong = await login(username, 'wrong-pass');
+            assert.equal(right.err.reasonCode, ErrorReasons.Disabled);
+            assert.equal(wrong.err.reasonCode, ErrorReasons.Disabled);
+            //  the lock is neither re-armed nor cleared
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+            assert.equal(getProp(userId, UserProps.AccountLockedTs), lockedTs);
+        });
+
+        it('disabled by a sysop while a wrong password is checked: answered Disabled, as the right one is', async () => {
+            const { username, userId } = addUser();
+            const derive = User.generatePasswordDerivedKey;
+            User.generatePasswordDerivedKey = function (...args) {
+                //  oputil user disable, during the check
+                db.prepare(
+                    'UPDATE user_property SET prop_value = ? WHERE user_id = ? AND prop_name = ?'
+                ).run(status('disabled'), userId, UserProps.AccountStatus);
+                return derive.apply(User, args);
+            };
+            let wrong;
+            try {
+                wrong = await login(username, 'wrong-pass');
+            } finally {
+                User.generatePasswordDerivedKey = derive;
+            }
+            assert.equal(wrong.err.reasonCode, ErrorReasons.Disabled);
+            const right = await login(username, RightPass);
+            assert.equal(right.err.reasonCode, ErrorReasons.Disabled);
+            assert.equal(right.err.message, wrong.err.message);
+        });
+
+        it('disabled by a sysop while the right password is checked: refused, and not counted', async () => {
+            const { username, userId } = addUser();
+            const derive = User.generatePasswordDerivedKey;
+            User.generatePasswordDerivedKey = function (...args) {
+                db.prepare(
+                    'UPDATE user_property SET prop_value = ? WHERE user_id = ? AND prop_name = ?'
+                ).run(status('inactive'), userId, UserProps.AccountStatus);
+                return derive.apply(User, args);
+            };
+            let right;
+            try {
+                right = await login(username, RightPass);
+            } finally {
+                User.generatePasswordDerivedKey = derive;
+            }
+            assert.equal(right.err.reasonCode, ErrorReasons.Inactive);
+            assert.equal(right.user.isAuthenticated(), false);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
         });
     });
 
@@ -521,11 +768,14 @@ describe('account lockout (users.failedLogin)', function () {
     //
     describe('the login menu', () => {
         const Module = require('module');
-        const paths = ['../core/user_login.js', '../core/system_menu_method.js'].map(p =>
-            require.resolve(p)
-        );
+        const paths = [
+            '../core/user_login.js',
+            '../core/user_2fa_otp.js',
+            '../core/system_menu_method.js',
+        ].map(p => require.resolve(p));
         let savedModules;
         let menuMethods;
+        let otpModule;
 
         const stubs = {
             './theme.js': { setClientTheme: () => {} },
@@ -576,7 +826,8 @@ describe('account lockout (users.failedLogin)', function () {
             };
             try {
                 require(paths[0]);
-                menuMethods = require(paths[1]);
+                otpModule = require(paths[1]);
+                menuMethods = require(paths[2]);
             } finally {
                 Module._load = originalLoad;
             }
@@ -605,7 +856,13 @@ describe('account lockout (users.failedLogin)', function () {
                 };
                 const menu = {
                     client,
-                    menuConfig: { config: { locked: 'accountLocked' } },
+                    menuConfig: {
+                        config: {
+                            locked: 'accountLocked',
+                            disabled: 'accountDisabled',
+                            inactive: 'accountInactive',
+                        },
+                    },
                     gotoMenu: (name, cb) => {
                         cb(null);
                         resolve({ goto: name });
@@ -645,6 +902,362 @@ describe('account lockout (users.failedLogin)', function () {
         it('a wrong password for an account not locked goes back, as before', async () => {
             const { username } = addUser();
             assert.deepEqual(await menuLogin(username, 'wrong-pass'), { prev: true });
+        });
+
+        [
+            ['disabled', 'accountDisabled'],
+            ['inactive', 'accountInactive'],
+        ].forEach(([name, menu]) => {
+            it(`goes to the same place for the right and a wrong password when the account is ${name}`, async () => {
+                const { username } = addUser({ [UserProps.AccountStatus]: status(name) });
+                assert.deepEqual(await menuLogin(username, RightPass), { goto: menu });
+                assert.deepEqual(await menuLogin(username, 'wrong-pass'), { goto: menu });
+            });
+        });
+
+        //
+        //  The one-time password step (loginFactor2_OTP()), for an account
+        //  with 2FA, after the password (factor 1) checked out
+        //
+        describe('the one-time password step', () => {
+            const authenticator = require('otplib/authenticator');
+            const BackupCodes = ['bakoda-bikod', 'bokud-bukod'];
+            let secret;
+            let verifies;
+            let savedVerify;
+
+            before(() => {
+                authenticator.options = { crypto: require('crypto') };
+                secret = authenticator.generateSecret();
+            });
+
+            beforeEach(() => {
+                verifies = 0;
+                savedVerify = authenticator.verify;
+                authenticator.verify = function (...args) {
+                    ++verifies;
+                    return savedVerify.apply(this, args);
+                };
+            });
+
+            afterEach(() => {
+                authenticator.verify = savedVerify;
+            });
+
+            const rightCode = () => authenticator.generate(secret);
+            //  a code that is neither the current one nor a backup code
+            const wrongCode = () => (rightCode() === '000000' ? '111111' : '000000');
+
+            const otpProps = (extra = {}) =>
+                Object.assign(
+                    {
+                        [UserProps.AuthFactor2OTP]: 'googleAuth',
+                        [UserProps.AuthFactor2OTPSecret]: secret,
+                        [UserProps.AuthFactor2OTPBackupCodes]:
+                            JSON.stringify(BackupCodes),
+                    },
+                    extra
+                );
+
+            function newClient() {
+                return {
+                    user: new User(),
+                    log: makeLog(),
+                    session: { uniqueId: 'otp-session' },
+                    remoteAddress: '192.0.2.31',
+                    friendlyRemoteAddress: () => '192.0.2.31',
+                    clientEnded: false,
+                };
+            }
+
+            //  the password checked out: the client, ready for the code
+            async function afterFactor1(username) {
+                const client = newClient();
+                const err = await new Promise(resolve =>
+                    client.user.authenticateFactor1(
+                        {
+                            username,
+                            password: RightPass,
+                            type: User.AuthFactor1Types.Password,
+                        },
+                        resolve
+                    )
+                );
+                assert.ifError(err);
+                assert.equal(client.user.authFactor, User.AuthFactors.Factor1);
+                assert.equal(client.user.isAuthenticated(), false, '2FA pending');
+                return client;
+            }
+
+            const factor2 = (client, token) =>
+                new Promise(resolve =>
+                    otpModule.loginFactor2_OTP(client, token, resolve)
+                );
+
+            //  (oputil, or another connection) straight to the database
+            const setProps = (userId, props) => {
+                const stmt = db.prepare(
+                    'INSERT INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?) ON CONFLICT(user_id, prop_name) DO UPDATE SET prop_value = excluded.prop_value'
+                );
+                _.each(props, (value, name) => stmt.run(userId, name, String(value)));
+            };
+
+            it('a wrong code counts; the one that reaches lockAccount locks and is answered Locked', async () => {
+                const { username, userId } = addUser(otpProps());
+                const client = await afterFactor1(username);
+
+                const first = await factor2(client, wrongCode());
+                const second = await factor2(client, wrongCode());
+                assert.equal(first.reasonCode, ErrorReasons.Invalid2FA);
+                assert.equal(second.reasonCode, ErrorReasons.Invalid2FA);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '2');
+
+                const third = await factor2(client, wrongCode());
+                assert.equal(third.reasonCode, ErrorReasons.Locked);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
+                assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+                assert.equal(client.user.isAuthenticated(), false);
+            });
+
+            it('while a lock is in force, the right and a wrong code are both answered Locked, unchecked and not counted', async () => {
+                const { username, userId } = addUser(otpProps());
+                const client = await afterFactor1(username);
+                //  locked by other logins since the password checked out
+                setProps(userId, {
+                    [UserProps.AccountStatus]: status('locked'),
+                    [UserProps.AccountLockedPrevStatus]: status('active'),
+                    [UserProps.AccountLockedTs]: hoursAgo(0.1),
+                    [UserProps.FailedLoginAttempts]: 3,
+                });
+
+                const right = await factor2(client, rightCode());
+                const wrong = await factor2(client, wrongCode());
+                const backup = await factor2(client, BackupCodes[0]);
+                [right, wrong, backup].forEach(err =>
+                    assert.equal(err.reasonCode, ErrorReasons.Locked)
+                );
+                assert.equal(right.message, wrong.message);
+                assert.equal(verifies, 0, 'no code was checked');
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
+                assert.equal(
+                    getProp(userId, UserProps.AuthFactor2OTPBackupCodes),
+                    JSON.stringify(BackupCodes),
+                    'the backup code was not used up'
+                );
+                assert.equal(client.user.isAuthenticated(), false);
+            });
+
+            it('the password alone does not clear the count nor a lock that has run out; the code does', async () => {
+                const { username, userId } = addUser(
+                    otpProps({
+                        [UserProps.AccountStatus]: status('locked'),
+                        [UserProps.AccountLockedPrevStatus]: status('active'),
+                        [UserProps.AccountLockedTs]: hoursAgo(2),
+                        [UserProps.FailedLoginAttempts]: 3,
+                    })
+                );
+                const client = await afterFactor1(username);
+                assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
+
+                const err = await factor2(client, rightCode());
+                assert.ifError(err);
+                assert.equal(client.user.isAuthenticated(), true);
+                assert.equal(client.user.authFactor, User.AuthFactors.Factor2);
+                assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
+                assert.equal(getProp(userId, UserProps.AccountLockedTs), undefined);
+                assert.equal(
+                    getProp(userId, UserProps.AccountLockedPrevStatus),
+                    undefined
+                );
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
+            });
+
+            it('the password alone does not reset the count of an account not locked', async () => {
+                const { username, userId } = addUser(
+                    otpProps({ [UserProps.FailedLoginAttempts]: 2 })
+                );
+                await afterFactor1(username);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '2');
+            });
+
+            it('a lock that has run out, then a wrong code: locked again, and answered Locked', async () => {
+                const oldTs = hoursAgo(2);
+                const { username, userId } = addUser(
+                    otpProps({
+                        [UserProps.AccountStatus]: status('locked'),
+                        [UserProps.AccountLockedPrevStatus]: status('active'),
+                        [UserProps.AccountLockedTs]: oldTs,
+                        [UserProps.FailedLoginAttempts]: 3,
+                    })
+                );
+                const client = await afterFactor1(username);
+                const err = await factor2(client, wrongCode());
+                assert.equal(err.reasonCode, ErrorReasons.Locked);
+                assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+                assert.notEqual(getProp(userId, UserProps.AccountLockedTs), oldTs);
+                //  in force again: the right code is refused now
+                const right = await factor2(client, rightCode());
+                assert.equal(right.reasonCode, ErrorReasons.Locked);
+            });
+
+            it('a wrong backup code counts; a right one is used up and resets the count', async () => {
+                const { username, userId } = addUser(otpProps());
+                const client = await afterFactor1(username);
+                const wrong = await factor2(client, 'bakid-nokid');
+                assert.equal(wrong.reasonCode, ErrorReasons.Invalid2FA);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '1');
+
+                const right = await factor2(client, BackupCodes[1]);
+                assert.ifError(right);
+                assert.equal(client.user.isAuthenticated(), true);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
+                assert.equal(
+                    getProp(userId, UserProps.AuthFactor2OTPBackupCodes),
+                    JSON.stringify([BackupCodes[0]])
+                );
+            });
+
+            it('a backup code that cannot be used up is refused, and not counted', async () => {
+                const { username, userId } = addUser(otpProps());
+                const client = await afterFactor1(username);
+                const persist = client.user.persistProperty.bind(client.user);
+                client.user.persistProperty = (name, value, cb) =>
+                    UserProps.AuthFactor2OTPBackupCodes === name
+                        ? cb(new Error('fixture failure'))
+                        : persist(name, value, cb);
+                const err = await factor2(client, BackupCodes[0]);
+                assert.match(err.message, /fixture failure/);
+                assert.equal(client.user.isAuthenticated(), false);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), undefined);
+            });
+
+            it('an account with no backup codes stored still counts a wrong code', async () => {
+                const { username, userId } = addUser(
+                    otpProps({ [UserProps.AuthFactor2OTPBackupCodes]: undefined })
+                );
+                const client = await afterFactor1(username);
+                const err = await factor2(client, wrongCode());
+                assert.equal(err.reasonCode, ErrorReasons.Invalid2FA);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '1');
+            });
+
+            it('an account with an unreadable backup code list still counts a wrong code', async () => {
+                const { username, userId } = addUser(
+                    otpProps({ [UserProps.AuthFactor2OTPBackupCodes]: '["unterminated' })
+                );
+                const client = await afterFactor1(username);
+                const err = await factor2(client, wrongCode());
+                assert.equal(err.reasonCode, ErrorReasons.Invalid2FA);
+                assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '1');
+            });
+
+            [
+                ['disabled', ErrorReasons.Disabled],
+                ['inactive', ErrorReasons.Inactive],
+            ].forEach(([name, reason]) => {
+                it(`set ${name} by a sysop after the password: refused whatever the code, unchecked and not counted`, async () => {
+                    const { username, userId } = addUser(otpProps());
+                    const client = await afterFactor1(username);
+                    setProps(userId, { [UserProps.AccountStatus]: status(name) });
+                    const right = await factor2(client, rightCode());
+                    const wrong = await factor2(client, wrongCode());
+                    assert.equal(right.reasonCode, reason);
+                    assert.equal(wrong.reasonCode, reason);
+                    assert.equal(verifies, 0);
+                    assert.equal(client.user.isAuthenticated(), false);
+                    assert.equal(
+                        getProp(userId, UserProps.FailedLoginAttempts),
+                        undefined
+                    );
+                    assert.equal(getProp(userId, UserProps.AccountStatus), status(name));
+                });
+            });
+
+            //  where the OTP menu went: { goto: menu }, { prev: true } or
+            //  { logoff: true }
+            function menuOTP(client, token, menuConfig) {
+                return new Promise(resolve => {
+                    client.term = {
+                        outputEncoding: 'cp437',
+                        write: (data, x, cb) => cb(),
+                    };
+                    client.end = () => resolve({ logoff: true });
+                    const menu = {
+                        client,
+                        menuConfig,
+                        gotoMenu: (name, cb) => {
+                            cb(null);
+                            resolve({ goto: name });
+                        },
+                        prevMenu: cb => {
+                            cb(null);
+                            resolve({ prev: true });
+                        },
+                        nextMenu: cb => {
+                            cb(null);
+                            resolve({ next: true });
+                        },
+                    };
+                    menuMethods.login2FA_OTP(menu, { value: { token } }, {}, () => {});
+                });
+            }
+
+            it('the OTP menu goes to config.locked for a locked account, and back for a wrong code', async () => {
+                const { username, userId } = addUser(otpProps());
+                const client = await afterFactor1(username);
+                const config = { config: { locked: 'accountLocked' } };
+                assert.deepEqual(await menuOTP(client, wrongCode(), config), {
+                    prev: true,
+                });
+                assert.deepEqual(await menuOTP(client, wrongCode(), config), {
+                    prev: true,
+                });
+                assert.deepEqual(await menuOTP(client, wrongCode(), config), {
+                    goto: 'accountLocked',
+                });
+                assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+                //  and so for the right code from then on
+                assert.deepEqual(await menuOTP(client, rightCode(), config), {
+                    goto: 'accountLocked',
+                });
+            });
+
+            it('the OTP menu goes to config.disabled / config.inactive for an account set so after the password', async () => {
+                const config = {
+                    config: {
+                        locked: 'accountLocked',
+                        disabled: 'accountDisabled',
+                        inactive: 'accountInactive',
+                    },
+                };
+                for (const [name, menu] of [
+                    ['disabled', 'accountDisabled'],
+                    ['inactive', 'accountInactive'],
+                ]) {
+                    const { username, userId } = addUser(otpProps());
+                    const client = await afterFactor1(username);
+                    setProps(userId, { [UserProps.AccountStatus]: status(name) });
+                    assert.deepEqual(await menuOTP(client, rightCode(), config), {
+                        goto: menu,
+                    });
+                    assert.deepEqual(await menuOTP(client, wrongCode(), config), {
+                        goto: menu,
+                    });
+                }
+            });
+
+            it('the OTP menu logs off a locked account when it has no config.locked', async () => {
+                const { username, userId } = addUser(otpProps());
+                const client = await afterFactor1(username);
+                setProps(userId, {
+                    [UserProps.AccountStatus]: status('locked'),
+                    [UserProps.AccountLockedTs]: hoursAgo(0.1),
+                });
+                assert.deepEqual(await menuOTP(client, rightCode(), {}), {
+                    logoff: true,
+                });
+            });
         });
     });
 
@@ -846,6 +1459,35 @@ describe('account lockout (users.failedLogin)', function () {
             assert.equal(code, 200);
             assert.equal(getProp(userId, UserProps.AccountStatus), status('active'));
             assert.equal(getProp(userId, UserProps.AccountLockedTs), undefined);
+        });
+
+        it('leaves the count and the lock of an account with a second factor (2FA/OTP)', async () => {
+            const lockedTs = hoursAgo(0.1);
+            const { userId } = addUser({
+                [UserProps.AccountStatus]: status('locked'),
+                [UserProps.AccountLockedPrevStatus]: status('active'),
+                [UserProps.AccountLockedTs]: lockedTs,
+                [UserProps.FailedLoginAttempts]: 3,
+                [UserProps.AuthFactor2OTP]: 'googleAuth',
+                [UserProps.AuthFactor2OTPSecret]: 'secret',
+            });
+            const oldDk = getProp(userId, UserProps.PassPbkdf2Dk);
+            assert.equal(await reset(userId, 'new-pass-4'), 200);
+            assert.equal(getProp(userId, UserProps.AccountStatus), status('locked'));
+            assert.equal(getProp(userId, UserProps.AccountLockedTs), lockedTs);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '3');
+            //  the password is changed all the same
+            assert.notEqual(getProp(userId, UserProps.PassPbkdf2Dk), oldDk);
+        });
+
+        it('leaves the count of an account with a second factor that is not locked', async () => {
+            const { userId } = addUser({
+                [UserProps.FailedLoginAttempts]: 2,
+                [UserProps.AuthFactor2OTP]: 'googleAuth',
+                [UserProps.AuthFactor2OTPSecret]: 'secret',
+            });
+            assert.equal(await reset(userId, 'new-pass-5'), 200);
+            assert.equal(getProp(userId, UserProps.FailedLoginAttempts), '2');
         });
 
         it('clears the failed login count of an account that is not locked', async () => {
