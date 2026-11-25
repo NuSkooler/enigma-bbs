@@ -108,6 +108,23 @@ module.exports = class User {
         return true === this.authenticated;
     }
 
+    //
+    //  Back to nobody, as constructed: for a login that filled this User in
+    //  but is not to be one (see userLogin()). In place, so whatever holds
+    //  this User (the client's ACS, say) holds the reset one, not a stale
+    //  copy of the login's.
+    //
+    reset() {
+        this.userId = 0;
+        this.username = '';
+        this.properties = {};
+        this.groups = [];
+        this.authFactor = User.AuthFactors.None;
+        this.statusFlags = User.StatusFlags.None;
+        delete this.authenticated;
+        delete this.sessionId;
+    }
+
     isValid() {
         if (this.userId <= 0 || this.username.length < Config().users.usernameMin) {
             return false;

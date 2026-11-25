@@ -204,10 +204,17 @@ describe('SSH public key authentication', function () {
         server.on('connection', (conn, info) => {
             const client = new ssh.SSHClient(conn, info);
             client.log = makeLog();
+            //  a login that goes through gives the client another log
+            client.connectLog = client.log;
+            //  the server side of the connection, to hand requests to
+            client.serverConn = conn;
             client.session = { id: 1, uniqueId: `session-${serverClients.length}` };
             //  the fresh User, on this file's database
             client.user = new User();
+            //  for the User it was made for, as the real ACS is: a client
+            //  whose User is replaced without it no longer matches
             client.acs = {
+                subject: { client, user: client.user },
                 hasMessageConfRead: () => true,
                 hasMessageAreaRead: () => true,
                 hasFileAreaRead: () => true,
@@ -397,7 +404,17 @@ describe('SSH public key authentication', function () {
     const loginEvents = () =>
         emitted.filter(e => e.name === Events.getSystemEvents().UserLogin);
 
+    //  the client's ACS is for the client's User (see refuseLogin(), User.reset())
+    function assertAcsInStep(result) {
+        assert.equal(
+            result.serverClient.acs.subject.user,
+            result.serverClient.user,
+            'the ACS is for the client User'
+        );
+    }
+
     function assertLoggedIn(result, user) {
+        assertAcsInStep(result);
         assert.equal(result.ready, true, `logged in (${result.error})`);
         assert.equal(result.serverClient.user.userId, user.userId);
         assert.equal(result.serverClient.user.isAuthenticated(), true);
@@ -406,6 +423,7 @@ describe('SSH public key authentication', function () {
     }
 
     function assertNoLogin(result) {
+        assertAcsInStep(result);
         assert.equal(result.ready, false, 'not logged in');
         assert.equal(result.serverClient.user.isAuthenticated(), false);
         assert.equal(result.serverClient.user.userId, 0);
@@ -1366,6 +1384,345 @@ describe('SSH public key authentication', function () {
                     .filter(e => /Failed login attempt/.test(e.msg))
                     .map(e => e.obj.reason),
                 ['Access denied: Account is locked']
+            );
+        });
+    });
+
+    //
+    //  One login at a time per connection (RFC 4252 section 5). ssh2 hands
+    //  over a request that comes after a keyboard-interactive answer at
+    //  once, while that answer's password may still be checked: the SSH
+    //  server holds it until the login in flight is done.
+    //
+    describe('one login at a time per connection', () => {
+        const RightPass = 'right-pass';
+        let passProps;
+        let track;
+        let saved;
+
+        before(done => {
+            User.generatePasswordDerivedKeyAndSalt(RightPass, (err, info) => {
+                if (err) {
+                    return done(err);
+                }
+                passProps = {
+                    [UserProps.PassPbkdf2Salt]: info.salt,
+                    [UserProps.PassPbkdf2Dk]: info.dk,
+                    [UserProps.PassHashParams]: JSON.stringify(User.PBKDF2),
+                };
+                return done();
+            });
+        });
+
+        beforeEach(() => {
+            track = { started: 0, inFlight: 0, maxInFlight: 0 };
+            saved = {
+                authenticateFactor1: User.prototype.authenticateFactor1,
+                derive: User.generatePasswordDerivedKey,
+                disconnect: config.users.failedLogin.disconnect,
+            };
+            User.prototype.authenticateFactor1 = function (authInfo, cb) {
+                track.started += 1;
+                track.inFlight += 1;
+                track.maxInFlight = Math.max(track.maxInFlight, track.inFlight);
+                return saved.authenticateFactor1.call(this, authInfo, err => {
+                    track.inFlight -= 1;
+                    return cb(err);
+                });
+            };
+        });
+
+        afterEach(() => {
+            User.prototype.authenticateFactor1 = saved.authenticateFactor1;
+            User.generatePasswordDerivedKey = saved.derive;
+            config.users.failedLogin.disconnect = saved.disconnect;
+        });
+
+        //  the right password's check takes |ms| longer
+        const slowRightPassword = ms => {
+            User.generatePasswordDerivedKey = function (...args) {
+                if (RightPass === args[0]) {
+                    return setTimeout(() => saved.derive.apply(User, args), ms);
+                }
+                return saved.derive.apply(User, args);
+            };
+        };
+
+        const passwordUser = () => addUser({ keyType: 'none', props: passProps });
+
+        //
+        //  keyboard-interactive, the client driven by |onPrompt(n, finish,
+        //  proto)| for the server's n-th password prompt (1 based)
+        //
+        function keyboardLogin(username, onPrompt) {
+            return new Promise(resolve => {
+                const out = { ready: false, prompts: 0 };
+                const sshClient = new ssh2.Client();
+                let asked = false;
+                sshClient.on('ready', () => {
+                    out.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (out.error = err.message));
+                sshClient.on('close', () => {
+                    out.serverClient = serverClients[serverClients.length - 1];
+                    resolve(out);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        if (asked) {
+                            return cb(false);
+                        }
+                        asked = true;
+                        return cb({
+                            type: 'keyboard-interactive',
+                            username,
+                            prompt: (name, instructions, lang, prompts, finish) => {
+                                out.prompts += 1;
+                                if (0 === prompts.length) {
+                                    return finish([]);
+                                }
+                                return onPrompt(
+                                    out.prompts,
+                                    finish,
+                                    sshClient._protocol,
+                                    sshClient
+                                );
+                            },
+                        });
+                    },
+                });
+            });
+        }
+
+        it('a right password replaced by another request is no login; the held request is answered after it', async () => {
+            const user = passwordUser();
+            slowRightPassword(300);
+            const result = await keyboardLogin(user.username, (n, finish, proto) => {
+                finish([RightPass]);
+                if (1 === n) {
+                    //  at once, another request: ssh2 drops the first
+                    proto.authKeyboard(user.username);
+                }
+            });
+            //  the held request, asked for its password, logs in as any
+            assertLoggedIn(result, user);
+            assert.equal(result.prompts, 2);
+            assert.equal(track.started, 2);
+            assert.equal(track.maxInFlight, 1, 'one login at a time');
+            assert.equal(loginEvents().length, 1, 'the second request only');
+            //  the first: given up on, as nobody
+            assert.ok(
+                result.serverClient.connectLog.entries.some(
+                    e =>
+                        'warn' === e.level &&
+                        /another request during login/.test(e.msg) &&
+                        user.username === e.obj.username &&
+                        //  (no address in this harness)
+                        'ip' in e.obj
+                ),
+                'logged at warn'
+            );
+        });
+
+        it('failedLogin.disconnect: no request in the slow refusal wait starts a login', async () => {
+            config.users.failedLogin.disconnect = 3;
+            const user = passwordUser();
+            const result = await keyboardLogin(user.username, (n, finish, proto) => {
+                finish(['wrong-pass']);
+                if (3 === n) {
+                    //  the third failure ends the connection, 2 s later: in
+                    //  that time, the right password, two ways
+                    setTimeout(() => {
+                        proto.authKeyboard(user.username);
+                        proto.authInfoRes([RightPass]);
+                        proto.authPassword(user.username, RightPass);
+                    }, 400);
+                }
+            });
+            assertNoLogin(result);
+            assert.equal(track.started, 3, 'exactly disconnect logins');
+            assert.equal(getProp(user.userId, UserProps.FailedLoginAttempts), '3');
+        });
+
+        it('failedLogin.disconnect: pipelined keyboard-interactive answers are checked one at a time', async () => {
+            config.users.failedLogin.disconnect = 3;
+            const user = passwordUser();
+            const result = await keyboardLogin(user.username, (n, finish, proto) => {
+                finish(['wrong-pass']);
+                if (1 === n) {
+                    for (let i = 0; i < 7; ++i) {
+                        proto.authKeyboard(user.username);
+                        proto.authInfoRes(['wrong-pass']);
+                    }
+                }
+            });
+            assertNoLogin(result);
+            assert.equal(track.maxInFlight, 1, 'one login at a time');
+            assert.ok(track.started <= 3, `${track.started} logins`);
+            //  each one counted, the replaced ones too
+            assert.equal(
+                getProp(user.userId, UserProps.FailedLoginAttempts),
+                String(track.started)
+            );
+        });
+
+        it('failedLogin.disconnect: pipelined password requests stop at the one that ends the connection', async () => {
+            config.users.failedLogin.disconnect = 3;
+            const user = passwordUser();
+            const result = await new Promise(resolve => {
+                const out = { ready: false };
+                const sshClient = new ssh2.Client();
+                let asked = false;
+                sshClient.on('ready', () => {
+                    out.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (out.error = err.message));
+                sshClient.on('close', () => {
+                    out.serverClient = serverClients[serverClients.length - 1];
+                    resolve(out);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username: user.username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        if (asked) {
+                            return; //  the pipelined ones are answered first
+                        }
+                        asked = true;
+                        const proto = sshClient._protocol;
+                        for (let i = 0; i < 5; ++i) {
+                            proto.authPassword(user.username, 'wrong-pass');
+                        }
+                        return cb({
+                            type: 'password',
+                            username: user.username,
+                            password: 'wrong-pass',
+                        });
+                    },
+                });
+            });
+            assertNoLogin(result);
+            assert.equal(track.started, 3, 'none after the third');
+        });
+
+        //  run |fn| with uncaught exceptions recorded instead of reported
+        async function catchingUncaught(fn) {
+            const uncaught = [];
+            const listeners = process.listeners('uncaughtException');
+            process.removeAllListeners('uncaughtException');
+            process.on('uncaughtException', e => uncaught.push(e.message));
+            try {
+                return { result: await fn(), uncaught };
+            } finally {
+                process.removeAllListeners('uncaughtException');
+                listeners.forEach(l => process.on('uncaughtException', l));
+            }
+        }
+
+        it('a publickey query held behind a keyboard-interactive answer: the connection is ended, nothing is thrown', async () => {
+            const user = addUser({ props: passProps });
+            const startedAt = Date.now();
+            const { result, uncaught } = await catchingUncaught(() =>
+                keyboardLogin(user.username, (n, finish, proto, sshClient) => {
+                    finish(['wrong-pass']);
+                    if (1 === n) {
+                        //  at once, a query for the user's own key
+                        proto.authPK(user.username, user.key);
+                        setTimeout(() => sshClient.end(), 4000);
+                    }
+                })
+            );
+            assert.deepEqual(uncaught, []);
+            assertNoLogin(result);
+            assert.ok(Date.now() - startedAt < 3000, 'ended by the server');
+            assert.equal(track.started, 1);
+            assert.ok(
+                result.serverClient.connectLog.entries.some(
+                    e => 'warn' === e.level && /could not be sent/.test(e.msg)
+                ),
+                'logged'
+            );
+        });
+
+        it('a keyboard-interactive request replaced while its retry prompt is made is not prompted again', async () => {
+            const user = passwordUser();
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            let sshClientRef;
+            //  the retry prompt's art is read slowly: meanwhile the client
+            //  sends another request
+            theme.getThemeArt = (opts, cb) => {
+                if ('SSHPMPT.ASC' !== opts.name) {
+                    return getThemeArt.call(theme, opts, cb);
+                }
+                setImmediate(() => {
+                    sshClientRef._protocol.authNone(user.username);
+                    setTimeout(() => cb(new Error('no art')), 200);
+                });
+            };
+            let result;
+            try {
+                result = await keyboardLogin(
+                    user.username,
+                    (n, finish, proto, sshClient) => {
+                        sshClientRef = sshClient;
+                        finish(['wrong-pass']);
+                    }
+                );
+            } finally {
+                theme.getThemeArt = getThemeArt;
+            }
+            assertNoLogin(result);
+            assert.equal(result.prompts, 1, 'no prompt for the replaced request');
+            assert.equal(track.started, 1);
+        });
+
+        it('a request replaced once its login went through: the login stands, the connection is ended', async () => {
+            const user = passwordUser();
+            let held;
+            //  the replacing request comes during the login's own steps,
+            //  after userLogin() last looked (its already connected check
+            //  reads every connection's user)
+            clientConnections.push({
+                get user() {
+                    if (!held) {
+                        held = {
+                            method: 'none',
+                            username: user.username,
+                            answers: 0,
+                            reject: () => (held.answers += 1),
+                            accept: () => (held.answers += 1),
+                            prompt: () => (held.answers += 1),
+                        };
+                        serverClients[serverClients.length - 1].serverConn.emit(
+                            'authentication',
+                            held
+                        );
+                    }
+                    return { userId: -1 };
+                },
+            });
+            const result = await keyboardLogin(user.username, (n, finish) =>
+                finish([RightPass])
+            );
+            assert.equal(result.ready, false, 'not let in');
+            assert.ok(held, 'the request came');
+            assert.equal(held.answers, 0, 'the held request is not answered');
+            assert.equal(loginEvents().length, 1, 'the login went through');
+            assertAcsInStep(result);
+            assert.ok(
+                result.serverClient.log.entries.some(e =>
+                    /Login completed for a request the client had replaced/.test(e.msg)
+                ),
+                'logged'
             );
         });
     });
