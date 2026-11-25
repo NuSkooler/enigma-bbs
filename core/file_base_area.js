@@ -1304,7 +1304,7 @@ function getDescFromFileName(fileName) {
     //  221B Baker Street v1.0 (1987)(Datasoft)(Side B)[cr The Bounty].zip  221B Baker Street v1.0 (1987)(Datasoft)(Side B)[cr the Bounty]
     //
     //  See also:
-    //  * https://scenerules.org/
+    //  * https://web.archive.org/web/20241217195925/https://scenerules.org/ (scenerules.org itself is gone)
     //
 
     const ext = paths.extname(fileName);
