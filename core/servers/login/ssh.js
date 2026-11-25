@@ -13,6 +13,8 @@ const stringFormat = require('../../string_format.js');
 const { Errors, ErrorReasons } = require('../../enig_error.js');
 const { listenServer } = require('../../server_listen.js');
 const User = require('../../user.js');
+const ACS = require('../../acs.js');
+const { stripAllControlCodes } = require('../../string_util.js');
 
 //  deps
 const ssh2 = require('ssh2');
@@ -114,17 +116,29 @@ function SSHClient(clientConn, connInfo) {
         };
 
         //
-        //  A caller refused at connect time (see refuseConnection()) is shown
-        //  why during authentication, the only point before a shell where an
-        //  SSH server can put text in front of the user: keyboard-interactive
-        //  with no prompts, the message as its instruction, then a disconnect.
+        //  A refused caller (see refuseConnection()) is shown why during
+        //  authentication, the only point before a shell where an SSH server
+        //  can put text in front of the user: keyboard-interactive with no
+        //  prompts, the message as its instruction, then a disconnect once
+        //  the client answers. OpenSSH shows the text and needs no key press.
         //  Other methods are steered to keyboard-interactive (a client may
         //  try a few before it gets there), then ended.
-        //  Checked before anything else, so a refused new user is not
-        //  accepted either.
         //
-        if (self.refusalMessage) {
+        //
+        //  A keyboard-interactive request the client gave up on (it sent
+        //  another request; ssh2 emits 'abort') is no longer answered: the
+        //  client would read an answer as one to its current request.
+        //
+        let ctxAborted = false;
+        if (_.isFunction(ctx.once)) {
+            ctx.once('abort', () => (ctxAborted = true));
+        }
+
+        const showRefusal = () => {
             if ('keyboard-interactive' === ctx.method) {
+                if (ctxAborted) {
+                    return; //  the request the client sent instead is answered
+                }
                 return ctx.prompt([], '', self.refusalMessage, () => clientConn.end());
             }
 
@@ -134,43 +148,76 @@ function SSHClient(clientConn, connInfo) {
             }
 
             return terminateConnection();
+        };
+
+        //
+        //  Checked before anything else, so a refused new user is not
+        //  accepted either, and a caller refused at login cannot try again.
+        //
+        if (self.refused) {
+            return showRefusal();
         }
 
         //  slow version to thwart brute force attacks
         const slowTerminateConnection = () => {
             setTimeout(() => {
                 return terminateConnection();
-            }, 2000);
+            }, SSHClient.SlowRefusalMs);
         };
 
-        const promptAndTerm = (msg, method = 'standard') => {
-            if ('keyboard-interactive' === ctx.method) {
-                ctx.prompt(msg);
+        //
+        //  A login refused for the account's state (already connected,
+        //  disabled, inactive, locked) is shown the same way as a refusal at
+        //  connect time: see showRefusal(). A password or public key login
+        //  cannot carry text, so it is steered to keyboard-interactive, where
+        //  the next attempt shows it (#1081). 'slow' holds the answer back as
+        //  slowTerminateConnection() does.
+        //
+        //  The connection is refused at once, so any request that arrives
+        //  while a slow answer waits is refused too; only this request's
+        //  answer waits.
+        //
+        //  The caller is no longer anyone: an already connected refusal
+        //  comes after the password or key checked out, with this client's
+        //  User loaded, and until the connection closes (up to
+        //  RefusalTimeoutMs) the client is still tracked. With that User it
+        //  would count as the user online (userLogin()'s already connected
+        //  check, the who's online list) and be logged off as them when it
+        //  ends. It gets a fresh, unauthenticated User instead. Nothing the
+        //  login stored is undone.
+        //
+        const refuseLogin = (msg, method = 'standard') => {
+            self.user = new User();
+            self.acs = new ACS({ client: self, user: self.user });
+            self.refuseConnection(msg);
+            if ('slow' !== method) {
+                return showRefusal();
             }
-            return 'slow' === method ? slowTerminateConnection() : terminateConnection();
+
+            setTimeout(() => {
+                if (self.clientEnded) {
+                    return; //  gone while the answer waited
+                }
+                return showRefusal();
+            }, SSHClient.SlowRefusalMs);
         };
 
         const accountAlreadyLoggedIn = username => {
-            return promptAndTerm(
-                `${username} is already connected to the system. Terminating connection.\n(Press any key to continue)`
+            return refuseLogin(
+                `${username} is already connected to the system. Terminating connection.`
             );
         };
 
         const accountDisabled = username => {
-            return promptAndTerm(`${username} is disabled.\n(Press any key to continue)`);
+            return refuseLogin(`${username} is disabled.`);
         };
 
         const accountInactive = username => {
-            return promptAndTerm(
-                `${username} is waiting for +op activation.\n(Press any key to continue)`
-            );
+            return refuseLogin(`${username} is waiting for +op activation.`);
         };
 
         const accountLocked = username => {
-            return promptAndTerm(
-                `${username} is locked.\n(Press any key to continue)`,
-                'slow'
-            );
+            return refuseLogin(`${username} is locked.`, 'slow');
         };
 
         //  the connection ended while the login was under way (see
@@ -199,6 +246,19 @@ function SSHClient(clientConn, connInfo) {
                 default:
                     return terminateConnection();
             }
+        };
+
+        //
+        //  A login that checked out, unless the connection was refused
+        //  meanwhile: a keyboard-interactive request the client abandons for
+        //  another is still being checked while the other is handled, and
+        //  the other can be refused first.
+        //
+        const acceptLogin = () => {
+            if (self.refused) {
+                return showRefusal();
+            }
+            return ctx.accept();
         };
 
         //  a failed userLogin() or checkSSHPubKey()
@@ -233,7 +293,7 @@ function SSHClient(clientConn, connInfo) {
                 if (err) {
                     return handleLoginError(err);
                 }
-                return ctx.accept();
+                return acceptLogin();
             });
         };
 
@@ -260,7 +320,7 @@ function SSHClient(clientConn, connInfo) {
                     if (err) {
                         return handleLoginError(err);
                     }
-                    return ctx.accept();
+                    return acceptLogin();
                 });
             }
 
@@ -281,7 +341,7 @@ function SSHClient(clientConn, connInfo) {
                 if (err) {
                     return handleLoginError(err);
                 }
-                return ctx.accept();
+                return acceptLogin();
             });
         };
 
@@ -319,6 +379,11 @@ function SSHClient(clientConn, connInfo) {
                             return slowTerminateConnection();
                         }
 
+                        //  abandoned by the client: nobody to ask again
+                        if (ctxAborted) {
+                            return;
+                        }
+
                         const artOpts = {
                             client: self,
                             name: 'SSHPMPT.ASC',
@@ -345,7 +410,7 @@ function SSHClient(clientConn, connInfo) {
                             return ctx.prompt(interactivePrompt, retryPrompt);
                         });
                     } else {
-                        ctx.accept();
+                        acceptLogin();
                     }
                 });
             });
@@ -380,8 +445,11 @@ function SSHClient(clientConn, connInfo) {
 
     this.updateTermInfo = function (info) {
         //
-        //  From ssh2 docs:
-        //  "rows and cols override width and height when rows and cols are non-zero."
+        //  The size in characters is rows and cols. ssh2 also passes width
+        //  and height, but those are the window in pixels (RFC 4254 6.2;
+        //  ssh2's own client sends 640x480), not a size in characters, so
+        //  they are not used: a client that sends 0 rows and cols leaves the
+        //  size alone, and connect.js finds it (see below) (#1081).
         //
         let termHeight;
         let termWidth;
@@ -389,9 +457,6 @@ function SSHClient(clientConn, connInfo) {
         if (info.rows > 0 && info.cols > 0) {
             termHeight = info.rows;
             termWidth = info.cols;
-        } else if (info.width > 0 && info.height > 0) {
-            termHeight = info.height;
-            termWidth = info.width;
         }
 
         assert(_.isObject(self.term));
@@ -434,10 +499,17 @@ function SSHClient(clientConn, connInfo) {
     //  Until the shell is open there is no terminal to apply pty or
     //  window-change info to, so it is kept for then. Merged, not replaced: a
     //  window-change carries only the size, and must not throw away the
-    //  terminal type an earlier pty request brought (#1017).
+    //  terminal type an earlier pty request brought (#1017). Nor does a size
+    //  of 0, which says nothing (see updateTermInfo()), replace an earlier
+    //  one (#1081).
     //
     this.cacheTermInfo = function (info) {
-        self.cachedTermInfo = Object.assign({}, self.cachedTermInfo, info);
+        const cached = Object.assign({}, self.cachedTermInfo, info);
+        if (self.cachedTermInfo && !(info.rows > 0 && info.cols > 0)) {
+            cached.rows = self.cachedTermInfo.rows;
+            cached.cols = self.cachedTermInfo.cols;
+        }
+        self.cachedTermInfo = cached;
     };
 
     clientConn.once('ready', function clientReady() {
@@ -559,9 +631,10 @@ function SSHClient(clientConn, connInfo) {
     };
 
     //
-    //  Called instead of tracking the client when every node is busy. There
-    //  is no terminal yet (that comes with the shell), so the message waits
-    //  for the authentication request; see the 'authentication' handler. The
+    //  Called instead of tracking the client when every node is busy, and
+    //  for a login refused for the account's state (see refuseLogin()).
+    //  There is no terminal yet (that comes with the shell), so the message
+    //  is shown during authentication; see showRefusal(). The
     //  timer ends the connection whatever state it is in, and closes the
     //  socket outright shortly after if the caller has not closed its side,
     //  so a refused caller cannot hold a socket open.
@@ -571,8 +644,17 @@ function SSHClient(clientConn, connInfo) {
     //  when the timer fires, whichever comes first; end() does it once.
     //  Not before: ending the client is what disconnects it.
     //
+    //  A connection is refused once; a later call changes nothing.
+    //
     this.refuseConnection = function (message) {
-        self.refusalMessage = message;
+        if (self.refused) {
+            return;
+        }
+        self.refused = true;
+
+        //  only an art file (the busy message's) can leave nothing to show
+        self.refusalMessage =
+            SSHClient.toInstructionText(message) || LoginServerModule.AllNodesBusyMessage;
 
         //  the refusal has its own, shorter, timer
         self.clearLoginTimer();
@@ -597,6 +679,39 @@ SSHClient.ValidAuthMethods = ['password', 'keyboard-interactive', 'publickey'];
 //  other authentication methods it may try before keyboard-interactive
 SSHClient.RefusalTimeoutMs = 10000;
 SSHClient.RefusalSteerAttempts = 3;
+
+//
+//  |message| as the instruction text of a keyboard-interactive request, the
+//  form a refusal is shown in. That is plain text: OpenSSH shows a control
+//  character in it as an escape (ESC as "\033"), so ANSI sequences and pipe
+//  codes are removed, as is any other control character but a line feed or
+//  tab: C0, DEL and C1, and the Unicode format characters that change how
+//  text around them is ordered or shown (bidi embeddings, overrides and
+//  isolates, the Arabic letter mark, zero width and invisible characters,
+//  the deprecated format characters, tag characters, the BOM), so the text
+//  reads as written.
+//  OSC, DCS, APC, PM and SOS strings go whole, up to their terminator (BEL
+//  or ESC backslash), or to the end if there is none. A line ends with a
+//  line feed alone, and trailing blank lines go.
+//  The busy refusal's message can come from an art file (see
+//  getAllNodesBusyMessage() in core/login_server_module.js).
+//
+SSHClient.toInstructionText = function (message) {
+    const text = String(message || '').replace(
+        /\x1b[\]P^_X][\s\S]*?(?:\x07|\x1b\\|$)/g, //  eslint-disable-line no-control-regex
+        ''
+    );
+    return stripAllControlCodes(text)
+        .replace(/\r\n?/g, '\n')
+        .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '') //  eslint-disable-line no-control-regex
+        .replace(/[\u061c\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
+        .replace(/[\u{e0000}-\u{e007f}]/gu, '')
+        .trimEnd();
+};
+
+//  How long a bad login, or a login refused for a locked account, waits for
+//  its answer, to slow down brute force attempts
+SSHClient.SlowRefusalMs = 2000;
 
 //  How long a caller has to close its side after endAndClose() (a refusal or
 //  the login timeout) before the socket is closed outright

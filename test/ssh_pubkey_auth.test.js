@@ -629,6 +629,117 @@ describe('SSH public key authentication', function () {
         });
     });
 
+    //
+    //  #1081: a login refused for the account's state is shown, as a busy
+    //  board is, through keyboard-interactive with no prompts. A client that
+    //  logged in with a key is sent there to see it.
+    //
+    describe('an account refused after a good signature, as a client sees it (#1081)', () => {
+        //  a publickey login (query, then signature) and, where the server
+        //  steers it there, keyboard-interactive
+        function connectThenKeyboard({ username, key }) {
+            const result = { ready: false, methodsLeft: [], shown: [] };
+            const sshClient = new ssh2.Client();
+            let step = 0;
+            return new Promise(resolve => {
+                const startedAt = Date.now();
+                sshClient.on('ready', () => {
+                    result.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (result.error = err.message));
+                sshClient.on('close', () => {
+                    result.elapsedMs = Date.now() - startedAt;
+                    result.serverClient = serverClients[serverClients.length - 1];
+                    resolve(result);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        step += 1;
+                        if (1 === step) {
+                            return cb({ type: 'publickey', username, key });
+                        }
+                        result.methodsLeft.push(methodsLeft);
+                        if (
+                            2 === step &&
+                            (methodsLeft || []).includes('keyboard-interactive')
+                        ) {
+                            //  ssh2's client answers a request with no prompts
+                            //  itself, without showing it: what the server
+                            //  sent is taken from the protocol
+                            const handlers = sshClient._protocol._handlers;
+                            const infoRequest = handlers.USERAUTH_INFO_REQUEST;
+                            handlers.USERAUTH_INFO_REQUEST = (
+                                p,
+                                name,
+                                instructions,
+                                prompts
+                            ) => {
+                                result.shown.push({ name, instructions, prompts });
+                                return infoRequest(p, name, instructions, prompts);
+                            };
+                            return cb({
+                                type: 'keyboard-interactive',
+                                username,
+                                //  a password prompt: no attempt is made
+                                prompt: () => sshClient.end(),
+                            });
+                        }
+                        return cb(false);
+                    },
+                });
+            });
+        }
+
+        [
+            ['disabled', 'is disabled.'],
+            ['inactive', 'is waiting for +op activation.'],
+            ['locked', 'is locked.'],
+        ].forEach(([status, says]) => {
+            it(`${status}: the reason, with no prompt, then the end`, async () => {
+                const user = addUser({
+                    props: {
+                        [UserProps.AccountStatus]: String(User.AccountStatus[status]),
+                        [UserProps.AccountLockedTs]: new Date().toISOString(),
+                    },
+                });
+                const result = await connectThenKeyboard(user);
+                assertNoLogin(result);
+                assert.deepEqual(result.methodsLeft[0], ['keyboard-interactive']);
+                assert.equal(result.shown.length, 1, JSON.stringify(result.shown));
+                assert.equal(result.shown[0].instructions, `${user.username} ${says}`);
+                assert.deepEqual(result.shown[0].prompts, []);
+                if ('locked' === status) {
+                    assert.ok(result.elapsedMs >= 1900, `${result.elapsedMs}ms`);
+                }
+            });
+        });
+
+        it('a key that is not registered: no reason shown, all methods offered', async () => {
+            const user = addUser({
+                props: {
+                    [UserProps.AccountStatus]: String(User.AccountStatus.disabled),
+                },
+            });
+            const result = await connectThenKeyboard({ ...user, key: newKey() });
+            assertNoLogin(result);
+            assert.deepEqual([...result.methodsLeft[0]].sort(), [
+                'keyboard-interactive',
+                'password',
+                'publickey',
+            ]);
+            //  keyboard-interactive asks for a password, as for any account
+            assert.equal(result.shown.length, 1);
+            assert.equal(result.shown[0].prompts.length, 1);
+            assert.match(result.shown[0].prompts[0].prompt, /password/);
+            assert.ok(!/disabled/.test(result.shown[0].instructions || ''));
+        });
+    });
+
     const newKey = (type = 'ed25519', bits) =>
         ssh2.utils.parseKey(generateKeys(type, bits ? { bits } : {}).private);
 
@@ -941,6 +1052,96 @@ describe('SSH public key authentication', function () {
                     /SSH connection error/.test(e.msg)
                 ),
                 'no connection error'
+            );
+        });
+    });
+
+    //
+    //  #1081: a locked account's answer waits SlowRefusalMs, but the
+    //  connection is refused at once. A client that answers the password
+    //  prompt and then sends another request (ssh2 aborts the first and
+    //  hands over the second while the first is still being checked) gets
+    //  the refusal for it, not a login attempt.
+    //
+    //  That the abandoned request is then not answered cannot be seen from
+    //  here: the answer would be message 60, which a client reads according
+    //  to its current request, and ssh2 drops it for a 'none' request. See
+    //  test/login_servers.test.js for that part.
+    //
+    describe('a request sent while a locked account answer waits (#1081)', () => {
+        it('is refused, with no second login attempt', async () => {
+            const user = addUser({
+                props: {
+                    [UserProps.AccountStatus]: String(User.AccountStatus.locked),
+                    [UserProps.AccountLockedTs]: new Date().toISOString(),
+                },
+            });
+            const result = await new Promise(resolve => {
+                const out = { ready: false, infoRequests: [], methodsLeft: [] };
+                const sshClient = new ssh2.Client();
+                let step = 0;
+                sshClient.on('ready', () => {
+                    out.ready = true;
+                    sshClient.end();
+                });
+                sshClient.on('error', err => (out.error = err.message));
+                sshClient.on('close', () => {
+                    out.serverClient = serverClients[serverClients.length - 1];
+                    resolve(out);
+                });
+                sshClient.connect({
+                    host: '127.0.0.1',
+                    port,
+                    username: user.username,
+                    readyTimeout: 10000,
+                    authHandler: (methodsLeft, partial, cb) => {
+                        step += 1;
+                        if (1 === step) {
+                            const handlers = sshClient._protocol._handlers;
+                            const infoRequest = handlers.USERAUTH_INFO_REQUEST;
+                            handlers.USERAUTH_INFO_REQUEST = (
+                                p,
+                                name,
+                                instr,
+                                prompts
+                            ) => {
+                                out.infoRequests.push({ instr, prompts });
+                                return infoRequest(p, name, instr, prompts);
+                            };
+                            return cb({
+                                type: 'keyboard-interactive',
+                                username: user.username,
+                                prompt: (name, instr, lang, prompts, finish) => {
+                                    finish(['a-password']);
+                                    //  once the server has decided (the lock
+                                    //  is checked first, well before 2 s),
+                                    //  another request
+                                    setTimeout(
+                                        () => sshClient._protocol.authNone(user.username),
+                                        300
+                                    );
+                                },
+                            });
+                        }
+                        //  the answer to the second request; wait past
+                        //  SlowRefusalMs to see whether the first is answered
+                        out.methodsLeft.push(methodsLeft);
+                        setTimeout(() => cb(false), 2500);
+                    },
+                });
+            });
+            assertNoLogin(result);
+            //  refused: steered to keyboard-interactive to be shown why, where
+            //  a request that is not refused gets every method
+            assert.deepEqual(result.methodsLeft, [['keyboard-interactive']]);
+            assert.equal(result.infoRequests.length, 1, 'the password prompt');
+            assert.equal(result.infoRequests[0].prompts.length, 1);
+            //  one login attempt: the first request's; locked is not counted
+            assert.deepEqual(
+                result.serverClient.log.entries
+                    .filter(e => /Failed login attempt/.test(e.msg))
+                    .map(e => e.obj.reason),
+                ['Access denied: Account is locked']
             );
         });
     });

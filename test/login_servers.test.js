@@ -9,11 +9,18 @@
 //  and its node freed; a telnet socket ended from this side is closed if the
 //  caller never closes its side.
 //
+//  #1081: SSH takes no terminal size from the window's size in pixels, and a
+//  login refused for the account's state is shown the way a busy board is.
+//  The busy message can come from an optional art file, BUSY.ASC.
+//
 
 const { strict: assert } = require('assert');
 const { EventEmitter } = require('events');
 const { PassThrough } = require('stream');
 const http = require('http');
+const fs = require('fs');
+const os = require('os');
+const paths = require('path');
 const _ = require('lodash');
 
 const configModule = require('../core/config.js');
@@ -84,12 +91,25 @@ describe('login servers (#1017)', function () {
     let websocket;
     let clientConns;
     let connect;
+    let artRoot;
 
     before(() => {
+        //  art directories of this file's own, empty but for what a test puts
+        //  there: no BUSY.ASC the board's art may have changes the message
+        artRoot = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-login-servers-'));
+        fs.mkdirSync(paths.join(artRoot, 'general'));
+        fs.mkdirSync(paths.join(artRoot, 'themes', 'busy_theme'), { recursive: true });
+        fs.mkdirSync(paths.join(artRoot, 'themes', 'busy_prelogin'));
+
         config = makeConfig({
             general: { maxConnections: 1, closedSystem: false },
             users: { newUserNames: ['new'] },
             loginServers: { webSocket: { proxied: false } },
+            paths: {
+                art: paths.join(artRoot, 'general'),
+                themes: paths.join(artRoot, 'themes'),
+            },
+            theme: { default: 'busy_theme', preLogin: 'busy_prelogin' },
         });
         previousConfig = configModule._pushTestConfig(config);
         previousLog = loggerModule.log;
@@ -139,6 +159,7 @@ describe('login servers (#1017)', function () {
         connect.connectEntry = saved.connectEntry;
         configModule._popTestConfig(previousConfig);
         loggerModule.log = previousLog;
+        fs.rmSync(artRoot, { recursive: true, force: true });
     });
 
     //  a session already on the one node there is
@@ -254,6 +275,36 @@ describe('login servers (#1017)', function () {
             assert.deepEqual(client.termTypesSet, ['xterm-256color']);
             assert.equal(client.term.termWidth, 120);
             assert.equal(client.term.termHeight, 50);
+        });
+
+        //
+        //  #1081: width and height are the window in pixels (ssh2's own
+        //  client sends 640x480), not a size in characters. A size of 0 is
+        //  left for connect.js to find.
+        //
+        const pixelsOnly = { cols: 0, rows: 0, width: 640, height: 480 };
+
+        it('a pty with 0 rows and cols takes no size from the pixels', () => {
+            const client = openShell([
+                ['pty', Object.assign({ term: 'xterm' }, pixelsOnly)],
+                ['shell'],
+            ]);
+            assert.deepEqual(client.termTypesSet, ['xterm']);
+            assert.equal(client.term.termWidth, 0);
+            assert.equal(client.term.termHeight, 0);
+        });
+
+        it('a window-change with 0 rows and cols leaves the size alone', () => {
+            const client = openShell([pty, ['shell'], ['window-change', pixelsOnly]]);
+            assert.equal(client.term.termWidth, 100);
+            assert.equal(client.term.termHeight, 40);
+        });
+
+        it('pty, window-change with 0 rows and cols, shell: keeps the pty size', () => {
+            const client = openShell([pty, ['window-change', pixelsOnly], ['shell']]);
+            assert.deepEqual(client.termTypesSet, ['xterm-256color']);
+            assert.equal(client.term.termWidth, 100);
+            assert.equal(client.term.termHeight, 40);
         });
     });
 
@@ -643,6 +694,319 @@ describe('login servers (#1017)', function () {
                     config.loginServers.webSocket.proxied = previous;
                 }
             });
+        });
+    });
+
+    describe('every node busy: BUSY.ASC (#1081)', () => {
+        const generalArt = () => paths.join(artRoot, 'general', 'BUSY.ASC');
+        const themeArt = () => paths.join(artRoot, 'themes', 'busy_theme', 'BUSY.ASC');
+        const preLoginArt = () =>
+            paths.join(artRoot, 'themes', 'busy_prelogin', 'BUSY.ASC');
+
+        const refresh = () =>
+            new Promise(resolve =>
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true }, resolve)
+            );
+
+        //
+        //  The themes this file's art directories hold, as the loaded themes
+        //  would list them: another test file may have loaded the real ones,
+        //  and these would not be among them.
+        //
+        let savedGetAvailableThemes;
+        const availableThemes = ids => {
+            require('../core/theme.js').getAvailableThemes = () =>
+                new Map(ids.map(id => [id, {}]));
+        };
+
+        beforeEach(() => {
+            savedGetAvailableThemes = require('../core/theme.js').getAvailableThemes;
+            availableThemes(['busy_theme', 'busy_prelogin']);
+        });
+
+        afterEach(async () => {
+            [generalArt(), themeArt(), preLoginArt()].forEach(f =>
+                fs.rmSync(f, { force: true })
+            );
+            config.theme.preLogin = 'busy_prelogin';
+            await refresh();
+            require('../core/theme.js').getAvailableThemes = savedGetAvailableThemes;
+        });
+
+        it('from the pre-login theme before the default theme', async () => {
+            fs.writeFileSync(generalArt(), 'general');
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'pre-login');
+        });
+
+        it('from the pre-login theme before the themes are loaded', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            require('../core/theme.js').getAvailableThemes = () => {
+                throw new TypeError('no theme manager yet');
+            };
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'pre-login');
+        });
+
+        it('not from the pre-login theme when it is a random pick, "*"', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            config.theme.preLogin = '*';
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('not from a pre-login theme that is not available', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            fs.writeFileSync(preLoginArt(), 'pre-login');
+            availableThemes(['busy_theme']);
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('a pre-login theme with no such directory: on to the default theme', async () => {
+            fs.writeFileSync(themeArt(), 'themed');
+            availableThemes(['busy_theme', 'no_such_theme']);
+            config.theme.preLogin = 'no_such_theme';
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('a read that never finishes is given up on, and its late answer ignored', async () => {
+            await refresh();
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            const realNow = Date.now;
+            let reads = 0;
+            let hungCb;
+            theme.getThemeArt = (opts, cb) => {
+                reads += 1;
+                hungCb = cb; //  never called back
+            };
+            try {
+                Date.now = () => realNow() + 2 * 60 * 1000; //  stale
+                LoginServerModule.refreshAllNodesBusyMessage();
+                LoginServerModule.refreshAllNodesBusyMessage();
+                assert.equal(reads, 1, 'one read under way');
+
+                //  much later, still nothing: read again
+                Date.now = () => realNow() + 4 * 60 * 1000;
+                theme.getThemeArt = (opts, cb) => {
+                    reads += 1;
+                    cb(null, { data: 'second read' });
+                };
+                await new Promise(resolve =>
+                    LoginServerModule.refreshAllNodesBusyMessage(resolve)
+                );
+                assert.equal(reads, 2);
+                assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'second read');
+
+                hungCb(null, { data: 'first read, late' });
+                assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'second read');
+            } finally {
+                Date.now = realNow;
+                theme.getThemeArt = getThemeArt;
+            }
+        });
+
+        it('a read that answers at once is taken once, whatever its waiters do', async () => {
+            await refresh();
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            theme.getThemeArt = (opts, cb) => cb(null, { data: 'at once' });
+            let calls = 0;
+            try {
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true }, () => {
+                    calls += 1;
+                    throw new Error('a waiter that throws');
+                });
+            } finally {
+                theme.getThemeArt = getThemeArt;
+            }
+            assert.equal(calls, 1);
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'at once');
+        });
+
+        //  an SSH caller turned away, and what keyboard-interactive shows it
+        function sshRefusal() {
+            fillBoard();
+            const conn = makeSshConn();
+            const client = new ssh.SSHClient(conn, {
+                header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
+            });
+            new LoginServerModule().handleNewClient(client, conn._sock, ssh.moduleInfo);
+            const ctx = makeAuthCtx('keyboard-interactive');
+            conn.emit('authentication', ctx);
+            conn.emit('close');
+            assert.equal(ctx.prompts.length, 1);
+            const [prompts, , instructions] = ctx.prompts[0];
+            assert.deepEqual(prompts, [], 'no prompt');
+            return instructions;
+        }
+
+        it('without the file: the default message, and nothing above debug logged', async () => {
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), BusyMessage);
+            assert.equal(sshRefusal(), BusyMessage);
+            assert.deepEqual(
+                log.entries.filter(e => !['trace', 'debug', 'info'].includes(e.level)),
+                []
+            );
+        });
+
+        it('from the general art directory', async () => {
+            fs.writeFileSync(generalArt(), 'The board is full.\nCall back soon!\n');
+            await refresh();
+            assert.equal(
+                LoginServerModule.getAllNodesBusyMessage(),
+                'The board is full.\nCall back soon!'
+            );
+            assert.equal(sshRefusal(), 'The board is full.\nCall back soon!');
+        });
+
+        it('from the default theme before the general art directory', async () => {
+            fs.writeFileSync(generalArt(), 'general');
+            fs.writeFileSync(themeArt(), 'themed');
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), 'themed');
+        });
+
+        it('SSH: no bidi or other format characters, nor OSC strings', async () => {
+            fs.writeFileSync(
+                generalArt(),
+                Buffer.concat([
+                    Buffer.from('\x1b]0;title\x07', 'latin1'),
+                    Buffer.from(
+                        '\u202eFull\u202c \u200bboard\u2066!\u2069\ufeff' +
+                            '\u061c\u206a\u206f\u{e0001}\u{e0041}\u{e007f}'
+                    ),
+                    Buffer.from('\x1bP+q\x1b\\', 'latin1'),
+                ])
+            );
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            //  as UTF-8, not CP437: the characters themselves
+            theme.getThemeArt = (opts, cb) =>
+                cb(null, { data: fs.readFileSync(generalArt(), 'utf8') });
+            try {
+                await refresh();
+            } finally {
+                theme.getThemeArt = getThemeArt;
+            }
+            assert.equal(sshRefusal(), 'Full board!');
+        });
+
+        it('SSH: as plain text, without ANSI sequences, pipe codes or control characters', async () => {
+            fs.writeFileSync(
+                generalArt(),
+                Buffer.concat([
+                    Buffer.from('\x1b[1;31m|04Busy\x1b[0m |07now\x07\r\n'),
+                    Buffer.from('\xc4\xc4 later\r\n\r\n', 'latin1'),
+                    Buffer.from('\x1aSAUCE00 not shown'),
+                ])
+            );
+            await refresh();
+            assert.equal(sshRefusal(), 'Busy now\n\u2500\u2500 later');
+        });
+
+        it('SSH: a file with nothing to show as text still refuses, with the default message', async () => {
+            fs.writeFileSync(generalArt(), '\x1b[2J\x1b[1;1H|07\r\n');
+            await refresh();
+            assert.equal(sshRefusal(), BusyMessage);
+
+            //  ...and no other method gets past it (the board is still full)
+            const conn = makeSshConn();
+            const client = new ssh.SSHClient(conn, {
+                header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
+            });
+            new LoginServerModule().handleNewClient(client, conn._sock, ssh.moduleInfo);
+            const ctx = makeAuthCtx('password', 'new');
+            conn.emit('authentication', ctx);
+            assert.equal(ctx.accepts, 0);
+            assert.deepEqual(ctx.rejects, [['keyboard-interactive']]);
+            conn.emit('close');
+        });
+
+        it('a file that is removed again: back to the default message', async () => {
+            fs.writeFileSync(generalArt(), 'The board is full.');
+            await refresh();
+            assert.equal(
+                LoginServerModule.getAllNodesBusyMessage(),
+                'The board is full.'
+            );
+            fs.rmSync(generalArt());
+            await refresh();
+            assert.equal(LoginServerModule.getAllNodesBusyMessage(), BusyMessage);
+        });
+
+        it('is read at most once in a while, however many callers come', async () => {
+            await refresh();
+            const theme = require('../core/theme.js');
+            const getThemeArt = theme.getThemeArt;
+            let reads = 0;
+            theme.getThemeArt = (...args) => {
+                reads += 1;
+                return getThemeArt(...args);
+            };
+            try {
+                for (let i = 0; i < 20; i++) {
+                    LoginServerModule.refreshAllNodesBusyMessage();
+                    sshRefusal();
+                    clientConns.clientConnections.splice(
+                        clientConns.clientConnections.indexOf(occupant),
+                        1
+                    );
+                }
+                await new Promise(resolve =>
+                    LoginServerModule.refreshAllNodesBusyMessage(resolve)
+                );
+                assert.equal(reads, 0, 'read just now: not again');
+
+                //  a forced read while one is under way: just the one
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true });
+                LoginServerModule.refreshAllNodesBusyMessage({ force: true });
+                await refresh();
+                assert.equal(reads, 1);
+            } finally {
+                theme.getThemeArt = getThemeArt;
+            }
+        });
+
+        it('telnet: the art is written, pipe colour codes rendered', async () => {
+            fs.writeFileSync(generalArt(), '|04Busy|07 now\n');
+            await refresh();
+
+            const net = require('net');
+            const server = net.createServer(socket => {
+                const client = new telnet.TelnetClient(socket);
+                client.banner();
+                new LoginServerModule().handleNewClient(
+                    client,
+                    socket,
+                    telnet.moduleInfo
+                );
+            });
+            await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+            try {
+                fillBoard();
+                const text = await new Promise((resolve, reject) => {
+                    const sock = net.connect(server.address().port, '127.0.0.1');
+                    const data = [];
+                    sock.on('data', d => data.push(d));
+                    sock.on('error', reject);
+                    sock.on('end', () => resolve(Buffer.concat(data).toString('latin1')));
+                });
+                assert.ok(text.includes('\x1b['), 'rendered: ' + JSON.stringify(text));
+                assert.ok(!text.includes('|04'), JSON.stringify(text));
+                assert.ok(text.includes('Busy'), JSON.stringify(text));
+                assert.ok(text.includes(' now'), JSON.stringify(text));
+                assert.ok(!text.includes(BusyMessage));
+            } finally {
+                await new Promise(resolve => server.close(resolve));
+            }
         });
     });
 
@@ -1074,6 +1438,405 @@ describe('login servers (#1017)', function () {
                     return !clientConns.clientConnections.includes(client);
                 });
             });
+        });
+    });
+
+    //
+    //  A login refused for the account's state: the message goes through
+    //  keyboard-interactive with no prompts, as for a busy board, then a
+    //  disconnect once the client answers. Password and public key logins
+    //  are steered to keyboard-interactive to show it.
+    //
+    describe('SSH login refused for the account (#1081)', () => {
+        const { Errors, ErrorReasons } = require('../core/enig_error.js');
+
+        let saved1081;
+        let otherSession;
+
+        beforeEach(() => {
+            saved1081 = {
+                loginTimeoutSeconds: config.loginServers.ssh.loginTimeoutSeconds,
+                slowRefusalMs: ssh.SSHClient.SlowRefusalMs,
+                isValidPubKeySignature: ssh.SSHClient.isValidPubKeySignature,
+            };
+            config.loginServers.ssh.loginTimeoutSeconds = 0;
+            //  a signed publickey request here is taken as signed well; see
+            //  test/ssh_pubkey_auth.test.js for the real thing
+            ssh.SSHClient.isValidPubKeySignature = () => true;
+        });
+
+        afterEach(() => {
+            config.loginServers.ssh.loginTimeoutSeconds = saved1081.loginTimeoutSeconds;
+            ssh.SSHClient.SlowRefusalMs = saved1081.slowRefusalMs;
+            ssh.SSHClient.isValidPubKeySignature = saved1081.isValidPubKeySignature;
+
+            const i = clientConns.clientConnections.indexOf(otherSession);
+            if (i > -1) {
+                clientConns.clientConnections.splice(i, 1);
+            }
+            otherSession = null;
+            clientConns.clientConnections
+                .slice()
+                .forEach(client => clientConns.removeClient(client));
+        });
+
+        //  a caller on a free node whose password (or key) checks out as |result|
+        function connectAs(result) {
+            const conn = makeSshConn();
+            const client = new ssh.SSHClient(conn, {
+                header: { identRaw: 'SSH-2.0-OpenSSH_9.6' },
+            });
+            new LoginServerModule().handleNewClient(client, conn._sock, ssh.moduleInfo);
+            assert.ok(clientConns.clientConnections.includes(client), 'tracked');
+
+            client.user.authenticateFactor1 = (authInfo, cb) => {
+                if ('alreadyLoggedIn' === result) {
+                    //  the same user, already on another node
+                    client.user.userId = 42;
+                    otherSession = { user: { userId: 42 }, session: { id: 2 } };
+                    clientConns.clientConnections.push(otherSession);
+                    return cb(null);
+                }
+                return cb(result);
+            };
+            return { conn, client };
+        }
+
+        const refusals = [
+            {
+                what: 'disabled',
+                result: Errors.AccessDenied('Account disabled', ErrorReasons.Disabled),
+                message: 'somebody is disabled.',
+                failedAttempt: true,
+            },
+            {
+                what: 'inactive',
+                result: Errors.AccessDenied('Account inactive', ErrorReasons.Inactive),
+                message: 'somebody is waiting for +op activation.',
+                failedAttempt: true,
+            },
+            {
+                what: 'already connected',
+                result: 'alreadyLoggedIn',
+                message:
+                    'somebody is already connected to the system. Terminating connection.',
+                failedAttempt: false,
+            },
+        ];
+
+        //  the zero-prompt form: no prompts, the message as the instruction
+        function assertShown(ctx, index, message) {
+            assert.equal(ctx.prompts.length, index + 1, 'shown');
+            const [prompts, title, instructions, cb] = ctx.prompts[index];
+            assert.deepEqual(prompts, []);
+            assert.equal(title, '');
+            assert.equal(instructions, message);
+            assert.equal(typeof cb, 'function');
+            return cb;
+        }
+
+        refusals.forEach(({ what, result, message, failedAttempt }) => {
+            it(`${what}, keyboard-interactive: shows the message with no prompt, then disconnects`, () => {
+                const { conn, client } = connectAs(result);
+                const ctx = makeAuthCtx('keyboard-interactive', 'somebody');
+                conn.emit('authentication', ctx);
+
+                const [, answerPassword] = ctx.prompts[0];
+                answerPassword(['secret']);
+
+                const answered = assertShown(ctx, 1, message);
+                assert.deepEqual(ctx.rejects, [], 'no failure before the message');
+                assert.equal(conn.endCount, 0, 'kept open to show it');
+
+                answered([]);
+                assert.equal(conn.endCount, 1);
+                assert.equal(ctx.accepts, 0);
+
+                assert.equal(
+                    client.sessionFailedLoginAttempts,
+                    failedAttempt ? 1 : undefined,
+                    'counted as before'
+                );
+                conn.emit('close');
+            });
+
+            ['password', 'publickey'].forEach(method => {
+                it(`${what}, ${method}: steered to keyboard-interactive, which shows the message`, () => {
+                    const { conn } = connectAs(result);
+                    const ctx = makeAuthCtx(method, 'somebody');
+                    ctx.password = 'secret';
+                    ctx.signature = Buffer.from('signed'); //  publickey: a login
+                    conn.emit('authentication', ctx);
+
+                    assert.deepEqual(ctx.rejects, [['keyboard-interactive']]);
+                    assert.equal(ctx.accepts, 0);
+                    assert.equal(conn.endCount, 0);
+
+                    const kbd = makeAuthCtx('keyboard-interactive', 'somebody');
+                    conn.emit('authentication', kbd);
+                    assertShown(kbd, 0, message)([]);
+                    assert.equal(conn.endCount, 1);
+                    conn.emit('close');
+                });
+            });
+        });
+
+        it('locked: the message waits as a bad login does, then the same form', async () => {
+            ssh.SSHClient.SlowRefusalMs = 20;
+            const { conn, client } = connectAs(
+                Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+            );
+            const ctx = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', ctx);
+            ctx.prompts[0][1](['secret']);
+
+            assert.equal(ctx.prompts.length, 1, 'nothing yet');
+            assert.equal(conn.endCount, 0);
+            await waitFor('the message', () => ctx.prompts.length > 1);
+
+            assertShown(ctx, 1, 'somebody is locked.')([]);
+            assert.equal(conn.endCount, 1);
+            assert.equal(client.sessionFailedLoginAttempts, 1);
+            conn.emit('close');
+        });
+
+        it('locked: nothing is sent if the connection ends while the message waits', async () => {
+            ssh.SSHClient.SlowRefusalMs = 20;
+            const { conn } = connectAs(
+                Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+            );
+            const ctx = makeAuthCtx('password', 'somebody');
+            ctx.password = 'secret';
+            conn.emit('authentication', ctx);
+            conn.emit('close');
+            await tick(50);
+            assert.deepEqual(ctx.rejects, []);
+            assert.equal(ctx.prompts.length, 0);
+        });
+
+        //
+        //  A publickey request without a signature only asks whether the key
+        //  would do (#1172): the account is not looked at, so nothing about
+        //  its state is shown, and the caller is not refused.
+        //
+        refusals.forEach(({ what, result }) => {
+            [
+                ['the key is the one stored', null],
+                ['the key is not', Errors.AccessDenied('Invalid public key')],
+            ].forEach(([which, keyResult]) => {
+                it(`${what}, a publickey query (${which}): says nothing about the account`, () => {
+                    const { conn, client } = connectAs(result);
+                    let factor1 = 0;
+                    const authenticateFactor1 = client.user.authenticateFactor1;
+                    client.user.authenticateFactor1 = (...args) => {
+                        factor1 += 1;
+                        return authenticateFactor1(...args);
+                    };
+                    client.user.checkSSHPubKey = (username, key, cb) => cb(keyResult);
+
+                    const ctx = makeAuthCtx('publickey', 'somebody');
+                    ctx.key = { algo: 'ssh-ed25519', data: Buffer.from('key') };
+                    conn.emit('authentication', ctx);
+
+                    assert.equal(factor1, 0, 'no login');
+                    assert.ok(!client.refused, 'not refused');
+                    assert.deepEqual(ctx.prompts, []);
+                    if (keyResult) {
+                        assert.deepEqual(ctx.rejects, [ssh.SSHClient.ValidAuthMethods]);
+                        assert.equal(ctx.accepts, 0);
+                    } else {
+                        assert.deepEqual(ctx.rejects, []);
+                        assert.equal(ctx.accepts, 1, 'PK_OK');
+                    }
+
+                    //  keyboard-interactive next asks for the password, as
+                    //  for any account
+                    const kbd = makeAuthCtx('keyboard-interactive', 'somebody');
+                    conn.emit('authentication', kbd);
+                    assert.equal(kbd.prompts.length, 1);
+                    assert.match(kbd.prompts[0][0].prompt, /password/);
+                    assert.equal(conn.endCount, 0);
+                    conn.emit('close');
+                });
+            });
+        });
+
+        it('locked: a request that comes while the answer waits is refused too', async () => {
+            ssh.SSHClient.SlowRefusalMs = 30;
+            const { conn, client } = connectAs(
+                Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+            );
+            let factor1 = 0;
+            const authenticateFactor1 = client.user.authenticateFactor1;
+            client.user.authenticateFactor1 = (...args) => {
+                factor1 += 1;
+                return authenticateFactor1(...args);
+            };
+
+            //  the client gives up on its keyboard-interactive request once
+            //  it has answered, and sends another: ssh2 emits 'abort' on the
+            //  first and then emits the second while the first is still
+            //  being checked (it queues a request only before the first
+            //  answer). See test/ssh_pubkey_auth.test.js for the same with a
+            //  real ssh2 client and server.
+            const first = makeAuthCtx('keyboard-interactive', 'somebody');
+            const firstEvents = new EventEmitter();
+            first.once = (...args) => firstEvents.once(...args);
+            conn.emit('authentication', first);
+            first.prompts[0][1](['secret']);
+            assert.equal(factor1, 1);
+            firstEvents.emit('abort');
+
+            const second = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', second);
+            assert.equal(factor1, 1, 'no second login attempt');
+            assertShown(second, 0, 'somebody is locked.');
+
+            await tick(60);
+            assert.equal(
+                first.prompts.length,
+                1,
+                'the abandoned request is not answered'
+            );
+            conn.emit('close');
+        });
+
+        it('already connected: the refused caller does not count as the user online', () => {
+            const { conn, client } = connectAs('alreadyLoggedIn');
+            const ctx = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', ctx);
+            ctx.prompts[0][1](['secret']);
+            assertShown(
+                ctx,
+                1,
+                'somebody is already connected to the system. Terminating connection.'
+            );
+
+            //  still tracked until it closes, but as nobody
+            assert.ok(clientConns.clientConnections.includes(client));
+            assert.equal(client.user.userId, 0);
+            assert.equal(client.user.isAuthenticated(), false);
+            assert.equal(client.acs.subject.user, client.user);
+
+            //  the session it was refused for ends: the user may come back
+            //  at once (userLogin()'s check, the who's online lookup)
+            clientConns.clientConnections.splice(
+                clientConns.clientConnections.indexOf(otherSession),
+                1
+            );
+            assert.equal(
+                clientConns.clientConnections.find(cc => 42 === cc.user.userId),
+                undefined
+            );
+            assert.equal(clientConns.getConnectionByUserId(42), undefined);
+            conn.emit('close');
+        });
+
+        //
+        //  The same check (acceptLogin()) guards every accept; a public key
+        //  query is the one that can be finished here without a login's
+        //  side effects.
+        //
+        it('a request that checks out after the connection was refused is not accepted', () => {
+            const { conn, client } = connectAs(null);
+            let finishCheck;
+            client.user.checkSSHPubKey = (username, key, cb) => (finishCheck = cb);
+
+            const ctx = makeAuthCtx('publickey', 'somebody');
+            ctx.key = { algo: 'ssh-ed25519', data: Buffer.from('key') };
+            conn.emit('authentication', ctx);
+
+            //  refused meanwhile (another request, say)
+            client.refuseConnection('refused');
+            finishCheck(null);
+            assert.equal(ctx.accepts, 0);
+            assert.deepEqual(ctx.rejects, [['keyboard-interactive']], 'steered');
+            conn.emit('close');
+        });
+
+        //
+        //  Request A is abandoned for B while A's password is still being
+        //  checked (ssh2 emits 'abort' on A, then B); B is refused for the
+        //  account. A finishing afterwards is no login and gets no answer.
+        //
+        function abandonedThenRefused() {
+            const { conn, client } = connectAs(null);
+            const pending = [];
+            client.user.authenticateFactor1 = (authInfo, cb) => pending.push(cb);
+
+            const a = makeAuthCtx('keyboard-interactive', 'somebody');
+            const aEvents = new EventEmitter();
+            a.once = (...args) => aEvents.once(...args);
+            conn.emit('authentication', a);
+            a.prompts[0][1](['secret']);
+            aEvents.emit('abort');
+
+            const b = makeAuthCtx('keyboard-interactive', 'somebody');
+            conn.emit('authentication', b);
+            b.prompts[0][1](['secret']);
+            assert.equal(pending.length, 2);
+            pending[1](Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+            assertShown(b, 1, 'somebody is disabled.');
+
+            return { conn, client, a, finishA: pending[0] };
+        }
+
+        it('an abandoned request whose password checks out after a refusal is no login', () => {
+            const Events = require('../core/events.js');
+            const emit = Events.emit;
+            const emitted = [];
+            Events.emit = (name, ...args) => {
+                emitted.push(name);
+                return emit.call(Events, name, ...args);
+            };
+            try {
+                const { conn, client, a, finishA } = abandonedThenRefused();
+                const refusedUser = client.user;
+                finishA(null);
+
+                assert.equal(a.accepts, 0);
+                assert.equal(a.prompts.length, 1, 'no answer to A');
+                assert.ok(!emitted.includes(Events.getSystemEvents().UserLogin));
+                assert.equal(client.user, refusedUser);
+                assert.equal(client.user.isAuthenticated(), false);
+                assert.ok(
+                    client.log.entries.some(e => /refused during login/.test(e.msg)),
+                    'abandoned'
+                );
+                conn.emit('close');
+            } finally {
+                Events.emit = emit;
+            }
+        });
+
+        it('an abandoned request refused after B was refused gets no answer', () => {
+            const { conn, a, finishA } = abandonedThenRefused();
+            finishA(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+            assert.equal(a.prompts.length, 1, 'no answer to A');
+            assert.equal(a.accepts, 0);
+            conn.emit('close');
+        });
+
+        it('a refused login cannot log in on a later attempt', () => {
+            const { conn, client } = connectAs(
+                Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
+            );
+            const first = makeAuthCtx('password', 'somebody');
+            first.password = 'secret';
+            conn.emit('authentication', first);
+
+            //  the account's state no longer matters: the refusal stands
+            client.user.authenticateFactor1 = (authInfo, cb) => cb(null);
+            ['publickey', 'password'].forEach(method => {
+                const ctx = makeAuthCtx(method, 'somebody');
+                ctx.password = 'secret';
+                conn.emit('authentication', ctx);
+                assert.equal(ctx.accepts, 0, method);
+            });
+            const newUser = makeAuthCtx('password', 'new');
+            conn.emit('authentication', newUser);
+            assert.equal(newUser.accepts, 0, 'nor as a new user');
+            conn.emit('close');
         });
     });
 

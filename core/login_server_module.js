@@ -8,12 +8,141 @@ const ServerModule = require('./server_module.js').ServerModule;
 const clientConns = require('./client_connections.js');
 const UserProps = require('./user_property.js');
 const { selectClientEmulation } = require('./term/select.js');
+const { DEFAULT_EMULATION } = require('./term');
 
 //  deps
 const _ = require('lodash');
 const moment = require('moment');
 
 const AllNodesBusyMessage = 'All nodes are busy. Try again later...';
+
+//
+//  The "all nodes are busy" refusal can come from an optional art file,
+//  BUSY.ASC, looked for as any art is with no user yet: the pre-login theme
+//  (theme.preLogin, when it names one theme that is there), then the
+//  default theme (theme.default), then the general art directory. Without
+//  one, the message is AllNodesBusyMessage. Each transport shows it as it
+//  can: a terminal (telnet, WebSocket) gets it as written, pipe colour codes
+//  rendered; SSH shows it as plain text (see SSHClient.toInstructionText()).
+//
+//  A refusal must not wait on the disk, nor may a flood of connections turn
+//  into a flood of reads: the message is kept, and read again in the
+//  background at most every BusyMessageRefreshMs, once a connection comes
+//  in after that, one read at a time. A file added, changed or removed is
+//  therefore seen within about that long. Any connection does it, so the
+//  message is ready by the time the board is full. A read that has not
+//  finished after BusyMessageRefreshMs no longer holds up a refresh: the
+//  next one starts a new read, and from then on the earlier read's answer,
+//  if it ever comes, is ignored. Until then it is taken as any answer is.
+//
+const BusyArtName = 'BUSY.ASC';
+const BusyMessageRefreshMs = 60 * 1000;
+
+const busyMessage = {
+    message: null, //  from BUSY.ASC; null for none
+    loadedAt: 0, //  Date.now() of the last read, 0 for never
+    loadingSince: 0, //  Date.now() the read under way started, 0 for none
+    loadId: 0, //  the read under way, or the last one
+};
+
+function getAllNodesBusyMessage() {
+    return busyMessage.message || AllNodesBusyMessage;
+}
+
+//
+//  The theme to look for BUSY.ASC in before the default theme: the
+//  pre-login theme an ANSI caller would get, when that is one theme ('*',
+//  a random pick, is not) and, once the themes are loaded, one that is
+//  available. Undefined otherwise. An id that names no theme directory is
+//  only a lookup that finds nothing, before the default theme.
+//
+function getBusyArtThemeId(theme) {
+    const preLogin = theme.getThemeSetting(DEFAULT_EMULATION, 'preLogin');
+    if (!_.isString(preLogin) || 0 === preLogin.length || '*' === preLogin) {
+        return undefined;
+    }
+
+    let available;
+    try {
+        available = theme.getAvailableThemes();
+    } catch (err) {
+        return preLogin; //  themes not loaded yet
+    }
+    return available && !available.has(preLogin) ? undefined : preLogin;
+}
+
+//
+//  Read BUSY.ASC again if it has not been read in BusyMessageRefreshMs (or
+//  |force|), unless a read is already under way. |cb|, optional, is called
+//  once this read, or the one under way, is done (or at once if none is
+//  needed).
+//
+const busyMessageWaiters = [];
+
+function refreshAllNodesBusyMessage(options, cb) {
+    if (!cb && _.isFunction(options)) {
+        cb = options;
+        options = {};
+    }
+    options = options || {};
+
+    if (cb) {
+        busyMessageWaiters.push(cb);
+    }
+
+    const done = () => {
+        busyMessageWaiters.splice(0).forEach(waiter => waiter(null));
+    };
+
+    const now = Date.now();
+    if (
+        busyMessage.loadingSince > 0 &&
+        now - busyMessage.loadingSince < BusyMessageRefreshMs
+    ) {
+        return; //  the read under way calls |cb|
+    }
+
+    const fresh =
+        busyMessage.loadedAt > 0 && now - busyMessage.loadedAt < BusyMessageRefreshMs;
+    if (fresh && !options.force && 0 === busyMessage.loadingSince) {
+        return done();
+    }
+
+    const loadId = ++busyMessage.loadId;
+    busyMessage.loadingSince = now;
+
+    //  late, as in prepareClient()
+    const theme = require('./theme.js');
+
+    //  once per read, and only for the read under way
+    const loaded = text => {
+        if (loadId !== busyMessage.loadId || 0 === busyMessage.loadingSince) {
+            return;
+        }
+        busyMessage.loadingSince = 0;
+        busyMessage.loadedAt = Date.now();
+        busyMessage.message = _.isString(text)
+            ? text.replace(/\r\n/g, '\n').trimEnd() || null
+            : null;
+        return done();
+    };
+
+    //  no client: there is no user yet, so no theme of theirs. Nor is a
+    //  missing file worth more than getThemeArt()'s own debug line.
+    try {
+        const artOpts = {
+            name: BusyArtName,
+            themeId: getBusyArtThemeId(theme),
+            readSauce: false,
+        };
+        theme.getThemeArt(artOpts, (err, artInfo) => {
+            return loaded(err ? null : _.get(artInfo, 'data'));
+        });
+    } catch (err) {
+        logger.log.debug({ error: err.message }, `Cannot read ${BusyArtName}`);
+        return loaded(null);
+    }
+}
 
 module.exports = class LoginServerModule extends ServerModule {
     constructor() {
@@ -64,6 +193,10 @@ module.exports = class LoginServerModule extends ServerModule {
 
         client.rawSocket = clientSock;
 
+        if (maxConnections > 0) {
+            refreshAllNodesBusyMessage();
+        }
+
         if (maxConnections > 0 && numConnections >= maxConnections) {
             //
             //  The client is not tracked, so it never gets the node logger
@@ -80,7 +213,7 @@ module.exports = class LoginServerModule extends ServerModule {
                 { maxConnections, numConnections },
                 'All nodes are busy; refusing connection'
             );
-            return client.refuseConnection(AllNodesBusyMessage);
+            return client.refuseConnection(getAllNodesBusyMessage());
         }
 
         client.session.serverName = modInfo.name;
@@ -221,3 +354,6 @@ function timeUpLogoff(client, cb) {
 
 module.exports.timeUpLogoff = timeUpLogoff;
 module.exports.AllNodesBusyMessage = AllNodesBusyMessage;
+module.exports.BusyArtName = BusyArtName;
+module.exports.getAllNodesBusyMessage = getAllNodesBusyMessage;
+module.exports.refreshAllNodesBusyMessage = refreshAllNodesBusyMessage;

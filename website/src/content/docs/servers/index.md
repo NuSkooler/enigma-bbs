@@ -28,7 +28,10 @@ blocked over plain Telnet.
 `general.maxConnections` caps how many callers can be on at once, across every
 login server (`0`, the default, means no limit). A caller who connects while
 the board is full is not given a node, and is turned away with
-*All nodes are busy. Try again later...*:
+*All nodes are busy. Try again later...*, or the text of an optional
+`BUSY.ASC` art file in the pre-login theme, the default theme or
+`art/general` (see
+[Busy Message](loginservers/ssh.md#busy-message)):
 
 - **Telnet:** the message, then the connection is closed.
 - **SSH:** there is no terminal before login, so the message is shown at the

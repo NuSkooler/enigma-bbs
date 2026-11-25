@@ -47,6 +47,8 @@ const { attachRipLayer } = require('./term/select.js');
 const DeviceAttributes = require('./term/ansi/device_attributes.js');
 const AnsiInput = require('./term/ansi/input_decoder.js');
 const InputCapture = require('./input_capture.js');
+//  not color_codes.js: see Client.prototype.refuseConnection()
+const PipeCodes = require('./pipe_codes.js');
 
 //  deps
 const stream = require('stream');
@@ -394,9 +396,15 @@ Client.prototype.restoreIdleLogoutSeconds = function () {
 //  handling applies. SSH has no terminal until its shell opens and does this
 //  its own way; see core/servers/login/ssh.js.
 //
+//  |message| may come from an art file (see getAllNodesBusyMessage() in
+//  core/login_server_module.js): pipe colour codes in it are rendered.
+//  There is no session to resolve MCI codes against, so those show as
+//  written (which is why this is pipe_codes.js, not color_codes.js and the
+//  MCI resolver it loads).
+//
 Client.prototype.refuseConnection = function (message) {
     if (this.term) {
-        this.term.write(`\n${message}\n`);
+        this.term.write(`\n${PipeCodes.render(message)}\n`);
     }
     return this.end();
 };
