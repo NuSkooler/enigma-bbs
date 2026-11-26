@@ -160,14 +160,27 @@ function userLogin(client, username, password, options, cb) {
         //  User's unique session identifier is the same as the connection itself
         user.sessionId = client.session.uniqueId; //  convenience
 
-        Events.emit(Events.getSystemEvents().UserLogin, { user });
-
         setClientTheme(client, user.properties[UserProps.ThemeId]);
 
         postLoginPrep(client, err => {
             if (err) {
+                //
+                //  The login's setup failed (a database write, say): it is
+                //  not a login. The User goes back to nobody, in place, so
+                //  the client and its ACS stay in step, and UserLogin is
+                //  never sent for it (#1182).
+                //
+                client.log.warn(
+                    { error: err.message, username: user.username },
+                    'Login setup failed; the login is not completed'
+                );
+                user.reset();
                 return cb(err);
             }
+
+            //  only once the setup has succeeded: listeners (WFC, achievements)
+            //  then see a real login
+            Events.emit(Events.getSystemEvents().UserLogin, { user });
 
             if (user.authenticated) {
                 return recordLogin(client, cb);
