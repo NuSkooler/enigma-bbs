@@ -108,7 +108,8 @@ const MciViewIds = { messageList: 1, infoPanel: 2 };
 * One concern per PR — keep scope focused.
 * Reference any related GitHub issue in the PR description.
 * All existing tests must pass; add tests for new behaviour where practical.
-* Update `WHATSNEW.md` for user-visible changes and `UPGRADE.md` for breaking changes.
+* Update `WHATSNEW.md` for user-visible changes and `UPGRADE.md` for breaking changes, both under their `## Unreleased` heading.
+* Don't change the version in `package.json`; that happens only when a release is cut.
 
 ## Further Reading
 
