@@ -295,14 +295,45 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
         const plainPort = parseInt(inbound.port || 24554);
 
-        const startPlain = done => {
-            this._server.listen(plainPort, bindAddress, () => {
-                Log.info(
-                    { port: this._server.address().port, address: bindAddress },
-                    '[BinkP] Inbound server listening'
+        //  A listen that fails (the port is in use, say) only emits 'error',
+        //  and the callback given to listen() is then never called: startup
+        //  must fail rather than wait for it forever. Whatever did start is
+        //  closed, since a module whose startup failed is never shut down.
+        const listen = (server, port, onListening, done) => {
+            const failed = err => {
+                server.removeListener('listening', listening);
+                Log.error(
+                    { port, address: bindAddress, error: err.message },
+                    '[BinkP] Could not start the inbound server'
                 );
-                done(null);
-            });
+                [this._server, this._tlsServer]
+                    .filter(s => s && s.listening)
+                    .forEach(s => s.close());
+                this._server = null;
+                this._tlsServer = null;
+                return done(err);
+            };
+            const listening = () => {
+                server.removeListener('error', failed);
+                onListening();
+            };
+            server.once('error', failed);
+            server.listen(port, bindAddress, listening);
+        };
+
+        const startPlain = done => {
+            listen(
+                this._server,
+                plainPort,
+                () => {
+                    Log.info(
+                        { port: this._server.address().port, address: bindAddress },
+                        '[BinkP] Inbound server listening'
+                    );
+                    done(null);
+                },
+                done
+            );
         };
 
         const tlsCfg = inbound.tls;
@@ -327,13 +358,18 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
                 });
 
                 const tlsPort = parseInt(tlsCfg.port || 24555);
-                this._tlsServer.listen(tlsPort, bindAddress, () => {
-                    Log.info(
-                        { port: tlsPort, address: bindAddress },
-                        '[BinkP] Inbound TLS server listening'
-                    );
-                    startPlain(cb);
-                });
+                listen(
+                    this._tlsServer,
+                    tlsPort,
+                    () => {
+                        Log.info(
+                            { port: tlsPort, address: bindAddress },
+                            '[BinkP] Inbound TLS server listening'
+                        );
+                        startPlain(cb);
+                    },
+                    cb
+                );
             })
             .catch(err => {
                 Log.error(

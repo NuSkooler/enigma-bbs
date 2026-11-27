@@ -320,6 +320,24 @@ describe('BinkP server', function () {
             }
         });
 
+        //  A listen that fails only emits 'error'; startup used to wait on
+        //  the listen callback, which then never comes.
+        it('startup fails, rather than waiting for good, when the inbound port is taken', async () => {
+            const squatter = net.createServer();
+            await new Promise(resolve => squatter.listen(0, '127.0.0.1', resolve));
+            try {
+                const port = squatter.address().port;
+                await assert.rejects(
+                    startModule({
+                        inbound: { enabled: true, port, address: '127.0.0.1' },
+                    }),
+                    { code: 'EADDRINUSE' }
+                );
+            } finally {
+                await new Promise(resolve => squatter.close(resolve));
+            }
+        });
+
         it('startup does nothing when inbound.enabled is false', async () => {
             const prev = configModule._pushTestConfig(
                 makeConfig({
