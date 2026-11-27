@@ -1191,7 +1191,10 @@ describe('BinkP server', function () {
             try {
                 const { session } = connectClient(port);
                 const received = [];
-                session.on('file-received', name => received.push(name));
+                session.on('file-received', (name, size, ts, tmp) => {
+                    received.push(name);
+                    fsp.unlink(tmp).catch(() => {});
+                });
                 const ended = new Promise((resolve, reject) => {
                     session.on('session-end', resolve);
                     session.on('error', reject);
@@ -1542,7 +1545,10 @@ describe('BinkP server', function () {
 
                     const { session } = connectClient(port);
                     const received = [];
-                    session.on('file-received', name => received.push(name));
+                    session.on('file-received', (name, size, ts, tmp) => {
+                        received.push(name);
+                        fsp.unlink(tmp).catch(() => {});
+                    });
 
                     const finish = err => {
                         restore();

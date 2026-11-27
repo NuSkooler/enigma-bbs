@@ -11,6 +11,7 @@
 //
 
 const net = require('net');
+const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const os = require('os');
@@ -26,6 +27,24 @@ const {
 const { Commands } = require('../core/binkp/commands');
 
 const TEMP_DIR = os.tmpdir();
+
+//  Every file made here, and every inbound temp file a session made here
+//  hands to 'file-received', is removed by removeTempFiles(). A test that
+//  moves or deletes one first loses nothing: the removal is forced.
+const tempFiles = new Set();
+
+function trackReceived(session) {
+    session.on('file-received', (name, size, timestamp, tempPath) => {
+        tempFiles.add(tempPath);
+    });
+}
+
+function removeTempFiles() {
+    for (const filePath of tempFiles) {
+        fs.rmSync(filePath, { force: true });
+    }
+    tempFiles.clear();
+}
 
 //
 //  A scripted answering-side peer that follows FTS-1026/FTS-1028 the way
@@ -557,6 +576,7 @@ function makeScriptedPair(peerOpts = {}, sessionOpts = {}) {
                     tempDir: TEMP_DIR,
                     ...sessionOpts,
                 });
+                trackReceived(session);
                 resolve({ session, peer });
             });
         });
@@ -577,6 +597,7 @@ function runAnswering(peerOpts = {}, sessionOpts = {}, onSession = () => {}) {
                 tempDir: TEMP_DIR,
                 ...sessionOpts,
             });
+            trackReceived(session);
             const finish = err => {
                 server.close();
                 return err ? reject(err) : resolve({ session, peer });
@@ -613,6 +634,7 @@ async function makeTempFile(content, suffix = '.pkt') {
         TEMP_DIR,
         `binkp_nr_${Date.now()}_${Math.random().toString(36).slice(2)}${suffix}`
     );
+    tempFiles.add(filePath);
     await fsp.writeFile(filePath, content);
     const { size } = await fsp.stat(filePath);
     return {
@@ -636,6 +658,7 @@ module.exports = {
     runAnswering,
     runSession,
     makeTempFile,
+    removeTempFiles,
     exists,
     TEMP_DIR,
 };

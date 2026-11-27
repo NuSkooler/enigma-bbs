@@ -22,7 +22,16 @@ const {
     nodeBaseName,
 } = require('../core/binkp/bso_spool');
 const Address = require('../core/ftn_address');
-const { makeScriptedPair, runSession, exists } = require('./binkp_peer.js');
+const {
+    makeScriptedPair,
+    runSession,
+    exists,
+    removeTempFiles,
+} = require('./binkp_peer.js');
+
+//  at the root, so it runs once the whole run is done: the helper's temp
+//  files belong to every suite in this file
+after(removeTempFiles);
 const { listQueued } = require('./helpers/bso_listing');
 
 //  The scripted peer presents 1:1/1.

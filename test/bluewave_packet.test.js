@@ -88,6 +88,17 @@ const user = {
     realName: () => 'Test User',
 };
 
+//  A writer removes its work directory in finish(); these tests mostly stop
+//  short of it, so every writer they make is cleaned up once they are done.
+const writers = [];
+after(() =>
+    Promise.all(
+        writers
+            .splice(0)
+            .map(writer => new Promise(resolve => writer.temptmp.cleanup(resolve)))
+    )
+);
+
 function buildPacket(build, cb, writerOptions = {}) {
     //  StatLog wants a database, and none of this reads a stat
     const realInit = StatLog.init;
@@ -108,6 +119,7 @@ function buildPacket(build, cb, writerOptions = {}) {
             writerOptions
         )
     );
+    writers.push(writer);
 
     writer.once('error', err => {
         throw err;
@@ -615,6 +627,7 @@ describe('Blue Wave pinned area numbers', () => {
             systemName: 'Test Board',
             sysOpName: 'SysOp Name',
         });
+        writers.push(writer);
 
         writer.on('warning', err => warnings.push(err.message));
         writer.once('ready', () => {
@@ -971,6 +984,7 @@ describe('Blue Wave packet fixture', () => {
             sysOpName: 'SysOp Name',
             acceptsReplies: true,
         });
+        writers.push(writer);
 
         writer.once('error', err => {
             throw err;
@@ -1056,6 +1070,13 @@ describe('Blue Wave packet archive', () => {
     const os = require('os');
     const moment = require('moment');
 
+    const outDirs = [];
+    after(() => {
+        outDirs
+            .splice(0)
+            .forEach(dir => fs.rmSync(dir, { recursive: true, force: true }));
+    });
+
     function withStubbedArchiver(build, cb, reuseDir) {
         const realGetInstance = ArchiveUtil.getInstance;
         const calls = [];
@@ -1073,7 +1094,11 @@ describe('Blue Wave packet archive', () => {
         StatLog.init = callback => callback(null);
         StatLog.getSystemStat = () => 'SysOp Name';
 
-        const outDir = reuseDir || fs.mkdtempSync(paths.join(os.tmpdir(), 'bw-archive-'));
+        let outDir = reuseDir;
+        if (!outDir) {
+            outDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'bw-archive-'));
+            outDirs.push(outDir);
+        }
 
         const writer = new BlueWavePacketWriter({
             bbsID: 'ENIGMA',

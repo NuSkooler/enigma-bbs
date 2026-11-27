@@ -9,11 +9,20 @@ const { endWriteStream } = require('../core/file_util.js');
 const StatLog = require('../core/stat_log.js');
 const { BlueWavePacketWriter } = require('../core/bluewave_mail_packet.js');
 
+const tempDirs = [];
 function tempFile(name) {
-    return paths.join(fs.mkdtempSync(paths.join(os.tmpdir(), 'enigstream-')), name);
+    const dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigstream-'));
+    tempDirs.push(dir);
+    return paths.join(dir, name);
 }
 
 describe('ending a packet write stream', () => {
+    after(() => {
+        tempDirs
+            .splice(0)
+            .forEach(dir => fs.rmSync(dir, { recursive: true, force: true }));
+    });
+
     it('answers once the stream has closed', done => {
         const ws = fs.createWriteStream(tempFile('ok.dat'));
         ws.write('some packet bytes');

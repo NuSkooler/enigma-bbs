@@ -12,7 +12,16 @@ const path = require('path');
 const os = require('os');
 
 const { Commands } = require('../core/binkp/commands');
-const { runAnswering, makeScriptedPair, runSession } = require('./binkp_peer');
+const {
+    runAnswering,
+    makeScriptedPair,
+    runSession,
+    removeTempFiles,
+} = require('./binkp_peer');
+
+//  at the root, so it runs once the whole run is done: the helper's temp
+//  files belong to every suite in this file
+after(removeTempFiles);
 
 const TS = 1700000000;
 

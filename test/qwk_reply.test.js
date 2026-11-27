@@ -81,10 +81,12 @@ const readReplyPacket = (members, cb) => {
     reader.on('message', message => messages.push(message));
     reader.on('error', err => {
         ArchiveUtil.getInstance = realGetInstance;
+        fs.rmSync(sourceDir, { recursive: true, force: true });
         cb(err);
     });
     reader.on('done', () => {
         ArchiveUtil.getInstance = realGetInstance;
+        fs.rmSync(sourceDir, { recursive: true, force: true });
         cb(null, messages);
     });
 

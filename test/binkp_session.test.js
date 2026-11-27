@@ -80,12 +80,20 @@ function runToEnd(clientSess, serverSess) {
     return Promise.all([clientDone, serverDone]);
 }
 
-//  Write a small temp file, return { filePath, size, timestamp }.
+//  Write a small temp file, return { filePath, size, timestamp }. Whatever
+//  a test leaves of them is removed once the run is done.
+const tempFiles = new Set();
+after(async () => {
+    await Promise.all([...tempFiles].map(f => fsp.rm(f, { force: true })));
+    tempFiles.clear();
+});
+
 async function makeTempFile(content = 'TESTDATA') {
     const filePath = path.join(
         TEMP_DIR,
         `binkp_test_${Date.now()}_${Math.random().toString(36).slice(2)}.pkt`
     );
+    tempFiles.add(filePath);
     await fsp.writeFile(filePath, content);
     const { size } = await fsp.stat(filePath);
     const timestamp = Math.floor(Date.now() / 1000);

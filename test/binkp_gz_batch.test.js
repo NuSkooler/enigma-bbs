@@ -9,7 +9,16 @@ const path = require('path');
 
 const { BinkpSession } = require('../core/binkp/session');
 const { Commands } = require('../core/binkp/commands');
-const { makeScriptedPair, runSession, exists } = require('./binkp_peer.js');
+const {
+    makeScriptedPair,
+    runSession,
+    exists,
+    removeTempFiles,
+} = require('./binkp_peer.js');
+
+//  at the root, so it runs once the whole run is done: the helper's temp
+//  files belong to every suite in this file
+after(removeTempFiles);
 
 //
 //  Issue #1043: a compressed file followed by a clear one in a pipelined
