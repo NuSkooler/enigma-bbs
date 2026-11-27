@@ -1772,9 +1772,20 @@ function FTNMessageScanTossModule() {
                     }
                 },
                 function moveFilesToOutgoing(exportedFileNames, callback) {
+                    //  Every file is seen through before calling back, even
+                    //  after one has failed: on an error the caller removes
+                    //  this destination's packets from the temp area, and
+                    //  must not do that under a move still under way (a
+                    //  packet that would have gone out was deleted instead,
+                    //  #1116), nor while a reference is still being written.
+                    let firstErr = null;
                     async.each(
                         exportedFileNames,
-                        (oldPath, nextFile) => {
+                        (oldPath, fileDone) => {
+                            const nextFile = err => {
+                                firstErr = firstErr || err || null;
+                                return fileDone();
+                            };
                             //
                             //  Un-bundled packets are written to the temp area as
                             //  .pk_ (see |createTempPacket| in createEchoMailDestination);
@@ -1894,7 +1905,7 @@ function FTNMessageScanTossModule() {
                                 );
                             });
                         },
-                        callback
+                        () => callback(firstErr)
                     );
                 },
             ],
