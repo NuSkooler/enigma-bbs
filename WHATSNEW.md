@@ -1,6 +1,10 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## Unreleased
+
+_Merged since the last release: on `master` now, and in the next release._
+
 ## 0.6.3-beta
 
 * **SSH logins refused for the account say why and disconnect** ([#1081](https://github.com/NuSkooler/enigma-bbs/issues/1081)). A caller who is already connected, or whose account is disabled, inactive or locked, saw the reason as an input prompt ("Press any key to continue") that waited for Enter, and OpenSSH could follow it with another password prompt; logging in with a public key showed nothing at all. The reason is now shown with no prompt and the connection ends, as for a full board; a key or password login is sent to keyboard-interactive to show it. A client that cannot do keyboard-interactive gets an authentication failure. A locked account's answer still comes after 2 seconds, and a public key query still says nothing about the account. Also, an SSH client that reports its terminal size only in pixels (0 rows and columns) no longer gets a terminal hundreds of characters wide: the size is found as for a client that sends none, by asking the terminal, else 80x25.

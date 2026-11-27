@@ -23,7 +23,8 @@ Two conventions catch people out often enough to repeat here:
 * **Production code uses [`async`](https://caolan.github.io/async/), not Promises.**
   `async`/`await` is fine in tests, but not in `core/` or `mods/`.
 * **Update `WHATSNEW.md` for anything user-visible, and `UPGRADE.md` for anything
-  breaking.** Those are what a sysop reads on upgrade day.
+  breaking**, under their `## Unreleased` headings. Those are what a sysop reads
+  on upgrade day.
 
 ## Working on the Documentation
 

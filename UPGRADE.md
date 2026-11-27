@@ -20,6 +20,10 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## Unreleased
+
+_Notes for changes merged since the last release. They apply when you upgrade to the next release, or now if you track `master`._
+
 ## 0.6.2-beta to 0.6.3-beta
 
 * **Sysops: a disabled or inactive account is answered before the password is checked.** Nothing in your configuration, menus, art or themes needs to change.
