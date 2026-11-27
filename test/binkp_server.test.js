@@ -14,6 +14,19 @@ const { BsoSpool, attachSpoolToSession } = require('../core/binkp/bso_spool.js')
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
 let tmpDir;
+let inboundPort;
+
+//  A port nothing is listening on right now.
+async function freePort() {
+    const probe = net.createServer();
+    await new Promise((resolve, reject) => {
+        probe.once('error', reject);
+        probe.listen(0, '127.0.0.1', resolve);
+    });
+    const { port } = probe.address();
+    await new Promise(resolve => probe.close(resolve));
+    return port;
+}
 
 //  Wrapping describe — see binkp_caller.test.js for the rationale.
 //  Top-level before/after in mocha are root hooks; wrapping scopes them
@@ -24,6 +37,7 @@ describe('BinkP server', function () {
         await fsp.mkdir(path.join(tmpDir, 'ftn_out'), { recursive: true });
         await fsp.mkdir(path.join(tmpDir, 'ftn_in'), { recursive: true });
         await fsp.mkdir(path.join(tmpDir, 'ftn_secin'), { recursive: true });
+        inboundPort = await freePort();
     });
 
     after(async () => {
@@ -40,15 +54,17 @@ describe('BinkP server', function () {
                         inbound: path.join(tmpDir, 'ftn_in'),
                         secInbound: path.join(tmpDir, 'ftn_secin'),
                     },
-                    binkp: Object.assign(
-                        {
-                            inbound: {
-                                enabled: true,
-                                port: 0, // ephemeral
-                                address: '127.0.0.1',
+                    binkp: withInboundPort(
+                        Object.assign(
+                            {
+                                inbound: {
+                                    enabled: true,
+                                    port: 0, //  inboundPort
+                                    address: '127.0.0.1',
+                                },
                             },
-                        },
-                        binkpOverride
+                            binkpOverride
+                        )
                     ),
                 },
             },
@@ -65,25 +81,53 @@ describe('BinkP server', function () {
         };
     }
 
+    //  The module reads an inbound port of 0 as "the default" (24554), not
+    //  as "any free port". A fixed port is shared with every other process on
+    //  the machine -- a second test run, a BBS -- and a listen that fails
+    //  there used to leave startup waiting for good. So each run of this file
+    //  takes a free port of its own, and a config that says 0 gets that.
+    function withInboundPort(binkp) {
+        if (binkp.inbound && 0 === binkp.inbound.port) {
+            binkp.inbound = Object.assign({}, binkp.inbound, { port: inboundPort });
+        }
+        return binkp;
+    }
+
+    //  Modules started and not yet stopped. A test that fails or times out
+    //  before its own stop() leaves its module here, and afterEach stops it:
+    //  its listener and its live sessions (and their .bsy locks) must not
+    //  outlast the test. (test/setup.js restores the config it pushed.)
+    const running = new Set();
+    afterEach(async () => {
+        for (const stop of Array.from(running)) {
+            await stop();
+        }
+    });
+
     // Start the BinkP scanner/tosser module; returns { mod, port, stop }.
     async function startModule(binkpOverride = {}) {
         const prev = configModule._pushTestConfig(makeConfig(binkpOverride));
         const { getModule } = require('../core/scanner_tossers/binkp.js');
         const mod = new getModule();
 
+        let stopped = null;
+        const stop = () => {
+            if (!stopped) {
+                stopped = new Promise(res => mod.shutdown(res)).then(() => {
+                    running.delete(stop);
+                    configModule._popTestConfig(prev);
+                });
+            }
+            return stopped;
+        };
+        running.add(stop);
+
         await new Promise((resolve, reject) =>
             mod.startup(err => (err ? reject(err) : resolve()))
         );
 
         const port = mod._server.address().port;
-        return {
-            mod,
-            port,
-            stop: async () => {
-                await new Promise(res => mod.shutdown(res));
-                configModule._popTestConfig(prev);
-            },
-        };
+        return { mod, port, stop };
     }
 
     // Connect an originating BinkpSession to port.

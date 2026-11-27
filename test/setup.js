@@ -70,9 +70,22 @@ configModule._popTestConfig = function (previous) {
 //  The ActivityPub negative caches (failed actor and WebFinger lookups) and
 //  the inbox fetch budget are process-wide, by design: start every test
 //  without what an earlier one left there.
+//
+//  A test that pushes a config and pops it on its own success path leaves
+//  that config installed when it fails or times out first -- and every file
+//  after it then runs against it (a BinkP timeout once took 24 dropfile tests
+//  down with it). So whatever Config.get was when a test started, it is again
+//  when the test is over. This runs after the suite's own afterEach hooks, so
+//  a pop there is not undone; configs a suite installs in before() are already
+//  in place when the test starts, and are left alone.
+let configAtTestStart = null;
 exports.mochaHooks = {
     beforeEach() {
         require('../core/activitypub/negative_cache.js').resetAll();
         require('../core/activitypub/fetch_budget.js')._reset();
+        configAtTestStart = configModule.get;
+    },
+    afterEach() {
+        configModule.get = configAtTestStart;
     },
 };
