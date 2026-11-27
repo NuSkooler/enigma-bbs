@@ -111,6 +111,17 @@ const MciViewIds = { messageList: 1, infoPanel: 2 };
 * Update `WHATSNEW.md` for user-visible changes and `UPGRADE.md` for breaking changes, both under their `## Unreleased` heading.
 * Don't change the version in `package.json`; that happens only when a release is cut.
 
+## Versioning & Releases
+
+ENiGMA½ uses [Semantic Versioning](https://semver.org/). Releases are tagged `vX.Y.Z`; `master` is the edge. In short:
+
+* **Patch** releases only fix things and never need action from sysops. **Minor** releases add features and, before 1.0, may carry breaking changes, each listed in `UPGRADE.md`.
+* Breaking changes need the maintainer's sign-off. Where possible, deprecate first: the old behaviour keeps working, with a log warning, for at least one minor release.
+* `master` stays working. A feature that takes several PRs lands switched off (out of the default menus and templates, or off by default) until the last piece is in. Work that can't be done safely in pieces uses a feature branch.
+* Work for a release is gathered in a GitHub milestone named after it, and the release is cut when the milestone is done.
+
+What counts as the public contract, the bump rules, and how releases are cut are on the docs site: [Versioning & Releases](https://enigma-bbs.github.io/contributing/versioning/).
+
 ## Further Reading
 
 For deeper background on how the system works — the art/theme pipeline, menu module pattern, view system, and configuration — see [DEV.md](DEV.md).
