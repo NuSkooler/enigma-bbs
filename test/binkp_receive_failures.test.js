@@ -8,7 +8,17 @@ const path = require('path');
 
 const { Commands } = require('../core/binkp/commands');
 const { FreqResolver, attachFreqToSession } = require('../core/binkp/freq');
-const { makeScriptedPair, runAnswering, runSession, exists } = require('./binkp_peer.js');
+const {
+    makeScriptedPair,
+    runAnswering,
+    runSession,
+    exists,
+    removeTempFiles,
+} = require('./binkp_peer.js');
+
+//  at the root, so it runs once the whole run is done: the helper's temp
+//  files belong to every suite in this file
+after(removeTempFiles);
 
 //
 //  Issue #1090: an inbound file whose write fails, or a FREQ .req receive

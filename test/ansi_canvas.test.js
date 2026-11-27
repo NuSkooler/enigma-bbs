@@ -68,8 +68,10 @@ function sauceTrailer({ width = 80, height = 0, comments = [], ice = false } = {
     return Buffer.concat(parts);
 }
 
+const tempDirs = [];
 function writeTemp(name, buf) {
     const dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-canvas-'));
+    tempDirs.push(dir);
     const path = paths.join(dir, name);
     fs.writeFileSync(path, buf);
     return path;
@@ -85,6 +87,12 @@ const fromFile = (path, options = {}) =>
 describe('AnsiCanvas', function () {
     before(function () {
         art = require('../core/art.js');
+    });
+
+    after(function () {
+        tempDirs
+            .splice(0)
+            .forEach(dir => fs.rmSync(dir, { recursive: true, force: true }));
     });
 
     describe('drawing', function () {

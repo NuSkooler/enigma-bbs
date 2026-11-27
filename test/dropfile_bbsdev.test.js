@@ -2,6 +2,8 @@
 
 const { strict: assert } = require('assert');
 const os = require('os');
+const fs = require('fs');
+const paths = require('path');
 
 const DropFile = require('../core/dropfile.js');
 const ACS = require('../core/acs.js');
@@ -305,14 +307,23 @@ describe('BBSDEV.DRP comm type', () => {
     //  so a language that is not is refused here rather than written.
     //
     describe('the language tag', () => {
+        //  createFile() writes for real: under a directory of this suite's own
+        let dropFilesDir;
+        before(() => {
+            dropFilesDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-dropfile-'));
+        });
+        after(() => {
+            fs.rmSync(dropFilesDir, { recursive: true, force: true });
+        });
+
         const withLanguage = (language, cb) => {
             const previous = configModule._pushTestConfig({
                 debug: { assertsEnabled: false },
                 menus: { cls: false },
                 general: { language },
-                paths: { dropFiles: os.tmpdir() },
+                paths: { dropFiles: dropFilesDir },
             });
-            makeDropFile().createFile(err => {
+            makeDropFile({ baseDir: dropFilesDir }).createFile(err => {
                 configModule._popTestConfig(previous);
                 cb(err);
             });

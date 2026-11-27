@@ -43,8 +43,11 @@ describe('BinkP server', function () {
                     //  Port 0: each module listens on a free port of its
                     //  own, never on one shared with another test run or a
                     //  BBS on this machine. startModule() reads the port back.
+                    //  tempDir: startup sweeps it for old inbound temps, and
+                    //  received files land there; keep both out of /tmp.
                     binkp: Object.assign(
                         {
+                            tempDir: tmpDir,
                             inbound: {
                                 enabled: true,
                                 port: 0,
@@ -112,7 +115,7 @@ describe('BinkP server', function () {
             role: 'originating',
             addresses: opts.addresses || ['1:218/701@testnet'],
             getPassword: opts.getPassword || (() => null),
-            tempDir: os.tmpdir(),
+            tempDir: tmpDir,
         });
         return { session, socket };
     }
@@ -1191,7 +1194,10 @@ describe('BinkP server', function () {
             try {
                 const { session } = connectClient(port);
                 const received = [];
-                session.on('file-received', name => received.push(name));
+                session.on('file-received', (name, size, ts, tmp) => {
+                    received.push(name);
+                    fsp.unlink(tmp).catch(() => {});
+                });
                 const ended = new Promise((resolve, reject) => {
                     session.on('session-end', resolve);
                     session.on('error', reject);
@@ -1542,7 +1548,10 @@ describe('BinkP server', function () {
 
                     const { session } = connectClient(port);
                     const received = [];
-                    session.on('file-received', name => received.push(name));
+                    session.on('file-received', (name, size, ts, tmp) => {
+                        received.push(name);
+                        fsp.unlink(tmp).catch(() => {});
+                    });
 
                     const finish = err => {
                         restore();

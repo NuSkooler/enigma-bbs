@@ -568,6 +568,21 @@ describe('FSE: an ANSI body, on a new post or a reply (#1084)', () => {
         });
     });
 
+    //  the transfer was canceled: the caller is back with the body as it
+    //  was, and the directory the upload would have gone to is removed
+    it('a canceled upload removes its temp directory', done => {
+        const upload = uploadFile('a partial file the transfer gave up on');
+        openEditor({ savedState: savedBeforeUpload(upload) }, () => {
+            waitFor(
+                () => !fs.existsSync(upload.dir),
+                err => {
+                    assert.ifError(err);
+                    done();
+                }
+            );
+        });
+    });
+
     it('a saved state from before bodyIsAnsi (replyIsAnsi only) restores an ANSI body', done => {
         const saved = {
             bodyText: ART_BODY,

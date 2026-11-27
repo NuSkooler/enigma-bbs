@@ -637,6 +637,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             });
         };
 
+        let finishStarted = false;
         const packetWriter = this.createPacketWriter(
             Object.assign(this._getUserExportOptions(), {
                 user: this.client.user,
@@ -802,6 +803,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     );
                 },
                 callback => {
+                    finishStarted = true;
                     return this._finishPacket(packetWriter, callback);
                 },
                 (packetInfo, callback) => {
@@ -820,6 +822,13 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             err => {
                 this.client.startIdleMonitor(); //  re-enable
                 this.client.removeListener('key press', keyPressHandler);
+
+                //  finish() removes the writer's work directory; an export
+                //  that ended before it (canceled, or an area that failed)
+                //  must do so here, or it stays in the temp dir until exit
+                if (!finishStarted && packetWriter.temptmp) {
+                    packetWriter.temptmp.cleanup();
+                }
 
                 if (!err) {
                     finalStatus(

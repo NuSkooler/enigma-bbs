@@ -11,7 +11,12 @@ const {
     runSession,
     makeTempFile,
     exists,
+    removeTempFiles,
 } = require('./binkp_peer.js');
+
+//  at the root, so it runs once the whole run is done: the helper's temp
+//  files belong to every suite in this file
+after(removeTempFiles);
 
 // ── Outbound NR mode — issue #724 ─────────────────────────────────────────────
 

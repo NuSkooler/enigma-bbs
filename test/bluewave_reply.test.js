@@ -81,7 +81,13 @@ const writeFixed = (buf, offset, value, length) => {
     encoded.copy(buf, offset, 0, Math.min(encoded.length, length - 1));
 };
 
-const makeTempDir = () => fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-bwreply-test-'));
+//  every directory made here is removed once the file's tests are done
+const tempDirs = [];
+const makeTempDir = () => {
+    const dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-bwreply-test-'));
+    tempDirs.push(dir);
+    return dir;
+};
 
 //  the reply text a reader writes: CP437 with bare CR line endings
 const writeText = (dir, fileName, text) =>
@@ -174,6 +180,12 @@ const readPacket = (dir, options, cb) => {
 };
 
 describe('Blue Wave reply packets', () => {
+    after(() => {
+        tempDirs
+            .splice(0)
+            .forEach(dir => fs.rmSync(dir, { recursive: true, force: true }));
+    });
+
     describe('level 3 (*.UPL)', () => {
         it('reads a reply back out of the packet', done => {
             const dir = makeTempDir();

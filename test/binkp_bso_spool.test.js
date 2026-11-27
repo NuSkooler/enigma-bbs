@@ -2593,12 +2593,17 @@ describe('attachSpoolToSession', () => {
     });
 
     it('holdSend/releaseSend gates sending until async spool load completes', done => {
+        let holdDir = null;
         const server = net.createServer(serverSocket => {
             const serverSess = new BinkpSession(serverSocket, {
                 role: 'answering',
                 addresses: ['1:1/1@testnet'],
                 getPassword: () => null,
                 tempDir: os.tmpdir(),
+            });
+            //  the received copy is this test's to remove
+            serverSess.on('file-received', (name, size, ts, tmpPath) => {
+                fsp.unlink(tmpPath).catch(() => {});
             });
             serverSess.start();
         });
@@ -2619,6 +2624,7 @@ describe('attachSpoolToSession', () => {
                 clientSess.holdSend();
                 // Queue a file after holding
                 fsp.mkdtemp(path.join(os.tmpdir(), 'bso_hold_')).then(async d => {
+                    holdDir = d;
                     const f = path.join(d, 'held.pkt');
                     await fsp.writeFile(f, 'HELD_DATA');
                     const stat = await fsp.stat(f);
@@ -2637,6 +2643,9 @@ describe('attachSpoolToSession', () => {
             // (the simple server above won't track it — this test just checks no crash)
             clientSess.on('session-end', () => {
                 server.close();
+                if (holdDir) {
+                    fsp.rm(holdDir, { recursive: true, force: true }).catch(() => {});
+                }
                 done();
             });
             clientSess.on('error', done);

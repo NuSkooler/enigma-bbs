@@ -1470,7 +1470,23 @@ exports.FullScreenEditorModule =
                 return cb(null);
             };
 
-            if (this._pendingUploadFiles?.length > 0) {
+            const uploadReceived = this._pendingUploadFiles?.length > 0;
+
+            //  A body upload that was canceled, or that received nothing, comes
+            //  back with its temp directory still there and nothing to read
+            //  out of it: remove it now rather than when the board shuts down.
+            if (!uploadReceived && saved.tempUploadDir) {
+                fse.remove(saved.tempUploadDir, rmErr => {
+                    if (rmErr) {
+                        this.client.log.warn(
+                            { err: rmErr, tempDir: saved.tempUploadDir },
+                            'FSE: failed to remove upload temp dir'
+                        );
+                    }
+                });
+            }
+
+            if (uploadReceived) {
                 //  A file transfer just completed.  Read the first received file,
                 //  detect its encoding, and load it into the body.
                 const uploadPath = this._pendingUploadFiles[0];
