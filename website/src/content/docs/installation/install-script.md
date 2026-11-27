@@ -14,7 +14,7 @@ curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/inst
 You may wish to review the [installation script](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh) on GitHub before running it!
 :::
 
-The script will install `nvm`, Node.js and grab the latest ENiGMA BBS from GitHub. It will also guide you through creating a basic configuration file, and recommend some packages to install.
+The script will install [mise](https://mise.jdx.dev/), use it to install the Node.js version ENiGMA½ requires (read from its `package.json`), and grab the latest ENiGMA BBS from GitHub. It will also guide you through creating a basic configuration file, and recommend some packages to install.
 
 :::note
 After installing:

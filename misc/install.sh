@@ -135,6 +135,11 @@ download_enigma_source() {
         command git clone "${ENIGMA_SOURCE}" "$INSTALL_DIR" ||
             fatal_error "Failed to clone ENiGMA½ repo. Please report this!"
     fi
+
+    #  Before anything reads the tree (the Node version comes from its
+    #  package.json), so it is the branch being installed that is read
+    command git -C "$INSTALL_DIR" checkout "${ENIGMA_BRANCH}" ||
+        fatal_error "Failed to check out '${ENIGMA_BRANCH}' in $INSTALL_DIR."
 }
 
 is_arch_arm() {
@@ -160,10 +165,28 @@ install_mise_en_place() {
     export PATH="$HOME/.local/share/mise/shims:$PATH"
 }
 
+#  The Node.js major version to install: the minimum in the checked out
+#  tree's package.json ("engines": { "node": ">=22" } gives 22), so the
+#  installer installs what the code being installed requires. Prints nothing
+#  if it cannot be read.
+enigma_node_major() {
+    sed -n '/"engines"/,/}/s/.*"node"[[:space:]]*:[[:space:]]*"[^0-9]*\([0-9][0-9]*\).*/\1/p' \
+        "${ENIGMA_INSTALL_DIR}/package.json" 2>/dev/null | head -n 1 || true
+}
+
 setup_runtime_versions() {
-    log "Setting up Node 20 LTS and Python 3.11 via mise..."
-    mise install node@20
-    mise use -g node@20
+    local NODE_MAJOR
+    NODE_MAJOR=$(enigma_node_major)
+    if [[ -n "$NODE_MAJOR" ]]; then
+        log "Node.js ${NODE_MAJOR} is the minimum in ${ENIGMA_INSTALL_DIR}/package.json"
+    else
+        NODE_MAJOR=22
+        log "Could not read the Node.js version from ${ENIGMA_INSTALL_DIR}/package.json; using ${NODE_MAJOR}"
+    fi
+
+    log "Setting up Node ${NODE_MAJOR} and Python 3.11 via mise..."
+    mise install "node@${NODE_MAJOR}"
+    mise use -g "node@${NODE_MAJOR}"
 
     mise install python@3.11
     mise use -g python@3.11
@@ -187,7 +210,6 @@ install_node_packages() {
     printf "Note that on some systems such as RPi, this can take a VERY long time. Be patient!\n"
 
     cd "${ENIGMA_INSTALL_DIR}"
-    git checkout "${ENIGMA_BRANCH}"
 
     export HUSKY=0
 
