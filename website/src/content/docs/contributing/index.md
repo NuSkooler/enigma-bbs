@@ -18,6 +18,9 @@ here because they describe the source tree you will have checked out:
 | [DEV.md](https://github.com/NuSkooler/enigma-bbs/blob/master/DEV.md) | Internal architecture — the art and theme pipeline, the menu module pattern, the view system, and how configuration reaches a module |
 | [Development Environment](development.md) | Getting a working checkout, and the editor tasks that come with it |
 
+How versions are numbered, what counts as a breaking change, and how a pull
+request reaches a release are covered in [Versioning & Releases](versioning.md).
+
 Two conventions catch people out often enough to repeat here:
 
 * **Production code uses [`async`](https://caolan.github.io/async/), not Promises.**
