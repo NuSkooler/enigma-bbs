@@ -132,7 +132,7 @@ See [Configuration Files — Secret Files](../configuration/config-files.md#secr
 | Key | Required | Default | Description |
 |-----|----------|---------|-------------|
 | `enabled` | No | `false` | Start the inbound listening server on startup |
-| `port` | No | `24554` | TCP port to listen on |
+| `port` | No | `24554` | TCP port to listen on. `0` listens on any free port (mainly for testing); the "Inbound server listening" log line shows the port picked |
 | `address` | No | `"0.0.0.0"` | IP address to bind |
 
 ### `binkp.pullSchedule`
@@ -325,7 +325,7 @@ Set `inbound.tls.enabled: true` to start a second, TLS-only listener. Both the p
 | Key | Description |
 |-----|-------------|
 | `enabled` | `true` to start the TLS listener |
-| `port` | Port to listen on (default `24555`) |
+| `port` | Port to listen on (default `24555`). `0` listens on any free port, as for the plain listener |
 | `certFile` | Absolute path to the PEM certificate |
 | `keyFile` | Absolute path to the PEM private key |
 

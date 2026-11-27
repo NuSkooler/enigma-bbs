@@ -589,7 +589,12 @@ module.exports = {
         type: 'string',
         description: 'Encoding for exported messages containing ANSI art.',
     },
-    'scannerTossers.ftn_bso.binkp.inbound.port': PORT,
+    //  0 listens on any free port, as with listen(0); the "listening" log line
+    //  shows the port picked (core/scanner_tossers/binkp.js)
+    'scannerTossers.ftn_bso.binkp.inbound.port': Object.assign({}, PORT, {
+        min: 0,
+        description: 'Inbound BinkP port. 0 listens on any free port (for testing).',
+    }),
     'scannerTossers.ftn_bso.binkp.inbound.enabled': {
         type: 'boolean',
         description: 'Listen for inbound BinkP sessions.',

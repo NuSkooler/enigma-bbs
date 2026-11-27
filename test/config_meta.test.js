@@ -141,9 +141,13 @@ describe('config metadata completeness', () => {
 
         assert.ok(ports.length > 10, `expected many ports, found ${ports.length}`);
 
+        //  0 means "any free port" for these, as with listen(0)
+        const anyPortAllowed = new Set(['scannerTossers.ftn_bso.binkp.inbound.port']);
+
         const unbounded = ports.filter(path => {
             const node = resolvePath(schema, path);
-            return !node || 1 !== node.min || 65535 !== node.max;
+            const min = anyPortAllowed.has(path) ? 0 : 1;
+            return !node || min !== node.min || 65535 !== node.max;
         });
 
         assert.deepEqual(unbounded, [], `ports with no bounds: ${unbounded}`);

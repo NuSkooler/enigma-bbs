@@ -62,6 +62,16 @@ const INBOUND_TEMP_PATTERN = /^binkp_in_.*\.dt$/i;
 //  core/bso_lock.js.
 const SHUTDOWN_SESSIONS_MAX_MS = 4000;
 
+//  Only an unset port takes the default. A port of 0 is kept, and as with any
+//  listen(0) the OS picks a free port (mostly useful for tests); the
+//  "listening" log line reports the port actually bound.
+function listenPort(configured, defaultPort) {
+    if (undefined === configured || null === configured || '' === configured) {
+        return defaultPort;
+    }
+    return parseInt(configured);
+}
+
 exports.moduleInfo = {
     name: 'BinkP',
     desc: 'BinkP FidoNet Mail Exchange',
@@ -293,7 +303,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             Log.error({ error: err.message }, '[BinkP] Server error');
         });
 
-        const plainPort = parseInt(inbound.port || 24554);
+        const plainPort = listenPort(inbound.port, 24554);
 
         //  A listen that fails (the port is in use, say) only emits 'error',
         //  and the callback given to listen() is then never called: startup
@@ -357,13 +367,16 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
                     Log.error({ error: err.message }, '[BinkP] TLS server error');
                 });
 
-                const tlsPort = parseInt(tlsCfg.port || 24555);
+                const tlsPort = listenPort(tlsCfg.port, 24555);
                 listen(
                     this._tlsServer,
                     tlsPort,
                     () => {
                         Log.info(
-                            { port: tlsPort, address: bindAddress },
+                            {
+                                port: this._tlsServer.address().port,
+                                address: bindAddress,
+                            },
                             '[BinkP] Inbound TLS server listening'
                         );
                         startPlain(cb);

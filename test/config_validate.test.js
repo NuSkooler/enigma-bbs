@@ -322,6 +322,15 @@ describe('config validation: values', () => {
         assert.equal(describeIssue(high).message, '70000 is above the maximum of 65535');
     });
 
+    it('accepts a BinkP inbound port of 0 (any free port), and still bounds it', () => {
+        const binkp = port => ({
+            scannerTossers: { ftn_bso: { binkp: { inbound: { port } } } },
+        });
+        assert.deepEqual(validate(binkp(0)), []);
+        assert.deepEqual(codes(validate(binkp(-1))), [IssueCodes.ValueOutOfRange]);
+        assert.deepEqual(codes(validate(binkp(70000))), [IssueCodes.ValueOutOfRange]);
+    });
+
     it('enforces a whole number where meta says integer', () => {
         const schema = buildSchema({ count: 4 }, { count: { integer: true, min: 0 } });
         const [issue] = validateConfig({}, { count: 2.5 }, schema);

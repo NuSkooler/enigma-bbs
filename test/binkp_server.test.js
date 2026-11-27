@@ -14,19 +14,6 @@ const { BsoSpool, attachSpoolToSession } = require('../core/binkp/bso_spool.js')
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
 let tmpDir;
-let inboundPort;
-
-//  A port nothing is listening on right now.
-async function freePort() {
-    const probe = net.createServer();
-    await new Promise((resolve, reject) => {
-        probe.once('error', reject);
-        probe.listen(0, '127.0.0.1', resolve);
-    });
-    const { port } = probe.address();
-    await new Promise(resolve => probe.close(resolve));
-    return port;
-}
 
 //  Wrapping describe — see binkp_caller.test.js for the rationale.
 //  Top-level before/after in mocha are root hooks; wrapping scopes them
@@ -37,7 +24,6 @@ describe('BinkP server', function () {
         await fsp.mkdir(path.join(tmpDir, 'ftn_out'), { recursive: true });
         await fsp.mkdir(path.join(tmpDir, 'ftn_in'), { recursive: true });
         await fsp.mkdir(path.join(tmpDir, 'ftn_secin'), { recursive: true });
-        inboundPort = await freePort();
     });
 
     after(async () => {
@@ -54,17 +40,18 @@ describe('BinkP server', function () {
                         inbound: path.join(tmpDir, 'ftn_in'),
                         secInbound: path.join(tmpDir, 'ftn_secin'),
                     },
-                    binkp: withInboundPort(
-                        Object.assign(
-                            {
-                                inbound: {
-                                    enabled: true,
-                                    port: 0, //  inboundPort
-                                    address: '127.0.0.1',
-                                },
+                    //  Port 0: each module listens on a free port of its
+                    //  own, never on one shared with another test run or a
+                    //  BBS on this machine. startModule() reads the port back.
+                    binkp: Object.assign(
+                        {
+                            inbound: {
+                                enabled: true,
+                                port: 0,
+                                address: '127.0.0.1',
                             },
-                            binkpOverride
-                        )
+                        },
+                        binkpOverride
                     ),
                 },
             },
@@ -79,18 +66,6 @@ describe('BinkP server', function () {
                 },
             },
         };
-    }
-
-    //  The module reads an inbound port of 0 as "the default" (24554), not
-    //  as "any free port". A fixed port is shared with every other process on
-    //  the machine -- a second test run, a BBS -- and a listen that fails
-    //  there used to leave startup waiting for good. So each run of this file
-    //  takes a free port of its own, and a config that says 0 gets that.
-    function withInboundPort(binkp) {
-        if (binkp.inbound && 0 === binkp.inbound.port) {
-            binkp.inbound = Object.assign({}, binkp.inbound, { port: inboundPort });
-        }
-        return binkp;
     }
 
     //  Modules started and not yet stopped. A test that fails or times out
@@ -317,6 +292,19 @@ describe('BinkP server', function () {
                 if (!stopped) {
                     await stop();
                 }
+            }
+        });
+
+        //  Port 0 used to read as unset and listen on the default 24554.
+        it('inbound.port 0 listens on a free port, not the default', async () => {
+            const { port, stop } = await startModule({
+                inbound: { enabled: true, port: 0, address: '127.0.0.1' },
+            });
+            try {
+                assert.ok(port > 0, 'bound to a real port');
+                assert.notEqual(port, 24554, 'not the default port');
+            } finally {
+                await stop();
             }
         });
 

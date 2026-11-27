@@ -2069,8 +2069,9 @@
                                             "default": false
                                         },
                                         "port": {
+                                            "description": "Inbound BinkP port. 0 listens on any free port (for testing).",
                                             "type": "number",
-                                            "minimum": 1,
+                                            "minimum": 0,
                                             "maximum": 65535,
                                             "default": 24554
                                         },
