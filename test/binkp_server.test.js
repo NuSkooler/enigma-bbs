@@ -40,11 +40,14 @@ describe('BinkP server', function () {
                         inbound: path.join(tmpDir, 'ftn_in'),
                         secInbound: path.join(tmpDir, 'ftn_secin'),
                     },
+                    //  Port 0: each module listens on a free port of its
+                    //  own, never on one shared with another test run or a
+                    //  BBS on this machine. startModule() reads the port back.
                     binkp: Object.assign(
                         {
                             inbound: {
                                 enabled: true,
-                                port: 0, // ephemeral
+                                port: 0,
                                 address: '127.0.0.1',
                             },
                         },
@@ -65,25 +68,41 @@ describe('BinkP server', function () {
         };
     }
 
+    //  Modules started and not yet stopped. A test that fails or times out
+    //  before its own stop() leaves its module here, and afterEach stops it:
+    //  its listener and its live sessions (and their .bsy locks) must not
+    //  outlast the test. (test/setup.js restores the config it pushed.)
+    const running = new Set();
+    afterEach(async () => {
+        for (const stop of Array.from(running)) {
+            await stop();
+        }
+    });
+
     // Start the BinkP scanner/tosser module; returns { mod, port, stop }.
     async function startModule(binkpOverride = {}) {
         const prev = configModule._pushTestConfig(makeConfig(binkpOverride));
         const { getModule } = require('../core/scanner_tossers/binkp.js');
         const mod = new getModule();
 
+        let stopped = null;
+        const stop = () => {
+            if (!stopped) {
+                stopped = new Promise(res => mod.shutdown(res)).then(() => {
+                    running.delete(stop);
+                    configModule._popTestConfig(prev);
+                });
+            }
+            return stopped;
+        };
+        running.add(stop);
+
         await new Promise((resolve, reject) =>
             mod.startup(err => (err ? reject(err) : resolve()))
         );
 
         const port = mod._server.address().port;
-        return {
-            mod,
-            port,
-            stop: async () => {
-                await new Promise(res => mod.shutdown(res));
-                configModule._popTestConfig(prev);
-            },
-        };
+        return { mod, port, stop };
     }
 
     // Connect an originating BinkpSession to port.
@@ -273,6 +292,37 @@ describe('BinkP server', function () {
                 if (!stopped) {
                     await stop();
                 }
+            }
+        });
+
+        //  Port 0 used to read as unset and listen on the default 24554.
+        it('inbound.port 0 listens on a free port, not the default', async () => {
+            const { port, stop } = await startModule({
+                inbound: { enabled: true, port: 0, address: '127.0.0.1' },
+            });
+            try {
+                assert.ok(port > 0, 'bound to a real port');
+                assert.notEqual(port, 24554, 'not the default port');
+            } finally {
+                await stop();
+            }
+        });
+
+        //  A listen that fails only emits 'error'; startup used to wait on
+        //  the listen callback, which then never comes.
+        it('startup fails, rather than waiting for good, when the inbound port is taken', async () => {
+            const squatter = net.createServer();
+            await new Promise(resolve => squatter.listen(0, '127.0.0.1', resolve));
+            try {
+                const port = squatter.address().port;
+                await assert.rejects(
+                    startModule({
+                        inbound: { enabled: true, port, address: '127.0.0.1' },
+                    }),
+                    { code: 'EADDRINUSE' }
+                );
+            } finally {
+                await new Promise(resolve => squatter.close(resolve));
             }
         });
 

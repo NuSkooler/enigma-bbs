@@ -62,6 +62,16 @@ const INBOUND_TEMP_PATTERN = /^binkp_in_.*\.dt$/i;
 //  core/bso_lock.js.
 const SHUTDOWN_SESSIONS_MAX_MS = 4000;
 
+//  Only an unset port takes the default. A port of 0 is kept, and as with any
+//  listen(0) the OS picks a free port (mostly useful for tests); the
+//  "listening" log line reports the port actually bound.
+function listenPort(configured, defaultPort) {
+    if (undefined === configured || null === configured || '' === configured) {
+        return defaultPort;
+    }
+    return parseInt(configured);
+}
+
 exports.moduleInfo = {
     name: 'BinkP',
     desc: 'BinkP FidoNet Mail Exchange',
@@ -293,16 +303,47 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             Log.error({ error: err.message }, '[BinkP] Server error');
         });
 
-        const plainPort = parseInt(inbound.port || 24554);
+        const plainPort = listenPort(inbound.port, 24554);
+
+        //  A listen that fails (the port is in use, say) only emits 'error',
+        //  and the callback given to listen() is then never called: startup
+        //  must fail rather than wait for it forever. Whatever did start is
+        //  closed, since a module whose startup failed is never shut down.
+        const listen = (server, port, onListening, done) => {
+            const failed = err => {
+                server.removeListener('listening', listening);
+                Log.error(
+                    { port, address: bindAddress, error: err.message },
+                    '[BinkP] Could not start the inbound server'
+                );
+                [this._server, this._tlsServer]
+                    .filter(s => s && s.listening)
+                    .forEach(s => s.close());
+                this._server = null;
+                this._tlsServer = null;
+                return done(err);
+            };
+            const listening = () => {
+                server.removeListener('error', failed);
+                onListening();
+            };
+            server.once('error', failed);
+            server.listen(port, bindAddress, listening);
+        };
 
         const startPlain = done => {
-            this._server.listen(plainPort, bindAddress, () => {
-                Log.info(
-                    { port: this._server.address().port, address: bindAddress },
-                    '[BinkP] Inbound server listening'
-                );
-                done(null);
-            });
+            listen(
+                this._server,
+                plainPort,
+                () => {
+                    Log.info(
+                        { port: this._server.address().port, address: bindAddress },
+                        '[BinkP] Inbound server listening'
+                    );
+                    done(null);
+                },
+                done
+            );
         };
 
         const tlsCfg = inbound.tls;
@@ -326,14 +367,22 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
                     Log.error({ error: err.message }, '[BinkP] TLS server error');
                 });
 
-                const tlsPort = parseInt(tlsCfg.port || 24555);
-                this._tlsServer.listen(tlsPort, bindAddress, () => {
-                    Log.info(
-                        { port: tlsPort, address: bindAddress },
-                        '[BinkP] Inbound TLS server listening'
-                    );
-                    startPlain(cb);
-                });
+                const tlsPort = listenPort(tlsCfg.port, 24555);
+                listen(
+                    this._tlsServer,
+                    tlsPort,
+                    () => {
+                        Log.info(
+                            {
+                                port: this._tlsServer.address().port,
+                                address: bindAddress,
+                            },
+                            '[BinkP] Inbound TLS server listening'
+                        );
+                        startPlain(cb);
+                    },
+                    cb
+                );
             })
             .catch(err => {
                 Log.error(

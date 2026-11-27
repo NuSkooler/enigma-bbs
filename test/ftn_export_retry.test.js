@@ -868,6 +868,67 @@ describe('ftn_bso — EchoMail export scan eligibility and retry (#1026)', funct
             });
         });
 
+        //
+        //  #1116: delivery called back on the first failure while the other
+        //  packets were still on their way into outbound, and the failure
+        //  handling then removed this uplink's temp packets -- one still
+        //  being moved among them. On a busy machine (a slow move) a packet
+        //  that should have gone out was deleted instead.
+        //
+        it('after a partial delivery, a packet still being moved when another fails still goes out (#1116)', async () => {
+            const fse = require('fs-extra'); //  the instance ftn_bso uses
+            const mod = h.makeModule();
+            const body = n =>
+                Array.from(
+                    { length: 12 },
+                    (_, i) => `Slow ${n}, line ${i}, padding to fill.`
+                ).join('\r\n');
+            for (const n of ['A', 'B', 'C']) {
+                await h.addLocal({ subject: `slow ${n}`, body: body(n) });
+            }
+            const carries = (file, n) => {
+                try {
+                    return fs
+                        .readFileSync(file)
+                        .toString('latin1')
+                        .includes(`\x00slow ${n}\x00`);
+                } catch (e) {
+                    return false;
+                }
+            };
+
+            //  U2's reference for A fails; U2's move of C is slow
+            const append = mod.flowFileAppendRefs;
+            mod.flowFileAppendRefs = function (flowFile, refs, directive, addr, cb) {
+                if (702 === addr.node && refs.some(r => carries(r, 'A'))) {
+                    return cb(new Error('flow file busy'));
+                }
+                return append.call(this, flowFile, refs, directive, addr, cb);
+            };
+            const move = fse.move;
+            fse.move = function (src, dst, cb) {
+                if (/\.pk_$/.test(src) && carries(src, 'C')) {
+                    return setTimeout(() => move.call(this, src, dst, cb), 150);
+                }
+                return move.call(this, src, dst, cb);
+            };
+            try {
+                await h.runExportScan(mod);
+            } finally {
+                fse.move = move;
+            }
+
+            assert.deepEqual((await delivered())[U2].map(m => m.subject).sort(), [
+                'slow B',
+                'slow C',
+            ]);
+            assert.deepEqual(pendingRows(), [`slow A -> ${U2}`]);
+            assert.ok(
+                !h.logged.some(l => /Failed moving temporary outbound file/.test(l.a[1])),
+                'no move failed'
+            );
+        });
+
         it('does not flood an uplink added to the area later with its history', async () => {
             const saved = AREAS.local_a.uplinks;
             AREAS.local_a.uplinks = [U1, U2];
