@@ -500,6 +500,42 @@ describe('offline packet export flow', () => {
         }, 50);
     });
 
+    //
+    //  finish() removes the writer's work directory. An export that ends
+    //  before it gets there -- canceled, or an area that could not be read --
+    //  left it in the temp dir until the board was next shut down cleanly.
+    //
+    describe("the writer's work directory", () => {
+        function withTrackedTemp(mod) {
+            mod.writer.cleanups = 0;
+            mod.writer.temptmp = { cleanup: () => (mod.writer.cleanups += 1) };
+            return mod;
+        }
+
+        it('is removed when the export ends before the packet is finished', done => {
+            const mod = withTrackedTemp(makeExport([10]));
+            Message.findMessages = (filter, cb) => cb(new Error('the area went away'));
+
+            mod._performExport('/tmp/downloads', err => {
+                assert.ok(err, 'expected an error');
+                assert.equal(mod.writer.finishedIn, null, 'precondition: never finished');
+                assert.equal(mod.writer.cleanups, 1);
+                done();
+            });
+        });
+
+        it('is left to finish() once the packet has been finished', done => {
+            const mod = withTrackedTemp(makeExport([10]));
+
+            mod._performExport('/tmp/downloads', err => {
+                assert.equal(err, null);
+                assert.ok(mod.writer.finishedIn, 'precondition: finished');
+                assert.equal(mod.writer.cleanups, 0, 'not cleaned a second time');
+                done();
+            });
+        });
+    });
+
     it('logs a warning the writer raises', done => {
         const mod = makeExport([10]);
         mod.writer.once('ready', () =>
