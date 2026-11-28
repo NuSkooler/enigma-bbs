@@ -179,6 +179,8 @@ describe('release notes', function () {
                 'Four built-in events appear (`optimizeDatabases`, `backupDatabases`).',
                 '%TV TableView rows are added as they arrive.',
                 'Nothing in your configuration needs to change.',
+                'No database upgrade is needed.',
+                'There is no database migration in this release.',
             ]) {
                 assert.deepEqual(databaseUpgradeLines(line), [], line);
             }
@@ -226,7 +228,7 @@ describe('release notes', function () {
                     '',
                     '**Before upgrading**, read the [upgrade notes for 0.6.3-beta to 0.7.0 (2026-12-01)](https://github.com/NuSkooler/enigma-bbs/blob/v0.7.0/UPGRADE.md#063-beta-to-070-2026-12-01) (also on the [docs site](https://enigma-bbs.github.io/admin/upgrade-notes/#063-beta-to-070-2026-12-01)). [Upgrading](https://enigma-bbs.github.io/admin/upgrading/) covers how.',
                     '',
-                    '**Verifying the download:** `sha256sum -c SHA256SUMS`, and `gh attestation verify enigma-bbs-0.7.0.tar.gz --repo NuSkooler/enigma-bbs` (the same for the `.zip`).',
+                    '**Verifying the download:** `sha256sum -c SHA256SUMS`, and `gh attestation verify enigma-bbs-0.7.0.tar.gz --repo NuSkooler/enigma-bbs --signer-workflow NuSkooler/enigma-bbs/.github/workflows/release.yml --source-ref refs/tags/v0.7.0` (the same for the `.zip`).',
                     '',
                 ].join('\n')
             );

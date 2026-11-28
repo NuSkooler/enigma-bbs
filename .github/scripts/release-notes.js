@@ -125,7 +125,8 @@ function databaseUpgradeLines(text) {
     return text
         .split(/\r?\n/)
         .map(l => l.trim())
-        .filter(l => re.test(l));
+        //  "No database upgrade is needed" is not one
+        .filter(l => re.test(l) && !/\b(?:no|not|nothing|without)\b/i.test(l));
 }
 
 //  A link to a file in the repository means nothing in a release body, which
@@ -209,8 +210,9 @@ function buildNotes({ version, whatsnew, upgrade, repo = DEFAULT_REPO }) {
     out.push(
         '',
         '**Verifying the download:** `sha256sum -c SHA256SUMS`, and ' +
-            `\`gh attestation verify enigma-bbs-${version}.tar.gz --repo ${repo}\` ` +
-            '(the same for the `.zip`).',
+            `\`gh attestation verify enigma-bbs-${version}.tar.gz --repo ${repo} ` +
+            `--signer-workflow ${repo}/.github/workflows/release.yml ` +
+            `--source-ref refs/tags/v${version}\` (the same for the \`.zip\`).`,
         ''
     );
 

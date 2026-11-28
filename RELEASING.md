@@ -24,7 +24,7 @@ On the merge commit:
 
 ```sh
 git fetch origin
-git checkout origin/master        # the release PR's merge commit
+git checkout <sha>                # the release PR's merge commit (origin/master, if nothing merged since)
 git tag -s vX.Y.Z -m "ENiGMA½ X.Y.Z"
 git push origin vX.Y.Z
 ```
@@ -37,10 +37,10 @@ The tag must equal `v` + the `package.json` version, or the workflow fails. A re
 
 ## 4. Verify the draft
 
-From the draft release (`gh release download vX.Y.Z` works on drafts):
+From the draft release (`gh release download vX.Y.Z`; if your `gh` can't see drafts, download the assets from the release page):
 
 - `sha256sum -c SHA256SUMS`
-- `gh attestation verify enigma-bbs-X.Y.Z.tar.gz --repo NuSkooler/enigma-bbs`, and the same for the `.zip`.
+- `gh attestation verify enigma-bbs-X.Y.Z.tar.gz --repo NuSkooler/enigma-bbs --signer-workflow NuSkooler/enigma-bbs/.github/workflows/release.yml --source-ref refs/tags/vX.Y.Z`, and the same for the `.zip`. The last two options make sure the attestation came from the release workflow run for this tag, not a dry run.
 - The archive holds what a board needs and nothing it does not (`tar -tzf`). What is left out is `export-ignore` in `.gitattributes`.
 - A fresh install of the release: `ENIGMA_VERSION=X.Y.Z` with `misc/install.sh`.
 - An upgrade from the previous release: check out the previous tag, start it with a copy of a real board's `config/` and `db/`, then check out `vX.Y.Z`, `npm ci`, and start again. Watch the log for database upgrades.

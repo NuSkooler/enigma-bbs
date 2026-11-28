@@ -101,6 +101,13 @@ jobs:
             echo "::warning::$version is not a release version (X.Y.Z or X.Y.Z-rc.N); the release tag filter would not run this workflow for $tag."
           fi
 
+          #  It goes into GITHUB_ENV below: nothing but a version's characters,
+          #  whatever the ref (a dry run can be of anything).
+          if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+            echo "::error::package.json version '$version' has characters a version cannot"
+            exit 1
+          fi
+
           prerelease=false
           case "$version" in *-*) prerelease=true ;; esac
 
