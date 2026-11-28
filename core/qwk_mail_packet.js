@@ -33,7 +33,7 @@ const moment = require('moment');
 const _ = require('lodash');
 const IniConfigParser = require('ini-config-parser');
 
-const enigmaVersion = require('../package.json').version;
+const enigmaVersion = require('./version.js').getReleaseVersion();
 
 //  Synchronet smblib TZ to a UTC offset
 //  see https://github.com/kvadevack/synchronet/blob/master/src/smblib/smbdefs.h

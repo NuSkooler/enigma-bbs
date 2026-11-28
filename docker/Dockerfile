@@ -193,6 +193,17 @@ ARG UNARC_VERSION
 #  config.hjson replaces that. Rar stays on unrar, which the image has.
 ENV ENIGMA_UNARC_ARCHIVERS=Atr,Lzx
 
+#  The version ENiGMA reports (--version, the WFC, NodeInfo). The image has
+#  no .git to ask, so docker.yml works it out from the checkout -- e.g.
+#  0.7.0, or 0.7.0-14-gabc1234 between releases -- and passes it in; see
+#  core/version.js (#1194). Left empty, as by a plain `docker build`, the
+#  package.json version is used. For a local build:
+#    --build-arg ENIGMA_VERSION_STRING="$(node -p "require('./core/version.js').getVersion()")"
+#  Declared after the source copy, which changes on every commit anyway, so
+#  it costs no cached layer.
+ARG ENIGMA_VERSION_STRING=
+ENV ENIGMA_VERSION_STRING=${ENIGMA_VERSION_STRING}
+
 #  Post source copy steps that have to happen every time. The entrypoint may
 #  arrive with CRLF line endings from a Windows checkout; sed strips them
 #  rather than installing dos2unix for one file.

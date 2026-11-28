@@ -39,6 +39,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          #  All history and tags, so git describe can find the nearest
+          #  release tag for the version string below.
+          fetch-depth: 0
+
+      #  The image has no .git, so the version ENiGMA reports (--version, the
+      #  WFC, NodeInfo) is worked out here and passed in as a build arg
+      #  (#1194). core/version.js needs nothing installed, so it can run
+      #  before npm ci, and the image says exactly what a checkout would.
+      - name: Version string
+        id: version
+        run: echo "string=$(node -p "require('./core/version.js').getVersion()")" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -61,6 +73,8 @@ jobs:
         with:
           tags: enigmabbs/enigma-bbs:latest
           file: docker/Dockerfile
+          build-args: |
+            ENIGMA_VERSION_STRING=${{ steps.version.outputs.string }}
           #  linux/arm/v8 is not a platform the base image publishes -- arm64
           #  is already ARMv8 -- and asking for it now fails the build rather
           #  than silently resolving to amd64 as it used to.

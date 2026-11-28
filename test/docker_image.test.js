@@ -399,6 +399,19 @@ describe('docker/Dockerfile (#814)', () => {
         }
     });
 
+    it('keeps the version string it was built with, since the image has no .git (#1194)', () => {
+        const argAt = runtime.instructions.findIndex(
+            i => i.name === 'ARG' && /^ENIGMA_VERSION_STRING\b/.test(i.args)
+        );
+        assert(argAt >= 0, 'runtime stage does not declare ARG ENIGMA_VERSION_STRING');
+        const envAt = runtime.instructions.findIndex(
+            i =>
+                i.name === 'ENV' &&
+                i.args === 'ENIGMA_VERSION_STRING=${ENIGMA_VERSION_STRING}'
+        );
+        assert(envAt > argAt, 'runtime stage does not keep ENIGMA_VERSION_STRING in ENV');
+    });
+
     it('keeps the staging copy of art, mods and config that the entrypoint seeds volumes from', () => {
         const runs = runtime.instructions
             .filter(i => i.name === 'RUN')
@@ -450,6 +463,36 @@ describe('.github/workflows/docker.yml cache (#814)', () => {
             );
             assert.match(text, re, `docker.yml does not build on ${path}`);
         }
+    });
+});
+
+describe('.github/workflows/docker.yml version string (#1194)', () => {
+    let text;
+
+    before(() => {
+        text = fs.readFileSync(WORKFLOW, 'utf8');
+    });
+
+    it('checks out every commit and tag, so git describe can find the release tag', () => {
+        //  fetch-depth: 0 under the checkout step's with:, before the next step
+        const lines = text.split('\n');
+        const start = lines.findIndex(l => /uses: actions\/checkout@/.test(l));
+        assert.ok(start >= 0, 'no checkout step');
+        const rest = lines.slice(start + 1);
+        const end = rest.findIndex(l => /^\s*- /.test(l));
+        const step = end < 0 ? rest : rest.slice(0, end);
+        assert.ok(
+            step.some(l => /^\s*fetch-depth:\s*0\s*$/.test(l)),
+            'checkout step has no fetch-depth: 0'
+        );
+    });
+
+    it('works the string out with core/version.js and passes it as a build arg', () => {
+        assert.match(text, /require\('\.\/core\/version\.js'\)\.getVersion\(\)/);
+        assert.match(
+            text,
+            /build-args: \|\s+ENIGMA_VERSION_STRING=\$\{\{ steps\.version\.outputs\.string \}\}/
+        );
     });
 });
 

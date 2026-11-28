@@ -20,7 +20,7 @@ const { userNameToSubject } = require('./activitypub/util');
 const { getServer } = require('./listening_server');
 
 //  deps
-const packageJson = require('../package.json');
+const { getVersion } = require('./version.js');
 const os = require('os');
 const _ = require('lodash');
 const moment = require('moment');
@@ -106,10 +106,10 @@ const PREDEFINED_MCI_GENERATORS = {
 
     //  ENiGMA
     VL: function versionLabel() {
-        return 'ENiGMA½ v' + packageJson.version;
+        return 'ENiGMA½ v' + getVersion();
     },
     VN: function version() {
-        return packageJson.version;
+        return getVersion();
     },
 
     //  +op info
