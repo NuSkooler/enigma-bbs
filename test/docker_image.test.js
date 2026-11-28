@@ -696,9 +696,18 @@ describe('.github/workflows/docker.yml image tags (#1197)', () => {
             }
         };
 
-        const run = (eventName, ref) => {
+        //  pkgVersion: package.json's version in the checkout; by default the
+        //  one a release tag names, so the tag check passes
+        const run = (eventName, ref, pkgVersion) => {
             const output = paths.join(tmpDir, 'output');
             fs.writeFileSync(output, '');
+            const fromTag = ref.startsWith('refs/tags/v')
+                ? ref.slice('refs/tags/v'.length)
+                : '0.6.3-beta';
+            fs.writeFileSync(
+                paths.join(repo, 'package.json'),
+                JSON.stringify({ version: pkgVersion || fromTag })
+            );
             const res = spawnSync('bash', ['-e', '-c', script], {
                 cwd: repo,
                 env: {
@@ -745,6 +754,17 @@ describe('.github/workflows/docker.yml image tags (#1197)', () => {
             if (tmpDir) {
                 fs.rmSync(tmpDir, { recursive: true, force: true });
             }
+        });
+
+        it('a release tag that does not match package.json publishes nothing', () => {
+            setTags('v0.7.0');
+            assert.ok(run('push', 'refs/tags/v0.7.0', '0.7.1').failed);
+            assert.ok(run('push', 'refs/tags/v0.7.0', '0.6.3-beta').failed);
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.7.0', '0.7.0')), [
+                'latest',
+                'version',
+                'minor',
+            ]);
         });
 
         it('master: :edge and :latest until the first release, then :edge only', () => {

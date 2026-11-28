@@ -98,6 +98,13 @@ jobs:
               ;;
             *:refs/tags/*)
               tag=${GITHUB_REF#refs/tags/}
+              #  As release.yml does: a tag that isn't this commit's version
+              #  publishes nothing
+              pkg=$(node -p "require('./package.json').version")
+              if [ "$tag" != "v$pkg" ]; then
+                echo "::error::tag $tag does not match package.json version $pkg (expected v$pkg)"
+                exit 1
+              fi
               if [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                 version=true
                 minor=true
