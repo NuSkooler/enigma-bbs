@@ -6,7 +6,7 @@ const userDb = require('./database.js').dbs.user;
 const { coerceToText } = require('./database.js');
 const Config = require('./config.js').get;
 const userGroup = require('./user_group.js');
-const { Errors, ErrorReasons } = require('./enig_error.js');
+const { Errors, ErrorReasons, ErrorCodes } = require('./enig_error.js');
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const Log = require('./logger.js').log;
@@ -24,6 +24,9 @@ const ssh2 = require('ssh2');
 const AvatarGenerator = require('avatar-generator');
 const paths = require('path');
 const fse = require('fs-extra');
+
+//  see User.unknownUserSalt()
+let unknownUserSalt;
 
 //  what decides whether an account is locked, and whether a lock runs out
 const LockPropertyNames = [
@@ -790,6 +793,26 @@ module.exports = class User {
                     User.getUserIdAndName(username, (err, uid, un) => {
                         tempAuthInfo.userId = uid;
                         tempAuthInfo.username = un;
+
+                        if (
+                            err &&
+                            ErrorCodes.DoesNotExist === err.code &&
+                            User.AuthFactor1Types.SSHPubKey !== authInfo.type
+                        ) {
+                            //
+                            //  No such user: derive a key from the password all
+                            //  the same, with the current parameters and a fixed
+                            //  dummy salt, so the answer takes as long as a wrong
+                            //  password for a user that exists. Otherwise the time
+                            //  it takes tells whether an account exists.
+                            //
+                            return User.generatePasswordDerivedKey(
+                                authInfo.password || '',
+                                User.unknownUserSalt(),
+                                User.PBKDF2,
+                                () => callback(err)
+                            );
+                        }
 
                         return callback(err);
                     });
@@ -1706,6 +1729,18 @@ module.exports = class User {
                 return cb(dbErr);
             }
         });
+    }
+
+    //
+    //  The salt authenticateFactor1() derives a key with for a user name that
+    //  does not exist (see fetchUserId there). Made once, at first use, and
+    //  never stored: no password ever matches against it.
+    //
+    static unknownUserSalt() {
+        if (!unknownUserSalt) {
+            unknownUserSalt = crypto.randomBytes(User.PBKDF2.saltLen).toString('hex');
+        }
+        return unknownUserSalt;
     }
 
     static generatePasswordDerivedKeySalt(cb) {
