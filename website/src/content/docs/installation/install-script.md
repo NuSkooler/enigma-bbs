@@ -55,6 +55,7 @@ A release is installed as a full git clone with its tag checked out, so git repo
 cd ~/enigma-bbs
 git fetch --tags
 git checkout v0.7.1
+npm ci
 ```
 
 Running the script again over an existing install does the same: it fetches, then checks out the version asked for (and brings a branch such as `master` up to date). It stops with an error if local changes are in the way, or if the branch has commits of its own that are not upstream and upstream has moved on.
