@@ -196,6 +196,9 @@ enigma_resolve_version() {
     elif [[ "$WANT" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]*)?$ ]]; then
         ENIGMA_CHECKOUT_TAG="v${WANT#v}"
         ENIGMA_VERSION_LABEL="${WANT#v}"
+    elif [[ "$WANT" =~ ^v?[0-9]+(\.[0-9]+)*$ ]]; then
+        #  looks like a version, but not X.Y.Z: not a branch name either
+        fatal_error "'${WANT}' is not a version ENiGMA½ is released under: give all three parts, such as 0.7.0."
     else
         ENIGMA_CHECKOUT_BRANCH="$WANT"
         ENIGMA_VERSION_LABEL="${WANT} branch"
@@ -208,8 +211,9 @@ download_enigma_source() {
 
     if [[ -d "$INSTALL_DIR/.git" ]]; then
         log "ENiGMA½ is already installed in $INSTALL_DIR, trying to update using git..."
-        command git -C "$INSTALL_DIR" fetch --tags 2> /dev/null ||
-            fatal_error "Failed to update ENiGMA½, run 'git fetch --tags' in $INSTALL_DIR yourself."
+        #  --force: a tag moved upstream would otherwise fail the whole fetch
+        command git -C "$INSTALL_DIR" fetch --tags --force 2> /dev/null ||
+            fatal_error "Failed to update ENiGMA½, run 'git fetch --tags --force' in $INSTALL_DIR yourself."
     else
         log "Downloading ENiGMA½ from git to '$INSTALL_DIR'"
         mkdir -p "$INSTALL_DIR"
