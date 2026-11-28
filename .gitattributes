@@ -53,3 +53,4 @@ test/fixtures/area_lists/** -text
 /website            export-ignore
 /DEV.md             export-ignore
 /CONTRIBUTING.md    export-ignore
+/RELEASING.md       export-ignore

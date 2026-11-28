@@ -1,0 +1,276 @@
+#  A pushed release tag (vX.Y.Z, or vX.Y.Z-rc.N) becomes a DRAFT GitHub release:
+#  source archives, SHA256SUMS, build provenance and notes from WHATSNEW.md. A
+#  maintainer checks it and publishes it by hand. RELEASING.md is the runbook.
+#
+#  Three jobs, so that no write permission is held while code from the
+#  repository or its dependencies runs:
+#    build    contents: read. Checks the tag against package.json, builds the
+#             notes (.github/scripts/release-notes.js; fails when WHATSNEW.md
+#             has no section for the version), runs lint, prettier and the
+#             tests from a clean `npm ci` (no cache restored: a cache a pull
+#             request wrote never reaches a release), and `git archive`s the
+#             commit. Uploads the artifact "release": the two archives,
+#             SHA256SUMS and notes.md.
+#    attest   id-token + attestations: write. Signs build provenance for the
+#             archives (`gh attestation verify`).
+#    publish  contents: write. Creates the draft release from the artifact.
+#  attest and publish check out nothing and run no repository code.
+#
+#  Run by hand (Actions > Release > Run workflow) it is a DRY RUN: build runs
+#  as for a tag and uploads the artifact, attest runs only if asked, and
+#  publish never runs, so nothing is released. Use it to try a release commit
+#  before tagging it.
+name: Release
+
+on:
+  push:
+    #  Filter patterns, not regular expressions: [0-9]+ is one or more digits,
+    #  and the whole tag name has to match, so v0.7.0-beta and v0.7 do not.
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Dry run (never releases). Tag, branch or commit to build; empty for the branch picked above'
+        required: false
+        default: ''
+      attest:
+        description: 'Also sign build provenance for the archives (records a real attestation)'
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  #  One run per tag; a dry run queues only behind another of the same ref.
+  group: release-${{ github.event_name }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    env:
+      #  For a dry run, what to build. Passed through the environment rather
+      #  than written into the scripts below.
+      DRY_RUN_REF: ${{ inputs.ref || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Tag matches package.json
+        id: version
+        run: |
+          version=$(jq -r .version package.json)
+          tag="v$version"
+
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            if [ "$GITHUB_REF_NAME" != "$tag" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version (expected $tag)"
+              exit 1
+            fi
+          else
+            echo "::notice::Dry run of $DRY_RUN_REF ($(git rev-parse --short HEAD)): package.json is $version, so its release tag would be $tag. Nothing is released."
+            case "$DRY_RUN_REF" in
+              v[0-9]*)
+                if [ "$DRY_RUN_REF" != "$tag" ]; then
+                  echo "::warning::$DRY_RUN_REF does not match package.json ($tag): pushing it would fail this check."
+                fi
+                ;;
+            esac
+          fi
+
+          #  The tag filter lets only these through, but a dry run can be of
+          #  anything.
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            if [ "$GITHUB_EVENT_NAME" = push ]; then
+              echo "::error::$version is not a release version (X.Y.Z or X.Y.Z-rc.N)"
+              exit 1
+            fi
+            echo "::warning::$version is not a release version (X.Y.Z or X.Y.Z-rc.N); the release tag filter would not run this workflow for $tag."
+          fi
+
+          #  It goes into GITHUB_ENV below: nothing but a version's characters,
+          #  whatever the ref (a dry run can be of anything).
+          if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+            echo "::error::package.json version '$version' has characters a version cannot"
+            exit 1
+          fi
+
+          prerelease=false
+          case "$version" in *-*) prerelease=true ;; esac
+
+          {
+            echo "VERSION=$version"
+            echo "TAG=$tag"
+          } >> "$GITHUB_ENV"
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          #  package.json requires >=22; matches test.yml and lint.yml
+          node-version: '22'
+          #  No cache, not even the automatic one.
+          package-manager-cache: false
+
+      #  Before the slow steps, so a release PR that forgot to rename
+      #  `## Unreleased` fails in seconds. Needs no npm ci.
+      - name: Release notes
+        run: |
+          mkdir -p release
+          node .github/scripts/release-notes.js \
+            --version "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --out release/notes.md
+
+      - name: Install
+        #  ci rather than install so the lockfile is honoured, and
+        #  --include=dev for eslint, prettier and mocha
+        run: npm ci --include=dev
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier
+        run: npm run pretty:check
+
+      - name: Test
+        env:
+          TZ: UTC
+        run: npm test
+
+      - name: Archives
+        #  From the commit, not the working tree, so nothing the steps above
+        #  wrote (node_modules, test output) can get in. What is left out is
+        #  set by export-ignore in .gitattributes.
+        run: |
+          prefix="enigma-bbs-$VERSION"
+          git archive --format=tar.gz --prefix="$prefix/" -o "release/$prefix.tar.gz" HEAD
+          git archive --format=zip --prefix="$prefix/" -o "release/$prefix.zip" HEAD
+
+          #  Unpacks to one directory holding the board.
+          listing="$RUNNER_TEMP/archive-listing"
+          tar -tzf "release/$prefix.tar.gz" > "$listing"
+          for f in "$prefix/package.json" "$prefix/main.js" "$prefix/oputil.js"; do
+            grep -qxF "$f" "$listing" || { echo "::error::$f is missing from the archive"; exit 1; }
+          done
+
+          cd release
+          sha256sum "$prefix.tar.gz" "$prefix.zip" > SHA256SUMS
+
+          {
+            echo "### enigma-bbs $VERSION ($TAG)"
+            echo
+            echo "Commit \`$(git rev-parse HEAD)\`, $(grep -vc '/$' "$listing") files."
+            echo
+            echo '```'
+            ls -l "$prefix.tar.gz" "$prefix.zip"
+            cat SHA256SUMS
+            echo '```'
+            echo
+            echo '<details><summary>Release notes</summary>'
+            echo
+            cat notes.md
+            echo
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      #  Four files at the artifact's root (their common parent, release/, is
+      #  dropped).
+      - name: Upload the release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            release/enigma-bbs-${{ env.VERSION }}.tar.gz
+            release/enigma-bbs-${{ env.VERSION }}.zip
+            release/SHA256SUMS
+            release/notes.md
+          if-no-files-found: error
+          retention-days: 7
+
+  attest:
+    needs: build
+    #  A dry run signs only when asked: the attestation it records is real.
+    if: github.event_name == 'push' || inputs.attest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download the release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+
+      - name: Check SHA256SUMS
+        working-directory: release
+        run: sha256sum -c SHA256SUMS
+
+      - name: Build provenance for the archives
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/enigma-bbs-${{ env.VERSION }}.tar.gz
+            release/enigma-bbs-${{ env.VERSION }}.zip
+
+  publish:
+    needs: [build, attest]
+    #  Never for a dry run.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      TAG: ${{ needs.build.outputs.tag }}
+      PRERELEASE: ${{ needs.build.outputs.prerelease }}
+    steps:
+      - name: Download the release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+
+      - name: Check SHA256SUMS
+        working-directory: release
+        run: sha256sum -c SHA256SUMS
+
+      #  A draft: published by hand once a fresh install and an upgrade have
+      #  been checked (RELEASING.md). No checkout here, so gh is told the
+      #  repository.
+      - name: Draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          args=(--draft --verify-tag --title "ENiGMA½ $VERSION" --notes-file release/notes.md)
+          if [ "$PRERELEASE" = true ]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$TAG" "${args[@]}" \
+            "release/enigma-bbs-$VERSION.tar.gz" \
+            "release/enigma-bbs-$VERSION.zip" \
+            release/SHA256SUMS
