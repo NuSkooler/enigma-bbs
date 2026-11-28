@@ -16,6 +16,7 @@ const wordWrapText = require('./word_wrap.js').wordWrapText;
 const StatLog = require('./stat_log.js');
 const SysProps = require('./system_property.js');
 const SAUCE = require('./sauce.js');
+const { decodeDescFile } = require('./desc_file.js');
 const { wildcardMatch } = require('./string_util');
 const FileScanner = require('./file_scanner.js');
 
@@ -26,7 +27,6 @@ const fs = require('graceful-fs');
 const crypto = require('crypto');
 const paths = require('path');
 const TempTmp = require('temptmp');
-const iconv = require('iconv-lite');
 const execFile = require('child_process').execFile;
 const moment = require('moment');
 
@@ -291,20 +291,6 @@ function getExistingFileEntriesBySha256(sha256, cb) {
     return cb(null, entries);
 }
 
-//  :TODO: This is basically sliceAtEOF() from art.js .... DRY!
-function sliceAtSauceMarker(data) {
-    let eof = data.length;
-    const stopPos = Math.max(data.length - 256, 0); //  256 = 2 * sizeof(SAUCE)
-
-    for (let i = eof - 1; i > stopPos; i--) {
-        if (0x1a === data[i]) {
-            eof = i;
-            break;
-        }
-    }
-    return data.slice(0, eof);
-}
-
 let cachedYearPatterns = null;
 
 function attemptSetEstimatedReleaseDate(fileEntry) {
@@ -546,13 +532,8 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                                         fileEntry.meta[metaKey] = JSON.stringify(sauce);
                                     }
 
-                                    //
-                                    //  Assume FILE_ID.DIZ, NFO files, etc. are CP437; we need
-                                    //  to decode to a native format for storage
-                                    //
-                                    //  :TODO: This isn't really always the case - how to handle this? We could do a quick detection...
-                                    const decodedData = iconv.decode(data, 'cp437');
-                                    fileEntry[descType] = sliceAtSauceMarker(decodedData);
+                                    //  CP437, cut before any SAUCE record (see desc_file.js)
+                                    fileEntry[descType] = decodeDescFile(data);
                                     fileEntry[`${descType}Src`] = 'descFile';
                                     return next(null);
                                 });
