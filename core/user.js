@@ -1079,10 +1079,10 @@ module.exports = class User {
                                 groupStmt.run(group, self.userId);
                             }
                         })();
-                        return callback(null);
                     } catch (err) {
                         return callback(err);
                     }
+                    return callback(null);
                 },
 
                 //  3. Async: NewUserPrePersist event — fires after DB commit so userId is set.
@@ -1465,19 +1465,21 @@ module.exports = class User {
     //  first user there is.
     //
     static getUserIdAndName(username, cb) {
+        //  callbacks run outside the try (see getUserName())
+        let row;
         try {
-            const row = userDb
+            row = userDb
                 .prepare(
                     `SELECT id, user_name FROM user WHERE user_name = ? COLLATE NOCASE;`
                 )
                 .get(username);
-            if (row) {
-                return cb(null, row.id, row.user_name);
-            }
-            return cb(Errors.DoesNotExist('No matching username'));
         } catch (err) {
             return cb(err);
         }
+        if (row) {
+            return cb(null, row.id, row.user_name);
+        }
+        return cb(Errors.DoesNotExist('No matching username'));
     }
 
     //
@@ -1486,19 +1488,20 @@ module.exports = class User {
     //  check each name found exactly.
     //
     static getUserIdsAndNamesLike(pattern, cb) {
+        let rows;
         try {
-            const rows = userDb
+            rows = userDb
                 .prepare(
                     `SELECT id, user_name FROM user WHERE user_name LIKE ? ESCAPE '\\';`
                 )
                 .all(pattern);
-            return cb(
-                null,
-                rows.map(row => ({ userId: row.id, userName: row.user_name }))
-            );
         } catch (err) {
             return cb(err);
         }
+        return cb(
+            null,
+            rows.map(row => ({ userId: row.id, userName: row.user_name }))
+        );
     }
 
     static getUserByUsername(username, cb) {
@@ -1511,8 +1514,9 @@ module.exports = class User {
     }
 
     static getUserIdAndNameByRealName(realName, cb) {
+        let row;
         try {
-            const row = userDb
+            row = userDb
                 .prepare(
                     `SELECT id, user_name
                     FROM user
@@ -1523,13 +1527,13 @@ module.exports = class User {
                     );`
                 )
                 .get(realName);
-            if (row) {
-                return cb(null, row.id, row.user_name);
-            }
-            return cb(Errors.DoesNotExist('No matching real name'));
         } catch (err) {
             return cb(err);
         }
+        if (row) {
+            return cb(null, row.id, row.user_name);
+        }
+        return cb(Errors.DoesNotExist('No matching real name'));
     }
 
     static getUserIdAndNameByLookup(lookup, cb) {
@@ -1575,21 +1579,22 @@ module.exports = class User {
             sql += ';';
         }
 
+        const properties = {};
         try {
-            const properties = {};
             for (const row of userDb.prepare(sql).iterate(userId)) {
                 properties[row.prop_name] = row.prop_value;
             }
-            return cb(null, properties);
         } catch (err) {
             return cb(err, null);
         }
+        return cb(null, properties);
     }
 
     //  :TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
     static getUserIdsWithProperty(propName, propValue, cb) {
+        let userIds;
         try {
-            const userIds = userDb
+            userIds = userDb
                 .prepare(
                     `SELECT user_id
                     FROM user_property
@@ -1597,19 +1602,20 @@ module.exports = class User {
                 )
                 .all(propName, propValue)
                 .map(r => r.user_id);
-            return cb(null, userIds);
         } catch (err) {
             return cb(err, []);
         }
+        return cb(null, userIds);
     }
 
     static getUserCount(cb) {
+        let row;
         try {
-            const row = userDb.prepare(`SELECT count() AS user_count FROM user;`).get();
-            return cb(null, row.user_count);
+            row = userDb.prepare(`SELECT count() AS user_count FROM user;`).get();
         } catch (err) {
             return cb(err);
         }
+        return cb(null, row.user_count);
     }
 
     static getUserList(options, cb) {
@@ -1626,18 +1632,19 @@ module.exports = class User {
             );
         }
 
+        let userList;
         try {
-            const userList = userDb
+            userList = userDb
                 .prepare(
                     `SELECT u.id as userId, u.user_name as userName, ${asList.join(', ')}
                     FROM user u ${joinList.join(' ')}
                     ORDER BY u.user_name;`
                 )
                 .all();
-            return cb(null, userList);
         } catch (err) {
             return cb(err);
         }
+        return cb(null, userList);
     }
 
     static generatePasswordDerivedKeyAndSalt(password, cb) {
@@ -1701,10 +1708,10 @@ module.exports = class User {
                 stmt.run(userId, UserProps.PassPbkdf2Salt, info.salt);
                 stmt.run(userId, UserProps.PassPbkdf2Dk, info.dk);
                 stmt.run(userId, UserProps.PassHashParams, JSON.stringify(User.PBKDF2));
-                return cb(null);
             } catch (dbErr) {
                 return cb(dbErr);
             }
+            return cb(null);
         });
     }
 
