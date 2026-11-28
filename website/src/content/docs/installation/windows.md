@@ -2,7 +2,7 @@
 title: Windows
 description: "Install ENiGMA½ on Windows, including Visual Studio Build Tools for the native modules."
 sidebar:
-    order: 4
+    order: 6
 ---
 ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.
 
