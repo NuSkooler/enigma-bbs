@@ -24,6 +24,12 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 _Notes for changes merged since the last release. They apply when you upgrade to the next release, or now if you track `master`._
 
+* **Docker: `:latest` becomes the latest release, and `master` moves to `:edge`** ([#1197](https://github.com/NuSkooler/enigma-bbs/issues/1197)). Until now every push to `master` was published as `enigmabbs/enigma-bbs:latest`, the only tag.
+
+  **What changes by itself:** once 0.7.0 is released, `:latest` is the highest release and changes only when there is a new one; `master` is published as `:edge`. Each release is also published as `:X.Y.Z` (e.g. `:0.7.0`), which never changes, and `:X.Y` (e.g. `:0.7`), which follows that line's patch releases. A release candidate is published only as `:X.Y.Z-rc.N`. Until 0.7.0 is released, `:latest` still follows `master`, and `:edge` already does.
+
+  **Action:** Docker users who want to keep getting every change on `master` switch their image to `enigmabbs/enigma-bbs:edge`. To stay on a release line, use `:0.7`; to pin one release, `:0.7.0`. If you stay on `:latest`, you get releases only, starting with 0.7.0. See [Docker](./website/src/content/docs/installation/docker.md#image-tags).
+
 ## 0.6.2-beta to 0.6.3-beta
 
 * **Sysops: a disabled or inactive account is answered before the password is checked.** Nothing in your configuration, menus, art or themes needs to change.
