@@ -496,6 +496,320 @@ describe('.github/workflows/docker.yml version string (#1194)', () => {
     });
 });
 
+describe('.github/workflows/docker.yml image tags (#1197)', () => {
+    let text;
+    let lines;
+
+    before(() => {
+        text = fs.readFileSync(WORKFLOW, 'utf8');
+        lines = text.split('\n');
+    });
+
+    //  The lines of the block under the first line matching |re| at its
+    //  indentation: every following line indented deeper, or blank.
+    const blockAfter = re => {
+        const start = lines.findIndex(l => re.test(l));
+        assert.ok(start >= 0, `no line matching ${re}`);
+        const indent = lines[start].search(/\S/);
+        const block = [];
+        for (const line of lines.slice(start + 1)) {
+            if (line.trim() && line.search(/\S/) <= indent) {
+                break;
+            }
+            block.push(line);
+        }
+        return block;
+    };
+
+    //  The lines of the step with |id|: from its "- " line to the next step.
+    const stepLines = id => {
+        const at = lines.findIndex(l => l.trim() === `id: ${id}`);
+        assert.ok(at >= 0, `no step with id: ${id}`);
+        let start = at;
+        while (start > 0 && !/^\s*- /.test(lines[start])) {
+            start--;
+        }
+        const indent = lines[start].search(/\S/);
+        const step = [lines[start]];
+        for (const line of lines.slice(start + 1)) {
+            if (line.trim() && line.search(/\S/) <= indent) {
+                break;
+            }
+            step.push(line);
+        }
+        return step;
+    };
+
+    //  The script of the step with |id|, dedented.
+    const stepScript = id => {
+        const at = lines.findIndex(l => l.trim() === `id: ${id}`);
+        assert.ok(at >= 0, `no step with id: ${id}`);
+        const runAt = lines.findIndex((l, i) => i > at && l.trim() === 'run: |');
+        assert.ok(runAt > at, `step ${id} has no run: | block`);
+        const indent = lines[runAt].search(/\S/);
+        const body = [];
+        for (const line of lines.slice(runAt + 1)) {
+            if (line.trim() && line.search(/\S/) <= indent) {
+                break;
+            }
+            body.push(line);
+        }
+        const strip = Math.min(...body.filter(l => l.trim()).map(l => l.search(/\S/)));
+        return body.map(l => l.slice(strip)).join('\n');
+    };
+
+    it('runs on release and rc tags, with the same filters as release.yml', () => {
+        const push = blockAfter(/^ {2}push:\s*$/);
+        const tagsAt = push.findIndex(l => l.trim() === 'tags:');
+        assert.ok(tagsAt >= 0, 'push has no tags filter');
+        const patterns = push
+            .slice(tagsAt + 1)
+            .filter(l => /^\s*- /.test(l))
+            .map(l => l.trim());
+        assert.deepEqual(patterns, [
+            "- 'v[0-9]+.[0-9]+.[0-9]+'",
+            "- 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'",
+        ]);
+        assert.ok(
+            push.some(l => l.trim() === 'branches: [ master ]'),
+            'push no longer builds master'
+        );
+    });
+
+    it('pins every action by commit, with the version in a comment', () => {
+        const uses = lines.filter(l => /^\s*(- )?uses:/.test(l));
+        assert.ok(uses.length >= 6, `expected at least 6 actions, found ${uses.length}`);
+        for (const line of uses) {
+            assert.match(
+                line,
+                /uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/,
+                `not pinned by commit: ${line.trim()}`
+            );
+        }
+        for (const action of [
+            'actions/checkout',
+            'docker/metadata-action',
+            'docker/setup-qemu-action',
+            'docker/setup-buildx-action',
+            'docker/login-action',
+            'docker/build-push-action',
+        ]) {
+            assert.ok(
+                uses.some(l => l.includes(`uses: ${action}@`)),
+                `${action} is not used`
+            );
+        }
+    });
+
+    it('collapses master onto one concurrency group, and never cancels a release tag run', () => {
+        const conc = blockAfter(/^concurrency:\s*$/).map(l => l.trim());
+        assert.ok(
+            conc.includes(
+                'group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
+            ),
+            'concurrency group changed'
+        );
+        assert.ok(
+            conc.includes(
+                "cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}"
+            ),
+            'cancel-in-progress must be off for tags and on otherwise'
+        );
+    });
+
+    it('takes the tags from metadata-action, with latest decided by the tags step', () => {
+        const meta = stepLines('meta').map(l => l.trim());
+        assert.ok(
+            meta.some(l => l.startsWith('uses: docker/metadata-action@')),
+            'the meta step is not metadata-action'
+        );
+        assert.ok(meta.includes('images: enigmabbs/enigma-bbs'));
+        //  latest=auto would tag every release :latest, backports included
+        const flavorAt = meta.indexOf('flavor: |');
+        assert.ok(flavorAt >= 0, 'no flavor');
+        assert.equal(meta[flavorAt + 1], 'latest=false');
+        for (const tag of [
+            'type=raw,value=edge,enable=${{ steps.tags.outputs.edge }}',
+            'type=semver,pattern={{version}},enable=${{ steps.tags.outputs.version }}',
+            'type=semver,pattern={{major}}.{{minor}},enable=${{ steps.tags.outputs.minor }}',
+            'type=raw,value=latest,enable=${{ steps.tags.outputs.latest }}',
+        ]) {
+            assert.ok(meta.includes(tag), `metadata-action has no ${tag}`);
+        }
+        assert.ok(
+            meta.includes(
+                'org.opencontainers.image.version=${{ steps.version.outputs.string }}'
+            ),
+            'the version label is not the version string'
+        );
+
+        const build = blockAfter(/^\s*- name: Build and push\s*$/).map(l => l.trim());
+        assert.ok(build.includes('tags: ${{ steps.meta.outputs.tags }}'));
+        assert.ok(build.includes('labels: ${{ steps.meta.outputs.labels }}'));
+        assert.ok(
+            !lines.some(l => l.includes('enigmabbs/enigma-bbs:')),
+            'an image tag is hard-coded'
+        );
+    });
+
+    //
+    //  The tags step's own script, run against a scratch repository's tags.
+    //  Skipped where git or bash is not installed.
+    //
+    describe('the tags step, against real tags', function () {
+        this.timeout(20000);
+
+        const { execFileSync, spawnSync } = require('child_process');
+        const os = require('os');
+        const cleanEnv = Object.fromEntries(
+            Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))
+        );
+
+        let tmpDir;
+        let repo;
+        let script;
+
+        const git = (...args) =>
+            execFileSync(
+                'git',
+                [
+                    '-c',
+                    'user.name=Test',
+                    '-c',
+                    'user.email=test@example.com',
+                    '-c',
+                    'commit.gpgsign=false',
+                    '-c',
+                    'tag.gpgsign=false',
+                    ...args,
+                ],
+                { cwd: repo, env: cleanEnv, stdio: ['ignore', 'pipe', 'ignore'] }
+            );
+
+        const setTags = (...tags) => {
+            const existing = git('tag', '-l').toString().split('\n').filter(Boolean);
+            if (existing.length) {
+                git('tag', '-d', ...existing);
+            }
+            for (const tag of tags) {
+                git('tag', tag);
+            }
+        };
+
+        const run = (eventName, ref) => {
+            const output = paths.join(tmpDir, 'output');
+            fs.writeFileSync(output, '');
+            const res = spawnSync('bash', ['-e', '-c', script], {
+                cwd: repo,
+                env: {
+                    ...cleanEnv,
+                    GITHUB_EVENT_NAME: eventName,
+                    GITHUB_REF: ref,
+                    GITHUB_OUTPUT: output,
+                },
+                encoding: 'utf8',
+            });
+            if (res.status !== 0) {
+                return { failed: true, stdout: res.stdout };
+            }
+            return Object.fromEntries(
+                fs
+                    .readFileSync(output, 'utf8')
+                    .split('\n')
+                    .filter(Boolean)
+                    .map(l => l.split('='))
+            );
+        };
+
+        const tags = out =>
+            ['edge', 'latest', 'version', 'minor'].filter(k => out[k] === 'true');
+
+        before(function () {
+            try {
+                execFileSync('git', ['--version'], { stdio: 'ignore' });
+                execFileSync('bash', ['--version'], { stdio: 'ignore' });
+            } catch (e) {
+                return this.skip();
+            }
+            script = stepScript('tags');
+            tmpDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-docker-tags-'));
+            repo = paths.join(tmpDir, 'repo');
+            fs.mkdirSync(repo);
+            git('init', '-q');
+            fs.writeFileSync(paths.join(repo, 'file.txt'), 'one\n');
+            git('add', 'file.txt');
+            git('commit', '-q', '-m', 'one');
+        });
+
+        after(() => {
+            if (tmpDir) {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+            }
+        });
+
+        it('master: :edge and :latest until the first release, then :edge only', () => {
+            setTags();
+            assert.deepEqual(tags(run('push', 'refs/heads/master')), ['edge', 'latest']);
+
+            //  an rc is not a release, and neither is an older style tag
+            setTags('v0.7.0-rc.1', 'not-a-release', 'v0.6.3-beta');
+            assert.deepEqual(tags(run('push', 'refs/heads/master')), ['edge', 'latest']);
+            assert.deepEqual(tags(run('workflow_dispatch', 'refs/heads/master')), [
+                'edge',
+                'latest',
+            ]);
+
+            setTags('v0.7.0-rc.1', 'v0.7.0');
+            assert.deepEqual(tags(run('push', 'refs/heads/master')), ['edge']);
+        });
+
+        it('a release tag: :X.Y.Z and :X.Y, and :latest only for the highest release', () => {
+            setTags('v0.7.0');
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.7.0')), [
+                'latest',
+                'version',
+                'minor',
+            ]);
+
+            //  a backport patch on an older line
+            setTags('v0.7.0', 'v0.6.4');
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.6.4')), ['version', 'minor']);
+
+            //  an rc of a higher version does not keep a release from :latest
+            setTags('v0.7.0', 'v0.7.1', 'v0.8.0-rc.1');
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.7.1')), [
+                'latest',
+                'version',
+                'minor',
+            ]);
+
+            //  compared as versions, not as strings
+            setTags('v0.9.0', 'v0.10.0');
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.10.0')), [
+                'latest',
+                'version',
+                'minor',
+            ]);
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.9.0')), ['version', 'minor']);
+        });
+
+        it('an rc tag: :X.Y.Z-rc.N only', () => {
+            setTags('v0.7.0', 'v0.7.1-rc.1');
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.7.1-rc.1')), ['version']);
+            setTags('v0.7.0-rc.1');
+            assert.deepEqual(tags(run('push', 'refs/tags/v0.7.0-rc.1')), ['version']);
+        });
+
+        it('a pull request publishes nothing, and other refs fail', () => {
+            setTags();
+            assert.deepEqual(tags(run('pull_request', 'refs/pull/12/merge')), []);
+            assert.ok(run('workflow_dispatch', 'refs/heads/some-branch').failed);
+            assert.ok(run('workflow_dispatch', 'refs/tags/v0.7').failed);
+            assert.ok(run('workflow_dispatch', 'refs/tags/v0.7.0-beta').failed);
+        });
+    });
+});
+
 describe('docker/bin/docker-entrypoint.sh', () => {
     const ENTRYPOINT = paths.join(REPO_ROOT, 'docker', 'bin', 'docker-entrypoint.sh');
     let lines;

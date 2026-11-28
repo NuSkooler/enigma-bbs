@@ -63,6 +63,39 @@ Windows users — you'll need to switch out `$(pwd)/enigma-bbs/config` for a Win
 
 Once the container is up, [test your installation](testing.md).
 
+## Image tags
+
+Images are published to Docker Hub as `enigmabbs/enigma-bbs`, under these tags:
+
+| Tag | What it is | Changes |
+|:----|:-----------|:--------|
+| `:latest` | The latest release | At each release (not for a patch to an older line) |
+| `:X.Y` (e.g. `:0.7`) | The latest patch release of `X.Y` | At each `X.Y.Z` release |
+| `:X.Y.Z` (e.g. `:0.7.0`) | Exactly that release | Never |
+| `:X.Y.Z-rc.N` (e.g. `:0.7.0-rc.1`) | A release candidate | Never |
+| `:edge` | The `master` branch | At every push to `master` |
+
+To choose:
+
+* **`:latest`** if you want each release as it comes, and no more. Read
+  [UPGRADE](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md) before pulling a
+  new one.
+* **`:0.7`** (or whichever line you run) to get that line's bug fix releases but no new minor
+  version.
+* **`:0.7.0`** to pin one release and upgrade only when you change the tag.
+* **`:edge`** to track `master`, as `:latest` did before 0.7.0. It is what is on `master` now:
+  newer, and less tested.
+
+:::caution[Before 0.7.0]
+Until 0.7.0 is released, `:latest` still follows `master`, as it always has, and is the same
+image as `:edge`. From 0.7.0 on, `:latest` is releases only. If you want to keep getting
+everything on `master`, switch to `:edge` now.
+:::
+
+`docker exec ENiGMABBS ./oputil.js --version` and the image's `org.opencontainers.image.version`
+label show which version an image is. An `:edge` image says how far past the last release it
+is, e.g. `0.7.0-14-gabc1234`.
+
 ## Architecture and file transfers
 
 Images are published for `linux/amd64`, `linux/arm64` and `linux/arm/v7`, each built natively,

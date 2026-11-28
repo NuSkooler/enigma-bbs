@@ -3,6 +3,12 @@ name: Docker
 on:
   push:
     branches: [ master ]
+    #  Release tags, as in release.yml. Filter patterns, not regular
+    #  expressions: [0-9]+ is one or more digits, and the whole tag name has
+    #  to match, so v0.7.0-beta and v0.7 do not.
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
 
   pull_request:
     #  The inputs that decide whether the image builds. Application source is
@@ -25,24 +31,31 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  #  Master collapses onto one group: there is a single mutable tag, so a run
-  #  that has been superseded can only publish a :latest older than the one
-  #  that superseded it. Pull requests get a lane each, so they cancel neither
-  #  a publish nor one another.
+  #  Master collapses onto one group: :edge is a single mutable tag, so a run
+  #  that has been superseded can only publish an :edge older than the one
+  #  that superseded it. Each release tag gets a group of its own and is never
+  #  canceled: a release image is published once, whatever else is running.
+  #  Pull requests get a lane each, so they cancel neither a publish nor one
+  #  another.
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   buildx:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           #  All history and tags, so git describe can find the nearest
-          #  release tag for the version string below.
+          #  release tag for the version string below, and the image tags
+          #  step can see every release.
           fetch-depth: 0
+          persist-credentials: false
 
       #  The image has no .git, so the version ENiGMA reports (--version, the
       #  WFC, NodeInfo) is worked out here and passed in as a build arg
@@ -52,26 +65,108 @@ jobs:
         id: version
         run: echo "string=$(node -p "require('./core/version.js').getVersion()")" >> "$GITHUB_OUTPUT"
 
+      #  Which image tags this run publishes:
+      #    master        :edge. Until the first release tag (vX.Y.Z, not an
+      #                  rc) exists, :latest too, so images pulled as :latest
+      #                  keep getting master until 0.7.0 is released.
+      #    vX.Y.Z        :X.Y.Z and :X.Y, and :latest only when it is the
+      #                  highest release: a patch tagged for an older line (on
+      #                  a release/X.Y branch) must not move :latest back.
+      #    vX.Y.Z-rc.N   :X.Y.Z-rc.N only.
+      #  metadata-action's own latest=auto would tag every release tag
+      #  :latest, so this decides and its flavor sets latest=false. A pull
+      #  request publishes nothing.
+      - name: Image tags
+        id: tags
+        run: |
+          edge=false
+          latest=false
+          version=false
+          minor=false
+
+          highest=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+          echo "Highest release tag: ${highest:-none}"
+
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            pull_request:*)
+              ;;
+            *:refs/heads/master)
+              edge=true
+              if [ -z "$highest" ]; then
+                latest=true
+              fi
+              ;;
+            *:refs/tags/*)
+              tag=${GITHUB_REF#refs/tags/}
+              if [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                version=true
+                minor=true
+                if [ "$tag" = "$highest" ]; then
+                  latest=true
+                fi
+              elif [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+                version=true
+              else
+                echo "::error::$tag is not a release tag (vX.Y.Z or vX.Y.Z-rc.N)"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::images are published only from master or a release tag, not $GITHUB_REF"
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "edge=$edge"
+            echo "latest=$latest"
+            echo "version=$version"
+            echo "minor=$minor"
+          } >> "$GITHUB_OUTPUT"
+          echo "edge=$edge latest=$latest version=$version minor=$minor"
+
+      #  Tags from the step above, and the OCI labels: version is the string
+      #  ENiGMA reports (the release, on a tag), revision the commit, source
+      #  the repository.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: enigmabbs/enigma-bbs
+          flavor: |
+            latest=false
+          #  For an rc, {{major}}.{{minor}} would give the whole version, not
+          #  X.Y, but it is switched off for an rc anyway.
+          tags: |
+            type=raw,value=edge,enable=${{ steps.tags.outputs.edge }}
+            type=semver,pattern={{version}},enable=${{ steps.tags.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.tags.outputs.minor }}
+            type=raw,value=latest,enable=${{ steps.tags.outputs.latest }}
+            type=ref,event=pr
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.string }}
+
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Login to DockerHub
         #  A pull request from a fork is given no secrets, so this would fail
         #  -- and it has nothing to log in for, since it does not publish.
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          tags: enigmabbs/enigma-bbs:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           file: docker/Dockerfile
           build-args: |
             ENIGMA_VERSION_STRING=${{ steps.version.outputs.string }}
