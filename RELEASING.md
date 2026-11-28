@@ -29,6 +29,8 @@ git tag -s vX.Y.Z -m "ENiGMA½ X.Y.Z"
 git push origin vX.Y.Z
 ```
 
+**Before pushing the tag, let the Docker run for the merge on `master` finish** (Actions > Docker). Both runs build for about 11 minutes, and whichever finishes last owns `:latest`. Before the first release tag exists, the `master` run sets `:latest` too, so a `master` run that finishes after the release run would leave `:latest` on a `master` build. The same goes for pushing two release tags at once.
+
 The tag must equal `v` + the `package.json` version, or the workflow fails. A release candidate is `vX.Y.Z-rc.N` with `X.Y.Z-rc.N` in `package.json`; its notes come from a `## X.Y.Z-rc.N` section if there is one, else `## X.Y.Z`, and it is marked as a pre-release.
 
 ## 3. Watch the workflow
