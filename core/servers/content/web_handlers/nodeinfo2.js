@@ -2,7 +2,7 @@ const WebHandlerModule = require('../../../web_handler_module');
 const { Errors } = require('../../../enig_error');
 const EngiAssert = require('../../../enigma_assert');
 const Config = require('../../../config').get;
-const packageJson = require('../../../../package.json');
+const { getVersion } = require('../../../version.js');
 const { countActiveUsers } = require('../../../active_users');
 const { getBaseUrl, getWebDomain } = require('../../../web_util');
 const Collection = require('../../../activitypub/collection');
@@ -152,7 +152,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
 
             const software = {
                 name: 'enigma-bbs',
-                version: packageJson.version,
+                version: getVersion(),
             };
             if (version === '2.1') {
                 software.repository = 'https://github.com/NuSkooler/enigma-bbs';
@@ -238,7 +238,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
                 baseUrl: getBaseUrl(config),
                 name: config.general.boardName,
                 software: 'ENiGMA½ Bulletin Board Software',
-                version: packageJson.version,
+                version: getVersion(),
             },
             protocols: _buildProtocols(config),
 

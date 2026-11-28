@@ -23,7 +23,7 @@ module.exports = function () {
     process.exitCode = ExitCodes.SUCCESS;
 
     if (true === argv.version) {
-        return console.info(require('../../package.json').version);
+        return console.info(require('../version.js').getVersion());
     }
 
     if (0 === argv._.length || 'help' === argv._[0]) {

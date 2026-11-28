@@ -12,7 +12,7 @@ const iconv = require('iconv-lite');
 const moment = require('moment');
 const os = require('os');
 
-const packageJson = require('../package.json');
+const { getReleaseVersion } = require('./version.js');
 
 //  :TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringToNullPaddedBuffer = stringToNullPaddedBuffer;
@@ -309,9 +309,7 @@ function getOrigin(address) {
 
 function getTearLine() {
     const nodeVer = process.version.substr(1); //  remove 'v' prefix
-    return `--- ENiGMA 1/2 v${
-        packageJson.version
-    } (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+    return `--- ENiGMA 1/2 v${getReleaseVersion()} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
 }
 
 //

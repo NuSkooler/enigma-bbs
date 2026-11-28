@@ -5,7 +5,7 @@
 const paths = require('path');
 const os = require('os');
 
-const packageJson = require('../package.json');
+const { getReleaseVersion } = require('./version.js');
 
 exports.isProduction = isProduction;
 exports.isDevelopment = isDevelopment;
@@ -42,7 +42,7 @@ function resolvePath(path) {
 }
 
 function getCleanEnigmaVersion() {
-    return packageJson.version
+    return getReleaseVersion()
         .replace(/-/g, '.')
         .replace(/alpha/, 'a')
         .replace(/beta/, 'b');

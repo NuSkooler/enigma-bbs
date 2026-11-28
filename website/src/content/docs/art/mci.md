@@ -32,8 +32,8 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | Code | Description  |
 |------|--------------|
 | `BN` | Board Name |
-| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.12-beta" |
-| `VN` | Version *number*, eg.. "0.0.12-beta" |
+| `VL` | Version *label*, e.g. "ENiGMA½ v0.7.0" |
+| `VN` | Version *number*, e.g. "0.7.0", or "0.7.0-14-gabc1234" on a git checkout between releases |
 | `SN` | SysOp username |
 | `SR` | SysOp real name |
 | `SL` | SysOp location |

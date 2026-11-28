@@ -75,7 +75,8 @@ exports.getModule = class MrcModule extends ServerModule {
     }
 
     _connectionHandler() {
-        const enigmaVersion = 'ENiGMA-BBS_' + require('../../../package.json').version;
+        const enigmaVersion =
+            'ENiGMA-BBS_' + require('../../version.js').getReleaseVersion();
 
         const handshake = `${
             this.boardName

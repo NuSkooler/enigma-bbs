@@ -11,7 +11,7 @@ const fs = require('fs');
 const hjson = require('hjson');
 const log = require('../../core/logger');
 
-const packageJson = require('../../package.json');
+const { getVersion } = require('../version.js');
 
 exports.printUsageAndSetExitCode = printUsageAndSetExitCode;
 exports.getDefaultConfigPath = getDefaultConfigPath;
@@ -173,7 +173,7 @@ function getAnswers(questions, cb) {
 function writeConfig(config, path) {
     config = hjson
         .stringify(config, HJSONStringifyCommonOpts)
-        .replace(/%ENIG_VERSION%/g, packageJson.version)
+        .replace(/%ENIG_VERSION%/g, getVersion())
         .replace(/%HJSON_VERSION%/g, hjson.version);
 
     try {

@@ -21,7 +21,7 @@ const _ = require('lodash');
 const moment = require('moment');
 const iconv = require('iconv-lite');
 const { mkdirs } = require('fs-extra');
-const packageJson = require('../package.json');
+const { getReleaseVersion } = require('./version.js');
 
 //
 //  Resources
@@ -594,7 +594,7 @@ module.exports = class DropFile {
                 this.bbsDevLogoffTime, //  when the budget runs out; empty if it does not
                 bbsDevEncodingName(this.doorEncoding),
                 bbsDevLanguage(Config().general.language),
-                `ENiGMA½ BBS ${packageJson.version}`,
+                `ENiGMA½ BBS ${getReleaseVersion()}`,
                 bbsDevField(Config().general.boardName, 'ENiGMA½ BBS'),
                 bbsDevField(StatLog.getSystemStat(SysProps.SysOpUsername), 'sysop'),
                 this.bbsDevAccessLevel,

@@ -50,7 +50,7 @@ function printHelpAndExit() {
 }
 
 function printVersionAndExit() {
-    console.info(require('../package.json').version);
+    console.info(require('./version.js').getVersion());
 }
 
 //
@@ -445,7 +445,7 @@ function initialize(cb) {
                 logger.init();
                 logger.log.info(
                     {
-                        version: require('../package.json').version,
+                        version: require('./version.js').getVersion(),
                         nodeVersion: process.version,
                     },
                     '**** ENiGMA½ Bulletin Board System Starting Up! ****'

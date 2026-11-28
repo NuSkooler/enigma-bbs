@@ -12,7 +12,7 @@ const http = require('http');
 const net = require('net');
 const crypto = require('crypto');
 
-const packageJson = require('../package.json');
+const { getReleaseVersion } = require('./version.js');
 
 /*
     Expected configuration block:
@@ -122,7 +122,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         'X-Door': self.config.door,
                         'X-Token': token,
                         'X-Type': 'enigma-bbs',
-                        'X-Version': packageJson.version,
+                        'X-Version': getReleaseVersion(),
                     };
 
                     self.simpleHttpRequest(

@@ -11,7 +11,7 @@ const {
     UserVisibleConnections,
 } = require('../../client_connections');
 const Config = require('../../config').get;
-const packageJson = require('../../../package.json');
+const { getVersion } = require('../../version.js');
 
 const moment = require('moment');
 const _ = require('lodash');
@@ -72,7 +72,7 @@ function _infoHandler(req, resp) {
         const config = Config();
         return jsonResponse(resp, 200, {
             boardName: config.general?.boardName || '',
-            version: packageJson.version,
+            version: getVersion(),
             nodeCount: getActiveConnectionList(UserVisibleConnections).length,
             closedSystem: Boolean(config.general?.closedSystem),
         });
