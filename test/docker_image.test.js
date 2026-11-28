@@ -474,9 +474,16 @@ describe('.github/workflows/docker.yml version string (#1194)', () => {
     });
 
     it('checks out every commit and tag, so git describe can find the release tag', () => {
-        assert.match(
-            text,
-            /uses: actions\/checkout@\S+\s+with:\s+(#.*\s+)*fetch-depth: 0\b/
+        //  fetch-depth: 0 under the checkout step's with:, before the next step
+        const lines = text.split('\n');
+        const start = lines.findIndex(l => /uses: actions\/checkout@/.test(l));
+        assert.ok(start >= 0, 'no checkout step');
+        const rest = lines.slice(start + 1);
+        const end = rest.findIndex(l => /^\s*- /.test(l));
+        const step = end < 0 ? rest : rest.slice(0, end);
+        assert.ok(
+            step.some(l => /^\s*fetch-depth:\s*0\s*$/.test(l)),
+            'checkout step has no fetch-depth: 0'
         );
     });
 
