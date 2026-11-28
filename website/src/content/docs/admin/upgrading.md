@@ -61,11 +61,11 @@ Upgrade side by side instead:
 1. Stop the system, back it up, and read the Upgrade Notes.
 2. [Download and verify](../installation/release-archive.md) the new archive, and unpack it **next to** the old install, not into it.
 3. Copy your data from the old directory into the new one:
-    * `config/`, which holds `config.hjson`, your menus and `security/` keys
+    * `config/`, which holds `config.hjson`, your menus and `security/` keys. Leave out `config/achievements.hjson` unless you changed it: the release ships its own
     * `db/`
     * `file_base/`, and any other file area storage you set up inside the install
-    * `logs/`, `mail/` and `userdata/`
-    * `mods/`
+    * `logs/`, `mail/`, `userdata/` and `drop/`
+    * your own mods in `mods/`. The release ships a few stock files there (`mods/themes/luciano_blocktronics/`), so don't copy those over the new ones
     * your own files in `www/` and `gopher/`, and `ws-term/` if you installed [enig-term](../servers/loginservers/enig-term.md)
     * any art or theme files you added under `art/`. Stock files you edited need merging with the new release's versions, not copying over them (see below)
 4. In the new directory, run `npm ci` (or `npm ci --omit=dev`).
