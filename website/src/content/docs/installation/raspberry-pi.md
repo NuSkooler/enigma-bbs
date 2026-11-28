@@ -2,7 +2,7 @@
 title: Raspberry Pi
 description: "Set up a Raspberry Pi for ENiGMA½, from Raspberry Pi OS Lite through to the install script."
 sidebar:
-    order: 5
+    order: 7
 ---
 
 All Raspberry Pi models work great with ENiGMA½! Keep in mind compiling the dependencies with

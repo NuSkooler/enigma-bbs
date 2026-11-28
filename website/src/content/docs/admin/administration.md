@@ -6,7 +6,7 @@ sidebar:
 ---
 
 ## Keeping Up to Date
-See [Upgrading](upgrading.md).
+See [Upgrading](upgrading.md), which also covers [which version you are running](upgrading.md#which-version-am-i-running).
 
 ## Viewing Activity
 Monitor your system via the [Waiting For Caller (WFC)](../modules/wfc.md) screen and learn how to [monitoring logs](../troubleshooting/monitoring-logs.md).

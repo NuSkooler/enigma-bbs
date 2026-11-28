@@ -2,7 +2,7 @@
 title: Manual Installation
 description: "Install prerequisites, Node.js and ENiGMA½ by hand when you would rather not use the script."
 sidebar:
-    order: 4
+    order: 5
 ---
 For Linux environments it's recommended you run the [install script](install-script.md). If you like to
 do things manually, read on...
@@ -42,14 +42,23 @@ If the above steps completed without errors, you should now have `nvm`, `node`, 
 For Windows nvm-like systems exist ([nvm-windows](https://github.com/coreybutler/nvm-windows), ...) or [just download the installer](https://nodejs.org/en/download/).
 
 ## ENiGMA BBS
+Clone the repository, then check out the release you want to run:
+
 ```bash
 git clone https://github.com/NuSkooler/enigma-bbs.git
+cd enigma-bbs
+git checkout v0.7.0    # the latest release, from https://github.com/NuSkooler/enigma-bbs/releases
 ```
+
+Git reports a "detached HEAD" after checking out a tag: that is expected. To run the edge instead, with every change merged since the last release, stay on `master` and skip the `git checkout`. See [Upgrading](../admin/upgrading.md) for moving between versions later.
+
+:::note
+Until the first release is tagged there are no `v` tags to check out: stay on `master`.
+:::
 
 ## Install Node Packages
 ```bash
-cd enigma-bbs
-npm install # yarn also works
+npm ci
 ```
 :::note
 At the moment you might see a few warnings about packages being deprecated or replaced. This is a known issue that will be resolved in the future.

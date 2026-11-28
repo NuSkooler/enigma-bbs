@@ -1,16 +1,15 @@
 # Introduction
-This document covers information for keeping your system updated through periodic upgrades as well as version-to-version upgrade notes. **Be sure to read these notes for _any_ upgrade!**
+This document covers keeping your system updated, and the version-to-version upgrade notes. **Be sure to read these notes for _any_ upgrade!**
 
 # Before Upgrading
-1. Always back up your system! (See [Administration - Backing Up Your System](./website/src/content/docs/admin/administration.md#backing-up-your-system))
-2. Seriously, always back up your system!
-3. Review the version to version release notes within this document.
-4. [Upgrade](./website/src/content/docs/admin/upgrading.md)
+1. Always back up your system! (See [Administration - Backing Up Your System](./website/src/content/docs/admin/administration.md#backing-up-your-system).) Databases upgrade forward only: going back to an older version means restoring your backup.
+2. Read **every** section below between your version and the one you are moving to, not just the last one, and do what each **Action:** entry says.
+3. [Upgrade](./website/src/content/docs/admin/upgrading.md)
 
 # The Upgrade Process
-ENiGMA½ does not currently have much of a "release process" in that instead, it is expected that if you want new features, you will `git pull` them to your system.
+ENiGMA½ is released as tagged versions (`v0.7.0`, `v0.7.1`, ...). A patch release (`0.7.0` to `0.7.1`) only fixes things; a minor release (`0.7.0` to `0.8.0`) adds features and is where anything that needs action appears. `master` is the edge, with every change as soon as it is merged; its notes are under **Unreleased** until the next release.
 
-Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details around this process.
+Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for the steps for each kind of install, and for finding out which version you are running.
 
 # Problems
 1. Check [TROUBLESHOOTING](TROUBLESHOOTING.md) first.

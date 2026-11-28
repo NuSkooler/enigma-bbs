@@ -2,7 +2,7 @@
 title: Network Setup
 description: "Port forwarding and dynamic DNS for hosting a board from a home network."
 sidebar:
-    order: 8
+    order: 9
 ---
 ## Hosting an ENiGMA instance from your Home Network
 

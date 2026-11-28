@@ -2,7 +2,7 @@
 title: Windows
 description: "Install ENiGMA½ on Windows, including Visual Studio Build Tools for the native modules."
 sidebar:
-    order: 4
+    order: 6
 ---
 ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.
 
@@ -51,10 +51,15 @@ Install [7-Zip](https://www.7-zip.org/download.html) and add it to your `PATH`:
     ```
     Optionally use TortoiseGit by right clicking the directory and selecting `Git Clone`.
 
-2. Install ENiGMA½:
+    Then check out the latest [release](https://github.com/NuSkooler/enigma-bbs/releases), or stay on `master` for the edge (see [Manual Installation](manual.md#enigma-bbs)):
     ```powershell
     cd enigma-bbs
-    npm install
+    git checkout v0.7.0
+    ```
+
+2. Install ENiGMA½:
+    ```powershell
+    npm ci
     ```
 
 3. Generate your initial configuration:
